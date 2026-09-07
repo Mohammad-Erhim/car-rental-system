@@ -19,21 +19,37 @@ Functional Requirements 1.0 · UI/UX Design & Flow Plan 1.0 · SRS 1.0.
 | Tests                    | Vitest (unit/component/API/migration) · Playwright (web E2E, 3 viewports)        |
 | Observability            | Pino JSON logs · `/health/*` · `/metrics` (Prometheus) · OpenTelemetry-ready     |
 
-Environment substitutions (no Docker / low RAM on this host) are recorded in
-`docs/ai-delivery/04-implementation/decisions.md` (DEC-013…DEC-021): native Postgres/Redis,
-filesystem object storage, mail outbox, local provider simulators. `compose.yaml` + Dockerfiles
-are kept for Docker-capable hosts.
+Environment substitutions for a low-RAM host are recorded in
+`docs/ai-delivery/04-implementation/decisions.md` (DEC-013…DEC-022): native Postgres/Redis are
+the low-footprint default, filesystem object storage, mail outbox, local provider simulators.
+Docker is fully supported and co-equal (DEC-022) — see below.
 
 ## Quick start (local, no paid accounts)
 
+Two supported workflows — pick one.
+
+**A. Native (lowest footprint — constrained devices, DEC-013)**
+
 ```bash
 pnpm install
-pnpm dev:up                 # start PostgreSQL + Redis (native services or docker compose)
+pnpm dev:up                 # native PostgreSQL 16 + Redis 7 (falls back from Docker automatically)
 cp .env.example .env        # then set the DATABASE_URL password + generate secrets
 pnpm db:migrate
 pnpm db:seed                # system + development profiles
 pnpm dev                    # API on :3001, web on :3000
 ```
+
+**B. Docker (one command, full isolation — needs BuildKit: `apt-get install docker-buildx`)**
+
+```bash
+docker compose up           # pg + redis + deps/migrate one-shots + api + worker + web (HMR)
+# open http://localhost:3000  ·  tear down: docker compose down   (add -v to drop data)
+```
+
+`compose.yaml` publishes 5432/6379 — stop native Postgres/Redis first (or `pnpm dev:down`), or
+set `DEV_DB_PORT` / `DEV_REDIS_PORT`. A **production-shaped** stack lives in `compose.prod.yaml`
+(`cp .env.example .env` with real secrets, then `docker compose -f compose.prod.yaml up -d`);
+see `deploy/RUNBOOK.md`.
 
 - Customer web: <http://localhost:3000/>
 - Operations dashboard: <http://localhost:3000/ops>

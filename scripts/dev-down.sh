@@ -1,8 +1,16 @@
 #!/usr/bin/env bash
-# Stop local dependencies.
+# Stop local datastores. Mirrors the detection in dev-up.sh.
 set -euo pipefail
 
-if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
+
+if [ "${DEV_UP_FORCE_NATIVE:-0}" != "1" ] \
+  && command -v docker >/dev/null 2>&1 \
+  && docker compose version >/dev/null 2>&1 \
+  && docker info >/dev/null 2>&1; then
+  # stop the whole compose project (datastores + app services if `docker compose up` was used);
+  # named volumes (pgdata/redisdata) are kept.
   docker compose down
   exit 0
 fi

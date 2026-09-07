@@ -39,21 +39,33 @@ Redis, or `/metrics` to the internet.
 
 ---
 
+> **Compose files** (repo root — run every `docker compose` command from there so the
+> repo-root `.env` is picked up for `${VAR}` interpolation):
+> `compose.prod.yaml` = production-shaped stack · `compose.yaml` = local development stack.
+> BuildKit is required — `apt-get install docker-buildx` (or the Docker `docker-buildx-plugin`)
+> if `docker build` reports the buildx component missing.
+
 ## 2. Bootstrap (first deploy)
 
 ```
-docker compose -f deploy/docker-compose.yml up -d --build postgres redis
-docker compose -f deploy/docker-compose.yml run --rm migrate      # apply migrations + seed SYSTEM
-docker compose -f deploy/docker-compose.yml up -d api worker web
-curl -fsS localhost:3001/health/ready        # -> {"status":"ok", ...}
+cp .env.example .env   # set real JWT_ACCESS_SECRET / PASSWORD_PEPPER / COOKIE_SECRET (openssl rand -base64 48)
+GIT_SHA=$(git rev-parse HEAD) BUILD_TIME=$(date -u +%FT%TZ) \
+  docker compose -f compose.prod.yaml build
+docker compose -f compose.prod.yaml up -d          # migrate + seed:system run automatically, then api/worker/web
+curl -fsS localhost:3001/health/ready              # -> {"status":"ok", ...}
 ```
 
-`migrate` applies `apps/api/src/database/migrations/*` empty→current and seeds the system
-catalogues only (locales, lookups, roles/permissions, report definitions, notification
-templates). It creates **no people, vehicles, or money**. For a demo dataset:
-`docker compose ... run --rm seed-dev`.
+The `migrate` service is a one-shot that runs on every `up`: it applies
+`apps/api/src/database/migrations/*` empty→current and seeds the system catalogues only
+(locales, lookups, roles/permissions, report definitions, notification templates). It is
+idempotent and a fast no-op once the schema is current, and `api`/`worker` wait for it to
+succeed — so a bare `up -d` boots to a working system. It creates **no people, vehicles, or
+money**. For a demo dataset: `docker compose -f compose.prod.yaml run --rm seed-dev`.
 
-Without Docker (native services), the equivalents are:
+To run migrations as a deliberate, separate step (e.g. a DBA-gated deploy), run
+`docker compose -f compose.prod.yaml run --rm migrate` before `up -d`; it is the same one-shot.
+
+Without Docker (native services — the low-footprint path, DEC-013), the equivalents are:
 
 ```
 pnpm install --frozen-lockfile
@@ -72,9 +84,9 @@ node apps/api/dist/worker.js &      # worker
 
 ```
 git fetch && git checkout <tag>
-docker compose -f deploy/docker-compose.yml build api worker web
-docker compose -f deploy/docker-compose.yml run --rm migrate         # no-op if no new migration
-docker compose -f deploy/docker-compose.yml up -d api worker web      # rolling replace
+GIT_SHA=$(git rev-parse HEAD) BUILD_TIME=$(date -u +%FT%TZ) \
+  docker compose -f compose.prod.yaml build api worker web
+docker compose -f compose.prod.yaml up -d      # `migrate` one-shot runs first (no-op if no new migration), then rolling-replaces api/worker/web
 ```
 
 Migrations are **forward-only and additive** (new tables/columns/indexes). A deploy that adds a

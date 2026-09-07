@@ -5,21 +5,29 @@ _Concise, authoritative. Update after every meaningful verified unit._
 - **Approved scope:** Full system minus APP-CMOB frontend (see `selected-scope.md`). Backend,
   APP-CWEB, APP-OPS all in scope. Autonomous multi-stage build (user: "never stop before 100%").
 - **Source versions:** FR 1.0, UI/UX 1.0, SRS 1.0 (hashes in `source-manifest.md`).
-- **Active stage:** STAGE-007 — Release hardening. **COMPLETED** 2026-09-07 — implementation of
-  the approved scope is done. Remaining work is the documented pre-production follow-up list
-  (`stages/STAGE-007-release-hardening/release-readiness.md`).
+- **Active stage:** STAGE-008 — Containerization & local-run parity. **COMPLETED** 2026-09-07.
+  Feature scope was done at STAGE-007; STAGE-008 is post-release infra — no app behaviour
+  changed. Docker (dev `compose.yaml` + prod-shaped `compose.prod.yaml`) is now run and
+  verified; the no-Docker native path (DEC-013) is retested and unchanged. Evidence:
+  `stages/STAGE-008-containerization/`. Defect D-008-1 fixed.
 - **Stage status:** COMPLETED.
-- **Last completed:** STAGE-007 — Release hardening. Security (`RateLimitGuard` SEC-015 +
+- **Last completed:** STAGE-008 — Docker for all stages, best-practice, tested both ways
+  (native + container). `pnpm --prod deploy` fix, root compose split (DEC-022),
+  `postgres-init.sql`, `deps` one-shot self-cleans stale `tsbuildinfo` (D-008-1), worker
+  Redis healthcheck, `dev-up.sh` daemon-reachability check. Gates in-container: static PASS,
+  unit 63, api 68, migrate 4; native `verify:api` 68 + boot smoke.
+- **Prior stage:** STAGE-007 — Release hardening. Security (`RateLimitGuard` SEC-015 +
   `CsrfGuard` SEC-003 + `security.spec.ts` 13), a11y (axe WCAG A+AA, 0 serious/critical),
   perf (`verify:perf`, indicative), backup/restore rehearsed, deploy artifacts (`deploy/`),
   full responsive+locale sweep, overdue worker wired. Gates: static PASS, unit 63, api 68,
   migrate 4, e2e full suite green (1 local retry). Evidence `stages/STAGE-007-release-hardening/`
   (D-007-1..3).
 - **Last verified tests:** as above.
-- **Unresolved defects / blockers:** none. STAGE-001..007 defects (D-001..D-007) all fixed.
-- **Environment:** no Docker; PostgreSQL 16 + Redis 7 native (`scripts/dev-up.sh`). ~1.9 GB RAM ⇒
-  single Vite SPA for both surfaces (DEC-004/018); API runs via `@swc-node/register` on source
-  (tsc→dist build deferred to STAGE-007). Chromium-only E2E (Firefox/WebKit → STAGE-007).
+- **Unresolved defects / blockers:** none. STAGE-001..008 defects (D-001..D-008) all fixed.
+- **Environment:** PostgreSQL 16 + Redis 7 — native (`scripts/dev-up.sh`, the low-footprint
+  default, DEC-013) **or** containers (`docker compose up`, STAGE-008 / DEC-022); both verified.
+  ~1.9 GB RAM ⇒ single Vite SPA for both surfaces (DEC-004/018); API runs via
+  `@swc-node/register` on source in dev, `tsc→dist` in the runtime image. Chromium-only E2E.
 - **Frontend stack:** React 18 + Vite 5 + TypeScript + shadcn/ui + React Router v6 + TanStack Query.
 - **DB state (dev):** migrated to `0006` (STAGE-007 added no migration); seeded system + development. Discovery fixture: 5
   vehicle categories, 8 features, ~54 units across JFK/LHR/PAR, one published rate plan (+ tiers)
@@ -77,8 +85,14 @@ _Concise, authoritative. Update after every meaningful verified unit._
   panel, non-`policy` config kinds, scheduled-report send-time re-auth).
 - **New verify gates:** `verify:security` (SEC suite), `verify:a11y` (axe), `verify:perf`
   (autocannon smoke) alongside `verify:static|unit|api|migrate|e2e`.
-- **Deploy:** `deploy/` has Dockerfiles (api + web), `docker-compose.yml`, `nginx.conf`,
-  `RUNBOOK.md`; `scripts/{backup-db,restore-db,perf-smoke,verify-perf}` for ops.
+- **Deploy (STAGE-008 — live-verified):** two co-equal local workflows —
+  **native** (`pnpm dev:up` → `pnpm dev`, lowest footprint, DEC-013) and **Docker**
+  (`docker compose up`). `compose.yaml` (dev) + `compose.prod.yaml` (prod-shaped, auto
+  migrate + seed:system) at the repo root; `deploy/` keeps `Dockerfile.{api,web}`,
+  `nginx.conf`, `postgres-init.sql`, `RUNBOOK.md`. Both stacks build + run green and pass
+  `verify:static|unit|api|migrate` inside the container network; native path retested green.
+  See `stages/STAGE-008-containerization/`. `scripts/{backup-db,restore-db,perf-smoke,verify-perf}`
+  for ops. (`deploy/docker-compose.yml` removed — DEC-022.)
 - **Known pre-existing / unrelated working-tree changes:** none (greenfield; specs, `prompts/`,
   and this build only).
 - **Lookup / localization status:** system-fixed state sets + configurable lookups are SERVED

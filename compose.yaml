@@ -1,0 +1,191 @@
+# Car Rental System — DEVELOPMENT stack (one of two supported local workflows).
+#
+#   WITH Docker (full stack, nothing else to install):
+#     docker compose up                # pg + redis + deps/migrate one-shots + api + worker + web (HMR)
+#     open http://localhost:3000
+#
+#   WITH Docker, datastores only (run the app natively — lighter):
+#     docker compose up -d postgres redis
+#     pnpm dev                         # host API/web talk to the published 5432/6379 below
+#
+#   WITHOUT Docker (lowest footprint — constrained devices, DEC-013):
+#     pnpm dev:up                      # native postgresql-16 + redis-server via scripts/dev-up.sh
+#     pnpm dev
+#
+# Zero config: dev secrets have safe defaults below; drop a repo-root `.env` to override any of
+# them (compose interpolates `${VAR}` from it). Postgres/Redis publish the standard ports so
+# host tooling and a native `pnpm dev` can reach them — stop any native postgres/redis first
+# (or `pnpm dev:down`) to avoid a port clash.
+#
+# Production-shaped stack: compose.prod.yaml (repo root).
+
+name: carrental-dev
+
+x-api-env: &api-env
+  NODE_ENV: development
+  DATABASE_URL: postgres://carrental:carrental@postgres:5432/carrental_dev
+  DATABASE_URL_TEST: postgres://carrental:carrental@postgres:5432/carrental_test
+  REDIS_URL: redis://redis:6379/0
+  REDIS_URL_TEST: redis://redis:6379/1
+  API_PORT: '3001'
+  APP_URL: http://localhost:3000
+  API_PUBLIC_URL: http://localhost:3001
+  CORS_ALLOWED_ORIGINS: http://localhost:3000
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-dev-insecure-access-secret-change-me-in-dot-env-01}
+  PASSWORD_PEPPER: ${PASSWORD_PEPPER:-dev-insecure-pepper-change-me-01}
+  COOKIE_SECRET: ${COOKIE_SECRET:-dev-insecure-cookie-secret-change-me-01}
+  OBJECT_STORAGE_SIGNING_SECRET: ${OBJECT_STORAGE_SIGNING_SECRET:-dev-insecure-obj-signing-01}
+  PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-dev-insecure-pay-webhook-01}
+  MAIL_DRIVER: outbox
+  PAYMENT_DRIVER: simulator
+  RATE_LIMIT_ENABLED: '1'
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+
+# The repo is bind-mounted for hot reload; node_modules and the shared-package `dist` dirs are
+# named volumes so the container's install (built into the image) is never shadowed by the host.
+x-workspace-volumes: &workspace-volumes
+  - .:/app
+  - pnpm_store:/pnpm/store
+  - nm_root:/app/node_modules
+  - nm_api:/app/apps/api/node_modules
+  - nm_web:/app/apps/web/node_modules
+  - nm_e2e:/app/e2e/node_modules
+  - nm_contracts:/app/packages/contracts/node_modules
+  - nm_i18n:/app/packages/i18n/node_modules
+  - nm_ui:/app/packages/ui/node_modules
+  - nm_config:/app/packages/config/node_modules
+  - dist_contracts:/app/packages/contracts/dist
+  - dist_i18n:/app/packages/i18n/dist
+  - dist_ui:/app/packages/ui/dist
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: carrental
+      POSTGRES_PASSWORD: carrental
+      POSTGRES_DB: carrental_dev
+    ports: ['${DEV_DB_PORT:-5432}:5432']
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./deploy/postgres-init.sql:/docker-entrypoint-initdb.d/10-databases.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U carrental -d carrental_dev']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    command: ['redis-server', '--save', '', '--appendonly', 'no']
+    ports: ['${DEV_REDIS_PORT:-6379}:6379']
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  # one-shot: reconcile deps with the lockfile + build the shared CJS packages the API needs
+  # (contracts, i18n, ui) into the dist_* volumes. Fast no-op when nothing changed; keeps the
+  # stack self-healing after a `git pull`.
+  #
+  # The `rm`/`find` step first clears any dist + *.tsbuildinfo that the host bind-mount dragged
+  # in: TypeScript's incremental build trusts a stale .tsbuildinfo and skips emit, which would
+  # leave the fresh dist_* volumes without their .js and break the API/worker/migrate imports.
+  deps:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.api
+      target: dev
+    init: true
+    command: >
+      sh -lc "pnpm install --frozen-lockfile
+      && find packages/contracts/dist packages/i18n/dist packages/ui/dist -mindepth 1 -delete 2>/dev/null || true
+      && find packages -maxdepth 2 -name '*.tsbuildinfo' -delete 2>/dev/null || true
+      && pnpm build:packages"
+    volumes: *workspace-volumes
+    restart: 'no'
+
+  # one-shot: apply migrations, seed system + development data.
+  migrate:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.api
+      target: dev
+    init: true
+    environment: *api-env
+    working_dir: /app/apps/api
+    command: >
+      sh -lc "node -r @swc-node/register src/database/migrate.ts
+      && node -r @swc-node/register src/database/seed/seed.ts --profile=system
+      && node -r @swc-node/register src/database/seed/seed.ts --profile=development"
+    volumes: *workspace-volumes
+    depends_on:
+      postgres: { condition: service_healthy }
+      deps: { condition: service_completed_successfully }
+    restart: 'no'
+
+  api:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.api
+      target: dev
+    init: true
+    environment: *api-env
+    command: pnpm --filter @carrental/api dev
+    ports: ['3001:3001']
+    volumes: *workspace-volumes
+    depends_on:
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.api
+      target: dev
+    init: true
+    environment: *api-env
+    command: pnpm --filter @carrental/api dev:worker
+    volumes: *workspace-volumes
+    depends_on:
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.web
+      target: dev
+    init: true
+    environment:
+      NODE_ENV: development
+      VITE_API_BASE_URL: /api/v1
+      VITE_PROXY_TARGET: http://api:3001
+      VITE_USE_POLLING: ${VITE_USE_POLLING:-0}
+    command: pnpm --filter @carrental/web dev -- --host 0.0.0.0
+    ports: ['3000:3000']
+    volumes: *workspace-volumes
+    depends_on:
+      deps: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  pnpm_store:
+  nm_root:
+  nm_api:
+  nm_web:
+  nm_e2e:
+  nm_contracts:
+  nm_i18n:
+  nm_ui:
+  nm_config:
+  dist_contracts:
+  dist_i18n:
+  dist_ui:

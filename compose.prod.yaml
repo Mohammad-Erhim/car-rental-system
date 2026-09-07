@@ -1,0 +1,159 @@
+# Car Rental System — PRODUCTION-shaped stack (SRS §17.6).
+#
+#   cp .env.example .env                       # set real JWT_ACCESS_SECRET / PASSWORD_PEPPER / COOKIE_SECRET
+#   docker compose -f compose.prod.yaml build
+#   docker compose -f compose.prod.yaml up -d  # migrate + seed:system run automatically, then api/worker/web
+#   docker compose -f compose.prod.yaml run --rm seed-dev   # optional demo dataset
+#   open http://localhost:3000
+#
+# Interpolated ${VARS} are read from the repo-root `.env` (that is why this file lives at the
+# repo root, not in deploy/). Not production-final as-is: terminate TLS in front, and run
+# Postgres/Redis as managed services rather than containers.
+#
+# Development stack: compose.yaml.
+
+name: carrental
+
+# Bounded container logs — a stopped-then-wedged service can otherwise fill the disk.
+x-logging: &logging
+  logging:
+    driver: json-file
+    options: { max-size: '10m', max-file: '3' }
+
+x-api-image: &api-image
+  build:
+    context: .
+    dockerfile: deploy/Dockerfile.api
+    target: runtime
+    args:
+      GIT_SHA: ${GIT_SHA:-}
+      BUILD_TIME: ${BUILD_TIME:-}
+  image: carrental-api:${TAG:-local}
+
+x-api-env: &api-env
+  NODE_ENV: production
+  DATABASE_URL: postgres://carrental:${POSTGRES_PASSWORD:-carrental}@postgres:5432/carrental
+  REDIS_URL: redis://redis:6379/0
+  API_PORT: '3001'
+  APP_URL: ${APP_URL:-http://localhost:3000}
+  API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:3001}
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+  JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET (openssl rand -base64 48)}
+  PASSWORD_PEPPER: ${PASSWORD_PEPPER:?set PASSWORD_PEPPER}
+  COOKIE_SECRET: ${COOKIE_SECRET:?set COOKIE_SECRET}
+  OBJECT_STORAGE_SIGNING_SECRET: ${OBJECT_STORAGE_SIGNING_SECRET:-change-me-obj-signing}
+  PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-change-me-pay-webhook}
+  MAIL_DRIVER: ${MAIL_DRIVER:-outbox}
+  PAYMENT_DRIVER: ${PAYMENT_DRIVER:-simulator}
+  RATE_LIMIT_ENABLED: '1'
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: carrental
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-carrental}
+      POSTGRES_DB: carrental
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U carrental -d carrental']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+    <<: *logging
+
+  redis:
+    image: redis:7-alpine
+    command: ['redis-server', '--save', '60', '1', '--appendonly', 'no']
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+    <<: *logging
+
+  # one-shot: apply migrations + seed the SYSTEM catalogues (no people, vehicles, or money).
+  # Runs on every `up`; idempotent and a fast no-op once the schema is current. api/worker
+  # wait for it to succeed, so a bare `up -d` boots to a working system.
+  # (No `init: true` on api-image services — deploy/Dockerfile.api already runs tini as PID 1.)
+  migrate:
+    <<: *api-image
+    environment: *api-env
+    command:
+      [
+        'sh',
+        '-lc',
+        'node dist/database/migrate.js && node dist/database/seed/seed.js --profile=system',
+      ]
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: 'no'
+
+  # opt-in: the development fixture (demo users, vehicles, reservations).
+  #   docker compose -f compose.prod.yaml run --rm seed-dev
+  seed-dev:
+    <<: *api-image
+    profiles: ['tools']
+    environment: *api-env
+    command: ['node', 'dist/database/seed/seed.js', '--profile=development']
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: 'no'
+
+  api:
+    <<: [*api-image, *logging]
+    environment: *api-env
+    ports: ['3001:3001']
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  worker:
+    <<: [*api-image, *logging]
+    environment: *api-env
+    command: ['node', 'dist/worker.js']
+    # the worker has no HTTP surface; replace the API image's /health/ready probe with a
+    # check on its real dependency — the Redis it drains the outbox / runs housekeeping through.
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "new (require('ioredis'))(process.env.REDIS_URL).ping().then(()=>process.exit(0),()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.web
+      target: runtime
+    image: carrental-web:${TAG:-local}
+    environment:
+      API_UPSTREAM: http://api:3001
+    ports: ['3000:8080']
+    depends_on:
+      api: { condition: service_healthy }
+    restart: unless-stopped
+    <<: *logging
+
+volumes:
+  pgdata:
+  redisdata:

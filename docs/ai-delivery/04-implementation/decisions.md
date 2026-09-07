@@ -158,3 +158,34 @@ Append-only. Do not rewrite history. Newest at the bottom of each area.
   seed profile. Production activation still blocks until the business confirms the real list.
 - Source IDs: SRS-I18N-001, SRS §5.4, BR-028, FR-GBL-002.
 - Open question surfaced to user: confirm the real launch locale list before any production release.
+
+### DEC-022 — Two co-equal local workflows; Compose split dev / prod at the repo root
+
+- Date: 2026-09-07 (STAGE-008)
+- Context: DEC-013 records that the delivery host has no container runtime, so the native
+  `postgresql-16` + `redis-server` path is the working default. The STAGE-007 deploy artifacts
+  (`deploy/Dockerfile.*`, `docker-compose.yml`) were authored and `tsc→dist` build-checked but
+  never run. A later instruction: support Docker "for all stages, best practices, tested and
+  guaranteed" **and** keep a no-Docker option for constrained devices.
+- Decision:
+  - **Native and Docker are co-equal, documented local workflows.** Neither is deprecated. The
+    native path (`pnpm dev:up` → `pnpm dev`) stays the lowest-footprint option; Docker
+    (`docker compose up`) is the one-command isolated option.
+  - **Two compose files at the repo root**, replacing `deploy/docker-compose.yml`:
+    - `compose.yaml` — development (bind-mount + hot reload; pg/redis published, overridable);
+      `name: carrental-dev`.
+    - `compose.prod.yaml` — production-**shaped** (compiled images, auto `migrate` + seed
+      `system`, `seed-dev` behind the `tools` profile); `name: carrental`.
+      Repo-root placement is required: Compose resolves `.env` (for `${VAR}` interpolation) from
+      the project directory, i.e. the first compose file's directory.
+  - `deploy/` keeps the build inputs: `Dockerfile.api`, `Dockerfile.web`, `nginx.conf`,
+    `postgres-init.sql`, `RUNBOOK.md`.
+  - `scripts/dev-up.sh` / `dev-down.sh` branch on a **reachable** daemon (`docker info`), not
+    just the CLI, and honour `DEV_UP_FORCE_NATIVE=1`.
+- SRS clauses affected: SRS §17.6 deploy topology now has a live-verified container stack
+  (traceability row updated from "build-checked" to "live-verified"). No change to app
+  behaviour, DEC-004/018 (single Vite SPA served by nginx in prod) still hold.
+- Source IDs: SRS §17.6, §22.4, SRS-NFR-005, DEC-013, DEC-014.
+- Consequences: `deploy/docker-compose.yml` removed; `RUNBOOK.md` / `README.md` / traceability
+  updated; BuildKit (`docker-buildx`) required to build the images. Defect D-008-1 (stale
+  bind-mounted `*.tsbuildinfo` → empty `dist_*` volume) fixed in the `deps` one-shot.

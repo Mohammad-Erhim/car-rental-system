@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
-# Start local dependencies for the Car Rental System.
+# Start local datastores (PostgreSQL + Redis) for the Car Rental System.
 #
-# Preferred path: Docker (`docker compose up -d`).
-# Fallback (this host has no container runtime — DEC-013): native services.
+# Two supported workflows — this script starts the DEPS for both:
+#   * Docker present + daemon reachable  -> `docker compose up -d postgres redis`
+#   * otherwise (constrained device, DEC-013) -> native postgresql-16 + redis-server
+# Either way, follow with `pnpm dev`. For the fully-containerised app, run `docker compose up`
+# directly instead of this script.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -15,13 +18,20 @@ PG_PORT="${PG_PORT:-5432}"
 DEV_DB="${DEV_DB:-carrental_dev}"
 TEST_DB="${TEST_DB:-carrental_test}"
 
-if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-  echo "==> docker compose detected — starting containers"
+# `docker info` (not just `docker compose version`) so a host with the CLI installed but no
+# reachable daemon / no socket permission falls through to native instead of failing hard.
+if [ "${DEV_UP_FORCE_NATIVE:-0}" != "1" ] \
+  && command -v docker >/dev/null 2>&1 \
+  && docker compose version >/dev/null 2>&1 \
+  && docker info >/dev/null 2>&1; then
+  echo "==> Docker detected — starting postgres + redis containers (published on ${PG_PORT}/6379)"
   docker compose up -d postgres redis
+  echo "==> Ready. Next: cp .env.example .env (DATABASE_URL password 'carrental') && pnpm db:migrate && pnpm db:seed && pnpm dev"
+  echo "    (Full containerised stack instead: docker compose up)"
   exit 0
 fi
 
-echo "==> No Docker. Using native services (postgresql-16, redis-server)."
+echo "==> No reachable Docker. Using native services (postgresql-16, redis-server)."
 
 if ! command -v pg_isready >/dev/null 2>&1; then
   echo "!! PostgreSQL client not found. Install with:"

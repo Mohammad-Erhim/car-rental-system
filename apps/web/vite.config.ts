@@ -5,6 +5,16 @@ import { defineConfig } from 'vite';
 
 const r = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
+// Where the dev/preview server proxies `/api` and `/health`. Native dev talks to the local
+// API on localhost; inside Docker the web container talks to the `api` service.
+const proxyTarget = process.env.VITE_PROXY_TARGET ?? 'http://localhost:3001';
+const proxy = {
+  '/api': { target: proxyTarget, changeOrigin: true },
+  '/health': { target: proxyTarget, changeOrigin: true },
+};
+// Bind-mounted source on some hosts needs polling for file-change events.
+const usePolling = process.env.VITE_USE_POLLING === '1';
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -22,18 +32,15 @@ export default defineConfig({
   server: {
     port: 3000,
     strictPort: true,
-    proxy: {
-      '/api': { target: 'http://localhost:3001', changeOrigin: true },
-      '/health': { target: 'http://localhost:3001', changeOrigin: true },
-    },
+    host: true,
+    proxy,
+    watch: usePolling ? { usePolling: true, interval: 300 } : undefined,
   },
   preview: {
     port: 3000,
     strictPort: true,
-    proxy: {
-      '/api': { target: 'http://localhost:3001', changeOrigin: true },
-      '/health': { target: 'http://localhost:3001', changeOrigin: true },
-    },
+    host: true,
+    proxy,
   },
   build: {
     outDir: 'dist',

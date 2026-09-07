@@ -1,45 +1,73 @@
-# Car Rental System — API + worker image (SRS §17.6 deploy artifact).
-# Multi-stage: install with pnpm, compile TS -> dist, run as a non-root user on a slim base.
+# syntax=docker/dockerfile:1.7
+# Car Rental System — API + worker image.
+#   dev target  : hot-reload, source bind-mounted by compose.yaml
+#   runtime tgt : compiled dist + a pruned prod node_modules, non-root, healthchecked
 #
-#   docker build -f deploy/Dockerfile.api -t carrental-api .
-#   docker run --env-file .env -p 3001:3001 carrental-api                 # API
-#   docker run --env-file .env carrental-api node dist/worker.js          # worker
+#   docker build -f deploy/Dockerfile.api --target runtime -t carrental-api .
+#   docker build -f deploy/Dockerfile.api --target dev     -t carrental-api:dev .
 
-# ---- base -------------------------------------------------------------------
+########################  base  ########################
 FROM node:22-bookworm-slim AS base
-ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
-RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=1
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate \
+ && pnpm config set store-dir /pnpm/store --global
 WORKDIR /app
 
-# ---- deps (cached on lockfile) -------------------------------------------------
+########################  deps  ########################
+# Install the whole workspace (dev deps included) with a cached pnpm store.
 FROM base AS deps
-COPY pnpm-workspace.yaml pnpm-lock.yaml package.json .npmrc* ./
-COPY apps/api/package.json apps/api/
-COPY packages/contracts/package.json packages/contracts/
-COPY packages/i18n/package.json packages/i18n/
-COPY packages/config/package.json packages/config/
-RUN pnpm install --frozen-lockfile --filter @carrental/api... --prod=false
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json .npmrc ./
+COPY apps/api/package.json           apps/api/package.json
+COPY apps/web/package.json           apps/web/package.json
+COPY e2e/package.json                e2e/package.json
+COPY packages/contracts/package.json packages/contracts/package.json
+COPY packages/i18n/package.json      packages/i18n/package.json
+COPY packages/ui/package.json        packages/ui/package.json
+COPY packages/config/package.json    packages/config/package.json
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile
 
-# ---- build ------------------------------------------------------------------
+########################  dev  ########################
+# Just the workspace deps + toolchain. All source (apps/ and packages/) is bind-mounted by
+# compose; the `deps` one-shot service builds the shared CJS packages into a shared volume
+# before the API starts. Edits on the host hot-reload via `node --watch`.
+FROM deps AS dev
+ENV NODE_ENV=development NODE_OPTIONS=--enable-source-maps
+EXPOSE 3001
+CMD ["pnpm", "--filter", "@carrental/api", "dev"]
+
+########################  build  ########################
 FROM deps AS build
 COPY tsconfig.base.json ./
 COPY packages/ packages/
 COPY apps/api/ apps/api/
+# `pnpm deploy` hard-copies the app + its (workspace and external) prod deps into a
+# self-contained tree — no symlinks back into /app. `--legacy` is pnpm 10 only; pnpm 9's
+# deploy already uses this behaviour.
 RUN pnpm --filter @carrental/contracts --filter @carrental/i18n build \
  && pnpm --filter @carrental/api build \
- && pnpm --filter @carrental/api --prod deploy /out
+ && pnpm --filter @carrental/api --prod deploy /prod
 
-# ---- runtime --------------------------------------------------------------------
+########################  runtime  ########################
 FROM node:22-bookworm-slim AS runtime
-ENV NODE_ENV=production
+ENV NODE_ENV=production NODE_OPTIONS=--enable-source-maps
+# tini as PID 1 (ENTRYPOINT below): reap zombies and forward signals for a clean `docker stop`
+# — node:*-slim does not bundle it. The dev target has no entrypoint, so compose.yaml sets
+# `init: true` there instead; compose.prod.yaml relies on this and omits it.
+RUN apt-get update && apt-get install -y --no-install-recommends tini \
+ && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY --from=build /out/node_modules ./node_modules
-COPY --from=build /app/apps/api/dist ./dist
-COPY --from=build /app/apps/api/src/database/migrations ./dist/database/migrations
-COPY --from=build /app/apps/api/package.json ./package.json
+COPY --from=build --chown=node:node /prod/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/apps/api/dist ./dist
+COPY --from=build --chown=node:node /app/apps/api/src/database/migrations ./dist/database/migrations
+COPY --from=build --chown=node:node /app/apps/api/package.json ./package.json
+# Provenance for GET /health/version (both optional in env.schema — empty is fine).
+ARG GIT_SHA=""
+ARG BUILD_TIME=""
+ENV GIT_SHA=$GIT_SHA BUILD_TIME=$BUILD_TIME
 USER node
 EXPOSE 3001
-# migrations are applied by the `migrate` one-shot in compose, not on every boot.
-HEALTHCHECK --interval=15s --timeout=4s --retries=10 \
+HEALTHCHECK --interval=15s --timeout=5s --start-period=25s --retries=10 \
   CMD node -e "fetch('http://127.0.0.1:3001/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", "dist/main.js"]
