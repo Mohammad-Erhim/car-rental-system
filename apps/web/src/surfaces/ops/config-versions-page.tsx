@@ -1,17 +1,18 @@
 import { useI18n } from '@carrental/i18n/react';
 import {
-  AppStateView,
   Badge,
   Button,
   Card,
   CardContent,
   CardHeader,
   CardTitle,
+  DataTable,
   ErrorSummary,
   Field,
   Input,
   PageHeader,
   Textarea,
+  type DataTableColumn,
 } from '@carrental/ui';
 import { useMemo, useState } from 'react';
 
@@ -147,7 +148,74 @@ export function ConfigVersionsPage() {
     }
   }
 
-  const TH = ['rev', 'state', 'payload', 'note', 'effective'] as const;
+  type Version = NonNullable<typeof versions.data>[number];
+  const columns: Array<DataTableColumn<Version>> = [
+    { key: 'rev', header: t('ops.tbl.rev'), cell: (v) => v.revision, className: 'font-mono' },
+    {
+      key: 'state',
+      header: t('ops.tbl.state'),
+      cell: (v) => <Badge variant={STATE_VARIANT[v.state]}>{v.state}</Badge>,
+    },
+    {
+      key: 'payload',
+      header: t('ops.tbl.payload'),
+      cell: (v) =>
+        Object.entries(v.payload)
+          .map(([k, val]) => `${k}=${val}`)
+          .join(', '),
+      className: 'font-mono text-xs',
+    },
+    {
+      key: 'note',
+      header: t('ops.tbl.note'),
+      cell: (v) => v.note ?? '—',
+      className: 'text-muted-foreground',
+    },
+    {
+      key: 'effective',
+      header: t('ops.tbl.effective'),
+      cell: (v) => (v.effectiveFrom ? new Date(v.effectiveFrom).toLocaleString() : '—'),
+      className: 'text-xs text-muted-foreground',
+    },
+    {
+      key: 'actions',
+      header: '',
+      className: 'text-end',
+      cell: (v) => (
+        <div className="flex justify-end gap-2">
+          {v.state === 'draft' ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => act(v.id, 'submit')}
+              data-testid={`submit-${v.revision}`}
+            >
+              {t('ops.cfg.submit')}
+            </Button>
+          ) : null}
+          {v.state === 'in_review' && canPublish ? (
+            <>
+              <Button
+                size="sm"
+                onClick={() => act(v.id, 'approve')}
+                data-testid={`approve-${v.revision}`}
+              >
+                {t('ops.cfg.approve')}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => act(v.id, 'reject')}
+                data-testid={`reject-${v.revision}`}
+              >
+                {t('ops.cfg.reject')}
+              </Button>
+            </>
+          ) : null}
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -207,91 +275,28 @@ export function ConfigVersionsPage() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {versions.isLoading ? (
-            <AppStateView kind="loading" inline title={t('ops.st.loading')} />
-          ) : versions.isError ? (
-            <AppStateView
-              kind="failure"
-              inline
-              title={t('ops.cfg.loadFail')}
-              primaryAction={{ label: t('ops.st.retry'), onClick: () => versions.refetch() }}
-            />
-          ) : !versions.data?.length ? (
-            <AppStateView kind="empty" inline title={t('ops.cfg.empty')} />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[40rem] text-sm" data-testid="config-version-table">
-                <thead className="text-start text-xs uppercase text-muted-foreground">
-                  <tr>
-                    {TH.map((k) => (
-                      <th key={k} className="py-1 text-start font-medium">
-                        {t(`ops.tbl.${k}`)}
-                      </th>
-                    ))}
-                    <th className="py-1"></th>
-                  </tr>
-                </thead>
-                <tbody data-testid="config-version-rows">
-                  {versions.data.map((v) => (
-                    <tr
-                      key={v.id}
-                      className="border-t align-top"
-                      data-state={v.state}
-                      data-rev={v.revision}
-                      data-testid={`config-row-${v.revision}`}
-                    >
-                      <td className="py-2 pe-2 font-mono">{v.revision}</td>
-                      <td className="py-2 pe-2">
-                        <Badge variant={STATE_VARIANT[v.state]}>{v.state}</Badge>
-                      </td>
-                      <td className="py-2 pe-2 font-mono text-xs">
-                        {Object.entries(v.payload)
-                          .map(([k, val]) => `${k}=${val}`)
-                          .join(', ')}
-                      </td>
-                      <td className="py-2 pe-2 text-muted-foreground">{v.note ?? '—'}</td>
-                      <td className="py-2 pe-2 text-xs text-muted-foreground">
-                        {v.effectiveFrom ? new Date(v.effectiveFrom).toLocaleString() : '—'}
-                      </td>
-                      <td className="py-2 text-end">
-                        <div className="flex justify-end gap-2">
-                          {v.state === 'draft' ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => act(v.id, 'submit')}
-                              data-testid={`submit-${v.revision}`}
-                            >
-                              {t('ops.cfg.submit')}
-                            </Button>
-                          ) : null}
-                          {v.state === 'in_review' && canPublish ? (
-                            <>
-                              <Button
-                                size="sm"
-                                onClick={() => act(v.id, 'approve')}
-                                data-testid={`approve-${v.revision}`}
-                              >
-                                {t('ops.cfg.approve')}
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => act(v.id, 'reject')}
-                                data-testid={`reject-${v.revision}`}
-                              >
-                                {t('ops.cfg.reject')}
-                              </Button>
-                            </>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <DataTable
+            columns={columns}
+            rows={versions.data}
+            rowKey={(v) => v.id}
+            isLoading={versions.isLoading}
+            isError={versions.isError}
+            onRetry={() => versions.refetch()}
+            rowProps={(v) => ({
+              'data-state': v.state,
+              'data-rev': String(v.revision),
+              'data-testid': `config-row-${v.revision}`,
+            })}
+            rowClassName="align-top"
+            testid="config-version-table"
+            bodyTestid="config-version-rows"
+            labels={{
+              loading: t('ops.st.loading'),
+              loadFailTitle: t('ops.cfg.loadFail'),
+              retry: t('ops.st.retry'),
+              empty: t('ops.cfg.empty'),
+            }}
+          />
           {actionError ? (
             <p className="mt-3 text-sm text-destructive" data-testid="config-action-error">
               {actionError}

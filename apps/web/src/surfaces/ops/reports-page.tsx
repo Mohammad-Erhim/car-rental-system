@@ -7,9 +7,11 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  DataTable,
   Field,
   Input,
   PageHeader,
+  type DataTableColumn,
 } from '@carrental/ui';
 import { useState } from 'react';
 
@@ -50,6 +52,19 @@ export function ReportsPage() {
   const [schedError, setSchedError] = useState<string | null>(null);
 
   const code = selected || defs.data?.[0]?.code || '';
+
+  // report results are positional aggregate rows with a run-defined column set
+  const reportCols = result
+    ? result.columns.length
+      ? result.columns
+      : Object.keys(result.rows[0] ?? {})
+    : [];
+  const reportColumns: Array<DataTableColumn<Record<string, unknown>>> = reportCols.map((c) => ({
+    key: c,
+    header: c,
+    cell: (row) => String(row[c] ?? ''),
+    className: 'pe-3 font-mono text-xs',
+  }));
 
   async function doRun() {
     setRunError(null);
@@ -171,44 +186,19 @@ export function ReportsPage() {
                   {t('ops.rpt.export')}
                 </Button>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[28rem] text-sm" data-testid="report-table">
-                  <thead className="text-start text-xs uppercase text-muted-foreground">
-                    <tr>
-                      {(result.columns.length
-                        ? result.columns
-                        : Object.keys(result.rows[0] ?? {})
-                      ).map((c) => (
-                        <th key={c} className="py-1 pe-3 text-start font-medium">
-                          {c}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {result.rows.length ? (
-                      result.rows.map((row, i) => (
-                        <tr key={i} className="border-t">
-                          {(result.columns.length ? result.columns : Object.keys(row)).map((c) => (
-                            <td key={c} className="py-2 pe-3 font-mono text-xs">
-                              {String(row[c] ?? '')}
-                            </td>
-                          ))}
-                        </tr>
-                      ))
-                    ) : (
-                      <tr className="border-t">
-                        <td
-                          className="py-2 text-muted-foreground"
-                          colSpan={result.columns.length || 1}
-                        >
-                          {t('ops.rpt.noData')}
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                columns={reportColumns}
+                rows={result.rows}
+                rowKey={(_row, i) => String(i)}
+                testid="report-table"
+                minWidth="28rem"
+                labels={{
+                  loading: t('ops.st.loading'),
+                  loadFailTitle: t('ops.rpt.loadFail'),
+                  retry: t('ops.st.retry'),
+                  empty: t('ops.rpt.noData'),
+                }}
+              />
               {csvOpen !== null ? (
                 <div className="space-y-2">
                   <pre

@@ -1,17 +1,18 @@
 import { useI18n } from '@carrental/i18n/react';
 import {
-  AppStateView,
   Badge,
   Button,
   Card,
   CardContent,
   CardHeader,
   CardTitle,
+  DataTable,
   Field,
   Input,
   PageHeader,
+  type DataTableColumn,
 } from '@carrental/ui';
-import { Fragment, useState } from 'react';
+import { useState } from 'react';
 
 import { useAuditLog } from '../../lib/admin-hooks.js';
 
@@ -41,7 +42,68 @@ export function AuditLogPage() {
     });
   }
 
-  const TH = ['hWhen', 'hActor', 'hAction', 'hTarget', 'hOutcome'] as const;
+  type Event = NonNullable<typeof rows.data>[number];
+  const columns: Array<DataTableColumn<Event>> = [
+    {
+      key: 'when',
+      header: t('ops.audit.hWhen'),
+      cell: (r) => new Date(r.occurredAt).toLocaleString(),
+      className: 'pe-3 text-xs text-muted-foreground',
+    },
+    { key: 'actor', header: t('ops.audit.hActor'), cell: (r) => r.actor, className: 'pe-3' },
+    {
+      key: 'action',
+      header: t('ops.audit.hAction'),
+      cell: (r) => r.action,
+      className: 'pe-3 font-mono text-xs',
+    },
+    {
+      key: 'target',
+      header: t('ops.audit.hTarget'),
+      cell: (r) => (
+        <>
+          {r.targetType ?? '—'}
+          {r.targetId ? (
+            <span className="text-muted-foreground"> · {r.targetId.slice(0, 8)}</span>
+          ) : null}
+        </>
+      ),
+      className: 'pe-3 text-xs',
+    },
+    {
+      key: 'outcome',
+      header: t('ops.audit.hOutcome'),
+      cell: (r) => (
+        <Badge
+          variant={
+            r.outcome === 'accepted'
+              ? 'success'
+              : r.outcome === 'rejected'
+                ? 'warning'
+                : 'destructive'
+          }
+        >
+          {r.outcome}
+        </Badge>
+      ),
+      className: 'pe-3',
+    },
+    {
+      key: 'actions',
+      header: '',
+      className: 'text-end',
+      cell: (r) =>
+        r.before || r.after ? (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setExpanded(expanded === r.id ? null : r.id)}
+          >
+            {expanded === r.id ? t('ops.audit.hide') : t('ops.audit.diff')}
+          </Button>
+        ) : null,
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -105,108 +167,52 @@ export function AuditLogPage() {
           <CardTitle className="text-base">{t('ops.audit.events')}</CardTitle>
         </CardHeader>
         <CardContent>
-          {rows.isLoading ? (
-            <AppStateView kind="loading" inline title={t('ops.st.loading')} />
-          ) : rows.isError ? (
-            <AppStateView
-              kind="failure"
-              inline
-              title={t('ops.audit.loadFail')}
-              primaryAction={{ label: t('ops.st.retry'), onClick: () => rows.refetch() }}
-            />
-          ) : !rows.data?.length ? (
-            <AppStateView kind="empty" inline title={t('ops.audit.empty')} />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[44rem] text-sm" data-testid="audit-table">
-                <thead className="text-start text-xs uppercase text-muted-foreground">
-                  <tr>
-                    {TH.map((k) => (
-                      <th key={k} className="py-1 pe-3 text-start font-medium">
-                        {t(`ops.audit.${k}`)}
-                      </th>
-                    ))}
-                    <th className="py-1"></th>
-                  </tr>
-                </thead>
-                <tbody data-testid="audit-rows">
-                  {visibleRows.map((r) => (
-                    <Fragment key={r.id}>
-                      <tr className="border-t align-top" data-action={r.action}>
-                        <td className="py-2 pe-3 text-xs text-muted-foreground">
-                          {new Date(r.occurredAt).toLocaleString()}
-                        </td>
-                        <td className="py-2 pe-3">{r.actor}</td>
-                        <td className="py-2 pe-3 font-mono text-xs">{r.action}</td>
-                        <td className="py-2 pe-3 text-xs">
-                          {r.targetType ?? '—'}
-                          {r.targetId ? (
-                            <span className="text-muted-foreground">
-                              {' '}
-                              · {r.targetId.slice(0, 8)}
-                            </span>
-                          ) : null}
-                        </td>
-                        <td className="py-2 pe-3">
-                          <Badge
-                            variant={
-                              r.outcome === 'accepted'
-                                ? 'success'
-                                : r.outcome === 'rejected'
-                                  ? 'warning'
-                                  : 'destructive'
-                            }
-                          >
-                            {r.outcome}
-                          </Badge>
-                        </td>
-                        <td className="py-2 text-end">
-                          {r.before || r.after ? (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setExpanded(expanded === r.id ? null : r.id)}
-                            >
-                              {expanded === r.id ? t('ops.audit.hide') : t('ops.audit.diff')}
-                            </Button>
-                          ) : null}
-                        </td>
-                      </tr>
-                      {expanded === r.id ? (
-                        <tr className="bg-muted/30">
-                          <td colSpan={6} className="p-3">
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              <div>
-                                <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
-                                  {t('ops.audit.before')}
-                                </p>
-                                <pre className="overflow-auto rounded border bg-background p-2 text-xs">
-                                  {JSON.stringify(r.before ?? {}, null, 2)}
-                                </pre>
-                              </div>
-                              <div>
-                                <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
-                                  {t('ops.audit.after')}
-                                </p>
-                                <pre className="overflow-auto rounded border bg-background p-2 text-xs">
-                                  {JSON.stringify(r.after ?? {}, null, 2)}
-                                </pre>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : null}
-                    </Fragment>
-                  ))}
-                </tbody>
-              </table>
-              {hiddenCount > 0 ? (
-                <p className="mt-3 text-xs text-muted-foreground">
-                  {t('ops.audit.capped', { n: RENDER_CAP, more: hiddenCount })}
-                </p>
-              ) : null}
-            </div>
-          )}
+          <DataTable
+            columns={columns}
+            rows={visibleRows}
+            rowKey={(r) => r.id}
+            isLoading={rows.isLoading}
+            isError={rows.isError}
+            onRetry={() => rows.refetch()}
+            rowProps={(r) => ({ 'data-action': r.action })}
+            rowClassName="align-top"
+            testid="audit-table"
+            bodyTestid="audit-rows"
+            minWidth="44rem"
+            renderSubRow={(r) =>
+              expanded === r.id ? (
+                <div className="grid gap-3 bg-muted/30 p-3 sm:grid-cols-2">
+                  <div>
+                    <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
+                      {t('ops.audit.before')}
+                    </p>
+                    <pre className="overflow-auto rounded border bg-background p-2 text-xs">
+                      {JSON.stringify(r.before ?? {}, null, 2)}
+                    </pre>
+                  </div>
+                  <div>
+                    <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
+                      {t('ops.audit.after')}
+                    </p>
+                    <pre className="overflow-auto rounded border bg-background p-2 text-xs">
+                      {JSON.stringify(r.after ?? {}, null, 2)}
+                    </pre>
+                  </div>
+                </div>
+              ) : null
+            }
+            labels={{
+              loading: t('ops.st.loading'),
+              loadFailTitle: t('ops.audit.loadFail'),
+              retry: t('ops.st.retry'),
+              empty: t('ops.audit.empty'),
+            }}
+          />
+          {hiddenCount > 0 ? (
+            <p className="mt-3 text-xs text-muted-foreground">
+              {t('ops.audit.capped', { n: RENDER_CAP, more: hiddenCount })}
+            </p>
+          ) : null}
         </CardContent>
       </Card>
     </div>

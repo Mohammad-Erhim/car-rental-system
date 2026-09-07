@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 
 import { cn } from '../lib/utils';
 
@@ -27,7 +27,8 @@ export interface DataTableLabels {
 export interface DataTableProps<T> {
   columns: Array<DataTableColumn<T>>;
   rows: T[] | undefined;
-  rowKey: (row: T) => string;
+  /** stable key per row; `index` is there for positional data with no natural id */
+  rowKey: (row: T, index: number) => string;
   /** react-query-ish status; pass what you have */
   isLoading?: boolean;
   isError?: boolean;
@@ -39,6 +40,14 @@ export interface DataTableProps<T> {
   bodyTestid?: string;
   /** per-row `data-*` / className, e.g. `(r) => ({ 'data-code': r.code })` */
   rowProps?: (row: T) => Record<string, string | undefined>;
+  /** extra classes on every `<tr>` (kept alongside the built-in `border-t`) */
+  rowClassName?: string;
+  /**
+   * Optional full-width detail row rendered directly under a row. Return `null` for rows that
+   * have nothing to expand; the caller owns the open/closed state. The returned node is placed
+   * in a single `<td colSpan>` spanning every column and should bring its own padding.
+   */
+  renderSubRow?: (row: T) => ReactNode;
   /** min width before the table scrolls inside its own box (design §2.4) */
   minWidth?: string;
   className?: string;
@@ -62,6 +71,8 @@ export function DataTable<T>({
   testid,
   bodyTestid,
   rowProps,
+  rowClassName,
+  renderSubRow,
   minWidth = '40rem',
   className,
   caption,
@@ -99,16 +110,24 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody data-testid={bodyTestid ?? (testid ? `${testid}-rows` : undefined)}>
-          {rows.map((row) => {
+          {rows.map((row, index) => {
             const extra = rowProps?.(row) ?? {};
+            const sub = renderSubRow?.(row);
             return (
-              <tr key={rowKey(row)} className="border-t" {...extra}>
-                {columns.map((c) => (
-                  <td key={c.key} data-col={c.key} className={cn('py-2 pe-2', c.className)}>
-                    {c.cell(row)}
-                  </td>
-                ))}
-              </tr>
+              <Fragment key={rowKey(row, index)}>
+                <tr className={cn('border-t', rowClassName)} {...extra}>
+                  {columns.map((c) => (
+                    <td key={c.key} data-col={c.key} className={cn('py-2 pe-2', c.className)}>
+                      {c.cell(row)}
+                    </td>
+                  ))}
+                </tr>
+                {sub ? (
+                  <tr data-subrow="">
+                    <td colSpan={columns.length}>{sub}</td>
+                  </tr>
+                ) : null}
+              </Fragment>
             );
           })}
         </tbody>

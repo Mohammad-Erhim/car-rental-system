@@ -80,4 +80,40 @@ describe('DataTable (STAGE-012 shared ops list)', () => {
     expect(screen.getByText('Nothing here')).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
+
+  it('renders a full-width sub-row under rows for which renderSubRow returns a node', () => {
+    render(
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => r.code}
+        labels={labels}
+        testid="things"
+        renderSubRow={(r) => (r.code === 'b' ? <div>detail for {r.name}</div> : null)}
+      />,
+    );
+    const body = screen.getByTestId('things-rows');
+    // 2 data rows + 1 sub-row
+    expect(body.querySelectorAll('tr')).toHaveLength(3);
+    const sub = body.querySelector('tr[data-subrow]');
+    expect(sub).toBeInTheDocument();
+    expect(sub?.querySelector('td')).toHaveAttribute('colspan', '2');
+    expect(screen.getByText('detail for Beta')).toBeInTheDocument();
+  });
+
+  it('passes rowKey an index for positional data and applies rowClassName to every row', () => {
+    render(
+      <DataTable
+        columns={columns}
+        rows={rows}
+        rowKey={(_r, i) => `row-${i}`}
+        labels={labels}
+        testid="things"
+        rowClassName="align-top"
+      />,
+    );
+    const dataRows = screen.getByTestId('things-rows').querySelectorAll('tr');
+    expect(dataRows).toHaveLength(2);
+    dataRows.forEach((tr) => expect(tr).toHaveClass('align-top', 'border-t'));
+  });
 });

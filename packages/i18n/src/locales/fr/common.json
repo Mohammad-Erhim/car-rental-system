@@ -314,6 +314,7 @@
   "ops.ref.labelEn": "Libellé (en)",
   "ops.ref.loadValuesFail": "Impossible de charger les valeurs",
   "ops.ref.noTypes": "Aucun type de référence",
+  "ops.ref.noValues": "Aucune valeur pour le moment",
   "ops.ref.pickType": "Sélectionnez un type de référence",
   "ops.ref.readOnly": "lecture seule",
   "ops.ref.restore": "Restaurer",

@@ -314,6 +314,7 @@
   "ops.ref.labelEn": "التسمية (en)",
   "ops.ref.loadValuesFail": "تعذّر تحميل القيم",
   "ops.ref.noTypes": "لا توجد أنواع مرجعية",
+  "ops.ref.noValues": "لا توجد قيم بعد",
   "ops.ref.pickType": "اختر نوعًا مرجعيًا",
   "ops.ref.readOnly": "للقراءة فقط",
   "ops.ref.restore": "استعادة",

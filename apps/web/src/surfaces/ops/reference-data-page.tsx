@@ -8,10 +8,12 @@ import {
   CardHeader,
   CardTitle,
   ConfirmDialog,
+  DataTable,
   ErrorSummary,
   Field,
   Input,
   PageHeader,
+  type DataTableColumn,
 } from '@carrental/ui';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Lock } from 'lucide-react';
@@ -160,7 +162,60 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
     onSuccess: () => void invalidate(),
   });
 
-  const TH = ['code', 'labelEn', 'state'] as const;
+  type LookupValue = NonNullable<typeof values.data>['values'][number];
+  const columns: Array<DataTableColumn<LookupValue>> = [
+    {
+      key: 'code',
+      header: t('ops.tbl.code'),
+      cell: (v) => <span className="bidi-isolate font-mono text-xs">{v.code}</span>,
+    },
+    {
+      key: 'labelEn',
+      header: t('ops.ref.labelEn'),
+      cell: (v) =>
+        readOnly || v.systemManaged ? (
+          v.label
+        ) : (
+          <InlineLabel value={v.label} onSave={(label) => editLabel.mutate({ id: v.id, label })} />
+        ),
+    },
+    {
+      key: 'state',
+      header: t('ops.tbl.state'),
+      cell: (v) =>
+        v.isActive ? (
+          <Badge variant="success">{t('ops.ref.active')}</Badge>
+        ) : (
+          <Badge variant="neutral">{t('ops.ref.inactive')}</Badge>
+        ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      className: 'text-end',
+      cell: (v) =>
+        canManage && !readOnly && !v.systemManaged ? (
+          v.isActive ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setDeactivateId(v.id)}
+              data-testid={`deactivate-${v.code}`}
+            >
+              {t('ops.ref.deactivate')}
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setActive.mutate({ id: v.id, active: true })}
+            >
+              {t('ops.ref.restore')}
+            </Button>
+          )
+        ) : null,
+    },
+  ];
 
   return (
     <Card>
@@ -179,79 +234,24 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
         ) : null}
       </CardHeader>
       <CardContent className="space-y-4">
-        {values.isLoading ? (
-          <AppStateView kind="loading" title={t('ops.st.loading')} inline />
-        ) : values.isError ? (
-          <AppStateView
-            kind="failure"
-            inline
-            title={t('ops.ref.loadValuesFail')}
-            primaryAction={{ label: t('ops.st.retry'), onClick: () => values.refetch() }}
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[30rem] text-sm">
-              <thead className="text-start text-xs uppercase text-muted-foreground">
-                <tr>
-                  {TH.map((k) => (
-                    <th key={k} className="py-1 text-start font-medium">
-                      {k === 'labelEn' ? t('ops.ref.labelEn') : t(`ops.tbl.${k}`)}
-                    </th>
-                  ))}
-                  <th className="py-1"></th>
-                </tr>
-              </thead>
-              <tbody data-testid="lookup-value-rows">
-                {values.data!.values.map((v) => (
-                  <tr key={v.id} className="border-t" data-code={v.code} data-active={v.isActive}>
-                    <td className="py-2 pe-2 align-top">
-                      <span className="bidi-isolate font-mono text-xs">{v.code}</span>
-                    </td>
-                    <td className="py-2 pe-2 align-top">
-                      {readOnly || v.systemManaged ? (
-                        v.label
-                      ) : (
-                        <InlineLabel
-                          value={v.label}
-                          onSave={(label) => editLabel.mutate({ id: v.id, label })}
-                        />
-                      )}
-                    </td>
-                    <td className="py-2 pe-2 align-top">
-                      {v.isActive ? (
-                        <Badge variant="success">{t('ops.ref.active')}</Badge>
-                      ) : (
-                        <Badge variant="neutral">{t('ops.ref.inactive')}</Badge>
-                      )}
-                    </td>
-                    <td className="py-2 text-end align-top">
-                      {canManage && !readOnly && !v.systemManaged ? (
-                        v.isActive ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setDeactivateId(v.id)}
-                            data-testid={`deactivate-${v.code}`}
-                          >
-                            {t('ops.ref.deactivate')}
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setActive.mutate({ id: v.id, active: true })}
-                          >
-                            {t('ops.ref.restore')}
-                          </Button>
-                        )
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable
+          columns={columns}
+          rows={values.data?.values}
+          rowKey={(v) => v.id}
+          isLoading={values.isLoading}
+          isError={values.isError}
+          onRetry={() => values.refetch()}
+          rowProps={(v) => ({ 'data-code': v.code, 'data-active': String(v.isActive) })}
+          rowClassName="align-top"
+          bodyTestid="lookup-value-rows"
+          minWidth="30rem"
+          labels={{
+            loading: t('ops.st.loading'),
+            loadFailTitle: t('ops.ref.loadValuesFail'),
+            retry: t('ops.st.retry'),
+            empty: t('ops.ref.noValues'),
+          }}
+        />
 
         {canManage && !readOnly ? (
           <form
