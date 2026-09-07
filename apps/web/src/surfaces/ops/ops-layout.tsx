@@ -24,6 +24,8 @@ import { LanguageSwitcher } from '../../components/language-switcher.js';
 import { SystemStatus } from '../../components/system-status.js';
 import { useAuth } from '../../lib/auth.js';
 
+import { CommandPalette } from './command-palette.js';
+
 /**
  * APP-OPS shell (design §4.2 / §7.3). Left navigation on desktop, collapses to a top bar on
  * narrow screens. Nav items are filtered by permission — a section a user cannot open does not
@@ -155,6 +157,9 @@ export function OpsLayout() {
     (g) => g.items.length > 0,
   );
   const flatItems = groups.flatMap((g) => g.items);
+  const commandItems = groups.flatMap((g) =>
+    g.items.map((it) => ({ to: it.to, label: it.label, Icon: it.Icon, groupKey: g.titleKey })),
+  );
 
   const navClass = (isActive: boolean) =>
     `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium ${
@@ -231,6 +236,7 @@ export function OpsLayout() {
             ) : null}
           </div>
           <div className="flex shrink items-center gap-1 sm:gap-2">
+            {authed ? <CommandPalette items={commandItems} /> : null}
             <a
               href={SITE_URL}
               className="hidden items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground sm:inline-flex"
