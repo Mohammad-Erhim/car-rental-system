@@ -1,4 +1,11 @@
 import {
+  BRAND_CACHE_KEY,
+  BRAND_CSS_CACHE_KEY,
+  BRAND_TOKENS_STYLE_ID,
+  brandConfigToCss,
+  type BrandConfig,
+} from '@carrental/theme';
+import {
   createContext,
   useCallback,
   useContext,
@@ -14,6 +21,8 @@ interface ThemeContextValue {
   theme: Theme;
   resolvedTheme: 'light' | 'dark';
   setTheme: (t: Theme) => void;
+  /** The active brand config (defaults applied by the API when nothing is published). */
+  brand: BrandConfig | null;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -26,14 +35,39 @@ function systemPrefersDark(): boolean {
   );
 }
 
+/** Inject / update the `<style>` element that carries a published brand's token overrides. */
+export function applyBrandTokens(brand: BrandConfig | null): void {
+  if (typeof document === 'undefined') return;
+  const existing = document.getElementById(BRAND_TOKENS_STYLE_ID);
+  if (!brand) {
+    existing?.remove();
+    return;
+  }
+  const css = brandConfigToCss(brand);
+  const el = existing ?? document.createElement('style');
+  el.id = BRAND_TOKENS_STYLE_ID;
+  el.textContent = css;
+  if (!existing) document.head.appendChild(el);
+  document.documentElement.dataset.density = brand.density;
+  try {
+    localStorage.setItem(BRAND_CACHE_KEY, JSON.stringify(brand));
+    localStorage.setItem(BRAND_CSS_CACHE_KEY, css);
+  } catch {
+    /* storage may be unavailable */
+  }
+}
+
 export function ThemeProvider({
   children,
   defaultTheme = 'system',
   storageKey = STORAGE_KEY,
+  brand = null,
 }: {
   children: ReactNode;
   defaultTheme?: Theme;
   storageKey?: string;
+  /** Published brand config from `GET /api/v1/meta/branding` (or null to use built-in defaults). */
+  brand?: BrandConfig | null;
 }) {
   const [theme, setThemeState] = useState<Theme>(() => {
     if (typeof localStorage === 'undefined') return defaultTheme;
@@ -58,6 +92,10 @@ export function ThemeProvider({
     return () => mq.removeEventListener('change', handler);
   }, [theme]);
 
+  useEffect(() => {
+    applyBrandTokens(brand);
+  }, [brand]);
+
   const setTheme = useCallback(
     (t: Theme) => {
       setThemeState(t);
@@ -71,8 +109,8 @@ export function ThemeProvider({
   );
 
   const value = useMemo(
-    () => ({ theme, resolvedTheme, setTheme }),
-    [theme, resolvedTheme, setTheme],
+    () => ({ theme, resolvedTheme, setTheme, brand }),
+    [theme, resolvedTheme, setTheme, brand],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

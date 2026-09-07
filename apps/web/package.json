@@ -15,6 +15,7 @@
   "dependencies": {
     "@carrental/contracts": "workspace:*",
     "@carrental/i18n": "workspace:*",
+    "@carrental/theme": "workspace:*",
     "@carrental/ui": "workspace:*",
     "@radix-ui/react-dialog": "1.1.1",
     "@radix-ui/react-dropdown-menu": "2.1.1",

@@ -42,4 +42,10 @@ export { Tabs, TabsList, TabsTrigger, TabsContent } from './components/tabs.js';
 export { ToastProvider, useToast } from './components/toast.js';
 export { ConfirmDialog } from './components/confirm-dialog.js';
 
-export { ThemeProvider, useTheme, type Theme } from './providers/theme-provider.js';
+export {
+  ThemeProvider,
+  useTheme,
+  applyBrandTokens,
+  type Theme,
+} from './providers/theme-provider.js';
+export { ThemeToggle, type ThemeToggleProps } from './components/theme-toggle.js';

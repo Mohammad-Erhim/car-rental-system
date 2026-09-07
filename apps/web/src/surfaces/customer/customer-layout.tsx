@@ -1,5 +1,5 @@
 import { useI18n } from '@carrental/i18n/react';
-import { Button } from '@carrental/ui';
+import { Button, ThemeToggle } from '@carrental/ui';
 import { Car, LifeBuoy, Luggage, LogIn, UserRound } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
 
@@ -60,6 +60,15 @@ export function CustomerLayout() {
 
           <div className="flex items-center gap-2">
             <SystemStatus />
+            <ThemeToggle
+              labels={{
+                label: t('theme.label'),
+                light: t('theme.light'),
+                dark: t('theme.dark'),
+                system: t('theme.system'),
+                current: t('theme.current'),
+              }}
+            />
             <LanguageSwitcher />
             <Button variant="outline" size="sm" asChild>
               <NavLink to={authed ? '/account' : '/sign-in'}>

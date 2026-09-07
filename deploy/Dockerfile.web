@@ -22,6 +22,7 @@ COPY e2e/package.json                e2e/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/i18n/package.json      packages/i18n/package.json
 COPY packages/ui/package.json        packages/ui/package.json
+COPY packages/theme/package.json     packages/theme/package.json
 COPY packages/config/package.json    packages/config/package.json
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile
@@ -40,7 +41,7 @@ ENV NODE_ENV=production
 COPY tsconfig.base.json ./
 COPY packages/ packages/
 COPY apps/web/ apps/web/
-RUN pnpm --filter @carrental/contracts --filter @carrental/i18n --filter @carrental/ui build \
+RUN pnpm --filter @carrental/theme --filter @carrental/contracts --filter @carrental/i18n --filter @carrental/ui build \
  && pnpm --filter @carrental/web build
 
 ########################  runtime  ########################

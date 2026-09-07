@@ -6,6 +6,33 @@
     <meta name="color-scheme" content="light dark" />
     <title>Car Rental</title>
     <meta name="description" content="Find, book, and manage rental vehicles." />
+    <script>
+      /* Apply theme + cached brand tokens before first paint (no flash). Mirrors
+         @carrental/ui ThemeProvider / @carrental/theme; safe if storage is unavailable. */
+      (function () {
+        try {
+          var t = localStorage.getItem('carrental.theme') || 'system';
+          var dark =
+            t === 'dark' ||
+            (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+          var r = document.documentElement;
+          r.classList.toggle('dark', dark);
+          r.style.colorScheme = dark ? 'dark' : 'light';
+          var css = localStorage.getItem('carrental.brand.css.v1');
+          if (css) {
+            var s = document.createElement('style');
+            s.id = 'carrental-brand-tokens';
+            s.textContent = css;
+            document.head.appendChild(s);
+          }
+          var b = localStorage.getItem('carrental.brand.v1');
+          if (b) {
+            var cfg = JSON.parse(b);
+            if (cfg && cfg.density) r.dataset.density = cfg.density;
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

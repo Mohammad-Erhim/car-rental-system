@@ -53,10 +53,12 @@ x-workspace-volumes: &workspace-volumes
   - nm_contracts:/app/packages/contracts/node_modules
   - nm_i18n:/app/packages/i18n/node_modules
   - nm_ui:/app/packages/ui/node_modules
+  - nm_theme:/app/packages/theme/node_modules
   - nm_config:/app/packages/config/node_modules
   - dist_contracts:/app/packages/contracts/dist
   - dist_i18n:/app/packages/i18n/dist
   - dist_ui:/app/packages/ui/dist
+  - dist_theme:/app/packages/theme/dist
 
 services:
   postgres:
@@ -102,7 +104,7 @@ services:
     init: true
     command: >
       sh -lc "pnpm install --frozen-lockfile
-      && find packages/contracts/dist packages/i18n/dist packages/ui/dist -mindepth 1 -delete 2>/dev/null || true
+      && find packages/theme/dist packages/contracts/dist packages/i18n/dist packages/ui/dist -mindepth 1 -delete 2>/dev/null || true
       && find packages -maxdepth 2 -name '*.tsbuildinfo' -delete 2>/dev/null || true
       && pnpm build:packages"
     volumes: *workspace-volumes
@@ -185,7 +187,9 @@ volumes:
   nm_contracts:
   nm_i18n:
   nm_ui:
+  nm_theme:
   nm_config:
   dist_contracts:
   dist_i18n:
   dist_ui:
+  dist_theme:

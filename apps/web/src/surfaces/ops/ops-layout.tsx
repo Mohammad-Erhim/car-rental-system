@@ -1,5 +1,5 @@
 import { useI18n } from '@carrental/i18n/react';
-import { Button } from '@carrental/ui';
+import { Button, ThemeToggle } from '@carrental/ui';
 import {
   BarChart3,
   CarFront,
@@ -130,6 +130,15 @@ export function OpsLayout() {
           </div>
           <div className="flex items-center gap-2">
             <SystemStatus />
+            <ThemeToggle
+              labels={{
+                label: t('theme.label'),
+                light: t('theme.light'),
+                dark: t('theme.dark'),
+                system: t('theme.system'),
+                current: t('theme.current'),
+              }}
+            />
             <LanguageSwitcher />
             {authed ? (
               <>

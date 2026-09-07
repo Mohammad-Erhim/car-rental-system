@@ -23,6 +23,7 @@ COPY e2e/package.json                e2e/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
 COPY packages/i18n/package.json      packages/i18n/package.json
 COPY packages/ui/package.json        packages/ui/package.json
+COPY packages/theme/package.json     packages/theme/package.json
 COPY packages/config/package.json    packages/config/package.json
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile
@@ -44,7 +45,7 @@ COPY apps/api/ apps/api/
 # `pnpm deploy` hard-copies the app + its (workspace and external) prod deps into a
 # self-contained tree — no symlinks back into /app. `--legacy` is pnpm 10 only; pnpm 9's
 # deploy already uses this behaviour.
-RUN pnpm --filter @carrental/contracts --filter @carrental/i18n build \
+RUN pnpm --filter @carrental/theme --filter @carrental/contracts --filter @carrental/i18n build \
  && pnpm --filter @carrental/api build \
  && pnpm --filter @carrental/api --prod deploy /prod
 

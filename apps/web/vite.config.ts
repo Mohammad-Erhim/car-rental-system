@@ -25,6 +25,7 @@ export default defineConfig({
       '@carrental/contracts': r('../../packages/contracts/src/index.ts'),
       '@carrental/i18n/react': r('../../packages/i18n/src/react.tsx'),
       '@carrental/i18n': r('../../packages/i18n/src/index.ts'),
+      '@carrental/theme': r('../../packages/theme/src/index.ts'),
       '@carrental/ui/styles.css': r('../../packages/ui/src/styles.css'),
       '@carrental/ui': r('../../packages/ui/src/index.ts'),
     },

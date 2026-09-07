@@ -165,6 +165,9 @@ importers:
       '@carrental/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
+      '@carrental/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
       '@carrental/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -361,8 +364,33 @@ importers:
         specifier: 2.0.5
         version: 2.0.5(@types/node@20.14.15)(jsdom@24.1.1)
 
+  packages/theme:
+    dependencies:
+      zod:
+        specifier: 3.23.8
+        version: 3.23.8
+    devDependencies:
+      '@carrental/config':
+        specifier: workspace:*
+        version: link:../config
+      eslint:
+        specifier: 9.9.0
+        version: 9.9.0(jiti@1.21.7)
+      globals:
+        specifier: 15.9.0
+        version: 15.9.0
+      typescript:
+        specifier: 5.5.4
+        version: 5.5.4
+      vitest:
+        specifier: 2.0.5
+        version: 2.0.5(@types/node@20.14.15)(jsdom@24.1.1)
+
   packages/ui:
     dependencies:
+      '@carrental/theme':
+        specifier: workspace:*
+        version: link:../theme
       '@radix-ui/react-dialog':
         specifier: 1.1.1
         version: 1.1.1(@types/react-dom@18.3.0)(@types/react@18.3.3)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)

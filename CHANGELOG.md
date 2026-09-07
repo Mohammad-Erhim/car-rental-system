@@ -6,6 +6,37 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### STAGE-009 — Design system, theming & branding · increment 1 (2026-09-07)
+
+Theming foundation. No user-visible behaviour removed; adds a light/dark switch and the
+plumbing for dashboard-managed branding.
+
+**Added**
+
+- `@carrental/theme` — shared package: the design-token catalogue (23 shadcn HSL vars, light +
+  dark), `brandConfigSchema` + `DEFAULT_BRAND_CONFIG`, WCAG `contrastRatio` + `validateBrandConfig`,
+  `resolveCssVars` / `brandConfigToCss`, 4 curated presets (`slate-blue`, `emerald`, `violet`,
+  `amber` — all AA-clean in both modes), and a generator that keeps the two `styles.css` copies
+  in sync from one source (drift-checked by `verify:theme`). 9 unit tests.
+- `@carrental/ui` `ThemeToggle` — Light / Dark / System menu (a11y, localisable), wired into the
+  customer and ops layout headers.
+- `ThemeProvider` now accepts a `brand` config and injects it as a `<style>` overlay + caches it;
+  `apps/web/index.html` applies theme + cached brand tokens pre-paint (no FOUC).
+- `verify:theme` gate (token-CSS in sync, presets AA, no literal colours in component TS/TSX).
+- `theme.*` i18n keys in `en` / `ar` / `fr`.
+
+**Changed**
+
+- The design-token block in `packages/ui/src/styles.css` and `apps/web/src/index.css` is now
+  **generated** from `@carrental/theme` — ends the "keep the two copies in sync by hand" footgun.
+- `--font-sans` is a token; `body` and both Tailwind configs read `var(--font-sans)`.
+- Dark `--destructive` `0 63% 55%` → `0 72% 51%` (white-on-solid was 4.43:1 — just under AA).
+- `deploy/Dockerfile.{api,web}` + `compose.yaml` include `@carrental/theme` (COPY, build order,
+  `nm_theme` / `dist_theme` volumes).
+
+**Verified** — `verify:static` PASS · `verify:unit` 72 · `verify:api` 68 · `verify:theme` PASS ·
+`apps/web` build OK · compose configs valid.
+
 ### Enhancement program — STAGE-009 … STAGE-013 (planned 2026-09-07)
 
 Master plan documented in `docs/ai-delivery/04-implementation/enhancement-program.md`;
