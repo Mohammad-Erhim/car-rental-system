@@ -28,6 +28,74 @@ export function useOpsUnits(filter: { locationCode?: string; categoryCode?: stri
   });
 }
 
+// --- fleet operations: maintenance blocks + transfers (SCREEN-OPS-017/018) ---
+
+export interface FleetBlock {
+  id: string;
+  unitId: string;
+  plate: string;
+  kind: string;
+  reasonCode: string | null;
+  startAt: string;
+  endAt: string | null;
+  note: string | null;
+  status: string;
+  createdAt: string;
+}
+
+const FLEET_KEYS = { units: ['ops', 'fleet-units'], blocks: ['ops', 'fleet-blocks'] };
+
+export function useFleetBlocks(status: 'active' | 'released' = 'active') {
+  return useQuery({
+    queryKey: [...FLEET_KEYS.blocks, status],
+    queryFn: ({ signal }) =>
+      apiFetch<FleetBlock[]>(`/ops/fleet/blocks?status=${status}`, { signal }),
+  });
+}
+
+function useFleetInvalidate() {
+  const qc = useQueryClient();
+  return () => {
+    void qc.invalidateQueries({ queryKey: FLEET_KEYS.units });
+    void qc.invalidateQueries({ queryKey: FLEET_KEYS.blocks });
+  };
+}
+
+export function useAddFleetBlock() {
+  const invalidate = useFleetInvalidate();
+  return useMutation({
+    mutationFn: (body: {
+      unitId: string;
+      kind?: string;
+      reasonCode?: string;
+      startAt: string;
+      endAt?: string;
+      note?: string;
+    }) => apiFetch<{ id: string }>('/ops/fleet/blocks', { method: 'POST', body }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useReleaseFleetBlock() {
+  const invalidate = useFleetInvalidate();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch(`/ops/fleet/blocks/${id}/release`, { method: 'POST' }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useTransferUnit() {
+  const invalidate = useFleetInvalidate();
+  return useMutation({
+    mutationFn: (input: { unitId: string; toLocationCode: string; note?: string }) =>
+      apiFetch<{ id: string; currentLocationCode: string; state: string }>(
+        `/ops/fleet/units/${input.unitId}/transfer`,
+        { method: 'POST', body: { toLocationCode: input.toLocationCode, note: input.note } },
+      ),
+    onSuccess: invalidate,
+  });
+}
+
 export interface RatePlan {
   id: string;
   categoryCode: string;

@@ -6,6 +6,58 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### STAGE-005/006 deferred — fleet operations: maintenance blocks + transfers (2026-09-08)
+
+`vehicleBlock` and the `addBlock` / `releaseBlock` endpoints existed since STAGE-002 but were
+availability-only with no state effect and no UI; unit transfers had no path at all.
+
+**Added / changed (API)**
+
+- `POST /api/v1/ops/fleet/units/:id/transfer` (`fleet.manage`) — moves a unit to another
+  location. Rejected (422) while the unit is `on_rent` or has an open rental, or if it is
+  already there; 404 for an unknown unit or destination. Takes effect immediately (availability
+  counts by current location). Audits `fleet.unit.transferred`.
+- `GET /api/v1/ops/fleet/blocks?unitId=&status=` (`fleet.read`) — the block list (with the
+  unit plate), newest first.
+- `addBlock` now also takes an `available` unit **out of service** (`state → maintenance`) for
+  a `maintenance` block, and rejects one that has an open rental; `releaseBlock` returns the
+  unit to `available` when its last active maintenance block is lifted (and it has no open
+  rental). Both audit (`fleet.block.opened` / `fleet.block.released`). No schema change.
+
+**Added (web)**
+
+- `/ops/fleet` gains, for a `fleet.manage` holder: a per-row **Maintenance** / **Transfer**
+  action, and a **Maintenance & blocks** card (active blocks + **Release**). `fleet-table` /
+  `fleet-rows` testids unchanged. 16 `ops.fleet.*` keys en/fr/ar.
+
+Verified: `apps/api/test/fleet-ops.spec.ts` (3) — block lifecycle incl. availability drop-out,
+transfer + guards, RBAC; full `test:api` green; web typecheck / lint / build / `verify:i18n`
+(716) + `--strict` green.
+
+### STAGE-005/006 deferred — recovery-case retry + the Recovery & reconciliation screen (2026-09-08)
+
+The `ops/cases` + `ops/payments/reconciliation` endpoints had no UI; `/ops/finance` was a
+placeholder.
+
+**Added (API)**
+
+- `POST /api/v1/ops/cases/:id/retry` (`payment.reconcile`) — re-emits
+  `recovery_case.retry_requested.v1`, re-checks the inconsistency the case tracks (reservation
+  row present / no remaining reconciliation exception), auto-resolves the case when consistent
+  and otherwise records the attempt (`detail.retryCount` / `lastRetryAt` / `lastRetryOutcome`)
+  and leaves it open. Audits `recovery_case.retried`. Resolved → 422, unknown → 404. No schema
+  change. `PaymentService` gains `getCase` + `patchCaseDetail`.
+
+**Added (web)**
+
+- `finance-cases-page.tsx` at `/ops/finance` (replaces the placeholder) — a `DataTable` of open
+  recovery cases (Retry / Resolve) and one of reconciliation exceptions (+ Run reconciliation).
+  Guard `payment.read | payment.reconcile`; writes gated on `payment.reconcile`. 29
+  `ops.fin.*` keys en/fr/ar.
+
+Verified: `test:api` 93 (+1 retry lifecycle test); web typecheck / lint / build /
+`verify:i18n` + `--strict` green.
+
 ### STAGE-012 — shared `DataTable` + `/ops` command palette (2026-09-08)
 
 Every `/ops` screen that renders a tabular list now uses one primitive for the

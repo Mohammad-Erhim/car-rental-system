@@ -54,6 +54,11 @@ const zBlock = z.object({
   note: z.string().max(1000).optional(),
 });
 
+const zTransfer = z.object({
+  toLocationCode: z.string().min(1).max(20),
+  note: z.string().max(1000).optional(),
+});
+
 @ApiTags('ops-catalogue')
 @Controller({ path: 'ops', version: '1' })
 export class OpsCatalogueController {
@@ -102,7 +107,7 @@ export class OpsCatalogueController {
     return this.catalogue.setCategoryActive(actor, code, true);
   }
 
-  // --- fleet inventory (SCREEN-OPS-013, read) ---
+  // --- fleet inventory + operations (SCREEN-OPS-013 / 017 / 018) ---
 
   @Get('fleet/units')
   @Permissions('fleet.read', 'fleet.manage')
@@ -112,6 +117,12 @@ export class OpsCatalogueController {
     @Query('state') state?: string,
   ) {
     return this.fleet.listUnits({ locationCode, categoryCode, state });
+  }
+
+  @Get('fleet/blocks')
+  @Permissions('fleet.read', 'fleet.manage')
+  listBlocks(@Query('unitId') unitId?: string, @Query('status') status?: string) {
+    return this.fleet.listBlocks({ unitId, status });
   }
 
   @Post('fleet/blocks')
@@ -127,6 +138,16 @@ export class OpsCatalogueController {
   @Permissions('fleet.manage')
   releaseBlock(@Param('id') id: string, @CurrentActor() actor: Actor) {
     return this.fleet.releaseBlock(actor, id);
+  }
+
+  @Post('fleet/units/:id/transfer')
+  @Permissions('fleet.manage')
+  transferUnit(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(zTransfer)) body: z.infer<typeof zTransfer>,
+    @CurrentActor() actor: Actor,
+  ) {
+    return this.fleet.transferUnit(actor, { unitId: id, ...body });
   }
 
   // --- rate plans (SCREEN-OPS-025/026) ---
