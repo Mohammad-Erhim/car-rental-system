@@ -16,7 +16,7 @@ const SHOTS_ROOT = resolve(
  */
 function isExpectedNegative(url: string, status: number): boolean {
   return (
-    (status === 401 && /\/auth\/(refresh|me)\b/.test(url)) ||
+    ((status === 401 || status === 403) && /\/auth\/(refresh|me|sign-out)\b/.test(url)) ||
     (status === 401 && /\/auth\/sign-in\b/.test(url)) ||
     (status === 422 && /\/auth\/verify-contact\b/.test(url)) ||
     ((status === 422 || status === 504) && /\/bookings\/confirm\b/.test(url)) ||

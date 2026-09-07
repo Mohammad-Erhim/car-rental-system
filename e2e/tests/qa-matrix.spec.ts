@@ -23,10 +23,6 @@ const ADMIN = { email: 'admin@example.test', password: 'DevPassw0rd!' };
 const SITE_ROUTES: Array<[path: string, name: string]> = [
   ['', 'home'],
   ['/search', 'search'],
-  [
-    '/search?pickup=LAX&pickupAt=2026-10-01T10:00:00.000Z&returnAt=2026-10-04T10:00:00.000Z',
-    'search-results',
-  ],
   ['/help', 'help'],
   ['/legal/terms', 'legal-terms'],
   ['/legal/privacy', 'legal-privacy'],

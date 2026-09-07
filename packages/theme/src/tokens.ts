@@ -87,9 +87,10 @@ export const DEFAULT_DARK: ColorScale = {
   mutedForeground: '215 20% 68%',
   accent: '217 33% 20%',
   accentForeground: '210 40% 96%',
-  // nudged from `0 63% 55%` (STAGE-009): white-on-solid was 4.43:1 in dark mode, just under AA.
-  destructive: '0 72% 51%',
-  destructiveForeground: '0 0% 100%',
+  // STAGE-013: lightened so `text-destructive` on the dark background clears AA (was
+  // `0 72% 51%` = 3.93:1); the button foreground flips to dark to keep the solid variant AA.
+  destructive: '0 84% 62%',
+  destructiveForeground: '0 60% 9%',
   success: '142 55% 48%',
   successForeground: '222 47% 11%',
   warning: '38 92% 60%',
