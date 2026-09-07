@@ -7,7 +7,7 @@ const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
-  outputFileTracingRoot: repoRoot,
+  experimental: { outputFileTracingRoot: repoRoot },
   poweredByHeader: false,
   transpilePackages: [
     '@carrental/ui',

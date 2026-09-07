@@ -21,6 +21,8 @@ interface ThemeContextValue {
   theme: Theme;
   resolvedTheme: 'light' | 'dark';
   setTheme: (t: Theme) => void;
+  /** false until the client effect has read the stored preference — use to avoid SSR flicker. */
+  mounted: boolean;
   /** The active brand config (defaults applied by the API when nothing is published). */
   brand: BrandConfig | null;
 }
@@ -69,25 +71,37 @@ export function ThemeProvider({
   /** Published brand config from `GET /api/v1/meta/branding` (or null to use built-in defaults). */
   brand?: BrandConfig | null;
 }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    if (typeof localStorage === 'undefined') return defaultTheme;
-    return (localStorage.getItem(storageKey) as Theme | null) ?? defaultTheme;
-  });
-
-  const resolvedTheme: 'light' | 'dark' =
-    theme === 'system' ? (systemPrefersDark() ? 'dark' : 'light') : theme;
+  // First render (SSR + first client paint) is deterministic: always `defaultTheme`. The stored
+  // preference is applied in the effect below, after hydration — no #418/#423 mismatch.
+  const [theme, setThemeState] = useState<Theme>(defaultTheme);
+  const [mounted, setMounted] = useState(false);
+  const [systemDark, setSystemDark] = useState(false);
 
   useEffect(() => {
-    if (typeof document === 'undefined') return;
+    setMounted(true);
+    setSystemDark(systemPrefersDark());
+    try {
+      const stored = localStorage.getItem(storageKey) as Theme | null;
+      if (stored === 'light' || stored === 'dark' || stored === 'system') setThemeState(stored);
+    } catch {
+      /* storage may be unavailable */
+    }
+  }, [storageKey]);
+
+  const resolvedTheme: 'light' | 'dark' =
+    theme === 'system' ? (systemDark ? 'dark' : 'light') : theme;
+
+  useEffect(() => {
+    if (typeof document === 'undefined' || !mounted) return;
     const root = document.documentElement;
     root.classList.toggle('dark', resolvedTheme === 'dark');
     root.style.colorScheme = resolvedTheme;
-  }, [resolvedTheme]);
+  }, [resolvedTheme, mounted]);
 
   useEffect(() => {
     if (theme !== 'system' || typeof window === 'undefined') return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => setThemeState('system');
+    const handler = () => setSystemDark(mq.matches);
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, [theme]);
@@ -109,8 +123,8 @@ export function ThemeProvider({
   );
 
   const value = useMemo(
-    () => ({ theme, resolvedTheme, setTheme, brand }),
-    [theme, resolvedTheme, setTheme, brand],
+    () => ({ theme, resolvedTheme, setTheme, mounted, brand }),
+    [theme, resolvedTheme, setTheme, mounted, brand],
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

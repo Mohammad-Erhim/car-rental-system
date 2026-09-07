@@ -2,27 +2,34 @@
 
 import { useI18n } from '@carrental/i18n/react';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 /** Minimal availability search — pushes to `/[locale]/search` with query params. */
 export function HomeSearch({ locale }: { locale: string }) {
   const { t } = useI18n();
   const router = useRouter();
 
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 3, 10);
-  const end = new Date(start.getTime() + 3 * 864e5);
-  const iso = (d: Date) => d.toISOString().slice(0, 16);
-
   const [pickup, setPickup] = useState('');
-  const [pickupAt, setPickupAt] = useState(iso(start));
-  const [returnAt, setReturnAt] = useState(iso(end));
+  // Date defaults depend on "now" → compute after mount so SSR and first client render match.
+  const [pickupAt, setPickupAt] = useState('');
+  const [returnAt, setReturnAt] = useState('');
   const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 3, 10);
+    const end = new Date(start.getTime() + 3 * 864e5);
+    const iso = (d: Date) => d.toISOString().slice(0, 16);
+    setPickupAt((v) => v || iso(start));
+    setReturnAt((v) => v || iso(end));
+  }, []);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!pickup.trim()) return setErr(t('search.errNoLocation'));
-    if (!(new Date(pickupAt) < new Date(returnAt))) return setErr(t('search.errOrder'));
+    if (!pickupAt || !returnAt || !(new Date(pickupAt) < new Date(returnAt))) {
+      return setErr(t('search.errOrder'));
+    }
     const q = new URLSearchParams({
       pickup: pickup.trim().toUpperCase(),
       pickupAt: new Date(pickupAt).toISOString(),
