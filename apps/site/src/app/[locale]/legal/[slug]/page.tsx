@@ -29,7 +29,7 @@ export async function generateMetadata({
     locale: params.locale,
     path: `/legal/${params.slug}`,
     title: `${t.t(`site.legal.${params.slug}.title`)} — ${t.t('app.name')}`,
-    description: t.t(`site.legal.${params.slug}.title`),
+    description: t.t(`site.legal.${params.slug}.description`),
     type: 'article',
   });
 }

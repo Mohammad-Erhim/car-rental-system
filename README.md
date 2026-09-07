@@ -79,6 +79,7 @@ pnpm verify:api        # Vitest API/integration against carrental_test (real Pos
 pnpm verify:migrate    # empty -> current migration proof on a disposable database
 pnpm verify:i18n       # every UI string present + resolved in en / ar / fr (DEC-024)
 pnpm verify:theme      # brand tokens <-> CSS in sync · AA contrast for presets · no literal colours
+pnpm verify:seo        # apps/site: unique title/description/canonical · hreflang reciprocity · sitemap/robots · JSON-LD
 pnpm verify:e2e        # Playwright: phone / tablet / laptop, screenshots + console/network asserts
 pnpm verify:quick      # static + unit + api
 pnpm verify:all        # everything
