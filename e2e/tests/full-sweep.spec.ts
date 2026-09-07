@@ -96,14 +96,8 @@ test.describe('full sweep — Arabic / RTL', () => {
     test.skip(testInfo.project.name === 'tablet', 'RTL sweep on phone + laptop is enough');
     const guards = attachConsoleGuards(page);
 
-    // apps/site — locale is a URL segment, set from the header <select>; the choice sticks in a
-    // cookie so subsequent bare-path visits redirect to the Arabic route.
-    await page.goto('/sign-in');
-    await page.waitForLoadState('networkidle'); // hydrate before driving the client <select>
-    await page.locator('header select').first().selectOption('ar');
-    await expect(page).toHaveURL(/\/ar\/sign-in/);
-    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-
+    // apps/site — locale is a URL segment; `/[locale]/layout` sets <html lang dir> server-side,
+    // so a direct visit to an `/ar/…` path is enough (the switcher itself is covered in rtl.spec).
     for (const [path, name] of [
       ['/ar', 'home'],
       ['/ar/search', 'search'],

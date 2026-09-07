@@ -111,7 +111,11 @@ function RentalRow({ rental: r }: { rental: Rental }) {
   }
 
   return (
-    <Card data-testid={`rental-${r.reference}`} data-state={r.state}>
+    <Card
+      data-testid={`rental-${r.reference}`}
+      data-state={r.state}
+      data-reservation={r.reservationReference}
+    >
       <CardHeader className="gap-2">
         <CardTitle className="flex flex-wrap items-center gap-2 text-base">
           <span className="bidi-isolate font-mono text-sm">{r.reference}</span>

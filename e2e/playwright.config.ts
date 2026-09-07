@@ -43,7 +43,9 @@ export default defineConfig({
     timezoneId: 'America/New_York',
   },
   // All three responsive classes run on Chromium (the only engine installable on this host).
-  // Firefox/WebKit coverage is a release-hardening item — see STAGE-007.
+  // Firefox/WebKit coverage is a release-hardening item — see STAGE-007. `scripts/verify-e2e.sh`
+  // runs the three projects as separate invocations with a `db:reset` between them (the suite
+  // shares one DB, workers: 1) — a single all-projects run would starve the fleet by `laptop`.
   projects: [
     {
       name: 'phone',

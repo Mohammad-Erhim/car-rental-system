@@ -74,7 +74,8 @@ test('FLOW-OPS: assign → pickup → customer extend → return → ready', asy
   await expect(page.getByTestId('assign-msg')).toContainText(/assigned/i);
 
   await page.goto('/ops/rentals');
-  const card = page.getByTestId('rental-list').locator('[data-state="awaiting_pickup"]').first();
+  // scope to the rental for *this* reservation — the shared dev DB may carry other rentals
+  const card = page.getByTestId('rental-list').locator(`[data-reservation="${resRef}"]`);
   await expect(card).toBeVisible();
   const rentalRef = (await card.getByTestId(/rental-state-/).getAttribute('data-testid'))!.replace(
     'rental-state-',
