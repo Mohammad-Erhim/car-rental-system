@@ -23,11 +23,13 @@
     --muted-foreground: 215 16% 40%;
     --accent: 210 40% 94%;
     --accent-foreground: 222 47% 11%;
-    --destructive: 0 72% 42%;
+    /* status colours darkened so the tinted (`/15`) Badge/pill variants clear WCAG AA 4.5:1
+       on white — verified by e2e/tests/a11y.spec.ts. Keep in sync with packages/ui/src/styles.css */
+    --destructive: 0 74% 39%;
     --destructive-foreground: 0 0% 100%;
-    --success: 142 64% 30%;
+    --success: 142 72% 24%;
     --success-foreground: 0 0% 100%;
-    --warning: 35 92% 33%;
+    --warning: 30 100% 26%;
     --warning-foreground: 0 0% 100%;
     --border: 214 32% 88%;
     --input: 214 32% 84%;

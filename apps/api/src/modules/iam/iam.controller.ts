@@ -7,7 +7,7 @@ import {
   zUpdateProfileRequest,
   zVerifyContactRequest,
 } from '@carrental/contracts';
-import { Body, Controller, Get, Inject, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
@@ -15,6 +15,8 @@ import { z } from 'zod';
 import { AppError } from '../../common/app-error';
 import { CurrentActor, MaybeCurrentActor, Public } from '../../common/auth/auth.guard';
 import type { Actor } from '../../common/auth/types';
+import { CsrfGuard } from '../../common/security/csrf.guard';
+import { RateLimit } from '../../common/security/rate-limit.decorator';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { ENV } from '../../config/config.module';
 import type { Env } from '../../config/env.schema';
@@ -60,6 +62,7 @@ export class IamController {
 
   @Post('register')
   @Public()
+  @RateLimit({ preset: 'auth' })
   @ApiOperation({ operationId: 'auth_register', summary: 'Create a customer account' })
   async register(
     @Body(new ZodValidationPipe(zRegisterRequest)) body: z.infer<typeof zRegisterRequest>,
@@ -77,6 +80,7 @@ export class IamController {
 
   @Post('verify-contact')
   @Public()
+  @RateLimit({ preset: 'auth' })
   @ApiOperation({ operationId: 'auth_verifyContact', summary: 'Verify email/phone with a code' })
   async verifyContact(
     @Body(new ZodValidationPipe(zVerifyContactRequest)) body: z.infer<typeof zVerifyContactRequest>,
@@ -94,12 +98,14 @@ export class IamController {
 
   @Post('resend-verification')
   @Public()
+  @RateLimit({ preset: 'auth' })
   async resend(@Body(new ZodValidationPipe(zResend)) body: z.infer<typeof zResend>) {
     return this.iam.resendVerification(body.accountId);
   }
 
   @Post('sign-in')
   @Public()
+  @RateLimit({ preset: 'auth' })
   @ApiOperation({ operationId: 'auth_signIn', summary: 'Sign in with credentials' })
   async signIn(
     @Body(new ZodValidationPipe(zSignInRequest)) body: z.infer<typeof zSignInRequest>,
@@ -117,6 +123,7 @@ export class IamController {
 
   @Post('refresh')
   @Public()
+  @UseGuards(CsrfGuard)
   @ApiOperation({ operationId: 'auth_refresh', summary: 'Rotate the refresh session' })
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const token = req.cookies?.[REFRESH_COOKIE] as string | undefined;
@@ -132,6 +139,7 @@ export class IamController {
 
   @Post('sign-out')
   @Public()
+  @UseGuards(CsrfGuard)
   @ApiOperation({ operationId: 'auth_signOut', summary: 'End the current (or all) sessions' })
   async signOut(
     @Body(new ZodValidationPipe(zSignOut)) body: z.infer<typeof zSignOut>,
@@ -147,6 +155,7 @@ export class IamController {
 
   @Post('recovery/start')
   @Public()
+  @RateLimit({ preset: 'auth' })
   @ApiOperation({ operationId: 'auth_startRecovery', summary: 'Begin account recovery' })
   async startRecovery(
     @Body(new ZodValidationPipe(zStartRecoveryRequest)) body: z.infer<typeof zStartRecoveryRequest>,
@@ -156,6 +165,7 @@ export class IamController {
 
   @Post('recovery/complete')
   @Public()
+  @RateLimit({ preset: 'auth' })
   @ApiOperation({ operationId: 'auth_completeRecovery', summary: 'Finish account recovery' })
   async completeRecovery(
     @Body(new ZodValidationPipe(zCompleteRecoveryRequest))

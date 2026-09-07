@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/.turbo
+**/coverage
+**/playwright-report
+**/test-results
+**/.git
+**/*.log
+docs/ai-delivery/**/screenshots
+.env
+.env.*
+!.env.example
+var/

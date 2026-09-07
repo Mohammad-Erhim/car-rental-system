@@ -74,7 +74,7 @@ export function VehicleDetailPage() {
       <button
         type="button"
         onClick={() => navigate(-1)}
-        className="text-sm text-primary hover:underline"
+        className="text-sm text-primary underline underline-offset-4"
       >
         ← Back to results
       </button>

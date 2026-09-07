@@ -56,6 +56,12 @@ export const envSchema = z.object({
   MAP_STYLE_URL: z.string().optional(),
   IDENTITY_DRIVER: z.enum(['simulator', 'manual']).default('simulator'),
 
+  /** SRS-SEC-015 — abuse controls. `RATE_LIMIT_ENABLED=false` disables the guard entirely.
+   * `RATE_LIMIT_AUTH_MAX` requests per `RATE_LIMIT_AUTH_WINDOW_SEC` per client IP on auth routes. */
+  RATE_LIMIT_ENABLED: z.coerce.boolean().default(true),
+  RATE_LIMIT_AUTH_MAX: z.coerce.number().int().positive().default(40),
+  RATE_LIMIT_AUTH_WINDOW_SEC: z.coerce.number().int().positive().default(60),
+
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
   METRICS_ENABLED: z.coerce.boolean().default(true),

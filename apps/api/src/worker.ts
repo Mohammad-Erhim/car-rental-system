@@ -13,6 +13,7 @@ import pino from 'pino';
 import { createDb } from './database/drizzle';
 import { authChallenge } from './database/schema/iam';
 import { idempotencyKey, outboxMessage } from './database/schema/platform';
+import { rental } from './database/schema/rental';
 import { bootstrapEnvForScript } from './database/script-env';
 
 const log = pino({ name: 'carrental-worker', level: process.env.LOG_LEVEL ?? 'info' });
@@ -50,6 +51,14 @@ async function main() {
           .delete(idempotencyKey)
           .where(lt(idempotencyKey.expiresAt, sql`now()`))
           .returning({ id: idempotencyKey.id });
+        // FR-RNT-014 — an active rental past its scheduled return flips to `overdue`. The unit
+        // stays `on_rent`, so it is already excluded from availability; this just makes the
+        // state (and the ops board) truthful. Idempotent: only `active` rows match.
+        const overdue = await db
+          .update(rental)
+          .set({ state: 'overdue', updatedAt: sql`now()` })
+          .where(sql`${rental.state} = 'active' and ${rental.scheduledReturnAt} < now()`)
+          .returning({ id: rental.id });
         const backlog = await db
           .select({ n: sql<number>`count(*)::int` })
           .from(outboxMessage)
@@ -58,6 +67,7 @@ async function main() {
           {
             reapedChallenges: challenges.length,
             reapedIdempotencyKeys: keys.length,
+            markedOverdue: overdue.length,
             outboxBacklog: backlog[0]?.n ?? 0,
             _nowExpr: String(nowExpr),
           },

@@ -194,7 +194,7 @@ export function RecoveryPage({ audience = 'customer' as 'customer' | 'staff' }) 
           <p className="text-center text-sm">
             <Link
               to={audience === 'staff' ? '/ops/sign-in' : '/sign-in'}
-              className="text-primary underline-offset-4 hover:underline"
+              className="text-primary underline underline-offset-4"
             >
               Back to sign in
             </Link>

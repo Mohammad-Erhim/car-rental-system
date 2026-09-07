@@ -1451,6 +1451,20 @@
         ]
       }
     },
+    "/api/v1/ops/rentals/overdue-sweep": {
+      "post": {
+        "operationId": "RentalController_overdueSweep",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
     "/api/v1/ops/reports": {
       "get": {
         "operationId": "ReportController_listDefinitions",

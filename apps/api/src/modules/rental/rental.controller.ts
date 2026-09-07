@@ -109,4 +109,15 @@ export class RentalController {
   ) {
     return this.rentals.runReadiness(reference, actor, body.passed);
   }
+
+  /**
+   * FR-RNT-014 — flip every `active` rental that is past its scheduled return to `overdue`.
+   * Runs automatically on the worker's housekeeping tick; this is the manual/ops trigger.
+   */
+  @Post('ops/rentals/overdue-sweep')
+  @Permissions('rental.read', 'rental.return')
+  async overdueSweep() {
+    const marked = await this.rentals.markOverdue();
+    return { marked };
+  }
 }

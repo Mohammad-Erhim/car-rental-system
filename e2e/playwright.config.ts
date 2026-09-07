@@ -73,6 +73,10 @@ export default defineConfig({
           timeout: 90_000,
           stdout: 'pipe',
           stderr: 'pipe',
+          // the whole suite shares one client IP — lift the auth rate cap so the many
+          // sign-ins across specs never trip SRS-SEC-015 (the limiter itself is tested in
+          // apps/api/test/security.spec.ts).
+          env: { ...process.env, RATE_LIMIT_AUTH_MAX: '2000', RATE_LIMIT_AUTH_WINDOW_SEC: '60' },
         },
         {
           command: 'pnpm --filter @carrental/web preview',

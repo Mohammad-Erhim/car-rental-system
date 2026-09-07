@@ -93,7 +93,7 @@ export function ReservationDetailPage() {
       <button
         type="button"
         onClick={() => navigate('/trips')}
-        className="text-sm text-primary hover:underline"
+        className="text-sm text-primary underline underline-offset-4"
       >
         ← All trips
       </button>

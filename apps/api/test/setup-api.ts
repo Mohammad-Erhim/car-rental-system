@@ -11,6 +11,11 @@ import { beforeAll } from 'vitest';
  */
 process.env.NODE_ENV = 'test';
 
+// SRS-SEC-015 rate limiter: a short window so the suite's many sign-ins never accumulate into a
+// false 429, while `security.spec.ts` can still trip it with a quick burst from one IP.
+process.env.RATE_LIMIT_AUTH_MAX ??= '25';
+process.env.RATE_LIMIT_AUTH_WINDOW_SEC ??= '2';
+
 function loadDotenv(path: string): boolean {
   try {
     const text = readFileSync(path, 'utf8');

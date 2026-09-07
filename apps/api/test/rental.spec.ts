@@ -202,4 +202,21 @@ describe('rental lifecycle', () => {
       .send({ odometerKm: 1, fuelPct: 100, driverName: 'X', licenceNumber: 'D' })
       .expect(403);
   });
+
+  it('TEST-RNT-003 the overdue sweep runs (staff only) and reports a count (FR-RNT-014)', async () => {
+    // the worker runs this on its housekeeping tick; the endpoint is the manual trigger
+    const swept = await request(server)
+      .post('/api/v1/ops/rentals/overdue-sweep')
+      .set('Authorization', `Bearer ${agentToken}`)
+      .send({})
+      .expect(201);
+    expect(typeof swept.body.marked).toBe('number');
+    expect(swept.body.marked).toBeGreaterThanOrEqual(0);
+
+    await request(server)
+      .post('/api/v1/ops/rentals/overdue-sweep')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({})
+      .expect(403);
+  });
 });

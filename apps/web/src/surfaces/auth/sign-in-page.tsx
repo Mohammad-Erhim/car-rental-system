@@ -125,12 +125,12 @@ export function SignInPage({ audience = 'customer' as 'customer' | 'staff' }) {
           <div className="flex items-center justify-between text-sm">
             <Link
               to={isStaff ? '/ops/recovery' : '/recovery'}
-              className="text-primary underline-offset-4 hover:underline"
+              className="text-primary underline underline-offset-4"
             >
               Forgot your password?
             </Link>
             {!isStaff ? (
-              <Link to="/register" className="text-primary underline-offset-4 hover:underline">
+              <Link to="/register" className="text-primary underline underline-offset-4">
                 {t('action.register')}
               </Link>
             ) : null}

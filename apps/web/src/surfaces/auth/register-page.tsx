@@ -262,7 +262,7 @@ export function RegisterPage() {
           {step === 'form' ? (
             <p className="text-center text-sm">
               Already have an account?{' '}
-              <Link to="/sign-in" className="text-primary underline-offset-4 hover:underline">
+              <Link to="/sign-in" className="text-primary underline underline-offset-4">
                 {t('action.signIn')}
               </Link>
             </p>

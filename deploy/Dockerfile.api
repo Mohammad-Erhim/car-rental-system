@@ -1,0 +1,45 @@
+# Car Rental System — API + worker image (SRS §17.6 deploy artifact).
+# Multi-stage: install with pnpm, compile TS -> dist, run as a non-root user on a slim base.
+#
+#   docker build -f deploy/Dockerfile.api -t carrental-api .
+#   docker run --env-file .env -p 3001:3001 carrental-api                 # API
+#   docker run --env-file .env carrental-api node dist/worker.js          # worker
+
+# ---- base -------------------------------------------------------------------
+FROM node:22-bookworm-slim AS base
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+WORKDIR /app
+
+# ---- deps (cached on lockfile) -------------------------------------------------
+FROM base AS deps
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json .npmrc* ./
+COPY apps/api/package.json apps/api/
+COPY packages/contracts/package.json packages/contracts/
+COPY packages/i18n/package.json packages/i18n/
+COPY packages/config/package.json packages/config/
+RUN pnpm install --frozen-lockfile --filter @carrental/api... --prod=false
+
+# ---- build ------------------------------------------------------------------
+FROM deps AS build
+COPY tsconfig.base.json ./
+COPY packages/ packages/
+COPY apps/api/ apps/api/
+RUN pnpm --filter @carrental/contracts --filter @carrental/i18n build \
+ && pnpm --filter @carrental/api build \
+ && pnpm --filter @carrental/api --prod deploy /out
+
+# ---- runtime --------------------------------------------------------------------
+FROM node:22-bookworm-slim AS runtime
+ENV NODE_ENV=production
+WORKDIR /app
+COPY --from=build /out/node_modules ./node_modules
+COPY --from=build /app/apps/api/dist ./dist
+COPY --from=build /app/apps/api/src/database/migrations ./dist/database/migrations
+COPY --from=build /app/apps/api/package.json ./package.json
+USER node
+EXPOSE 3001
+# migrations are applied by the `migrate` one-shot in compose, not on every boot.
+HEALTHCHECK --interval=15s --timeout=4s --retries=10 \
+  CMD node -e "fetch('http://127.0.0.1:3001/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+CMD ["node", "dist/main.js"]
