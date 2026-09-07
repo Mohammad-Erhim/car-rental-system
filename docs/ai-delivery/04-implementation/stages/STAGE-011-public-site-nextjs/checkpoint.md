@@ -4,10 +4,12 @@
 - **Increment 1 (done, 2026-09-07):** `apps/site` scaffold + home / search / vehicle-detail /
   help / legal, full technical SEO, `/[locale]/` i18n routing (en/ar/fr + RTL), brand overlay,
   Docker image + compose wiring. Builds + runs verified.
-- **Increment 2 (next):** port the authenticated customer flows (auth, account, trips,
-  checkout) against the same API; the `/ops/config/seo` dashboard panel + `seo` config kind;
-  reduce `apps/web` to `/ops` only + a single edge proxy (site + web + api behind one origin);
-  `verify:seo` gate; Lighthouse evidence.
+- **Increment 2 core (done, 2026-09-07):** `apps/web` reduced to `/ops` only (router `basename`,
+  Vite `base: /ops/`, customer surface deleted) + a single **edge** nginx proxy (`/`→site,
+  `/ops`→web, `/api`+`/health`→api). Full prod-stack edge integration verified.
+- **Increment 3 (deferred):** the authenticated customer flows (auth, account, trips, checkout)
+  on `apps/site`; `/ops/config/seo` panel + `seo` config kind; `verify:seo` gate; Lighthouse
+  evidence; `og-default.png` from the brand config.
 
 ## Completed — increment 1
 
@@ -69,3 +71,26 @@ Auth / account / trips / checkout pages; `/ops/config/seo` panel + `seo` config 
 `apps/web` → `/ops` only + `apps/web` router `basename=/ops` + a single edge proxy in
 `compose.prod.yaml` / `deploy/nginx.conf`; `verify:seo` gate + Lighthouse run; `og-default.png`
 generation from the brand config.
+
+## Completed — increment 2 core (the split + edge)
+
+- `apps/web/src/app/router.tsx` — ops-only route tree; `createBrowserRouter(…, { basename:
+'/ops' })`; the customer `/` tree removed.
+- `apps/web/vite.config.ts` — `base: '/ops/'`; every `NavLink` / `Navigate` `/ops/x` → `/x`
+  (the basename prepends). `index.html` `<title>` → "Operations Console".
+- Deleted `apps/web/src/surfaces/customer/` (13 files) + `components/search-form.tsx` +
+  `surfaces/auth/register-page.tsx` — all customer-only, now `apps/site`'s job.
+- `deploy/Dockerfile.web` — SPA copied to `/usr/share/nginx/html/ops`; `deploy/nginx.conf` —
+  `/ops/` SPA fallback, `/` + `/ops` → `302 /ops/`, `absolute_redirect off` (no `:8080` leak
+  behind the edge).
+- `deploy/nginx.edge.conf` + `edge` service in `compose.prod.yaml` — one origin on
+  `${EDGE_PORT:-3000}`; `site` + `web` are now `expose`-only (internal).
+
+### Verified — increment 2 core (full prod stack through the edge, `localhost:3000`)
+
+`/` → 307 → `/en` (site); `/en` localised `<title>`; `/ar` `<html dir="rtl">`; `/ops` → 302 →
+`/ops/` (relative, no port leak) → "Operations Console" SPA with `/ops/assets/…`;
+`/api/v1/meta/branding` + `/meta/locales` + `/health/ready` → 200 through the edge;
+`sitemap.xml` + `robots.txt` → 200. (`/en/vehicles/economy` 404 + ops sign-in 401 are correct —
+the prod stack seeds `system` only; `run --rm seed-dev` loads the fixtures.) All 7 services
+healthy.
