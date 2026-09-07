@@ -43,10 +43,10 @@ async function bookViaUi(page: Page): Promise<string> {
   await page.getByTestId('search-submit').click();
   await expect(page).toHaveURL(/\/search\?/);
   await page
-    .getByTestId('result-intermediate')
+    .getByTestId('result-suv')
     .getByRole('link', { name: /View & reserve/ })
     .click();
-  await expect(page).toHaveURL(/\/vehicles\/intermediate\?/);
+  await expect(page).toHaveURL(/\/vehicles\/suv\?/);
   await expect(page.getByTestId('reserve-button')).toBeEnabled();
   await page.getByTestId('reserve-button').click();
   await expect(page).toHaveURL(/\/checkout\?quote=/);

@@ -33,14 +33,20 @@ async function signInCustomer(page: Page) {
 /** Book an economy car from JFK and return its RES- reference. */
 async function bookViaUi(page: Page, pickupDaysAhead: number, days = 3): Promise<string> {
   await page.goto('/');
-  await page.getByTestId('search-location').selectOption('JFK');
+  await page.waitForLoadState('networkidle'); // let the client search island hydrate
+  const loc = page.getByTestId('search-location');
+  await loc.selectOption('JFK');
+  await expect(loc).toHaveValue('JFK');
   await page.getByTestId('search-pickup-at').fill(localDateTime(pickupDaysAhead, 11));
   await page.getByTestId('search-return-at').fill(localDateTime(pickupDaysAhead + days, 11));
   await page.getByTestId('search-submit').click();
+  await expect(page).toHaveURL(/\/search\?/);
   await page
     .getByTestId('result-economy')
     .getByRole('link', { name: /View & reserve/ })
     .click();
+  await expect(page).toHaveURL(/\/vehicles\/economy\?/);
+  await expect(page.getByTestId('reserve-button')).toBeEnabled();
   await page.getByTestId('reserve-button').click();
   await expect(page).toHaveURL(/\/checkout\?quote=/);
   await page.getByLabel('Primary driver name', { exact: false }).fill('Ops Tester');

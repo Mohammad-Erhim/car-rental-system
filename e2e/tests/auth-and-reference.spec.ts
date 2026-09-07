@@ -48,16 +48,20 @@ test.describe('customer auth (APP-CWEB)', () => {
     await expect(page).toHaveURL(/\/account$/);
 
     const localeField = page.locator('#field-locale');
-    const save = () => page.getByRole('button', { name: /^(Save|Enregistrer)$/ }).click();
-    // set the language select and wait for the value to actually stick — the profile form
-    // repopulates from its own fetch after every save, which can race a `selectOption`.
+    const saveBtn = page.getByRole('button', { name: /^(Save|Enregistrer)$/ });
+    // set the language select and persist it. The profile form repopulates from its own fetch
+    // after every save, which can race a `selectOption` and a save-in-flight, so: retry the
+    // select until the value sticks, submit, and wait for the mutation to settle before the
+    // caller asserts the re-rendered chrome.
     const setLocale = async (code: string) => {
       await expect(localeField).toBeEnabled();
       await expect(async () => {
         await localeField.selectOption(code);
         await expect(localeField).toHaveValue(code);
       }).toPass({ timeout: 10_000 });
-      await save();
+      await saveBtn.click();
+      await expect(saveBtn).toBeEnabled(); // loading spinner cleared → save round-trip done
+      await expect(localeField).toHaveValue(code); // survived the post-save repopulate
     };
 
     // Self-contained: normalise to English first (the demo customer is shared dev state),
