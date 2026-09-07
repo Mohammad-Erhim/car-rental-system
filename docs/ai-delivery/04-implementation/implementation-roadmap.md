@@ -9,8 +9,8 @@ Status values: `PLANNED`, `READY`, `IN_PROGRESS`, `BLOCKED`, `VERIFYING`, `COMPL
 | STAGE-001 | Shared identity, config, reference data, UI foundation                                                                                                    | COMPLETED   |
 | STAGE-002 | Discovery & quote (catalogue, locations, availability, pricing, holds)                                                                                    | COMPLETED   |
 | STAGE-003 | Booking & payment (checkout, drivers, products, terms, confirm, notify)                                                                                   | COMPLETED   |
-| STAGE-004 | Reservation operations (list/detail, modify, cancel, refund, customer workspaces)                                                                         | IN_PROGRESS |
-| STAGE-005 | Pickup, active rental, return & closeout (fleet readiness, assignment, agreement, extension, incident, replacement, inspection)                           | PLANNED     |
+| STAGE-004 | Reservation operations (list/detail, modify, cancel, refund, customer workspaces)                                                                         | COMPLETED   |
+| STAGE-005 | Pickup, active rental, return & closeout (fleet readiness, assignment, agreement, extension, incident, replacement, inspection)                           | IN_PROGRESS |
 | STAGE-006 | Administration & reporting (full config/versioning, imports, templates/translations, reports/exports/schedules, integration recovery, audit/data-quality) | PLANNED     |
 | STAGE-007 | Release hardening (perf, a11y, security, responsive/locale sweep, backup/restore, deploy artifacts)                                                       | PLANNED     |
 
@@ -120,6 +120,12 @@ Status values: `PLANNED`, `READY`, `IN_PROGRESS`, `BLOCKED`, `VERIFYING`, `COMPL
   result; two staff cannot refund the same remaining amount; every provider txn reconciles or
   is an owned case.
 - **Unlocks:** STAGE-005.
+- **Completion (2026-09-07):** COMPLETED. `reservation-ops.service` (cancel — idempotent, policy
+  refund; modify — hold-new-before-releasing-old, re-price + delta settle, TEST-ERR-003;
+  markNoShow; history; reconcile → owned exceptions; case list/resolve). Availability now
+  subtracts confirmed reservations (D-004-1). SCREEN-CUS-014/015/016/019 + SCREEN-OPS-004.
+  Gates: static PASS, unit 63, api 44 (6 reservation-ops), migrate 4, e2e 69. 81 screenshots.
+  Evidence: `stages/STAGE-004-reservation-ops/` (D-004-1..3).
 
 ## STAGE-005 — Pickup, active rental, return & closeout
 

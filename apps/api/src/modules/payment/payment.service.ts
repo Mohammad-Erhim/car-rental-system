@@ -8,6 +8,7 @@ import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { payment, paymentIntent, recoveryCase } from '../../database/schema/payment';
+import { reconciliationException } from '../../database/schema/reservation';
 
 import { PaymentDeclinedError, PaymentPort, PaymentTimeoutError } from './payment.port';
 
@@ -359,5 +360,93 @@ export class PaymentService {
       providerRef: providerRef ?? null,
       createdBy: input.actor?.accountId ?? null,
     });
+  }
+
+  // -------------------------------------------------- recovery cases / reconciliation
+
+  async listOpenCases() {
+    return this.db
+      .select()
+      .from(recoveryCase)
+      .where(sql`${recoveryCase.state} <> 'resolved'`)
+      .orderBy(desc(recoveryCase.createdAt))
+      .limit(200);
+  }
+
+  async resolveCase(actor: Actor, id: string, note: string): Promise<void> {
+    await this.db
+      .update(recoveryCase)
+      .set({
+        state: 'resolved',
+        resolvedAt: sql`now()`,
+        resolutionNote: note,
+        updatedAt: sql`now()`,
+        updatedBy: actor.accountId,
+      })
+      .where(eq(recoveryCase.id, id));
+  }
+
+  /** Every captured intent — the input to a reconciliation run. */
+  async allCapturedIntents() {
+    return this.db
+      .select()
+      .from(paymentIntent)
+      .where(sql`${paymentIntent.state} in ('captured','partially_refunded','refunded')`);
+  }
+
+  async openReconciliationException(input: {
+    organizationId: string;
+    reservationReference?: string | null;
+    intentId?: string | null;
+    kind: string;
+    ledgerAmountMinor?: number | null;
+    providerAmountMinor?: number | null;
+  }): Promise<string> {
+    const [row] = await this.db
+      .insert(reconciliationException)
+      .values({
+        organizationId: input.organizationId,
+        reservationReference: input.reservationReference ?? null,
+        intentId: input.intentId ?? null,
+        kind: input.kind,
+        ledgerAmountMinor: input.ledgerAmountMinor ?? null,
+        providerAmountMinor: input.providerAmountMinor ?? null,
+      })
+      .returning({ id: reconciliationException.id });
+    await this.outbox.emit({
+      type: 'payment.reconciliation.exception.v1',
+      aggregateType: 'reconciliation_exception',
+      aggregateId: row!.id,
+      payload: { kind: input.kind, reservationReference: input.reservationReference },
+    });
+    return row!.id;
+  }
+
+  async listReconciliationExceptions() {
+    return this.db
+      .select()
+      .from(reconciliationException)
+      .where(eq(reconciliationException.state, 'open'))
+      .orderBy(desc(reconciliationException.createdAt))
+      .limit(200);
+  }
+
+  async resolveReconciliationException(actor: Actor, id: string, note: string): Promise<void> {
+    const [row] = await this.db
+      .select()
+      .from(reconciliationException)
+      .where(eq(reconciliationException.id, id))
+      .limit(1);
+    if (!row) throw AppError.notFound('exception');
+    await this.db
+      .update(reconciliationException)
+      .set({
+        state: 'resolved',
+        resolvedAt: sql`now()`,
+        resolutionNote: note,
+        updatedAt: sql`now()`,
+        updatedBy: actor.accountId,
+      })
+      .where(eq(reconciliationException.id, id));
   }
 }

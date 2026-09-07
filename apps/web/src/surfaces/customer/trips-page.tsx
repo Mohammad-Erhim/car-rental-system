@@ -1,4 +1,5 @@
 import { AppStateView, Badge, Button, Card, CardContent } from '@carrental/ui';
+import { Link } from 'react-router-dom';
 
 import { useAuth } from '../../lib/auth.js';
 import { formatMinor, useMyReservations } from '../../lib/discovery-hooks.js';
@@ -63,8 +64,10 @@ export function TripsPage() {
                   </div>
                   <div className="text-end">
                     <p className="font-semibold">{formatMinor(r.totalMinor, r.currency)}</p>
-                    <Button size="sm" variant="outline" className="mt-2" disabled>
-                      Manage (soon)
+                    <Button asChild size="sm" variant="outline" className="mt-2">
+                      <Link to={`/trips/${r.reference}`} data-testid={`trip-manage-${r.reference}`}>
+                        Manage
+                      </Link>
                     </Button>
                   </div>
                 </CardContent>

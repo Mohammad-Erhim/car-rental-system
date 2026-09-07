@@ -50,6 +50,14 @@ _Rows added per stage. See `implementation-roadmap.md` for the FR set owned by e
 | FR-BKG-008 (guest) | FR   | 003   | anonymous `confirm()` → `channel: guest` + magic-link token; `?token=` read; `POST /bookings/:ref/claim`                                                        | `booking.spec.ts` (guest book + claim)                                                 | —                                            | COMPLETED                                    |
 | FR-IAM-007 (reuse) | FR   | 003   | `reservation_driver.savedDriverId` carried through from the checkout driver form                                                                                | `booking.spec.ts` (drivers)                                                            | `cweb-checkout.*`                            | COMPLETED (fuller driver reuse UI STAGE-004) |
 | TEST-ERR-005       | FR   | 003   | `notify.send` after commit is try/catch — a failed confirmation email does not fail the booking                                                                 | `booking.service` (structure) + `booking.spec.ts`                                      | —                                            | COMPLETED                                    |
+| FR-RSV-002         | FR   | 004   | `reservation-ops.modify` — secure new window first, re-price, settle delta, re-write snapshot + `modified` event                                                | `reservation-ops.spec.ts` TEST-RSV-002, `e2e` FLOW-CUS-004                             | `cweb-reservation-detail.*`                  | COMPLETED                                    |
+| FR-RSV-003         | FR   | 004   | `reservation-ops.cancel` — idempotent, policy refund (free > 48h else 20%), `cancelled` event + notify                                                          | `reservation-ops.spec.ts` TEST-RSV-001 + late-fee, `e2e` FLOW-CUS-005                  | `cweb-reservation-cancelled.*`               | COMPLETED                                    |
+| FR-RSV-006         | FR   | 004   | `reservation_event` append-only history; `GET /reservations/:ref/history`                                                                                       | `reservation-ops.spec.ts` (history assertions), `e2e` (history timeline)               | `cweb-reservation-detail.*`                  | COMPLETED                                    |
+| FR-RSV-007         | FR   | 004   | `markNoShow` (staff)                                                                                                                                            | `reservation-ops.service` + queue E2E                                                  | `ops-reservation-queue.*`                    | COMPLETED                                    |
+| FR-PAY-006/007     | FR   | 004   | `payment.refund` (partial, over-refund guarded); cancel/modify negative-delta refunds                                                                           | `reservation-ops.spec.ts` (late-fee refund), `booking.spec.ts` (snapshot)              | —                                            | COMPLETED                                    |
+| FR-PAY-009         | FR   | 004   | `reconcile()` → `reconciliation_exception` (owned until resolved); `recovery_case` list/resolve                                                                 | `reservation-ops.spec.ts` (reconciliation + case)                                      | —                                            | COMPLETED                                    |
+| FR-ADM-001         | FR   | 004   | staff reservation queue (`GET /ops/reservations`, state/location filters)                                                                                       | `e2e/tests/reservation-ops.spec.ts` SCREEN-OPS-004                                     | `ops-reservation-queue.*`                    | COMPLETED                                    |
+| TEST-ERR-003       | FR   | 004   | a failed date change keeps the original reservation + capacity (hold-new-before-old)                                                                            | `reservation-ops.spec.ts` TEST-ERR-003                                                 | —                                            | COMPLETED                                    |
 
 ## SRS cross-cutting families
 
@@ -69,6 +77,17 @@ _Rows added per stage. See `implementation-roadmap.md` for the FR set owned by e
 
 _Populated per stage from SRS §20–21. Each SCREEN row records: route, states implemented,
 screenshot set (phone/tablet/laptop [+RTL]), and the owning TEST-SCREEN-\* / TEST-FLOW-\*._
+
+### STAGE-004
+
+| Source ID        | Route               | Code                                                     | Test                                     | Screenshots                    | Status                                                  |
+| ---------------- | ------------------- | -------------------------------------------------------- | ---------------------------------------- | ------------------------------ | ------------------------------------------------------- |
+| SCREEN-CUS-014   | `/trips/:reference` | `surfaces/customer/reservation-detail-page.tsx`          | `reservation-ops.spec.ts` FLOW-CUS-005   | `cweb-reservation-detail.*`    | COMPLETED                                               |
+| SCREEN-CUS-015   | `/trips/:reference` | modify-return-date form in `reservation-detail-page.tsx` | `reservation-ops.spec.ts` FLOW-CUS-004   | `cweb-reservation-detail.*`    | COMPLETED (vehicle-class + driver change STAGE-005/006) |
+| SCREEN-CUS-016   | `/trips/:reference` | Cancel + ConfirmDialog                                   | `reservation-ops.spec.ts` FLOW-CUS-005   | `cweb-reservation-cancelled.*` | COMPLETED                                               |
+| SCREEN-CUS-019   | `/trips/:reference` | history timeline                                         | `reservation-ops.spec.ts`                | `cweb-reservation-detail.*`    | COMPLETED                                               |
+| SCREEN-OPS-004   | `/ops/work`         | `surfaces/ops/reservation-queue-page.tsx`                | `reservation-ops.spec.ts` SCREEN-OPS-004 | `ops-reservation-queue.*`      | COMPLETED (detail/modify/override STAGE-005)            |
+| FLOW-CUS-004/005 | modify / cancel     | reservation-ops                                          | `reservation-ops.spec.ts` ×3             | `cweb-reservation-*`           | COMPLETED                                               |
 
 ### STAGE-003
 

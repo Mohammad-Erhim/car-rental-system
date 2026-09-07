@@ -6,6 +6,8 @@ import { PaymentModule } from '../payment/payment.module';
 
 import { BookingController } from './booking.controller';
 import { BookingService } from './booking.service';
+import { ReservationController } from './reservation.controller';
+import { ReservationOpsService } from './reservation-ops.service';
 
 /**
  * STAGE-003 — Booking & payment. `confirm()` consumes a STAGE-002 hold + quote (via the
@@ -15,8 +17,8 @@ import { BookingService } from './booking.service';
  */
 @Module({
   imports: [DiscoveryModule, PaymentModule, NotifyModule],
-  controllers: [BookingController],
-  providers: [BookingService],
-  exports: [BookingService],
+  controllers: [BookingController, ReservationController],
+  providers: [BookingService, ReservationOpsService],
+  exports: [BookingService, ReservationOpsService],
 })
 export class BookingModule {}

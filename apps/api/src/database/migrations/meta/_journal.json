@@ -29,6 +29,13 @@
       "when": 1788751969795,
       "tag": "0003_daily_demogoblin",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788753580061,
+      "tag": "0004_green_proudstar",
+      "breakpoints": true
     }
   ]
 }

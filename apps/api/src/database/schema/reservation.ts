@@ -121,3 +121,51 @@ export const consentSnapshot = pgTable(
   },
   (t) => ({ resIdx: index('consent_snapshot_res_idx').on(t.reservationId, t.kind) }),
 );
+
+/**
+ * DAT-RESERVATION-EVENT (SRS §9.2, FR-RSV-006). Append-only change history for a reservation —
+ * created / modified / cancelled / no_show / refund_requested / refund_settled / override_applied.
+ * `before` / `after` are masked snapshots; `reason` carries a lookup code for overrides/cancels.
+ */
+export const reservationEvent = pgTable(
+  'reservation_event',
+  {
+    ...auditColumns,
+    reservationId: uuid('reservation_id').notNull(),
+    reference: text('reference').notNull(),
+    type: text('type').notNull(),
+    reasonCode: text('reason_code'),
+    note: text('note'),
+    before: jsonb('before').$type<Record<string, unknown>>(),
+    after: jsonb('after').$type<Record<string, unknown>>(),
+    amountDeltaMinor: integer('amount_delta_minor').notNull().default(0),
+    actorType: text('actor_type').notNull().default('customer'),
+    actorId: uuid('actor_id'),
+    actorLabel: text('actor_label'),
+    overrideApprovedBy: uuid('override_approved_by'),
+  },
+  (t) => ({ resIdx: index('reservation_event_res_idx').on(t.reservationId, t.createdAt) }),
+);
+
+/**
+ * DAT-RECONCILIATION-EXCEPTION (SRS §9.2, FR-PAY-009). A payment ledger row that does not match
+ * the provider statement — owned until a finance user resolves it.
+ */
+export const reconciliationException = pgTable(
+  'reconciliation_exception',
+  {
+    ...auditColumns,
+    ...actorColumns,
+    organizationId: uuid('organization_id').notNull(),
+    reservationReference: text('reservation_reference'),
+    intentId: uuid('intent_id'),
+    kind: text('kind').notNull(), // missing_in_provider|missing_in_ledger|amount_mismatch|state_mismatch
+    ledgerAmountMinor: integer('ledger_amount_minor'),
+    providerAmountMinor: integer('provider_amount_minor'),
+    state: text('state').notNull().default('open'), // open|resolved
+    detail: jsonb('detail').$type<Record<string, unknown>>(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true, mode: 'string' }),
+    resolutionNote: text('resolution_note'),
+  },
+  (t) => ({ openIdx: index('reconciliation_exception_open_idx').on(t.organizationId, t.state) }),
+);

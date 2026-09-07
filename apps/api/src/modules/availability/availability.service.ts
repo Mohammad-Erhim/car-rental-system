@@ -9,6 +9,7 @@ import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { hold } from '../../database/schema/booking';
 import { location, locationHoursException } from '../../database/schema/org';
+import { reservation } from '../../database/schema/reservation';
 import { CatalogueService } from '../catalogue/catalogue.service';
 import { FleetService } from '../fleet/fleet.service';
 import { PricingService } from '../pricing/pricing.service';
@@ -243,15 +244,21 @@ export class AvailabilityService {
     };
   }
 
+  /**
+   * Capacity already committed against a category + pickup location for a window: live holds
+   * (checkout in progress) + confirmed reservations that have not yet been picked up. Both
+   * consume a unit from the free pool.
+   */
   private async countHolds(
     categoryCode: string,
     pickupLocationCode: string,
     pickupAt: Date,
     returnAt: Date,
     tx?: Database,
+    excludeReservationRef?: string,
   ): Promise<number> {
     const db = tx ?? this.db;
-    const rows = await db
+    const [holds] = await db
       .select({ n: sql<number>`count(*)::int` })
       .from(hold)
       .where(
@@ -264,7 +271,22 @@ export class AvailabilityService {
           sql`${pickupAt.toISOString()} < ${hold.returnAt}`,
         ),
       );
-    return rows[0]?.n ?? 0;
+    const [reservations] = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(reservation)
+      .where(
+        and(
+          eq(reservation.categoryCode, categoryCode),
+          eq(reservation.pickupLocationCode, pickupLocationCode),
+          sql`${reservation.state} in ('confirmed','fulfilled')`,
+          sql`${reservation.pickupAt} < ${returnAt.toISOString()}`,
+          sql`${pickupAt.toISOString()} < ${reservation.returnAt}`,
+          excludeReservationRef
+            ? sql`${reservation.reference} <> ${excludeReservationRef}`
+            : sql`true`,
+        ),
+      );
+    return (holds?.n ?? 0) + (reservations?.n ?? 0);
   }
 
   /**
@@ -282,6 +304,8 @@ export class AvailabilityService {
     returnAt: Date;
     holderKey: string;
     quoteReference?: string;
+    /** when re-holding for a modify, don't count the reservation being changed against itself */
+    excludeReservationRef?: string;
   }): Promise<{ id: string; expiresAt: string; unitPinned: boolean }> {
     const lockKey = `${input.organizationId}:${input.categoryCode}:${input.pickupLocationCode}`;
     return this.db.transaction(async (tx) => {
@@ -299,6 +323,7 @@ export class AvailabilityService {
         input.pickupAt,
         input.returnAt,
         tx,
+        input.excludeReservationRef,
       );
       const { loc } = await this.loadLocation(input.pickupLocationCode);
       const avail = computeAvailability({

@@ -14,6 +14,7 @@ import { DriversPage } from '../surfaces/customer/drivers-page.js';
 import { HomePage } from '../surfaces/customer/home-page.js';
 import { PlaceholderPage } from '../surfaces/customer/placeholder-page.js';
 import { ProfilePage } from '../surfaces/customer/profile-page.js';
+import { ReservationDetailPage } from '../surfaces/customer/reservation-detail-page.js';
 import { SearchResultsPage } from '../surfaces/customer/search-results-page.js';
 import { TripsPage } from '../surfaces/customer/trips-page.js';
 import { VehicleDetailPage } from '../surfaces/customer/vehicle-detail-page.js';
@@ -22,6 +23,7 @@ import { OpsDashboard } from '../surfaces/ops/ops-dashboard.js';
 import { OpsLayout } from '../surfaces/ops/ops-layout.js';
 import { OpsPlaceholder } from '../surfaces/ops/ops-placeholder.js';
 import { RatePlansPage } from '../surfaces/ops/rate-plans-page.js';
+import { ReservationQueuePage } from '../surfaces/ops/reservation-queue-page.js';
 import { ReferenceDataPage } from '../surfaces/ops/reference-data-page.js';
 import { StaffRolesPage } from '../surfaces/ops/staff-roles-page.js';
 import { TranslationsPage } from '../surfaces/ops/translations-page.js';
@@ -87,6 +89,7 @@ export const router = createBrowserRouter([
       },
       { path: 'account/data', element: cust(<DataRequestsPage />) },
       { path: 'trips', element: <TripsPage /> },
+      { path: 'trips/:reference', element: cust(<ReservationDetailPage />) },
       {
         path: 'help',
         element: (
@@ -136,10 +139,9 @@ export const router = createBrowserRouter([
       {
         path: 'work',
         element: staffOnly(
-          <OpsPlaceholder
-            title="Work queues"
-            note="Operations queues (SCREEN-OPS-003) are built with the rental lifecycle stages."
-          />,
+          <RequirePermission anyOf={['reservation.read', 'reservation.modify']}>
+            <ReservationQueuePage />
+          </RequirePermission>,
         ),
       },
       {

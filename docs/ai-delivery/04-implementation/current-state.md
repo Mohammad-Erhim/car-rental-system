@@ -5,19 +5,19 @@ _Concise, authoritative. Update after every meaningful verified unit._
 - **Approved scope:** Full system minus APP-CMOB frontend (see `selected-scope.md`). Backend,
   APP-CWEB, APP-OPS all in scope. Autonomous multi-stage build (user: "never stop before 100%").
 - **Source versions:** FR 1.0, UI/UX 1.0, SRS 1.0 (hashes in `source-manifest.md`).
-- **Active stage:** STAGE-004 — Reservation operations (list/detail, modify, cancel, refund, workspaces).
+- **Active stage:** STAGE-005 — Pickup, active rental, return & closeout.
 - **Stage status:** IN_PROGRESS (starting).
-- **Last completed:** STAGE-003 — Booking & payment. COMPLETED 2026-09-07. Gate: `verify:static`
-  PASS, `verify:unit` 63, `verify:api` 38 (7 booking), `verify:migrate` 4, `verify:e2e` 60
-  (phone/tablet/laptop, 72 screenshots, 0 console/network errors). Evidence in
-  `stages/STAGE-003-booking/`.
+- **Last completed:** STAGE-004 — Reservation operations. COMPLETED 2026-09-07. Gate:
+  `verify:static` PASS, `verify:unit` 63, `verify:api` 44 (6 reservation-ops), `verify:migrate` 4,
+  `verify:e2e` 69 (phone/tablet/laptop, 81 screenshots, 0 console/network errors). Evidence in
+  `stages/STAGE-004-reservation-ops/`.
 - **Last verified tests:** as above.
-- **Unresolved defects / blockers:** none. STAGE-001 D-001-1..9, STAGE-002 D-002-1..5, STAGE-003 D-003-1..5 all fixed.
+- **Unresolved defects / blockers:** none. STAGE-001..004 defects (D-001..D-004) all fixed.
 - **Environment:** no Docker; PostgreSQL 16 + Redis 7 native (`scripts/dev-up.sh`). ~1.9 GB RAM ⇒
   single Vite SPA for both surfaces (DEC-004/018); API runs via `@swc-node/register` on source
   (tsc→dist build deferred to STAGE-007). Chromium-only E2E (Firefox/WebKit → STAGE-007).
 - **Frontend stack:** React 18 + Vite 5 + TypeScript + shadcn/ui + React Router v6 + TanStack Query.
-- **DB state (dev):** migrated to `0003`; seeded system + development. Discovery fixture: 5
+- **DB state (dev):** migrated to `0004`; seeded system + development. Discovery fixture: 5
   vehicle categories, 8 features, ~54 units across JFK/LHR/PAR, one published rate plan (+ tiers)
   per category. Demo customer (`customer@example.test`) has a `customer` domain row and is a
   resettable fixture. `pnpm --filter @carrental/api db:reset` re-baselines everything.
@@ -43,21 +43,26 @@ _Concise, authoritative. Update after every meaningful verified unit._
     published, publish reflects on search with no redeploy); catalogue + fleet-inventory read.
   - Booking (STAGE-003): `POST /bookings/confirm` — deterministic `RES-` ref, quote+hold
     re-validation, idempotent authorize+capture (`PaymentPort` simulator), atomic reservation
-    persist (verbatim quote snapshot + terms/consent), hold consume, non-fatal confirmation
-    email; guest token + `claim`; recovery case on write-after-charge. `GET /bookings/{mine,:ref}`.
+    persist, hold consume, non-fatal email; guest token + `claim`; recovery case on
+    write-after-charge.
+  - Reservation ops (STAGE-004): `POST /reservations/:ref/{cancel,modify}` (cancel — idempotent
+    - policy refund; modify — hold-new-before-old, re-price + delta settle, capacity-safe),
+      `GET .../history`; staff queue + `no-show`; `reconcile` → owned `reconciliation_exception`;
+      `recovery_case` list/resolve. Availability now subtracts confirmed reservations.
   - Web: auth context + guards + silent refresh + return-to; shared UI kit; customer
-    SCREEN-CUS-001/002/003/004/005/007/008..013/014(list)/024 + real checkout + trips;
-    ops SCREEN-OPS-001/013/025/026/030/031/032/034;
+    SCREEN-CUS-001..019 slices + real checkout + trips + reservation detail/modify/cancel/history;
+    ops SCREEN-OPS-001/004/013/025/026/030/031/032/034;
     responsive (phone/tablet bottom-nav, laptop header/sidebar; wide tables scroll in-box; no
     horizontal page overflow — `responsive.spec.ts` guard); RTL (Arabic) verified.
-- **Exact next action:** STAGE-004 — reservation list/detail, modify (date/vehicle/driver),
-  cancel + refund, no-show, pending/expiry, override with reason, history timeline; customer
-  reservation & payment workspaces; provider reconciliation. SCREEN-CUS-014–019,
-  SCREEN-OPS-004/005/021/022/023/024.
-- **Files/areas to change (STAGE-004):** new `apps/api/src/modules/{reservation,case}` (or extend
-  `booking`); `payment` refund/reconcile; extend schema (reservation_event/history, refund,
-  reconciliation_exception); `apps/web/src/surfaces/{customer,ops}` (reservation detail/modify/
-  cancel, ops reservation + payment workspaces).
+- **Exact next action:** STAGE-005 — fleet readiness + unit assignment, pickup verification +
+  rental agreement, active rental + extension, incident/roadside + replacement, return +
+  inspection + adjustments + settlement + vehicle next-state, after-hours, post-rental
+  tolls/fines, fleet transfers/maintenance/blocks/import-export. SCREEN-CUS-020–023,
+  SCREEN-OPS-007–020.
+- **Files/areas to change (STAGE-005):** new `apps/api/src/modules/{rental,fleet-ops,inspection}`
+  (or extend `booking`/`fleet`); extend schema (rental, rental_event, inspection, incident,
+  agreement, vehicle transfers/maintenance); `apps/web/src/surfaces/{customer,ops}` (pickup,
+  active rental, return, ops fleet lifecycle).
 - **Known pre-existing / unrelated working-tree changes:** none (greenfield; specs, `prompts/`,
   and this build only).
 - **Lookup / localization status:** system-fixed state sets + configurable lookups are SERVED
