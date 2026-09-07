@@ -1,3 +1,4 @@
+import { useI18n } from '@carrental/i18n/react';
 import { Button, Field } from '@carrental/ui';
 import { CalendarRange, MapPin, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -26,6 +27,7 @@ function defaultWindow() {
 }
 
 export function SearchForm({ compact = false }: { compact?: boolean }) {
+  const { t } = useI18n();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const locations = useLocations();
@@ -43,8 +45,8 @@ export function SearchForm({ compact = false }: { compact?: boolean }) {
   function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!pickup) return setError('Choose a pickup location.');
-    if (!(new Date(pickupAt) < new Date(returnAt))) return setError('Return must be after pickup.');
+    if (!pickup) return setError(t('search.errNoLocation'));
+    if (!(new Date(pickupAt) < new Date(returnAt))) return setError(t('search.errOrder'));
     const q = new URLSearchParams({
       pickup,
       pickupAt: toIso(pickupAt),
@@ -64,7 +66,7 @@ export function SearchForm({ compact = false }: { compact?: boolean }) {
       data-testid="search-form"
       noValidate
     >
-      <Field label="Pickup & return location" htmlFor="search-location">
+      <Field label={t('search.location')} htmlFor="search-location">
         {({ id }) => (
           <div className="flex items-center gap-2 rounded-md border border-input bg-background ps-3">
             <MapPin className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -75,7 +77,7 @@ export function SearchForm({ compact = false }: { compact?: boolean }) {
               onChange={(e) => setPickup(e.target.value)}
               data-testid="search-location"
             >
-              <option value="">Select a location…</option>
+              <option value="">{t('search.locationPlaceholder')}</option>
               {(locations.data ?? []).map((l) => (
                 <option key={l.code} value={l.code}>
                   {l.name} ({l.code})
@@ -86,7 +88,7 @@ export function SearchForm({ compact = false }: { compact?: boolean }) {
         )}
       </Field>
 
-      <Field label="Pickup date & time" htmlFor="search-pickup-at">
+      <Field label={t('search.pickupAt')} htmlFor="search-pickup-at">
         {({ id }) => (
           <div className="flex items-center gap-2 rounded-md border border-input bg-background ps-3">
             <CalendarRange className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -102,7 +104,7 @@ export function SearchForm({ compact = false }: { compact?: boolean }) {
         )}
       </Field>
 
-      <Field label="Return date & time" htmlFor="search-return-at">
+      <Field label={t('search.returnAt')} htmlFor="search-return-at">
         {({ id }) => (
           <div className="flex items-center gap-2 rounded-md border border-input bg-background ps-3">
             <CalendarRange className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -121,7 +123,7 @@ export function SearchForm({ compact = false }: { compact?: boolean }) {
       <div className={compact ? '' : 'sm:col-span-2'}>
         <Button type="submit" size="lg" className="w-full sm:w-auto" data-testid="search-submit">
           <Search className="size-4" aria-hidden="true" />
-          Search
+          {t('action.search')}
         </Button>
         {error ? (
           <p className="mt-2 text-sm text-destructive" data-testid="search-error">

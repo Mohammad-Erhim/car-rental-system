@@ -1,5 +1,20 @@
+import { useI18n } from '@carrental/i18n/react';
 import { AppStateView } from '@carrental/ui';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+
+function CrashView() {
+  const { t } = useI18n();
+  return (
+    <div className="mx-auto max-w-md p-8">
+      <AppStateView
+        kind="failure"
+        title={t('state.crash.title')}
+        description={t('state.crash.body')}
+        primaryAction={{ label: t('state.crash.reload'), onClick: () => window.location.reload() }}
+      />
+    </div>
+  );
+}
 
 interface Props {
   children: ReactNode;
@@ -22,16 +37,7 @@ export class RootErrorBoundary extends Component<Props, State> {
 
   override render(): ReactNode {
     if (this.state.error) {
-      return (
-        <div className="mx-auto max-w-md p-8">
-          <AppStateView
-            kind="failure"
-            title="Something went wrong on this page"
-            description="Nothing was changed. Reloading usually fixes it."
-            primaryAction={{ label: 'Reload', onClick: () => window.location.reload() }}
-          />
-        </div>
-      );
+      return <CrashView />;
     }
     return this.props.children;
   }

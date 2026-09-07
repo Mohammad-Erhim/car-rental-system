@@ -1,3 +1,4 @@
+import { useT } from '@carrental/i18n/react';
 import { AppStateView } from '@carrental/ui';
 import type { ReactNode } from 'react';
 import { createBrowserRouter, useNavigate, useRouteError } from 'react-router-dom';
@@ -38,14 +39,15 @@ function RouteError() {
   const error = useRouteError();
   const navigate = useNavigate();
 
+  const t = useT();
   console.error('Route error', error);
   return (
     <div className="mx-auto max-w-md p-8">
       <AppStateView
         kind="failure"
-        title="This page failed to load"
-        description="Nothing was changed."
-        primaryAction={{ label: 'Go home', onClick: () => navigate('/') }}
+        title={t('route.error.title')}
+        description={t('route.error.body')}
+        primaryAction={{ label: t('route.goHome'), onClick: () => navigate('/') }}
       />
     </div>
   );
@@ -53,13 +55,14 @@ function RouteError() {
 
 function NotFound() {
   const navigate = useNavigate();
+  const t = useT();
   return (
     <div className="mx-auto max-w-md p-8">
       <AppStateView
         kind="no-results"
-        title="Page not found"
-        description="The page you asked for doesn’t exist."
-        primaryAction={{ label: 'Go home', onClick: () => navigate('/') }}
+        title={t('route.notFound.title')}
+        description={t('route.notFound.body')}
+        primaryAction={{ label: t('route.goHome'), onClick: () => navigate('/') }}
       />
     </div>
   );

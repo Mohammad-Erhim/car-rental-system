@@ -1,3 +1,4 @@
+import { useI18n } from '@carrental/i18n/react';
 import { AppStateView, Spinner } from '@carrental/ui';
 import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
@@ -14,13 +15,14 @@ export function RequireAuth({
   audience: 'customer' | 'staff';
   children: ReactNode;
 }) {
+  const { t } = useI18n();
   const { status, actor } = useAuth();
   const location = useLocation();
 
   if (status === 'loading') {
     return (
       <div className="flex justify-center py-16">
-        <Spinner label="Checking your session" />
+        <Spinner label={t('guard.checkingSession')} />
       </div>
     );
   }
@@ -36,8 +38,8 @@ export function RequireAuth({
       <div className="mx-auto max-w-md p-8">
         <AppStateView
           kind="permission-denied"
-          title="This area is for staff"
-          description="Your account does not have access here."
+          title={t('guard.staffOnly')}
+          description={t('guard.staffOnlyBody')}
         />
       </div>
     );
@@ -50,20 +52,22 @@ export function RequireAuth({
 export function RequirePermission({
   anyOf,
   children,
-  fallbackTitle = 'You don’t have access to this',
+  fallbackTitle,
 }: {
   anyOf: string[];
   children: ReactNode;
   fallbackTitle?: string;
 }) {
+  const { t } = useI18n();
   const { hasPermission } = useAuth();
+  const title = fallbackTitle ?? t('guard.noAccess');
   if (!hasPermission(...anyOf)) {
     return (
       <div className="mx-auto max-w-md p-8">
         <AppStateView
           kind="permission-denied"
-          title={fallbackTitle}
-          description="Ask an administrator if you think this is wrong."
+          title={title}
+          description={t('guard.noAccessBody')}
         />
       </div>
     );

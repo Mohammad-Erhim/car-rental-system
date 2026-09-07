@@ -36,60 +36,65 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { to: '/ops', label: 'Dashboard', Icon: LayoutDashboard, end: true },
+  { to: '/ops', label: 'ops.nav.dashboard', Icon: LayoutDashboard, end: true },
   {
     to: '/ops/work',
-    label: 'Reservations',
+    label: 'ops.nav.reservations',
     Icon: ClipboardList,
     anyOf: ['reservation.read', 'reservation.modify'],
   },
   {
     to: '/ops/rentals',
-    label: 'Rentals',
+    label: 'ops.nav.rentals',
     Icon: KeyRound,
     anyOf: ['rental.read', 'rental.pickup', 'rental.return'],
   },
-  { to: '/ops/fleet', label: 'Fleet', Icon: CarFront, anyOf: ['fleet.read', 'fleet.manage'] },
-  { to: '/ops/finance', label: 'Finance', Icon: Wallet, anyOf: ['payment.read'] },
+  {
+    to: '/ops/fleet',
+    label: 'ops.nav.fleet',
+    Icon: CarFront,
+    anyOf: ['fleet.read', 'fleet.manage'],
+  },
+  { to: '/ops/finance', label: 'ops.nav.finance', Icon: Wallet, anyOf: ['payment.read'] },
   {
     to: '/ops/config/reference-data',
-    label: 'Reference data',
+    label: 'ops.nav.referenceData',
     Icon: Database,
     anyOf: ['config.read', 'lookup.manage'],
   },
   {
     to: '/ops/config/rate-plans',
-    label: 'Rate plans',
+    label: 'ops.nav.ratePlans',
     Icon: Tag,
     anyOf: ['config.read', 'config.publish'],
   },
   {
     to: '/ops/config',
-    label: 'Configuration',
+    label: 'ops.nav.configuration',
     Icon: Settings2,
     anyOf: ['config.read', 'config.publish'],
   },
   {
     to: '/ops/config/languages',
-    label: 'Languages',
+    label: 'ops.nav.languages',
     Icon: Languages,
     anyOf: ['config.read', 'config.publish'],
   },
   {
     to: '/ops/config/translations',
-    label: 'Translations',
+    label: 'ops.nav.translations',
     Icon: Languages,
     anyOf: ['config.read', 'config.publish'],
   },
   {
     to: '/ops/config/branding',
-    label: 'Branding & theme',
+    label: 'ops.nav.branding',
     Icon: Palette,
     anyOf: ['config.read', 'config.publish'],
   },
-  { to: '/ops/admin/staff', label: 'Staff & roles', Icon: Users, anyOf: ['staff.manage'] },
-  { to: '/ops/insights', label: 'Reports', Icon: BarChart3, anyOf: ['report.read'] },
-  { to: '/ops/audit', label: 'Audit log', Icon: ScrollText, anyOf: ['audit.read'] },
+  { to: '/ops/admin/staff', label: 'ops.nav.staff', Icon: Users, anyOf: ['staff.manage'] },
+  { to: '/ops/insights', label: 'ops.nav.reports', Icon: BarChart3, anyOf: ['report.read'] },
+  { to: '/ops/audit', label: 'ops.nav.audit', Icon: ScrollText, anyOf: ['audit.read'] },
 ];
 
 export function OpsLayout() {
@@ -109,7 +114,7 @@ export function OpsLayout() {
   return (
     <div className="flex min-h-screen bg-muted/30">
       <a href="#ops-main" className="skip-link">
-        Skip to main content
+        {t('common.skipToContent')}
       </a>
 
       <aside className="hidden w-60 shrink-0 border-e bg-background lg:flex lg:flex-col">
@@ -117,11 +122,11 @@ export function OpsLayout() {
           <LayoutDashboard className="size-5 text-primary" aria-hidden="true" />
           {t('app.ops.name')}
         </div>
-        <nav aria-label="Sections" className="flex-1 space-y-1 p-2">
+        <nav aria-label={t('ops.nav.sections')} className="flex-1 space-y-1 p-2">
           {(authed ? visible : []).map(({ to, label, Icon, end }) => (
             <NavLink key={to} to={to} end={end} className={({ isActive }) => navClass(isActive)}>
               <Icon className="size-4" aria-hidden="true" />
-              {label}
+              {t(label)}
             </NavLink>
           ))}
         </nav>
@@ -131,13 +136,15 @@ export function OpsLayout() {
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b bg-background px-4">
           <div className="flex items-center gap-2 text-sm">
             <span className="rounded bg-muted px-2 py-1 font-medium">
-              {actor?.organizationId ? 'Scope: Demo Rental Co.' : 'Operations Console'}
+              {actor?.organizationId
+                ? t('ops.header.scope', { name: 'Demo Rental Co.' })
+                : t('ops.header.console')}
             </span>
             {authed ? (
               <span className="hidden text-muted-foreground sm:inline">
                 {actor?.locationScope.length
-                  ? `${actor.locationScope.length} location(s)`
-                  : 'All locations'}
+                  ? t('ops.header.locations', { n: actor.locationScope.length })
+                  : t('ops.header.allLocations')}
               </span>
             ) : null}
           </div>
@@ -176,7 +183,7 @@ export function OpsLayout() {
 
         {authed ? (
           <nav
-            aria-label="Sections"
+            aria-label={t('ops.nav.sections')}
             className="flex gap-1 overflow-x-auto border-b bg-background px-2 py-2 lg:hidden"
           >
             {visible.map(({ to, label, Icon, end }) => (
@@ -191,7 +198,7 @@ export function OpsLayout() {
                 }
               >
                 <Icon className="size-4" aria-hidden="true" />
-                {label}
+                {t(label)}
               </NavLink>
             ))}
           </nav>

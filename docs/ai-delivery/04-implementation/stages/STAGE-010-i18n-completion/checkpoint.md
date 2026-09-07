@@ -1,10 +1,15 @@
 # STAGE-010 — checkpoint
 
 - **Status:** IN PROGRESS.
+- **Resequencing note:** the per-page `/ops` string extraction is done **inside STAGE-012**
+  (ops UX overhaul) — extracting strings while rewriting a screen is one pass, not two. The
+  customer surface is extracted while it is rebuilt as `apps/site` (STAGE-011). STAGE-010 owns
+  the gate, the shared chrome, the Languages admin, and the final `verify:i18n --strict`
+  green-up.
 - **Increment 1 (done, 2026-09-07):** the `verify:i18n` gate + Languages admin + launch-locale
   promotion.
-- **Increment 2 (next):** extract every hardcoded string in `apps/web` `/ops` into namespaced
-  keys, author full `en`/`ar`/`fr`, make `verify:i18n --strict` clean for `apps/web/src`.
+- **Increment 2a (done, 2026-09-07):** the ops **shell** + dashboard + shared chrome +
+  router + guards extracted to `en`/`ar`/`fr` (50 keys). Per-page `/ops` extraction → STAGE-012.
 - **Increment 3 (STAGE-011):** the customer surface is rebuilt as `apps/site` i18n-complete
   from the start; validation-message map + email/notification localisation folded in there.
 
@@ -63,3 +68,23 @@ The bulk string extraction (increment 2): the ops shell nav labels, page heading
 and the shared `apps/web/src/components`; then full `ar` + `fr`; `verify:i18n --strict` green
 for `apps/web/src`. The customer surface is deferred to STAGE-011 (`apps/site`, built
 i18n-complete). Zod/validation-message map + email templates → STAGE-011.
+
+## Completed — increment 2a (shared chrome)
+
+Extracted to full `en` / `ar` / `fr` (50 keys, ICU plurals for the location count):
+
+- `ops-layout.tsx` — all 14 nav labels, the scope/console/locations header text, the skip link,
+  `aria-label="Sections"`.
+- `ops-dashboard.tsx` — heading, subtitle, "System health", checked-at, the four metric card
+  labels, the "not available yet" text, the health-unreadable copy.
+- `components/error-boundary.tsx` — the crash fallback (now a small `CrashView` function so it
+  can use `useI18n` from the class boundary).
+- `components/route-guards.tsx` — session-checking spinner, "staff only", "no access".
+- `components/search-form.tsx` — field labels, the location placeholder, the two validation
+  messages, the submit label (reuses `action.search`).
+- `app/router.tsx` — the `NotFound` + `RouteError` copy (`useT`).
+
+`verify:i18n` OK (158 keys, en/ar/fr complete). `verify:i18n --strict` remaining hits are all
+in per-page `/ops` files (config-versions, reports, fleet, rate-plans, reservation-queue,
+audit, translations) + the two customer auth pages — cleared in STAGE-012 / STAGE-011
+respectively. `apps/web` build OK, web unit 2/2.
