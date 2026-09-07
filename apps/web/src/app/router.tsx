@@ -5,20 +5,7 @@ import { createBrowserRouter, useNavigate, useRouteError } from 'react-router-do
 
 import { RequireAuth, RequirePermission } from '../components/route-guards.js';
 import { RecoveryPage } from '../surfaces/auth/recovery-page.js';
-import { RegisterPage } from '../surfaces/auth/register-page.js';
 import { SignInPage } from '../surfaces/auth/sign-in-page.js';
-import { AccountOverviewPage } from '../surfaces/customer/account-overview-page.js';
-import { CheckoutPage } from '../surfaces/customer/checkout-page.js';
-import { CustomerLayout } from '../surfaces/customer/customer-layout.js';
-import { DataRequestsPage } from '../surfaces/customer/data-requests-page.js';
-import { DriversPage } from '../surfaces/customer/drivers-page.js';
-import { HomePage } from '../surfaces/customer/home-page.js';
-import { PlaceholderPage } from '../surfaces/customer/placeholder-page.js';
-import { ProfilePage } from '../surfaces/customer/profile-page.js';
-import { ReservationDetailPage } from '../surfaces/customer/reservation-detail-page.js';
-import { SearchResultsPage } from '../surfaces/customer/search-results-page.js';
-import { TripsPage } from '../surfaces/customer/trips-page.js';
-import { VehicleDetailPage } from '../surfaces/customer/vehicle-detail-page.js';
 import { AuditLogPage } from '../surfaces/ops/audit-log-page.js';
 import { BrandingPage } from '../surfaces/ops/branding-page.js';
 import { ConfigVersionsPage } from '../surfaces/ops/config-versions-page.js';
@@ -35,10 +22,13 @@ import { ReservationQueuePage } from '../surfaces/ops/reservation-queue-page.js'
 import { StaffRolesPage } from '../surfaces/ops/staff-roles-page.js';
 import { TranslationsPage } from '../surfaces/ops/translations-page.js';
 
+/**
+ * `apps/web` is the Operations & Admin dashboard only (DEC-023 — the customer surface is
+ * `apps/site`). Served under `/ops` via the Vite `base` + this router `basename`.
+ */
 function RouteError() {
   const error = useRouteError();
   const navigate = useNavigate();
-
   const t = useT();
   console.error('Route error', error);
   return (
@@ -68,168 +58,72 @@ function NotFound() {
   );
 }
 
-const cust = (el: ReactNode) => <RequireAuth audience="customer">{el}</RequireAuth>;
 const staffOnly = (el: ReactNode) => <RequireAuth audience="staff">{el}</RequireAuth>;
+const perm = (anyOf: string[], el: ReactNode, fallbackTitle?: string) =>
+  staffOnly(
+    <RequirePermission anyOf={anyOf} fallbackTitle={fallbackTitle}>
+      {el}
+    </RequirePermission>,
+  );
 
-export const router = createBrowserRouter([
-  {
-    path: '/',
-    element: <CustomerLayout />,
-    errorElement: <RouteError />,
-    children: [
-      { index: true, element: <HomePage /> },
-      { path: 'search', element: <SearchResultsPage /> },
-      { path: 'vehicle/:categoryCode', element: <VehicleDetailPage /> },
-      { path: 'checkout', element: <CheckoutPage /> },
-      { path: 'sign-in', element: <SignInPage audience="customer" /> },
-      { path: 'register', element: <RegisterPage /> },
-      { path: 'recovery', element: <RecoveryPage audience="customer" /> },
-      { path: 'account', element: cust(<AccountOverviewPage />) },
-      { path: 'account/profile', element: cust(<ProfilePage />) },
-      { path: 'account/drivers', element: cust(<DriversPage />) },
-      {
-        path: 'account/payments',
-        element: cust(
-          <PlaceholderPage
-            title="Payments & receipts"
-            note="Payment history appears once booking & payments are implemented."
-          />,
-        ),
-      },
-      { path: 'account/data', element: cust(<DataRequestsPage />) },
-      { path: 'trips', element: <TripsPage /> },
-      { path: 'trips/:reference', element: cust(<ReservationDetailPage />) },
-      {
-        path: 'help',
-        element: (
-          <PlaceholderPage
-            title="Help"
-            note="Support routes and contextual help content are configured in the admin stage."
-          />
-        ),
-      },
-    ],
-  },
-  {
-    path: '/ops',
-    element: <OpsLayout />,
-    errorElement: <RouteError />,
-    children: [
-      { path: 'sign-in', element: <SignInPage audience="staff" /> },
-      { path: 'recovery', element: <RecoveryPage audience="staff" /> },
-      { index: true, element: staffOnly(<OpsDashboard />) },
-      {
-        path: 'config/reference-data',
-        element: staffOnly(
-          <RequirePermission anyOf={['config.read', 'lookup.manage']}>
-            <ReferenceDataPage />
-          </RequirePermission>,
-        ),
-      },
-      {
-        path: 'admin/staff',
-        element: staffOnly(
-          <RequirePermission
-            anyOf={['staff.manage']}
-            fallbackTitle="Staff administration requires the staff.manage permission"
-          >
-            <StaffRolesPage />
-          </RequirePermission>,
-        ),
-      },
-      {
-        path: 'config/translations',
-        element: staffOnly(
-          <RequirePermission anyOf={['config.read', 'config.publish']}>
-            <TranslationsPage />
-          </RequirePermission>,
-        ),
-      },
-      {
-        path: 'config/branding',
-        element: staffOnly(
-          <RequirePermission anyOf={['config.read', 'config.publish']}>
-            <BrandingPage />
-          </RequirePermission>,
-        ),
-      },
-      {
-        path: 'config/languages',
-        element: staffOnly(
-          <RequirePermission anyOf={['config.read', 'config.publish']}>
-            <LanguagesPage />
-          </RequirePermission>,
-        ),
-      },
-      {
-        path: 'work',
-        element: staffOnly(
-          <RequirePermission anyOf={['reservation.read', 'reservation.modify']}>
-            <ReservationQueuePage />
-          </RequirePermission>,
-        ),
-      },
-      {
-        path: 'fleet',
-        element: staffOnly(
-          <RequirePermission anyOf={['fleet.read', 'fleet.manage']}>
-            <FleetInventoryPage />
-          </RequirePermission>,
-        ),
-      },
-      {
-        path: 'config/rate-plans',
-        element: staffOnly(
-          <RequirePermission anyOf={['config.read', 'config.publish']}>
-            <RatePlansPage />
-          </RequirePermission>,
-        ),
-      },
-      {
-        path: 'rentals',
-        element: staffOnly(
-          <RequirePermission anyOf={['rental.read', 'rental.pickup', 'rental.return']}>
-            <RentalBoardPage />
-          </RequirePermission>,
-        ),
-      },
-      {
-        path: 'finance',
-        element: staffOnly(
-          <OpsPlaceholder
-            title="Finance"
-            note="Payments & reconciliation (SCREEN-OPS-023/024) land in the reservation-operations stage."
-          />,
-        ),
-      },
-      {
-        path: 'config',
-        element: staffOnly(
-          <RequirePermission anyOf={['config.read', 'config.publish']}>
-            <ConfigVersionsPage />
-          </RequirePermission>,
-        ),
-      },
-      {
-        path: 'insights',
-        element: staffOnly(
-          <RequirePermission anyOf={['report.read']}>
-            <ReportsPage />
-          </RequirePermission>,
-        ),
-      },
-      {
-        path: 'audit',
-        element: staffOnly(
-          <RequirePermission
-            anyOf={['audit.read']}
-            fallbackTitle="The audit log requires the audit.read permission"
-          >
-            <AuditLogPage />
-          </RequirePermission>,
-        ),
-      },
-    ],
-  },
-  { path: '*', element: <NotFound /> },
-]);
+export const router = createBrowserRouter(
+  [
+    {
+      path: '/',
+      element: <OpsLayout />,
+      errorElement: <RouteError />,
+      children: [
+        { path: 'sign-in', element: <SignInPage audience="staff" /> },
+        { path: 'recovery', element: <RecoveryPage audience="staff" /> },
+        { index: true, element: staffOnly(<OpsDashboard />) },
+        {
+          path: 'config/reference-data',
+          element: perm(['config.read', 'lookup.manage'], <ReferenceDataPage />),
+        },
+        { path: 'admin/staff', element: perm(['staff.manage'], <StaffRolesPage />) },
+        {
+          path: 'config/translations',
+          element: perm(['config.read', 'config.publish'], <TranslationsPage />),
+        },
+        {
+          path: 'config/branding',
+          element: perm(['config.read', 'config.publish'], <BrandingPage />),
+        },
+        {
+          path: 'config/languages',
+          element: perm(['config.read', 'config.publish'], <LanguagesPage />),
+        },
+        {
+          path: 'work',
+          element: perm(['reservation.read', 'reservation.modify'], <ReservationQueuePage />),
+        },
+        { path: 'fleet', element: perm(['fleet.read', 'fleet.manage'], <FleetInventoryPage />) },
+        {
+          path: 'config/rate-plans',
+          element: perm(['config.read', 'config.publish'], <RatePlansPage />),
+        },
+        {
+          path: 'rentals',
+          element: perm(['rental.read', 'rental.pickup', 'rental.return'], <RentalBoardPage />),
+        },
+        {
+          path: 'finance',
+          element: staffOnly(
+            <OpsPlaceholder
+              title="Finance"
+              note="Payments & reconciliation (SCREEN-OPS-023/024)."
+            />,
+          ),
+        },
+        {
+          path: 'config',
+          element: perm(['config.read', 'config.publish'], <ConfigVersionsPage />),
+        },
+        { path: 'insights', element: perm(['report.read'], <ReportsPage />) },
+        { path: 'audit', element: perm(['audit.read'], <AuditLogPage />) },
+      ],
+    },
+    { path: '*', element: <NotFound /> },
+  ],
+  { basename: '/ops' },
+);

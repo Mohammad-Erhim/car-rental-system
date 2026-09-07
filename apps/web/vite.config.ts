@@ -16,6 +16,7 @@ const proxy = {
 const usePolling = process.env.VITE_USE_POLLING === '1';
 
 export default defineConfig({
+  base: '/ops/',
   plugins: [react()],
   resolve: {
     alias: {

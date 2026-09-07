@@ -175,7 +175,7 @@ export function OpsLayout() {
               </>
             ) : (
               <Button variant="outline" size="sm" asChild>
-                <NavLink to="/ops/sign-in">{t('action.signIn')}</NavLink>
+                <NavLink to="/sign-in">{t('action.signIn')}</NavLink>
               </Button>
             )}
           </div>

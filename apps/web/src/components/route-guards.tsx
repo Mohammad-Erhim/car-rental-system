@@ -29,7 +29,7 @@ export function RequireAuth({
 
   if (status === 'anonymous' || !actor) {
     stashReturnTo(location.pathname + location.search);
-    return <Navigate to={audience === 'staff' ? '/ops/sign-in' : '/sign-in'} replace />;
+    return <Navigate to="/sign-in" replace />;
   }
 
   if (actor.kind !== audience) {

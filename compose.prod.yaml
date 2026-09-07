@@ -140,7 +140,8 @@ services:
       migrate: { condition: service_completed_successfully }
     restart: unless-stopped
 
-  # Customer-facing site (DEC-023) — Next.js App Router, /[locale]/… , full SEO.
+  # Customer-facing site (DEC-023) — Next.js App Router, /[locale]/… , full SEO. Internal;
+  # reached through `edge`.
   site:
     build:
       context: .
@@ -151,14 +152,14 @@ services:
       NODE_ENV: production
       API_UPSTREAM: http://api:3001
       SITE_URL: ${SITE_URL:-http://localhost:3000}
-    ports: ['3000:3000']
+    expose: ['3000']
     depends_on:
       api: { condition: service_healthy }
     restart: unless-stopped
     <<: *logging
 
-  # Operations & Admin dashboard (Vite SPA on nginx). STAGE-011 increment 2 reduces this to
-  # /ops only and puts a single edge proxy in front of site + web + api.
+  # Operations & Admin dashboard (Vite SPA on nginx, served at /ops/). Internal; reached
+  # through `edge`.
   web:
     build:
       context: .
@@ -167,9 +168,28 @@ services:
     image: carrental-web:${TAG:-local}
     environment:
       API_UPSTREAM: http://api:3001
-    ports: ['3100:8080']
+    expose: ['8080']
     depends_on:
       api: { condition: service_healthy }
+    restart: unless-stopped
+    <<: *logging
+
+  # Single edge/origin (STAGE-011): / → site, /ops → web, /api + /health → api. Keeps the
+  # SameSite=Lax refresh cookie (DEC-021) working across both surfaces. TLS terminates in
+  # front of this in a real deployment.
+  edge:
+    image: nginx:1.27-alpine
+    environment:
+      SITE_UPSTREAM: http://site:3000
+      WEB_UPSTREAM: http://web:8080
+      API_UPSTREAM: http://api:3001
+    volumes:
+      - ./deploy/nginx.edge.conf:/etc/nginx/templates/default.conf.template:ro
+    ports: ['${EDGE_PORT:-3000}:8080']
+    depends_on:
+      api: { condition: service_healthy }
+      site: { condition: service_started }
+      web: { condition: service_started }
     restart: unless-stopped
     <<: *logging
 

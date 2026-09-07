@@ -93,7 +93,7 @@ export function LanguagesPage() {
 
                   <span className="ms-auto flex flex-wrap gap-1">
                     <Button size="sm" variant="ghost" asChild>
-                      <Link to={`/ops/config/translations?locale=${l.code}`}>
+                      <Link to={`/config/translations?locale=${l.code}`}>
                         {t('ops.languages.edit')}
                       </Link>
                     </Button>
