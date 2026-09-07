@@ -102,6 +102,23 @@ export function useMyRental(reservationReference: string | null) {
   });
 }
 
+export function useRaiseIncident(reference: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      category: 'breakdown' | 'accident' | 'damage' | 'other';
+      note?: string;
+      immobilised?: boolean;
+      replacementUnitId?: string;
+    }) => apiFetch<Rental>(`/ops/rentals/${reference}/incident`, { method: 'POST', body }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['ops', 'rentals'] });
+      void qc.invalidateQueries({ queryKey: ['ops', 'fleet-units'] });
+      void qc.invalidateQueries({ queryKey: ['ops', 'fleet-blocks'] });
+    },
+  });
+}
+
 export function useExtendRental(reference: string) {
   const qc = useQueryClient();
   return useMutation({

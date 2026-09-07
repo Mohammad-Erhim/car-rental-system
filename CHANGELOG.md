@@ -6,6 +6,34 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### STAGE-005 deferred — rental incident + replacement-vehicle swap (2026-09-08)
+
+`rental.service` had assign / pickup / extend / return / readiness but no way to record a
+breakdown or accident mid-rental, or to put the customer in another car.
+
+**Added (API)**
+
+- `POST /api/v1/ops/rentals/:reference/incident` (`rental.pickup | rental.return`) — on an
+  `active` / `overdue` rental: always writes an append-only `incident` rental-event
+  (`category` = breakdown | accident | damage | other, note). An **accident** (or explicit
+  `immobilised`) takes the vehicle out of service (`state → out_of_service` + an open `damage`
+  `vehicle_block`). An optional `replacementUnitId` — validated as an `available`, same-category
+  unit with no open rental — is swapped in (old unit → `out_of_service` if immobilised, else
+  `prep`; new unit → `on_rent`; `rental.unitId` updated; a `replacement` event written).
+  Audits `rental.incident.raised` / `rental.unit.replaced`. 422 for a non-in-progress rental
+  or an invalid replacement, 404 for an unknown replacement unit. No schema change (existing
+  `rental_event` + `vehicle_block`).
+
+**Added (web)**
+
+- `/ops/rentals`: an in-progress rental card gains **Report incident** → a form (category,
+  note, replacement-vehicle picker fed by available units at the pickup location). 15
+  `ops.rent.incident*` keys en/fr/ar.
+
+Verified: `rental.spec.ts` +2 (breakdown → swap → old unit `prep`; accident → immobilised +
+damage block + 404/403 guards) → `test:api` 98; web typecheck / lint / build / `verify:i18n`
+730 + `--strict` green.
+
 ### STAGE-005/006 deferred — fleet operations: maintenance blocks + transfers (2026-09-08)
 
 `vehicleBlock` and the `addBlock` / `releaseBlock` endpoints existed since STAGE-002 but were

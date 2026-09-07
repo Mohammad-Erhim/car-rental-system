@@ -20,6 +20,12 @@ const zExtend = z.object({
   newReturnAt: z.string().datetime({ offset: true }),
   paymentToken: z.string().max(200).optional(),
 });
+const zIncident = z.object({
+  category: z.enum(['breakdown', 'accident', 'damage', 'other']),
+  note: z.string().max(1000).optional(),
+  immobilised: z.boolean().optional(),
+  replacementUnitId: z.string().uuid().optional(),
+});
 const zReturn = z.object({
   odometerKm: z.number().int().min(0),
   fuelPct: z.number().int().min(0).max(100),
@@ -98,6 +104,16 @@ export class RentalController {
     @CurrentActor() actor: Actor,
   ) {
     return this.rentals.returnRental(reference, actor, body);
+  }
+
+  @Post('ops/rentals/:reference/incident')
+  @Permissions('rental.pickup', 'rental.return')
+  incident(
+    @Param('reference') reference: string,
+    @Body(new ZodValidationPipe(zIncident)) body: z.infer<typeof zIncident>,
+    @CurrentActor() actor: Actor,
+  ) {
+    return this.rentals.raiseIncident(reference, actor, body);
   }
 
   @Post('ops/rentals/:reference/readiness')

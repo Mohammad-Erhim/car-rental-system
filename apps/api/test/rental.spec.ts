@@ -56,12 +56,16 @@ async function book(
 describe('rental lifecycle', () => {
   let server: ReturnType<typeof httpServer>;
   let agentToken: string;
+  let adminToken: string;
   let customerToken: string;
+  const auth = (tok: string) => ({ Authorization: `Bearer ${tok}` });
 
   beforeAll(async () => {
     const app = await getTestApp();
     server = httpServer(app);
     agentToken = (await signIn(app, 'test-agent@example.test', 'Test-Passw0rd!', 'staff'))
+      .accessToken;
+    adminToken = (await signIn(app, 'test-admin@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
     customerToken = (await signIn(app, 'test-customer@example.test', 'Test-Passw0rd!', 'customer'))
       .accessToken;
@@ -200,6 +204,102 @@ describe('rental lifecycle', () => {
       .post(`/api/v1/ops/rentals/${a.body.reference}/pickup`)
       .set('Authorization', `Bearer ${customerToken}`)
       .send({ odometerKm: 1, fuelPct: 100, driverName: 'X', licenceNumber: 'D' })
+      .expect(403);
+  });
+
+  it('TEST-RNT-004 a breakdown incident swaps the vehicle for a replacement; the old one goes to prep', async () => {
+    const resRef = await book(server, customerToken, 'suv', 70, 3);
+    const assigned = await request(server)
+      .post(`/api/v1/ops/reservations/${resRef}/assign`)
+      .set(auth(agentToken))
+      .send({})
+      .expect(201);
+    const rentalRef = assigned.body.reference as string;
+    const originalUnit = assigned.body.unitId as string;
+    await request(server)
+      .post(`/api/v1/ops/rentals/${rentalRef}/pickup`)
+      .set(auth(agentToken))
+      .send({ odometerKm: 8000, fuelPct: 100, driverName: 'Rex Renter', licenceNumber: 'D-9' })
+      .expect(201);
+
+    const units = await request(server)
+      .get('/api/v1/ops/fleet/units')
+      .query({ locationCode: 'TST1', categoryCode: 'suv' })
+      .set(auth(adminToken))
+      .expect(200);
+    const replacement = units.body.find(
+      (u: { id: string; state: string }) => u.state === 'available' && u.id !== originalUnit,
+    );
+    expect(replacement).toBeTruthy();
+
+    const after = await request(server)
+      .post(`/api/v1/ops/rentals/${rentalRef}/incident`)
+      .set(auth(agentToken))
+      .send({ category: 'breakdown', note: 'warning light on', replacementUnitId: replacement.id })
+      .expect(201);
+    expect(after.body.unitId).toBe(replacement.id);
+    expect(after.body.state).toBe('active');
+    const kinds = after.body.history.map((e: { type: string }) => e.type);
+    expect(kinds).toEqual(expect.arrayContaining(['incident', 'replacement']));
+
+    const now = await request(server)
+      .get('/api/v1/ops/fleet/units')
+      .query({ locationCode: 'TST1', categoryCode: 'suv' })
+      .set(auth(adminToken))
+      .expect(200);
+    expect(now.body.find((u: { id: string }) => u.id === replacement.id).state).toBe('on_rent');
+    expect(now.body.find((u: { id: string }) => u.id === originalUnit).state).toBe('prep');
+  });
+
+  it('an accident with no replacement immobilises the vehicle; guards reject a bad swap / a closed rental', async () => {
+    const resRef = await book(server, customerToken, 'compact', 76, 3);
+    const assigned = await request(server)
+      .post(`/api/v1/ops/reservations/${resRef}/assign`)
+      .set(auth(agentToken))
+      .send({})
+      .expect(201);
+    const rentalRef = assigned.body.reference as string;
+    const unitId = assigned.body.unitId as string;
+    await request(server)
+      .post(`/api/v1/ops/rentals/${rentalRef}/pickup`)
+      .set(auth(agentToken))
+      .send({ odometerKm: 5000, fuelPct: 100, driverName: 'Rex Renter', licenceNumber: 'D-1' })
+      .expect(201);
+
+    await request(server)
+      .post(`/api/v1/ops/rentals/${rentalRef}/incident`)
+      .set(auth(agentToken))
+      .send({ category: 'accident', note: 'rear-ended at a light' })
+      .expect(201);
+
+    const units = await request(server)
+      .get('/api/v1/ops/fleet/units')
+      .query({ locationCode: 'TST1' })
+      .set(auth(adminToken))
+      .expect(200);
+    expect(units.body.find((u: { id: string }) => u.id === unitId).state).toBe('out_of_service');
+    const blocks = await request(server)
+      .get('/api/v1/ops/fleet/blocks')
+      .query({ unitId, status: 'active' })
+      .set(auth(adminToken))
+      .expect(200);
+    expect(blocks.body.some((b: { kind: string }) => b.kind === 'damage')).toBe(true);
+
+    // an unknown replacement unit → 404
+    await request(server)
+      .post(`/api/v1/ops/rentals/${rentalRef}/incident`)
+      .set(auth(agentToken))
+      .send({
+        category: 'other',
+        replacementUnitId: '00000000-0000-0000-0000-000000000000',
+      })
+      .expect(404);
+
+    // a customer cannot raise an incident
+    await request(server)
+      .post(`/api/v1/ops/rentals/${rentalRef}/incident`)
+      .set(auth(customerToken))
+      .send({ category: 'other' })
       .expect(403);
   });
 

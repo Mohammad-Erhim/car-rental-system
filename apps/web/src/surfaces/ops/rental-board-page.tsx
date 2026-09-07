@@ -10,18 +10,23 @@ import {
   Field,
   Input,
   PageHeader,
+  Textarea,
 } from '@carrental/ui';
 import { useState } from 'react';
 
 import { ApiError } from '../../lib/api.js';
 import { formatMinor } from '../../lib/discovery-hooks.js';
+import { useOpsUnits } from '../../lib/ops-discovery-hooks.js';
 import {
   usePickup,
+  useRaiseIncident,
   useReadiness,
   useReturnRental,
   useOpsRentals,
   type Rental,
 } from '../../lib/rental-hooks.js';
+
+const INCIDENT_CATEGORIES = ['breakdown', 'accident', 'damage', 'other'] as const;
 
 /**
  * SCREEN-OPS-009/012/016 — rental board. Pickup a rental that's awaiting pickup (agreement +
@@ -68,6 +73,7 @@ function RentalRow({ rental: r }: { rental: Rental }) {
   const pickup = usePickup(r.reference);
   const ret = useReturnRental(r.reference);
   const readiness = useReadiness(r.reference);
+  const incident = useRaiseIncident(r.reference);
   const [open, setOpen] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -75,6 +81,39 @@ function RentalRow({ rental: r }: { rental: Rental }) {
   const [fuel, setFuel] = useState('100');
   const [driver, setDriver] = useState('');
   const [licence, setLicence] = useState('');
+
+  const inProgress = ['active', 'overdue'].includes(r.state);
+  const [incOpen, setIncOpen] = useState(false);
+  const [incCategory, setIncCategory] = useState<(typeof INCIDENT_CATEGORIES)[number]>('breakdown');
+  const [incNote, setIncNote] = useState('');
+  const [incReplacement, setIncReplacement] = useState('');
+  const spares = useOpsUnits({
+    locationCode: inProgress && incOpen ? r.pickupLocationCode : undefined,
+  });
+  const availableSpares = (spares.data ?? []).filter(
+    (u) => u.state === 'available' && u.id !== undefined,
+  );
+
+  async function doIncident() {
+    setMsg(null);
+    try {
+      await incident.mutateAsync({
+        category: incCategory,
+        note: incNote.trim() || undefined,
+        replacementUnitId: incReplacement || undefined,
+      });
+      setMsg(
+        incReplacement
+          ? t('ops.rent.incidentSwapped', { ref: r.reference })
+          : t('ops.rent.incidentLogged', { ref: r.reference }),
+      );
+      setIncOpen(false);
+      setIncNote('');
+      setIncReplacement('');
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : t('ops.rent.incidentFail'));
+    }
+  }
 
   async function doPickup() {
     setMsg(null);
@@ -253,6 +292,84 @@ function RentalRow({ rental: r }: { rental: Rental }) {
                   data-testid={`return-submit-${r.reference}`}
                 >
                   {t('ops.rent.confirmReturn')}
+                </Button>
+              </div>
+            </div>
+          )
+        ) : null}
+
+        {inProgress ? (
+          !incOpen ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIncOpen(true)}
+              data-testid={`incident-open-${r.reference}`}
+            >
+              {t('ops.rent.reportIncident')}
+            </Button>
+          ) : (
+            <div className="space-y-3 rounded-md border p-3">
+              <p className="text-sm font-medium">{t('ops.rent.incidentTitle')}</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label={t('ops.rent.incidentCategory')} htmlFor={`inc-cat-${r.reference}`}>
+                  {({ id }) => (
+                    <select
+                      id={id}
+                      className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      value={incCategory}
+                      onChange={(e) =>
+                        setIncCategory(e.target.value as (typeof INCIDENT_CATEGORIES)[number])
+                      }
+                      data-testid={`incident-category-${r.reference}`}
+                    >
+                      {INCIDENT_CATEGORIES.map((c) => (
+                        <option key={c} value={c}>
+                          {t(`ops.rent.incidentCat.${c}`)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </Field>
+                <Field label={t('ops.rent.incidentReplacement')} htmlFor={`inc-rep-${r.reference}`}>
+                  {({ id }) => (
+                    <select
+                      id={id}
+                      className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      value={incReplacement}
+                      onChange={(e) => setIncReplacement(e.target.value)}
+                      data-testid={`incident-replacement-${r.reference}`}
+                    >
+                      <option value="">{t('ops.rent.incidentNoReplacement')}</option>
+                      {availableSpares.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.plate} · {u.categoryName}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </Field>
+              </div>
+              <Field label={t('ops.rent.incidentNote')} htmlFor={`inc-note-${r.reference}`}>
+                {({ id }) => (
+                  <Textarea
+                    id={id}
+                    rows={2}
+                    value={incNote}
+                    onChange={(e) => setIncNote(e.target.value)}
+                  />
+                )}
+              </Field>
+              <div className="flex gap-2">
+                <Button
+                  onClick={doIncident}
+                  loading={incident.isPending}
+                  data-testid={`incident-submit-${r.reference}`}
+                >
+                  {t('ops.rent.incidentSubmit')}
+                </Button>
+                <Button variant="ghost" onClick={() => setIncOpen(false)}>
+                  {t('ops.st.cancel')}
                 </Button>
               </div>
             </div>

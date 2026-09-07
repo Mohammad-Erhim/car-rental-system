@@ -10,7 +10,7 @@ import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { vehicleCategory } from '../../database/schema/catalogue';
-import { vehicleUnit } from '../../database/schema/fleet';
+import { vehicleBlock, vehicleUnit } from '../../database/schema/fleet';
 import { location, organization } from '../../database/schema/org';
 import { inspection, inspectionFinding, rental, rentalEvent } from '../../database/schema/rental';
 import { reservation } from '../../database/schema/reservation';
@@ -315,6 +315,158 @@ export class RentalService {
       after: { newReturnAt: newReturn.toISOString(), deltaMinor },
     });
     return { ...(await this.detail(reference)), deltaMinor };
+  }
+
+  // ---------------------------------------------------------- incident + swap
+
+  /**
+   * FR-RNT-016 — log an incident on an in-progress rental and optionally swap the vehicle for a
+   * replacement. An immobilised vehicle (always so for an accident) is taken out of service with
+   * an open `damage` block; a replacement must be an `available` same-category unit with no open
+   * rental. Append-only: an `incident` event is always written, a `replacement` event when the
+   * assigned unit changes.
+   */
+  async raiseIncident(
+    reference: string,
+    actor: Actor,
+    input: {
+      category: 'breakdown' | 'accident' | 'damage' | 'other';
+      note?: string;
+      immobilised?: boolean;
+      replacementUnitId?: string;
+    },
+  ) {
+    this.staffOnly(actor);
+    const row = await this.load(reference);
+    if (!['active', 'overdue'].includes(row.state)) {
+      throw AppError.businessRule(`A ${row.state} rental has no vehicle in service`, {
+        reason: row.state,
+      });
+    }
+    const immobilised = input.category === 'accident' || input.immobilised === true;
+
+    let replacement: typeof vehicleUnit.$inferSelect | null = null;
+    if (input.replacementUnitId) {
+      const [cand] = await this.db
+        .select()
+        .from(vehicleUnit)
+        .where(eq(vehicleUnit.id, input.replacementUnitId))
+        .limit(1);
+      if (!cand) throw AppError.notFound('replacement unit');
+      if (cand.id === row.unitId) {
+        throw AppError.businessRule('That is the current vehicle', { reason: 'same_unit' });
+      }
+      if (cand.state !== 'available') {
+        throw AppError.businessRule('The replacement vehicle is not available', {
+          reason: 'not_available',
+        });
+      }
+      const [openOnCand] = await this.db
+        .select({ ref: rental.reference })
+        .from(rental)
+        .where(and(eq(rental.unitId, cand.id), inArray(rental.state, ['active', 'overdue'])))
+        .limit(1);
+      if (openOnCand) {
+        throw AppError.businessRule('The replacement vehicle is on another rental', {
+          reason: 'open_rental',
+        });
+      }
+      const [res] = await this.db
+        .select({ categoryCode: reservation.categoryCode })
+        .from(reservation)
+        .where(eq(reservation.reference, row.reservationReference))
+        .limit(1);
+      const [candCat] = await this.db
+        .select({ code: vehicleCategory.code })
+        .from(vehicleCategory)
+        .where(eq(vehicleCategory.id, cand.categoryId))
+        .limit(1);
+      if (res && candCat && res.categoryCode !== candCat.code) {
+        throw AppError.businessRule('The replacement is a different vehicle category', {
+          reason: 'category_mismatch',
+        });
+      }
+      replacement = cand;
+    }
+
+    await this.db.transaction(async (tx) => {
+      await tx.insert(rentalEvent).values({
+        rentalId: row.id,
+        reference,
+        type: 'incident',
+        reasonCode: input.category,
+        note: input.note ?? null,
+        detail: { immobilised, unitId: row.unitId },
+        actorType: actor.kind,
+        actorId: actor.accountId,
+        actorLabel: actor.displayName,
+      });
+
+      if (immobilised && row.unitId) {
+        await tx.insert(vehicleBlock).values({
+          unitId: row.unitId,
+          kind: 'damage',
+          reasonCode: input.category,
+          startAt: new Date().toISOString(),
+          note: input.note ?? null,
+          createdBy: actor.accountId,
+        });
+      }
+
+      if (replacement) {
+        if (row.unitId) {
+          await tx
+            .update(vehicleUnit)
+            .set({
+              state: immobilised ? 'out_of_service' : 'prep',
+              updatedAt: sql`now()`,
+              updatedBy: actor.accountId,
+            })
+            .where(eq(vehicleUnit.id, row.unitId));
+        }
+        await tx
+          .update(vehicleUnit)
+          .set({ state: 'on_rent', updatedAt: sql`now()`, updatedBy: actor.accountId })
+          .where(eq(vehicleUnit.id, replacement.id));
+        await tx
+          .update(rental)
+          .set({
+            unitId: replacement.id,
+            version: row.version + 1,
+            updatedAt: sql`now()`,
+            updatedBy: actor.accountId,
+          })
+          .where(eq(rental.id, row.id));
+        await tx.insert(rentalEvent).values({
+          rentalId: row.id,
+          reference,
+          type: 'replacement',
+          reasonCode: input.category,
+          detail: { fromUnitId: row.unitId, toUnitId: replacement.id },
+          actorType: actor.kind,
+          actorId: actor.accountId,
+          actorLabel: actor.displayName,
+        });
+      } else if (immobilised && row.unitId) {
+        await tx
+          .update(vehicleUnit)
+          .set({ state: 'out_of_service', updatedAt: sql`now()`, updatedBy: actor.accountId })
+          .where(eq(vehicleUnit.id, row.unitId));
+      }
+    });
+
+    await this.audit.record({
+      action: replacement ? 'rental.unit.replaced' : 'rental.incident.raised',
+      targetType: 'rental',
+      targetId: row.id,
+      actor,
+      after: {
+        category: input.category,
+        immobilised,
+        replacementUnitId: replacement?.id ?? null,
+      },
+    });
+    return this.detail(reference);
   }
 
   // ------------------------------------------------------------------- return
