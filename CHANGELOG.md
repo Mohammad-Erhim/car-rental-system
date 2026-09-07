@@ -84,6 +84,36 @@ The i18n gate + Languages admin. Bulk string extraction follows in increment 2.
 72 · api `locale-admin` 4 + `meta`/`config-lookup`/`branding` regression green · `apps/web`
 build OK.
 
+### STAGE-011 — Public site on Next.js · increment 1 (2026-09-07)
+
+`apps/site` — the customer-facing product on Next.js (DEC-023).
+
+**Added**
+
+- `apps/site` (Next.js 14 App Router, TS strict, standalone output): `/[locale]/` routing for
+  en/ar/fr with locale-negotiation middleware and `<html lang dir>` (full RTL for Arabic);
+  home, search (SSR availability), vehicle detail (SSG per category + ISR), help, legal.
+- Full technical SEO: per-route Metadata (title / canonical / hreflang `+ x-default` / OG /
+  Twitter), `sitemap.ts` (localised, `xhtml:link` alternates), `robots.ts`, `AutoRental` +
+  `Product` JSON-LD. First-load JS ≤ 123 KB.
+- Server-side i18n (`getT` / `getMessages` = bundled base + published catalogue overrides),
+  brand overlay inlined in `<head>` (SSR, no FOUC) from `/meta/branding`, theme + language
+  switch in the header. 37 `site.*` keys in en/ar/fr; `verify:i18n --strict` = 0 literals in
+  `apps/site/src`.
+- `deploy/Dockerfile.site` (Next standalone runtime, non-root, `tini`, healthcheck); `site`
+  service in `compose.prod.yaml` (`:3000`) and `compose.yaml` (behind the `site` profile).
+  `packages/theme` token generator now also targets `apps/site/src/app/globals.css`.
+
+**Changed**
+
+- `compose.*` — `web` moved to `:3100`; edge-proxy consolidation (one origin for site + web +
+  api) is STAGE-011 increment 2.
+
+**Verified** — `next build` OK (peak ~870 MB RSS, 35 static pages); `next start` HTTP checks
+(redirect, RTL, per-locale titles, canonical + hreflang, OG, JSON-LD, robots, sitemap, API
+proxy); `docker build` OK (368 MB) + container run; `verify:static` PASS (now covers
+`apps/site`); `verify:i18n` OK.
+
 ### Enhancement program — STAGE-009 … STAGE-013 (planned 2026-09-07)
 
 Master plan documented in `docs/ai-delivery/04-implementation/enhancement-program.md`;

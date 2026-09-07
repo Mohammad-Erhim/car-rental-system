@@ -216,6 +216,9 @@ Append-only. Do not rewrite history. Newest at the bottom of each area.
 - Consequences: DEC-004/018 remain in force for `/ops`. New `deploy/Dockerfile.site`, compose +
   nginx routing changes, `RUNBOOK.md` update. RAM risk handled by building/running `apps/site`
   in the Docker `build` stage / dev container (DEC-013).
+- STAGE-011 inc.1 (2026-09-07): `apps/site` scaffolded + home/search/vehicle-detail/help/legal
+  shipped; `next build` verified on the 1.9 GB host (peak ~870 MB). Edge-proxy consolidation +
+  the authed flows + `apps/web`→`/ops`-only are inc.2.
 
 ### DEC-024 — Launch locales: en + ar + fr (closes the DEC-020 open question)
 

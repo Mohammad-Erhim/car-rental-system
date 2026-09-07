@@ -20,7 +20,11 @@ import { resolveCssVars } from '../dist/resolve.js';
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '../../..');
 
-const TARGETS = ['packages/ui/src/styles.css', 'apps/web/src/index.css'];
+const TARGETS = [
+  'packages/ui/src/styles.css',
+  'apps/web/src/index.css',
+  'apps/site/src/app/globals.css',
+];
 
 const START = '/* @carrental/theme:start';
 const END = '/* @carrental/theme:end */';

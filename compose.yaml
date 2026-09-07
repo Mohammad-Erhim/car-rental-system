@@ -49,6 +49,8 @@ x-workspace-volumes: &workspace-volumes
   - nm_root:/app/node_modules
   - nm_api:/app/apps/api/node_modules
   - nm_web:/app/apps/web/node_modules
+  - nm_site:/app/apps/site/node_modules
+  - next_site:/app/apps/site/.next
   - nm_e2e:/app/e2e/node_modules
   - nm_contracts:/app/packages/contracts/node_modules
   - nm_i18n:/app/packages/i18n/node_modules
@@ -170,6 +172,26 @@ services:
       VITE_PROXY_TARGET: http://api:3001
       VITE_USE_POLLING: ${VITE_USE_POLLING:-0}
     command: pnpm --filter @carrental/web dev -- --host 0.0.0.0
+    ports: ['3100:3000']
+    volumes: *workspace-volumes
+    depends_on:
+      deps: { condition: service_completed_successfully }
+    restart: unless-stopped
+
+  # Customer site (Next.js, DEC-023). Opt-in on a constrained host — `next dev` is heavy:
+  #   docker compose --profile site up
+  site:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.site
+      target: dev
+    init: true
+    profiles: ['site']
+    environment:
+      NODE_ENV: development
+      API_UPSTREAM: http://api:3001
+      SITE_URL: http://localhost:3000
+    command: pnpm --filter @carrental/site dev
     ports: ['3000:3000']
     volumes: *workspace-volumes
     depends_on:
@@ -183,6 +205,8 @@ volumes:
   nm_root:
   nm_api:
   nm_web:
+  nm_site:
+  next_site:
   nm_e2e:
   nm_contracts:
   nm_i18n:

@@ -140,6 +140,25 @@ services:
       migrate: { condition: service_completed_successfully }
     restart: unless-stopped
 
+  # Customer-facing site (DEC-023) — Next.js App Router, /[locale]/… , full SEO.
+  site:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.site
+      target: runtime
+    image: carrental-site:${TAG:-local}
+    environment:
+      NODE_ENV: production
+      API_UPSTREAM: http://api:3001
+      SITE_URL: ${SITE_URL:-http://localhost:3000}
+    ports: ['3000:3000']
+    depends_on:
+      api: { condition: service_healthy }
+    restart: unless-stopped
+    <<: *logging
+
+  # Operations & Admin dashboard (Vite SPA on nginx). STAGE-011 increment 2 reduces this to
+  # /ops only and puts a single edge proxy in front of site + web + api.
   web:
     build:
       context: .
@@ -148,7 +167,7 @@ services:
     image: carrental-web:${TAG:-local}
     environment:
       API_UPSTREAM: http://api:3001
-    ports: ['3000:8080']
+    ports: ['3100:8080']
     depends_on:
       api: { condition: service_healthy }
     restart: unless-stopped

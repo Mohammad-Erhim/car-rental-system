@@ -36,3 +36,4 @@ evidence-bundle-*.zip
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.recommended.json
+apps/site/.next/
