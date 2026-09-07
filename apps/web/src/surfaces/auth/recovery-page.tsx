@@ -34,7 +34,11 @@ export function RecoveryPage({ audience = 'customer' as 'customer' | 'staff' }) 
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const errs = useFormErrors({ email: 'Email', code: 'Code', newPassword: 'New password' });
+  const errs = useFormErrors({
+    email: t('auth.email'),
+    code: t('auth.recoveryCode'),
+    newPassword: t('auth.newPassword'),
+  });
 
   async function start(e: React.FormEvent) {
     e.preventDefault();
@@ -82,7 +86,7 @@ export function RecoveryPage({ audience = 'customer' as 'customer' | 'staff' }) 
     <div className="mx-auto w-full max-w-md py-8">
       <Card>
         <CardHeader>
-          <CardTitle>Recover your account</CardTitle>
+          <CardTitle>{t('auth.recoverTitle')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <ErrorSummary title={t('state.validation.title')} errors={errs.summary} />
@@ -95,7 +99,7 @@ export function RecoveryPage({ audience = 'customer' as 'customer' | 'staff' }) 
           {step === 'start' ? (
             <form onSubmit={start} className="space-y-4" noValidate>
               <Field
-                label="Account email"
+                label={t('auth.accountEmail')}
                 htmlFor="field-email"
                 required
                 error={errs.fieldError('email')}
@@ -114,7 +118,7 @@ export function RecoveryPage({ audience = 'customer' as 'customer' | 'staff' }) 
                 )}
               </Field>
               <Button type="submit" className="w-full" loading={busy}>
-                Send recovery instructions
+                {t('auth.sendInstructions')}
               </Button>
             </form>
           ) : step === 'complete' ? (
@@ -125,13 +129,13 @@ export function RecoveryPage({ audience = 'customer' as 'customer' | 'staff' }) 
               {started?.devCode ? (
                 <Alert variant="info">
                   <AlertDescription>
-                    Development: your code is{' '}
+                    {t('auth.devCodeLabel')}{' '}
                     <span className="bidi-isolate font-mono">{started.devCode}</span>
                   </AlertDescription>
                 </Alert>
               ) : null}
               <Field
-                label="Recovery code"
+                label={t('auth.recoveryCode')}
                 htmlFor="field-code"
                 required
                 error={errs.fieldError('code')}
@@ -151,10 +155,10 @@ export function RecoveryPage({ audience = 'customer' as 'customer' | 'staff' }) 
                 )}
               </Field>
               <Field
-                label="New password"
+                label={t('auth.newPassword')}
                 htmlFor="field-newPassword"
                 required
-                hint="At least 10 characters."
+                hint={t('auth.newPasswordHint')}
                 error={errs.fieldError('newPassword')}
               >
                 {({ id, describedBy, invalid }) => (
@@ -177,10 +181,7 @@ export function RecoveryPage({ audience = 'customer' as 'customer' | 'staff' }) 
           ) : (
             <div className="space-y-4 text-sm">
               <Alert variant="success">
-                <AlertDescription>
-                  If an account matched, its password has been reset and all sessions were signed
-                  out. A security notification was sent.
-                </AlertDescription>
+                <AlertDescription>{t('auth.resetDone')}</AlertDescription>
               </Alert>
               <Button className="w-full" onClick={() => navigate('/sign-in')}>
                 {t('action.signIn')}
@@ -190,7 +191,7 @@ export function RecoveryPage({ audience = 'customer' as 'customer' | 'staff' }) 
 
           <p className="text-center text-sm">
             <Link to="/sign-in" className="text-primary underline underline-offset-4">
-              Back to sign in
+              {t('auth.backToSignIn')}
             </Link>
           </p>
         </CardContent>

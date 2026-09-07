@@ -31,7 +31,7 @@ export function SignInPage({ audience = 'customer' as 'customer' | 'staff' }) {
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
-  const errs = useFormErrors({ email: 'Email', password: 'Password' });
+  const errs = useFormErrors({ email: t('auth.email'), password: t('auth.password') });
 
   const returnParam = params.get('returnTo');
   if (returnParam && returnParam.startsWith('/')) stashReturnTo(returnParam);
@@ -57,7 +57,7 @@ export function SignInPage({ audience = 'customer' as 'customer' | 'staff' }) {
     <div className="mx-auto w-full max-w-md py-8">
       <Card>
         <CardHeader>
-          <CardTitle>{isStaff ? 'Staff sign in' : t('action.signIn')}</CardTitle>
+          <CardTitle>{isStaff ? t('auth.staffTitle') : t('action.signIn')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <ErrorSummary title={t('state.validation.title')} errors={errs.summary} />
@@ -69,7 +69,7 @@ export function SignInPage({ audience = 'customer' as 'customer' | 'staff' }) {
 
           <form onSubmit={onSubmit} className="space-y-4" noValidate>
             <Field
-              label={isStaff ? 'Staff email' : 'Email'}
+              label={isStaff ? t('auth.staffEmail') : t('auth.email')}
               htmlFor="field-email"
               required
               error={errs.fieldError('email')}
@@ -89,7 +89,7 @@ export function SignInPage({ audience = 'customer' as 'customer' | 'staff' }) {
             </Field>
 
             <Field
-              label="Password"
+              label={t('auth.password')}
               htmlFor="field-password"
               required
               error={errs.fieldError('password')}
@@ -112,20 +112,25 @@ export function SignInPage({ audience = 'customer' as 'customer' | 'staff' }) {
                     onClick={() => setShowPw((v) => !v)}
                     aria-pressed={showPw}
                   >
-                    {showPw ? 'Hide' : 'Show'}
+                    {showPw ? t('auth.hidePw') : t('auth.showPw')}
                   </Button>
                 </div>
               )}
             </Field>
 
-            <Button type="submit" className="w-full" loading={busy} loadingLabel="Signing in…">
+            <Button
+              type="submit"
+              className="w-full"
+              loading={busy}
+              loadingLabel={t('auth.signingIn')}
+            >
               {t('action.signIn')}
             </Button>
           </form>
 
           <div className="flex items-center justify-between text-sm">
             <Link to="/recovery" className="text-primary underline underline-offset-4">
-              Forgot your password?
+              {t('auth.forgotPw')}
             </Link>
             {!isStaff ? (
               <Link to="/register" className="text-primary underline underline-offset-4">

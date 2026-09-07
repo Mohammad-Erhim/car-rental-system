@@ -6,6 +6,22 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### STAGE-012 — Ops nav grouping, auth-screen i18n, `<html lang>` sync (2026-09-07)
+
+**Added**
+
+- Grouped sidebar navigation — Operations / Catalogue / Configuration / Administration
+  section headings (design §4.2 hierarchy). Groups are permission-filtered; an empty group
+  is not rendered. Mobile keeps the flat scroll strip. New `ops.navGroup.*` keys ×3.
+
+**Changed**
+
+- Staff sign-in and account-recovery screens are fully localised (title, field labels,
+  show/hide, loading label, links, the reset-complete message) — 17 `auth.*` keys ×3.
+- `I18nProvider` now syncs `<html lang>` / `dir` on first mount, not only on switch, so a
+  page opened straight into `ar` is `dir="rtl"` immediately (a11y + RTL CSS). Benefits both
+  `apps/web` and `apps/site`.
+
 ### STAGE-012 — Ops dashboard · full per-page i18n (2026-09-07)
 
 Every operations screen is now authored end-to-end in **English, Arabic, and French** —

@@ -3,7 +3,15 @@
  * The provider keeps locale + resources; consumers get `t`, formatters, direction, and a setter.
  */
 
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import { directionOf, resolveLocale, type Direction } from './config';
 import { createFormatters, type Formatters } from './format';
@@ -65,14 +73,18 @@ export function I18nProvider({
 
   const fmt = useMemo(() => createFormatters(locale), [locale]);
 
+  // Keep <html lang>/<dir> in sync with the active locale — on first mount too, not only when
+  // the user switches (a page loaded straight into `ar` must be `dir="rtl"` for a11y + CSS).
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.lang = locale;
+    document.documentElement.dir = directionOf(locale);
+  }, [locale]);
+
   const setLocale = useCallback(
     (next: string) => {
       const resolved = resolveLocale(next);
       setLocaleState(resolved);
-      if (typeof document !== 'undefined') {
-        document.documentElement.lang = resolved;
-        document.documentElement.dir = directionOf(resolved);
-      }
       onLocaleChange?.(resolved);
     },
     [onLocaleChange],
