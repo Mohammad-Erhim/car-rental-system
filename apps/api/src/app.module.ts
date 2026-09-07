@@ -9,6 +9,7 @@ import { ConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { ConfigModule as DomainConfigModule } from './modules/config/config.module';
+import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { IamModule } from './modules/iam/iam.module';
 import { MetaModule } from './modules/meta/meta.module';
 import { NotifyModule } from './modules/notify/notify.module';
@@ -27,6 +28,7 @@ import { ObservabilityModule } from './observability/observability.module';
     IamModule,
     DomainConfigModule,
     AdminModule,
+    DiscoveryModule,
     MetaModule,
   ],
   providers: [{ provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor }],

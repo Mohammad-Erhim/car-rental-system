@@ -9,3 +9,7 @@ export * from './iam';
 export * from './platform';
 export * from './customer';
 export * from './notify';
+export * from './catalogue';
+export * from './fleet';
+export * from './pricing';
+export * from './booking';

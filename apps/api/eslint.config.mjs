@@ -14,6 +14,7 @@ export const API_MODULES = [
   'fleet',
   'availability',
   'pricing',
+  'discovery',
   'payment',
   'booking',
   'rental',

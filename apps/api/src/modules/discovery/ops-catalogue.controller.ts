@@ -1,0 +1,168 @@
+import { zUpsertVehicleCategory } from '@carrental/contracts';
+import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
+import { ApiTags } from '@nestjs/swagger';
+import type { Request } from 'express';
+import { z } from 'zod';
+
+import { CurrentActor } from '../../common/auth/auth.guard';
+import { Permissions } from '../../common/auth/permissions.guard';
+import type { Actor } from '../../common/auth/types';
+import { ZodValidationPipe } from '../../common/zod-validation.pipe';
+import { AvailabilityService } from '../availability/availability.service';
+import { CatalogueService } from '../catalogue/catalogue.service';
+import { FleetService } from '../fleet/fleet.service';
+import { PricingService } from '../pricing/pricing.service';
+
+const zRatePlan = z.object({
+  id: z.string().uuid().optional(),
+  categoryCode: z.string().min(2).max(40),
+  locationCode: z.string().max(20).nullable().optional(),
+  currency: z.string().length(3).optional(),
+  name: z.string().min(1).max(120),
+  effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  effectiveTo: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .optional(),
+  baseDayMinor: z.number().int(),
+  hourMinor: z.number().int().min(0).optional(),
+  minDurationHours: z.number().int().min(1).optional(),
+  maxDurationHours: z.number().int().min(1).nullable().optional(),
+  taxBps: z.number().int().min(0).max(10000).optional(),
+  fees: z
+    .array(
+      z.object({
+        code: z.string().max(60),
+        label: z.string().max(120),
+        amountMinor: z.number().int(),
+        taxable: z.boolean().optional(),
+      }),
+    )
+    .optional(),
+  tiers: z
+    .array(z.object({ minHours: z.number().int().min(1), dayMinor: z.number().int().min(1) }))
+    .optional(),
+});
+
+const zBlock = z.object({
+  unitId: z.string().uuid(),
+  kind: z.enum(['maintenance', 'damage', 'admin_block', 'transfer']).optional(),
+  reasonCode: z.string().max(60).optional(),
+  startAt: z.string().datetime({ offset: true }),
+  endAt: z.string().datetime({ offset: true }).optional(),
+  note: z.string().max(1000).optional(),
+});
+
+@ApiTags('ops-catalogue')
+@Controller({ path: 'ops', version: '1' })
+export class OpsCatalogueController {
+  constructor(
+    private readonly catalogue: CatalogueService,
+    private readonly fleet: FleetService,
+    private readonly pricing: PricingService,
+    private readonly availability: AvailabilityService,
+  ) {}
+
+  // --- catalogue (SCREEN-OPS-013/025) ---
+
+  @Get('catalogue/categories')
+  @Permissions('catalogue.read', 'config.read')
+  listCategories() {
+    return this.catalogue.listCategories({ includeInactive: true });
+  }
+
+  @Get('catalogue/features')
+  @Permissions('catalogue.read', 'config.read')
+  listFeatures() {
+    return this.catalogue.listFeatures();
+  }
+
+  @Post('catalogue/categories')
+  @Permissions('catalogue.manage')
+  upsertCategory(
+    @Body(new ZodValidationPipe(zUpsertVehicleCategory))
+    body: z.infer<typeof zUpsertVehicleCategory>,
+    @CurrentActor() actor: Actor,
+    @Req() req: Request,
+  ) {
+    const ifMatch = req.header('If-Match');
+    return this.catalogue.upsertCategory(actor, body, ifMatch ? Number(ifMatch) : undefined);
+  }
+
+  @Post('catalogue/categories/:code/deactivate')
+  @Permissions('catalogue.manage')
+  deactivateCategory(@Param('code') code: string, @CurrentActor() actor: Actor) {
+    return this.catalogue.setCategoryActive(actor, code, false);
+  }
+
+  @Post('catalogue/categories/:code/restore')
+  @Permissions('catalogue.manage')
+  restoreCategory(@Param('code') code: string, @CurrentActor() actor: Actor) {
+    return this.catalogue.setCategoryActive(actor, code, true);
+  }
+
+  // --- fleet inventory (SCREEN-OPS-013, read) ---
+
+  @Get('fleet/units')
+  @Permissions('fleet.read', 'fleet.manage')
+  listUnits(
+    @Query('locationCode') locationCode?: string,
+    @Query('categoryCode') categoryCode?: string,
+    @Query('state') state?: string,
+  ) {
+    return this.fleet.listUnits({ locationCode, categoryCode, state });
+  }
+
+  @Post('fleet/blocks')
+  @Permissions('fleet.manage')
+  addBlock(
+    @Body(new ZodValidationPipe(zBlock)) body: z.infer<typeof zBlock>,
+    @CurrentActor() actor: Actor,
+  ) {
+    return this.fleet.addBlock(actor, body);
+  }
+
+  @Post('fleet/blocks/:id/release')
+  @Permissions('fleet.manage')
+  releaseBlock(@Param('id') id: string, @CurrentActor() actor: Actor) {
+    return this.fleet.releaseBlock(actor, id);
+  }
+
+  // --- rate plans (SCREEN-OPS-025/026) ---
+
+  @Get('pricing/rate-plans')
+  @Permissions('config.read', 'config.publish')
+  listPlans() {
+    return this.pricing.listPlans();
+  }
+
+  @Post('pricing/rate-plans')
+  @Permissions('config.publish')
+  upsertPlan(
+    @Body(new ZodValidationPipe(zRatePlan)) body: z.infer<typeof zRatePlan>,
+    @CurrentActor() actor: Actor,
+  ) {
+    return this.pricing.upsertPlan(actor, body);
+  }
+
+  @Post('pricing/rate-plans/:id/publish')
+  @Permissions('config.publish')
+  publishPlan(@Param('id') id: string, @CurrentActor() actor: Actor) {
+    return this.pricing.publishPlan(actor, id);
+  }
+
+  // --- holds admin (SCREEN-OPS-028) ---
+
+  @Get('availability/holds')
+  @Permissions('reservation.read', 'config.read')
+  listHolds(@Query('status') status?: string) {
+    return this.availability.listHolds(status ?? 'active');
+  }
+
+  @Post('availability/holds/:id/release')
+  @Permissions('reservation.cancel', 'config.publish')
+  releaseHold(@Param('id') id: string, @CurrentActor() actor: Actor) {
+    return this.availability.releaseHold(actor, id, 'forced');
+  }
+}

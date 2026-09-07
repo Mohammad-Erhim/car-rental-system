@@ -7,15 +7,20 @@ import { RecoveryPage } from '../surfaces/auth/recovery-page.js';
 import { RegisterPage } from '../surfaces/auth/register-page.js';
 import { SignInPage } from '../surfaces/auth/sign-in-page.js';
 import { AccountOverviewPage } from '../surfaces/customer/account-overview-page.js';
+import { CheckoutPage } from '../surfaces/customer/checkout-page.js';
 import { CustomerLayout } from '../surfaces/customer/customer-layout.js';
 import { DataRequestsPage } from '../surfaces/customer/data-requests-page.js';
 import { DriversPage } from '../surfaces/customer/drivers-page.js';
 import { HomePage } from '../surfaces/customer/home-page.js';
 import { PlaceholderPage } from '../surfaces/customer/placeholder-page.js';
 import { ProfilePage } from '../surfaces/customer/profile-page.js';
+import { SearchResultsPage } from '../surfaces/customer/search-results-page.js';
+import { VehicleDetailPage } from '../surfaces/customer/vehicle-detail-page.js';
+import { FleetInventoryPage } from '../surfaces/ops/fleet-inventory-page.js';
 import { OpsDashboard } from '../surfaces/ops/ops-dashboard.js';
 import { OpsLayout } from '../surfaces/ops/ops-layout.js';
 import { OpsPlaceholder } from '../surfaces/ops/ops-placeholder.js';
+import { RatePlansPage } from '../surfaces/ops/rate-plans-page.js';
 import { ReferenceDataPage } from '../surfaces/ops/reference-data-page.js';
 import { StaffRolesPage } from '../surfaces/ops/staff-roles-page.js';
 import { TranslationsPage } from '../surfaces/ops/translations-page.js';
@@ -61,6 +66,9 @@ export const router = createBrowserRouter([
     errorElement: <RouteError />,
     children: [
       { index: true, element: <HomePage /> },
+      { path: 'search', element: <SearchResultsPage /> },
+      { path: 'vehicle/:categoryCode', element: <VehicleDetailPage /> },
+      { path: 'checkout', element: <CheckoutPage /> },
       { path: 'sign-in', element: <SignInPage audience="customer" /> },
       { path: 'register', element: <RegisterPage /> },
       { path: 'recovery', element: <RecoveryPage audience="customer" /> },
@@ -144,10 +152,17 @@ export const router = createBrowserRouter([
       {
         path: 'fleet',
         element: staffOnly(
-          <OpsPlaceholder
-            title="Fleet"
-            note="Fleet inventory (SCREEN-OPS-013) lands in the fleet stage."
-          />,
+          <RequirePermission anyOf={['fleet.read', 'fleet.manage']}>
+            <FleetInventoryPage />
+          </RequirePermission>,
+        ),
+      },
+      {
+        path: 'config/rate-plans',
+        element: staffOnly(
+          <RequirePermission anyOf={['config.read', 'config.publish']}>
+            <RatePlansPage />
+          </RequirePermission>,
         ),
       },
       {

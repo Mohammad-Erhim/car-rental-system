@@ -6,6 +6,8 @@ import { customer } from '../schema/customer';
 import { account, staffProfile } from '../schema/iam';
 import { location, organization } from '../schema/org';
 
+import { seedDiscovery } from './discovery';
+
 /**
  * DEVELOPMENT seed — a small, obviously-synthetic operating set so the apps are usable locally.
  * All identities use example.test addresses and the well-known dev password.
@@ -209,6 +211,8 @@ export async function seedDevelopment(db: Database): Promise<void> {
         },
       });
   }
+
+  await seedDiscovery(db, org.id);
 }
 
 function weekly(open: string, close: string, closedDays: number[] = []) {

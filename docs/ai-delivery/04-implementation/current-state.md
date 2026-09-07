@@ -5,21 +5,22 @@ _Concise, authoritative. Update after every meaningful verified unit._
 - **Approved scope:** Full system minus APP-CMOB frontend (see `selected-scope.md`). Backend,
   APP-CWEB, APP-OPS all in scope. Autonomous multi-stage build (user: "never stop before 100%").
 - **Source versions:** FR 1.0, UI/UX 1.0, SRS 1.0 (hashes in `source-manifest.md`).
-- **Active stage:** STAGE-002 — Discovery & quote (catalogue, locations, availability, pricing, holds).
+- **Active stage:** STAGE-003 — Booking & payment (checkout, drivers, products, terms, confirm, notify).
 - **Stage status:** IN_PROGRESS (starting).
-- **Last completed:** STAGE-001 — Shared identity, config, reference data, UI foundation.
-  COMPLETED 2026-09-07. Gate: `verify:static` PASS, `verify:unit` 27, `verify:api` 24,
-  `verify:migrate` 4, `verify:e2e` 42 (phone/tablet/laptop, 45 screenshots incl. 1 RTL set,
-  0 console/network errors). Evidence in `stages/STAGE-001-foundation/`.
+- **Last completed:** STAGE-002 — Discovery & quote. COMPLETED 2026-09-07. Gate: `verify:static`
+  PASS, `verify:unit` 63 (36 new pure-engine tests), `verify:api` 31 (7 discovery), `verify:migrate` 4,
+  `verify:e2e` 54 (phone/tablet/laptop, 63 screenshots, 0 console/network errors). Evidence in
+  `stages/STAGE-002-discovery/`.
 - **Last verified tests:** as above.
-- **Unresolved defects / blockers:** none. STAGE-001 defects D-001-1..9 all fixed.
+- **Unresolved defects / blockers:** none. STAGE-001 D-001-1..9 and STAGE-002 D-002-1..5 all fixed.
 - **Environment:** no Docker; PostgreSQL 16 + Redis 7 native (`scripts/dev-up.sh`). ~1.9 GB RAM ⇒
   single Vite SPA for both surfaces (DEC-004/018); API runs via `@swc-node/register` on source
   (tsc→dist build deferred to STAGE-007). Chromium-only E2E (Firefox/WebKit → STAGE-007).
 - **Frontend stack:** React 18 + Vite 5 + TypeScript + shadcn/ui + React Router v6 + TanStack Query.
-- **DB state (dev):** migrated to `0001`; seeded system + development. Demo customer
-  (`customer@example.test`) now has a `customer` domain row and is a resettable fixture
-  (`db:seed` restores `fullName='Demo Customer'`, `localeCode='en'`, prefs cleared).
+- **DB state (dev):** migrated to `0002`; seeded system + development. Discovery fixture: 5
+  vehicle categories, 8 features, ~54 units across JFK/LHR/PAR, one published rate plan (+ tiers)
+  per category. Demo customer (`customer@example.test`) has a `customer` domain row and is a
+  resettable fixture. `pnpm --filter @carrental/api db:reset` re-baselines everything.
 - **What works now (STAGE-000 + 001):**
   - IAM: register→verify→sign-in→refresh(rotate/reuse-detect)→sign-out; recovery (neutral,
     single-use, revoke-all + security_alert); change-password; profile & preferences (optimistic
@@ -35,19 +36,23 @@ _Concise, authoritative. Update after every meaningful verified unit._
   - Notify: template render + outbox mail driver + dev viewer; verification / recovery /
     security_alert templates (en/fr/ar).
   - Cross-cutting: append-only audit, transactional outbox, idempotency interceptor, CacheBus.
-  - Web: auth context + route/permission guards + silent refresh + return-to; shared UI kit
-    (form primitives, Dialog/Tabs/Toast/ConfirmDialog, AppStateView 12 states); customer
-    screens SCREEN-CUS-008..013/024; ops screens SCREEN-OPS-001/030/031/032/034; responsive
-    (phone/tablet bottom-nav, laptop header/sidebar; wide tables scroll in-box; no horizontal
-    page overflow — `responsive.spec.ts` guard); RTL (Arabic) verified.
-- **Exact next action:** STAGE-002 — catalogue (vehicle categories, features, rate plans),
-  location config + hours/one-way, real-time availability (fleet inventory + demand + holds +
-  operating hours + turnaround), itemised versioned expiring quote, checkout hold. Screens
-  SCREEN-CUS-001/002/003 + SCREEN-OPS-015/025/026/028. See `stages/STAGE-002-discovery/plan.md`.
-- **Files/areas to change (STAGE-002):** new `apps/api/src/modules/{catalogue,fleet,availability,pricing}`;
-  extend `database/schema` (vehicle-category/feature/unit, rate-plan, quote, hold);
-  `packages/contracts` (catalogue/availability/quote DTOs); `apps/web/src/surfaces/{customer,ops}`
-  (search / results / vehicle detail / rate config).
+  - Discovery (STAGE-002): `POST /discovery/search` — real-time availability (units − blocks −
+    holds, turnaround-padded, operating-hours-gated) per category with a live "from" price;
+    `POST /discovery/quote` — itemised versioned expiring quote + `pg_advisory_xact_lock`
+    checkout hold (last-unit race proven safe); rate plans (draft → publish, immutable once
+    published, publish reflects on search with no redeploy); catalogue + fleet-inventory read.
+  - Web: auth context + guards + silent refresh + return-to; shared UI kit; customer
+    SCREEN-CUS-001/002/003/008..013/024 + checkout hand-off; ops SCREEN-OPS-001/013/025/026/030/031/032/034;
+    responsive (phone/tablet bottom-nav, laptop header/sidebar; wide tables scroll in-box; no
+    horizontal page overflow — `responsive.spec.ts` guard); RTL (Arabic) verified.
+- **Exact next action:** STAGE-003 — checkout (SCREEN-CUS-004–007), drivers/payer roles,
+  extras/protection, terms/consent snapshot, atomic confirmation + duplicate prevention,
+  confirmation + notification, guest access, staff-assisted booking (SCREEN-OPS-006). Consume
+  the held quote from STAGE-002.
+- **Files/areas to change (STAGE-003):** new `apps/api/src/modules/{booking,payment}`;
+  extend `database/schema` (reservation, reservation_driver, reservation_line, payment,
+  payment_intent, consent_snapshot); a `PaymentPort` simulator; `apps/web/src/surfaces/customer`
+  (checkout wizard) + `surfaces/ops` (assisted booking).
 - **Known pre-existing / unrelated working-tree changes:** none (greenfield; specs, `prompts/`,
   and this build only).
 - **Lookup / localization status:** system-fixed state sets + configurable lookups are SERVED

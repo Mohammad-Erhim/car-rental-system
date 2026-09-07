@@ -1,0 +1,20 @@
+import { Module } from '@nestjs/common';
+
+import { AvailabilityService } from '../availability/availability.service';
+import { CatalogueService } from '../catalogue/catalogue.service';
+import { FleetService } from '../fleet/fleet.service';
+import { PricingService } from '../pricing/pricing.service';
+
+import { DiscoveryController } from './discovery.controller';
+import { OpsCatalogueController } from './ops-catalogue.controller';
+
+/**
+ * STAGE-002 — Discovery & quote. Bundles catalogue, fleet (read), availability engine, and
+ * pricing behind the customer discovery surface and the ops catalogue/pricing/holds surface.
+ */
+@Module({
+  controllers: [DiscoveryController, OpsCatalogueController],
+  providers: [CatalogueService, FleetService, PricingService, AvailabilityService],
+  exports: [CatalogueService, FleetService, PricingService, AvailabilityService],
+})
+export class DiscoveryModule {}

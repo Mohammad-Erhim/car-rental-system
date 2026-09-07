@@ -323,6 +323,7 @@ const EXTERNAL_STANDARDS: Record<string, { label: string; values: [string, strin
 
 const PERMISSION_ACTIONS: Array<[string, string, string, string]> = [
   ['catalogue.read', 'catalogue', 'normal', 'View catalogue, locations, availability'],
+  ['catalogue.manage', 'catalogue', 'elevated', 'Manage vehicle categories, features, rate plans'],
   ['reservation.read', 'reservation', 'normal', 'View reservations'],
   ['reservation.create', 'reservation', 'normal', 'Create reservations (assisted booking)'],
   ['reservation.modify', 'reservation', 'normal', 'Modify reservations'],
@@ -370,7 +371,14 @@ const SYSTEM_ROLES: Array<{ code: string; name: string; actions: string[] | 'ALL
   {
     code: 'fleet_staff',
     name: 'Fleet staff',
-    actions: ['catalogue.read', 'fleet.read', 'fleet.manage', 'rental.read', 'report.read'],
+    actions: [
+      'catalogue.read',
+      'catalogue.manage',
+      'fleet.read',
+      'fleet.manage',
+      'rental.read',
+      'report.read',
+    ],
   },
   {
     code: 'finance_staff',

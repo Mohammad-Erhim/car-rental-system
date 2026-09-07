@@ -7,8 +7,8 @@ Status values: `PLANNED`, `READY`, `IN_PROGRESS`, `BLOCKED`, `VERIFYING`, `COMPL
 | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | STAGE-000 | Repository & local platform                                                                                                                               | COMPLETED   |
 | STAGE-001 | Shared identity, config, reference data, UI foundation                                                                                                    | COMPLETED   |
-| STAGE-002 | Discovery & quote (catalogue, locations, availability, pricing, holds)                                                                                    | IN_PROGRESS |
-| STAGE-003 | Booking & payment (checkout, drivers, products, terms, confirm, notify)                                                                                   | PLANNED     |
+| STAGE-002 | Discovery & quote (catalogue, locations, availability, pricing, holds)                                                                                    | COMPLETED   |
+| STAGE-003 | Booking & payment (checkout, drivers, products, terms, confirm, notify)                                                                                   | IN_PROGRESS |
 | STAGE-004 | Reservation operations (list/detail, modify, cancel, refund, customer workspaces)                                                                         | PLANNED     |
 | STAGE-005 | Pickup, active rental, return & closeout (fleet readiness, assignment, agreement, extension, incident, replacement, inspection)                           | PLANNED     |
 | STAGE-006 | Administration & reporting (full config/versioning, imports, templates/translations, reports/exports/schedules, integration recovery, audit/data-quality) | PLANNED     |
@@ -80,6 +80,14 @@ Status values: `PLANNED`, `READY`, `IN_PROGRESS`, `BLOCKED`, `VERIFYING`, `COMPL
 - **Acceptance:** fresh/stale/no-result flows; two concurrent customers cannot hold the same
   last unit; sum of quote lines == total == reservation snapshot later; load baseline recorded.
 - **Unlocks:** STAGE-003.
+- **Completion (2026-09-07):** COMPLETED. Delivered `catalogue` + `fleet` (read) + `availability`
+  (pure engine + `pg_advisory_xact_lock` hold) + `pricing` (versioned rate plans + itemised
+  expiring quote) behind `discovery` (customer) and `ops` (catalogue/rate-plans/fleet/holds).
+  SCREEN-CUS-001/002/003 + checkout hand-off; SCREEN-OPS-013/025/026. Gates: `verify:static`
+  PASS, `verify:unit` 63 (36 new engine tests), `verify:api` 31 (7 discovery — incl. the
+  concurrency race and rate-publish-reflects), `verify:migrate` 4, `verify:e2e` 54, 63
+  screenshots. Load baseline (k6) deferred to STAGE-007. Evidence:
+  `stages/STAGE-002-discovery/` (D-002-1..5 all fixed).
 
 ## STAGE-003 — Booking & payment
 

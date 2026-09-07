@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   LogOut,
   Settings2,
+  Tag,
   Users,
   Wallet,
 } from 'lucide-react';
@@ -46,6 +47,12 @@ const NAV: NavItem[] = [
     label: 'Reference data',
     Icon: Database,
     anyOf: ['config.read', 'lookup.manage'],
+  },
+  {
+    to: '/ops/config/rate-plans',
+    label: 'Rate plans',
+    Icon: Tag,
+    anyOf: ['config.read', 'config.publish'],
   },
   { to: '/ops/config', label: 'Configuration', Icon: Settings2, anyOf: ['config.read'] },
   {

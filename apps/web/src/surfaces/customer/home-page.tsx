@@ -1,21 +1,13 @@
 import { useI18n } from '@carrental/i18n/react';
-import {
-  AppStateView,
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@carrental/ui';
+import { AppStateView, Badge, Card, CardContent, CardHeader, CardTitle } from '@carrental/ui';
 import { useQuery } from '@tanstack/react-query';
-import { CalendarRange, MapPin } from 'lucide-react';
 
+import { SearchForm } from '../../components/search-form.js';
 import { metaApi } from '../../lib/api.js';
 
 /**
- * SCREEN-CUS-001 (foundation slice). Trip-first hero + a status panel proving the API wiring.
- * The full search control (COMP-CUS-001 / COMP-SH-007) lands in STAGE-002.
+ * SCREEN-CUS-001 — Trip search. Trip-first hero with the real availability search control; a
+ * status panel below proves the app ↔ API ↔ DB wiring.
  */
 export function HomePage() {
   const { t, fmt } = useI18n();
@@ -36,23 +28,9 @@ export function HomePage() {
           Choose your pickup and return location and time to see cars you can actually book.
         </p>
 
-        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto]">
-          <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground">
-            <MapPin className="size-4" aria-hidden="true" />
-            Pickup &amp; return location
-          </div>
-          <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground">
-            <CalendarRange className="size-4" aria-hidden="true" />
-            Dates &amp; times
-          </div>
-          <Button size="lg" disabled title="Trip search arrives in the next stage">
-            {t('action.search')}
-          </Button>
+        <div className="mt-6">
+          <SearchForm compact />
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">
-          Trip search is delivered in the discovery stage. This page confirms the app ↔ API ↔ DB
-          wiring below.
-        </p>
       </section>
 
       <section className="grid gap-4 md:grid-cols-2">

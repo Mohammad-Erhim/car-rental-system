@@ -5,6 +5,8 @@ import type { Database } from '../drizzle';
 import { account, staffProfile } from '../schema/iam';
 import { location, organization } from '../schema/org';
 
+import { seedDiscovery } from './discovery';
+
 /**
  * TEST seed — deterministic fixtures. Builders in the test suite state only meaningful
  * differences on top of this (SRS §22.3). Clearly non-production identities.
@@ -33,23 +35,50 @@ export async function seedTest(db: Database): Promise<void> {
     .returning();
   if (!org) throw new Error('test seed: org');
 
-  await db
-    .insert(location)
-    .values({
-      organizationId: org.id,
+  const testLocations = [
+    {
       code: 'TST1',
-      name: 'Test Location 1',
-      timezone: 'America/New_York',
-      address: { line1: '1 Test Way', city: 'Testville', country: 'US' },
+      name: 'Test Location 1 (24/7)',
       regularHours: Array.from({ length: 7 }, (_, day) => ({ day, open: '00:00', close: '23:59' })),
-      supportedCategoryCodes: ['economy', 'suv'],
+      supportedCategoryCodes: ['economy', 'compact', 'intermediate', 'suv', 'premium'],
       afterHoursReturn: true,
-      status: 'active',
-    })
-    .onConflictDoUpdate({
-      target: [location.organizationId, location.code],
-      set: { updatedAt: sql`now()` },
-    });
+    },
+    {
+      code: 'TST2',
+      name: 'Test Location 2 (limited hours, no after-hours)',
+      // open 06:00–20:00, closed Sundays (day 0)
+      regularHours: Array.from({ length: 7 }, (_, day) =>
+        day === 0 ? { day, closed: true } : { day, open: '06:00', close: '20:00' },
+      ),
+      supportedCategoryCodes: ['economy', 'compact'],
+      afterHoursReturn: false,
+    },
+  ];
+  for (const l of testLocations) {
+    await db
+      .insert(location)
+      .values({
+        organizationId: org.id,
+        code: l.code,
+        name: l.name,
+        timezone: 'America/New_York',
+        address: { line1: '1 Test Way', city: 'Testville', country: 'US' },
+        regularHours: l.regularHours,
+        supportedCategoryCodes: l.supportedCategoryCodes,
+        afterHoursReturn: l.afterHoursReturn,
+        turnaroundMinutes: 60,
+        status: 'active',
+      })
+      .onConflictDoUpdate({
+        target: [location.organizationId, location.code],
+        set: {
+          regularHours: l.regularHours,
+          supportedCategoryCodes: l.supportedCategoryCodes,
+          afterHoursReturn: l.afterHoursReturn,
+          updatedAt: sql`now()`,
+        },
+      });
+  }
 
   const accounts = [
     {
@@ -109,4 +138,6 @@ export async function seedTest(db: Database): Promise<void> {
         });
     }
   }
+
+  await seedDiscovery(db, org.id, { locationCodes: ['TST1', 'TST2'] });
 }
