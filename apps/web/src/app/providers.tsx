@@ -5,10 +5,21 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { useMemo, useState, type ReactNode } from 'react';
 
 import { AuthProvider } from '../lib/auth.js';
+import { usePublishedBranding } from '../lib/branding-hooks.js';
 import { detectInitialLocale, storeLocale } from '../lib/locale-storage.js';
 import { createQueryClient } from '../lib/query.js';
 
 const MISSING_KEYS = new Set<string>();
+
+/** Feeds the published brand/theme config (DEC-025) into the shared ThemeProvider. */
+function BrandedThemeProvider({ children }: { children: ReactNode }) {
+  const branding = usePublishedBranding();
+  return (
+    <ThemeProvider defaultTheme="system" brand={branding.data?.config ?? null}>
+      {children}
+    </ThemeProvider>
+  );
+}
 
 export function AppProviders({ children }: { children: ReactNode }) {
   const [queryClient] = useState(createQueryClient);
@@ -16,7 +27,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ThemeProvider defaultTheme="system">
+      <BrandedThemeProvider>
         <I18nProvider
           initialLocale={initialLocale}
           resources={BASE_RESOURCES}
@@ -35,7 +46,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
             <ToastProvider>{children}</ToastProvider>
           </AuthProvider>
         </I18nProvider>
-      </ThemeProvider>
+      </BrandedThemeProvider>
     </QueryClientProvider>
   );
 }

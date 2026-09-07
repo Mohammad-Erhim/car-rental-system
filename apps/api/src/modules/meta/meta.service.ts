@@ -1,4 +1,5 @@
-import type { HealthSummary, LocalesResponse } from '@carrental/contracts';
+import type { BrandingResponse, HealthSummary, LocalesResponse } from '@carrental/contracts';
+import { DEFAULT_BRAND_CONFIG, brandConfigSchema } from '@carrental/theme';
 import { Inject, Injectable } from '@nestjs/common';
 import { asc, eq } from 'drizzle-orm';
 
@@ -6,12 +7,18 @@ import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { locale } from '../../database/schema/i18n';
 import { HealthService } from '../../observability/health.service';
+import { ConfigVersionService } from '../config/config-version.service';
+
+/** kind/key the branding config lives under in `config_version` (DEC-025). */
+export const BRANDING_KIND = 'branding';
+export const BRANDING_KEY = 'default';
 
 @Injectable()
 export class MetaService {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly health: HealthService,
+    private readonly configVersions: ConfigVersionService,
   ) {}
 
   /** Enabled locales come from the DB, not a bundled array (FR-GBL-004, SRS-I18N-001). */
@@ -40,6 +47,24 @@ export class MetaService {
 
   build() {
     return this.health.version();
+  }
+
+  /**
+   * The published brand/theme config (DEC-025). Falls back to the built-in default when nothing
+   * is published. Public + cacheable — both frontends apply it as a CSS-variable overlay.
+   */
+  async branding(): Promise<BrandingResponse> {
+    const rows = await this.configVersions.list(BRANDING_KIND, BRANDING_KEY);
+    const published = rows.find((r) => r.state === 'published');
+    if (!published) {
+      return { config: DEFAULT_BRAND_CONFIG, revision: 0, updatedAt: null };
+    }
+    const parsed = brandConfigSchema.safeParse(published.payload);
+    return {
+      config: parsed.success ? parsed.data : DEFAULT_BRAND_CONFIG,
+      revision: parsed.success ? published.revision : 0,
+      updatedAt: published.effectiveFrom ?? published.createdAt,
+    };
   }
 
   /** Coarse, safe status for the UI status bar (FR-GBL-005). */

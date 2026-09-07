@@ -19,6 +19,7 @@ import { SearchResultsPage } from '../surfaces/customer/search-results-page.js';
 import { TripsPage } from '../surfaces/customer/trips-page.js';
 import { VehicleDetailPage } from '../surfaces/customer/vehicle-detail-page.js';
 import { AuditLogPage } from '../surfaces/ops/audit-log-page.js';
+import { BrandingPage } from '../surfaces/ops/branding-page.js';
 import { ConfigVersionsPage } from '../surfaces/ops/config-versions-page.js';
 import { FleetInventoryPage } from '../surfaces/ops/fleet-inventory-page.js';
 import { OpsDashboard } from '../surfaces/ops/ops-dashboard.js';
@@ -137,6 +138,14 @@ export const router = createBrowserRouter([
         element: staffOnly(
           <RequirePermission anyOf={['config.read', 'config.publish']}>
             <TranslationsPage />
+          </RequirePermission>,
+        ),
+      },
+      {
+        path: 'config/branding',
+        element: staffOnly(
+          <RequirePermission anyOf={['config.read', 'config.publish']}>
+            <BrandingPage />
           </RequirePermission>,
         ),
       },

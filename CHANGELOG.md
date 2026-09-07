@@ -6,6 +6,28 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### STAGE-009 — Design system, theming & branding · increment 2 (2026-09-07)
+
+Dashboard-managed branding, end to end.
+
+**Added**
+
+- `GET /api/v1/meta/branding` — public, cacheable (`ETag` + `Cache-Control`), returns the
+  published brand config or the built-in default (revision 0).
+- `branding` config-version kind — rides the existing draft → submit → approve (author ≠
+  approver) + audit + `config.version.published.v1` workflow; validates structure + WCAG AA +
+  `https://`-only asset refs; `preview` returns an AA-cleanliness summary.
+- `/ops/config/branding` dashboard editor — preset picker, per-mode colour editor (colour input
+  ↔ HSL triple, auto AA-safe foregrounds), radius / density / font, asset URLs, live preview,
+  contrast readout, version list with submit/approve. New `Palette` nav entry.
+- `apps/web` applies the published config on boot via `BrandedThemeProvider` → `ThemeProvider`;
+  re-themes on publish with no reload.
+- `zBrandingResponse` contract; `hexToHslTriple` / `hslTripleToHex` in `@carrental/theme`;
+  `ops.branding.*` i18n keys (en / ar / fr); `apps/api/test/branding.spec.ts` (6).
+
+**Verified** — `verify:static` PASS · `branding.spec` 6 · `meta`/`config-lookup`/`report`
+regression green · `verify:unit` 72 · `verify:theme` PASS · `apps/web` build OK.
+
 ### STAGE-009 — Design system, theming & branding · increment 1 (2026-09-07)
 
 Theming foundation. No user-visible behaviour removed; adds a light/dark switch and the

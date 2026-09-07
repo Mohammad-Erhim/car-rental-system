@@ -1,3 +1,4 @@
+import { brandConfigSchema } from '@carrental/theme';
 import { z } from 'zod';
 
 import { zLocale } from './primitives';
@@ -43,6 +44,18 @@ export const zHealthSummary = z.object({
   ),
 });
 export type HealthSummary = z.infer<typeof zHealthSummary>;
+
+/**
+ * `GET /api/v1/meta/branding` — the published brand/theme config (DEC-025). Public + cacheable;
+ * both frontends apply it as a CSS-variable overlay. `revision` is the config-version number
+ * (0 = built-in default, nothing published yet).
+ */
+export const zBrandingResponse = z.object({
+  config: brandConfigSchema,
+  revision: z.number().int().nonnegative(),
+  updatedAt: z.string().nullable(),
+});
+export type BrandingResponse = z.infer<typeof zBrandingResponse>;
 
 /** `/health/ready` — richer, used by ops + load balancers (SRS §16.3). */
 export const zReadiness = z.object({

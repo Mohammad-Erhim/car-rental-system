@@ -29,6 +29,9 @@ importers:
       '@carrental/i18n':
         specifier: workspace:*
         version: link:../../packages/i18n
+      '@carrental/theme':
+        specifier: workspace:*
+        version: link:../../packages/theme
       '@nestjs/common':
         specifier: 10.4.1
         version: 10.4.1(reflect-metadata@0.2.2)(rxjs@7.8.1)
@@ -316,6 +319,9 @@ importers:
 
   packages/contracts:
     dependencies:
+      '@carrental/theme':
+        specifier: workspace:*
+        version: link:../theme
       zod:
         specifier: 3.23.8
         version: 3.23.8

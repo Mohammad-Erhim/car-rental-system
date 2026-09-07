@@ -62,3 +62,53 @@ export function contrastRatio(a: string, b: string): number {
 
 export const AA_NORMAL = 4.5;
 export const AA_LARGE = 3;
+
+/* ---- hex <-> "H S% L%" (for the dashboard colour inputs) ---------------------------------- */
+
+function rgbToHslTriple({ r, g, b }: Rgb): string {
+  const r1 = r / 255;
+  const g1 = g / 255;
+  const b1 = b / 255;
+  const max = Math.max(r1, g1, b1);
+  const min = Math.min(r1, g1, b1);
+  const l = (max + min) / 2;
+  let h = 0;
+  let s = 0;
+  const d = max - min;
+  if (d !== 0) {
+    s = d / (1 - Math.abs(2 * l - 1));
+    switch (max) {
+      case r1:
+        h = ((g1 - b1) / d) % 6;
+        break;
+      case g1:
+        h = (b1 - r1) / d + 2;
+        break;
+      default:
+        h = (r1 - g1) / d + 4;
+    }
+    h *= 60;
+    if (h < 0) h += 360;
+  }
+  return `${Math.round(h)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+}
+
+/** `#3b82f6` (or `#fff`) → `"217 91% 60%"`. Returns null for a malformed hex. */
+export function hexToHslTriple(hex: string): string | null {
+  const m = hex.trim().match(/^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
+  if (!m) return null;
+  let h = m[1]!;
+  if (h.length === 3) h = h[0]! + h[0]! + h[1]! + h[1]! + h[2]! + h[2]!;
+  return rgbToHslTriple({
+    r: parseInt(h.slice(0, 2), 16),
+    g: parseInt(h.slice(2, 4), 16),
+    b: parseInt(h.slice(4, 6), 16),
+  });
+}
+
+/** `"217 91% 60%"` → `#3b82f6` (for `<input type="color">` value binding). */
+export function hslTripleToHex(triple: string): string {
+  const { r, g, b } = hslTripleToRgb(triple);
+  const to2 = (n: number) => n.toString(16).padStart(2, '0');
+  return `#${to2(r)}${to2(g)}${to2(b)}`;
+}

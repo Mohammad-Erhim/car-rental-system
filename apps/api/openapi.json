@@ -1791,6 +1791,28 @@
         ]
       }
     },
+    "/api/v1/meta/branding": {
+      "get": {
+        "operationId": "meta_getBranding",
+        "summary": "Published brand/theme config for both frontends (DEC-025)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandingResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "meta"
+        ]
+      }
+    },
     "/api/v1/meta/health-summary": {
       "get": {
         "operationId": "meta_getHealthSummary",
@@ -1930,6 +1952,357 @@
           "builtAt",
           "nodeEnv",
           "schemaVersion"
+        ]
+      },
+      "BrandingResponseDto": {
+        "type": "object",
+        "properties": {
+          "config": {
+            "type": "object",
+            "properties": {
+              "colors": {
+                "type": "object",
+                "properties": {
+                  "light": {
+                    "type": "object",
+                    "properties": {
+                      "background": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "foreground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "card": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "cardForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "popover": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "popoverForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "primary": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "primaryForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "secondary": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "secondaryForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "muted": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "mutedForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "accent": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "accentForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "destructive": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "destructiveForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "success": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "successForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "warning": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "warningForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "border": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "input": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "ring": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      }
+                    },
+                    "required": [
+                      "background",
+                      "foreground",
+                      "card",
+                      "cardForeground",
+                      "popover",
+                      "popoverForeground",
+                      "primary",
+                      "primaryForeground",
+                      "secondary",
+                      "secondaryForeground",
+                      "muted",
+                      "mutedForeground",
+                      "accent",
+                      "accentForeground",
+                      "destructive",
+                      "destructiveForeground",
+                      "success",
+                      "successForeground",
+                      "warning",
+                      "warningForeground",
+                      "border",
+                      "input",
+                      "ring"
+                    ]
+                  },
+                  "dark": {
+                    "type": "object",
+                    "properties": {
+                      "background": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "foreground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "card": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "cardForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "popover": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "popoverForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "primary": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "primaryForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "secondary": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "secondaryForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "muted": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "mutedForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "accent": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "accentForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "destructive": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "destructiveForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "success": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "successForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "warning": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "warningForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "border": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "input": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "ring": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      }
+                    },
+                    "required": [
+                      "background",
+                      "foreground",
+                      "card",
+                      "cardForeground",
+                      "popover",
+                      "popoverForeground",
+                      "primary",
+                      "primaryForeground",
+                      "secondary",
+                      "secondaryForeground",
+                      "muted",
+                      "mutedForeground",
+                      "accent",
+                      "accentForeground",
+                      "destructive",
+                      "destructiveForeground",
+                      "success",
+                      "successForeground",
+                      "warning",
+                      "warningForeground",
+                      "border",
+                      "input",
+                      "ring"
+                    ]
+                  }
+                },
+                "required": [
+                  "light",
+                  "dark"
+                ]
+              },
+              "radius": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "sm",
+                  "md",
+                  "lg",
+                  "full"
+                ],
+                "default": "md"
+              },
+              "density": {
+                "type": "string",
+                "enum": [
+                  "comfortable",
+                  "compact"
+                ],
+                "default": "comfortable"
+              },
+              "font": {
+                "type": "string",
+                "enum": [
+                  "inter",
+                  "system",
+                  "ibm-plex-sans",
+                  "cairo",
+                  "tajawal"
+                ],
+                "default": "inter"
+              },
+              "assets": {
+                "type": "object",
+                "properties": {
+                  "logo": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "nullable": true,
+                    "default": null
+                  },
+                  "logoDark": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "nullable": true,
+                    "default": null
+                  },
+                  "favicon": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "nullable": true,
+                    "default": null
+                  },
+                  "ogImage": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "nullable": true,
+                    "default": null
+                  },
+                  "wordmark": {
+                    "type": "string",
+                    "maxLength": 80,
+                    "default": "Car Rental"
+                  }
+                },
+                "default": {
+                  "logo": null,
+                  "logoDark": null,
+                  "favicon": null,
+                  "ogImage": null,
+                  "wordmark": "Car Rental"
+                }
+              }
+            },
+            "required": [
+              "colors"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": false
+          },
+          "updatedAt": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "config",
+          "revision",
+          "updatedAt"
         ]
       },
       "HealthSummaryDto": {

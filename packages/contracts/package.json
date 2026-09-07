@@ -21,6 +21,7 @@
     "check:drift": "node ./scripts/check-openapi-drift.mjs"
   },
   "dependencies": {
+    "@carrental/theme": "workspace:*",
     "zod": "3.23.8"
   },
   "devDependencies": {

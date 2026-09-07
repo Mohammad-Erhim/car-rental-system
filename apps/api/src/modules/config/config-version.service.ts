@@ -1,3 +1,4 @@
+import { brandConfigSchema, validateBrandConfig } from '@carrental/theme';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
 
@@ -225,6 +226,20 @@ export class ConfigVersionService {
         ],
       };
     }
+    if (kind === 'branding') {
+      const parsed = brandConfigSchema.parse(payload);
+      const violations = validateBrandConfig(parsed);
+      return {
+        examples: [
+          violations.length === 0
+            ? 'All colour pairs clear WCAG AA in light and dark.'
+            : `${violations.length} colour pair(s) fail AA: ` +
+              violations.map((v) => `${v.mode} ${v.fg}/${v.bg} ${v.ratio}:1`).join(', '),
+          `Radius ${parsed.radius}, ${parsed.density} density, ${parsed.font} font.`,
+        ],
+        aaClean: violations.length === 0,
+      };
+    }
     return { examples: ['No preview available for this kind yet.'] };
   }
 
@@ -238,6 +253,29 @@ export class ConfigVersionService {
       }
       if ('lateFeeBps' in payload && Number(payload.lateFeeBps) > 10000) {
         issues.push({ path: 'lateFeeBps', code: 'out_of_range' });
+      }
+    }
+    if (kind === 'branding') {
+      // DEC-025 — curated theme/branding. Structure via the shared schema, then WCAG AA.
+      const parsed = brandConfigSchema.safeParse(payload);
+      if (!parsed.success) {
+        for (const iss of parsed.error.issues) {
+          issues.push({ path: iss.path.join('.') || '(root)', code: iss.code });
+        }
+      } else {
+        for (const v of validateBrandConfig(parsed.data)) {
+          issues.push({
+            path: `colors.${v.mode}.${v.fg}/${v.bg}`,
+            code: `contrast_below_${v.min}_(${v.ratio})`,
+          });
+        }
+        for (const [k, ref] of Object.entries(parsed.data.assets)) {
+          if (k === 'wordmark' || ref == null) continue;
+          const ok =
+            /^https:\/\/\S+$/.test(ref) ||
+            (k === 'favicon' && /^data:image\/[a-z.+-]+;base64,[A-Za-z0-9+/=]+$/.test(ref));
+          if (!ok) issues.push({ path: `assets.${k}`, code: 'must_be_https_url' });
+        }
       }
     }
     if (issues.length) throw AppError.validation(issues, 'Config payload is not valid');

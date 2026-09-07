@@ -6,8 +6,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-# hex colours (#abc / #aabbcc / #aabbccdd) and rgb()/rgba()/hsl()/hsla( ) function forms
-PATTERN='#[0-9a-fA-F]{3,8}\b|(\brgba?\(|\bhsla?\()'
+# Literal colours only: hex (#abc / #aabbcc / #aabbccdd), and rgb()/hsl() with a NUMERIC first
+# argument. `hsl(var(--token))` / `hsl(var(--x) / 0.15)` are the correct token form and pass.
+PATTERN='#[0-9a-fA-F]{3,4}\b|#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?\b|\b(rgb|hsl)a?\(\s*[0-9.]'
 
 paths=(
   packages/ui/src
