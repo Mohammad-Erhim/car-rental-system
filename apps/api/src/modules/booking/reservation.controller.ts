@@ -126,4 +126,10 @@ export class ReservationController {
   ) {
     return this.ops.resolveCase(actor, id, body.note);
   }
+
+  @Post('ops/cases/:id/retry')
+  @Permissions('payment.reconcile')
+  retryCase(@Param('id') id: string, @CurrentActor() actor: Actor) {
+    return this.ops.retryCase(actor, id);
+  }
 }

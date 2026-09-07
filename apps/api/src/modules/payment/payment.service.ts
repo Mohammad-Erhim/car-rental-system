@@ -373,6 +373,24 @@ export class PaymentService {
       .limit(200);
   }
 
+  async getCase(id: string) {
+    const [row] = await this.db.select().from(recoveryCase).where(eq(recoveryCase.id, id)).limit(1);
+    return row ?? null;
+  }
+
+  /** Merge a partial `detail` patch onto a case without touching its `state` (used by retry). */
+  async patchCaseDetail(id: string, patch: Record<string, unknown>): Promise<void> {
+    const current = await this.getCase(id);
+    if (!current) return;
+    await this.db
+      .update(recoveryCase)
+      .set({
+        detail: { ...(current.detail ?? {}), ...patch },
+        updatedAt: sql`now()`,
+      })
+      .where(eq(recoveryCase.id, id));
+  }
+
   async resolveCase(actor: Actor, id: string, note: string): Promise<void> {
     await this.db
       .update(recoveryCase)

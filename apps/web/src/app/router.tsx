@@ -9,11 +9,11 @@ import { SignInPage } from '../surfaces/auth/sign-in-page.js';
 import { AuditLogPage } from '../surfaces/ops/audit-log-page.js';
 import { BrandingPage } from '../surfaces/ops/branding-page.js';
 import { ConfigVersionsPage } from '../surfaces/ops/config-versions-page.js';
+import { FinanceCasesPage } from '../surfaces/ops/finance-cases-page.js';
 import { FleetInventoryPage } from '../surfaces/ops/fleet-inventory-page.js';
 import { LanguagesPage } from '../surfaces/ops/languages-page.js';
 import { OpsDashboard } from '../surfaces/ops/ops-dashboard.js';
 import { OpsLayout } from '../surfaces/ops/ops-layout.js';
-import { OpsPlaceholder } from '../surfaces/ops/ops-placeholder.js';
 import { RatePlansPage } from '../surfaces/ops/rate-plans-page.js';
 import { ReferenceDataPage } from '../surfaces/ops/reference-data-page.js';
 import { RentalBoardPage } from '../surfaces/ops/rental-board-page.js';
@@ -27,16 +27,6 @@ import { TranslationsPage } from '../surfaces/ops/translations-page.js';
  * `apps/web` is the Operations & Admin dashboard only (DEC-023 — the customer surface is
  * `apps/site`). Served under `/ops` via the Vite `base` + this router `basename`.
  */
-function FinancePlaceholder() {
-  const t = useT();
-  return (
-    <OpsPlaceholder
-      title={t('ops.placeholder.finance.title')}
-      note={t('ops.placeholder.finance.note')}
-    />
-  );
-}
-
 function RouteError() {
   const error = useRouteError();
   const navigate = useNavigate();
@@ -121,7 +111,10 @@ export const router = createBrowserRouter(
           path: 'rentals',
           element: perm(['rental.read', 'rental.pickup', 'rental.return'], <RentalBoardPage />),
         },
-        { path: 'finance', element: staffOnly(<FinancePlaceholder />) },
+        {
+          path: 'finance',
+          element: perm(['payment.read', 'payment.reconcile'], <FinanceCasesPage />),
+        },
         {
           path: 'config',
           element: perm(['config.read', 'config.publish'], <ConfigVersionsPage />),

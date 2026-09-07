@@ -9,6 +9,7 @@ import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { organization } from '../../database/schema/org';
 import {
+  reconciliationException,
   reservation,
   reservationDriver,
   reservationEvent,
@@ -556,6 +557,73 @@ export class ReservationOpsService {
 
   async resolveCase(actor: Actor, id: string, note: string) {
     await this.payments.resolveCase(actor, id, note);
+  }
+
+  /**
+   * FR-INT-002 — retry an owned recovery case. "Retry" re-signals the case to the outbox and
+   * re-checks the underlying inconsistency; if it is gone the case auto-resolves, otherwise the
+   * attempt is recorded (`detail.retryCount` / `lastRetryAt` / `lastRetryOutcome`) and the case
+   * stays open so a human still works it — never a silent close. It never fabricates a
+   * reservation or moves money.
+   */
+  async retryCase(actor: Actor, id: string) {
+    const kase = await this.payments.getCase(id);
+    if (!kase) throw AppError.notFound('recovery case');
+    if (kase.state === 'resolved') {
+      throw new AppError('validation_failed', { title: 'This case is already resolved' });
+    }
+
+    await this.outbox.emit({
+      type: 'recovery_case.retry_requested.v1',
+      aggregateType: 'recovery_case',
+      aggregateId: id,
+      payload: { kind: kase.kind, subjectType: kase.subjectType, subjectRef: kase.subjectRef },
+    });
+
+    // is the inconsistency this case tracks still present?
+    let consistentNow = false;
+    if (kase.subjectType === 'reservation') {
+      const [row] = await this.db
+        .select({ reference: reservation.reference })
+        .from(reservation)
+        .where(eq(reservation.reference, kase.subjectRef))
+        .limit(1);
+      consistentNow = Boolean(row);
+    }
+    if (['reconcile', 'amount_mismatch'].includes(kase.kind)) {
+      await this.reconcile(actor);
+      const open = await this.db
+        .select({ id: reconciliationException.id })
+        .from(reconciliationException)
+        .where(
+          and(
+            eq(reconciliationException.state, 'open'),
+            eq(reconciliationException.reservationReference, kase.subjectRef),
+          ),
+        );
+      consistentNow = open.length === 0;
+    }
+
+    const retryCount = Number((kase.detail as Record<string, unknown>)?.retryCount ?? 0) + 1;
+    const outcome = consistentNow ? 'resolved' : 'still_open';
+    await this.payments.patchCaseDetail(id, {
+      retryCount,
+      lastRetryAt: new Date().toISOString(),
+      lastRetryOutcome: outcome,
+    });
+    if (consistentNow) {
+      await this.payments.resolveCase(actor, id, `Auto-resolved on retry #${retryCount}`);
+    }
+
+    await this.audit.record({
+      action: 'recovery_case.retried',
+      targetType: 'recovery_case',
+      targetId: id,
+      actor,
+      after: { retryCount, outcome, kind: kase.kind },
+    });
+
+    return { id, state: consistentNow ? 'resolved' : kase.state, outcome, retryCount };
   }
 
   async mineForActor(actor: Actor) {

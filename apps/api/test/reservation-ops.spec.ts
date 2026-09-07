@@ -251,4 +251,77 @@ describe('reservation operations', () => {
       .send({ note: 'reconciled manually' })
       .expect(201);
   });
+
+  it('a recovery case can be retried — records the attempt, resolves once consistent, 404/400 guards', async () => {
+    const q = await request(server)
+      .post('/api/v1/discovery/quote')
+      .send({
+        pickupLocationCode: 'TST1',
+        pickupAt: isoIn(140),
+        returnAt: isoIn(143),
+        categoryCode: 'suv',
+        holderKey: 'retry',
+      })
+      .expect(201);
+    const confirm = {
+      quoteReference: q.body.reference,
+      drivers: [{ role: 'primary_renter', fullName: 'Retry', email: 'r@example.test' }],
+      acceptTerms: true,
+      paymentToken: 'tok_ok',
+    };
+    await request(server)
+      .post('/api/v1/bookings/confirm')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ ...confirm, simulateWriteFailure: true })
+      .expect(500);
+
+    const openCases = await request(server)
+      .get('/api/v1/ops/cases')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const kase = openCases.body.find(
+      (x: { kind: string; subjectRef: string; detail?: { retryCount?: number } }) =>
+        x.kind === 'write_after_charge' && (x.detail?.retryCount ?? 0) === 0,
+    );
+    expect(kase).toBeTruthy();
+
+    // bogus id → 404
+    await request(server)
+      .post('/api/v1/ops/cases/00000000-0000-0000-0000-000000000000/retry')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(404);
+
+    // reservation still absent → attempt recorded, case stays open
+    const first = await request(server)
+      .post(`/api/v1/ops/cases/${kase.id}/retry`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201);
+    expect(first.body).toMatchObject({ outcome: 'still_open', retryCount: 1, state: 'open' });
+
+    // operator completes the booking (idempotent on the reservation reference) …
+    await request(server)
+      .post('/api/v1/bookings/confirm')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send(confirm)
+      .expect(201);
+
+    // … now the retry sees a consistent world and auto-resolves
+    const second = await request(server)
+      .post(`/api/v1/ops/cases/${kase.id}/retry`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201);
+    expect(second.body).toMatchObject({ outcome: 'resolved', retryCount: 2, state: 'resolved' });
+
+    const afterList = await request(server)
+      .get('/api/v1/ops/cases')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(afterList.body.some((x: { id: string }) => x.id === kase.id)).toBe(false);
+
+    // already resolved → 422 (business-rule rejection)
+    await request(server)
+      .post(`/api/v1/ops/cases/${kase.id}/retry`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(422);
+  });
 });
