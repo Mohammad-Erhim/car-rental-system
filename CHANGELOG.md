@@ -6,6 +6,19 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### STAGE-009 — Density controls + default OG image (2026-09-07)
+
+**Added**
+
+- The brand `density` token (`comfortable` / `compact`) now actually resizes controls.
+  `--control-h` / `--control-h-sm` / `--control-px` custom properties in the token
+  stylesheets flip on `:root[data-density='compact']`; `Button` and `Input` read them.
+  `comfortable` keeps the 44px touch target (SRS-NFR-012); `compact` drops to 38px for
+  data-dense dashboard screens. `apps/site` sets `data-density` on the SSR `<html>`.
+- `apps/site/public/og-default.png` — a branded 1200×630 fallback Open Graph / Twitter card
+  (used when the dashboard SEO config sets no `ogImageUrl`), with
+  `apps/site/scripts/gen-og-default.mjs` to regenerate it.
+
 ### STAGE-011 — Dashboard-managed SEO (2026-09-07)
 
 Technical SEO is now configured from the dashboard, no redeploy (SRS-ADM-006).

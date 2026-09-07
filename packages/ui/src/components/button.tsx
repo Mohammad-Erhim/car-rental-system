@@ -18,11 +18,12 @@ const buttonVariants = cva(
         link: 'text-primary underline-offset-4 hover:underline',
       },
       size: {
-        // 44px min touch target on the comfortable sizes (SRS-NFR-012, design §13.1).
-        default: 'h-11 px-4 py-2',
-        sm: 'h-9 rounded-md px-3',
+        // Heights follow the density token — 44px touch target on `comfortable` (SRS-NFR-012,
+        // design §13.1), tighter on `compact`. See --control-h in the token stylesheets.
+        default: 'h-[var(--control-h)] px-[var(--control-px)] py-2',
+        sm: 'h-[var(--control-h-sm)] rounded-md px-3',
         lg: 'h-12 rounded-md px-6 text-base',
-        icon: 'h-11 w-11',
+        icon: 'h-[var(--control-h)] w-[var(--control-h)]',
       },
     },
     defaultVariants: { variant: 'default', size: 'default' },

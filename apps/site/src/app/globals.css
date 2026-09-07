@@ -117,3 +117,17 @@
 .skip-link:focus {
   top: 0.5rem;
 }
+
+/* Control sizing — driven by the density token (`data-density` on <html>, set from the brand
+   config by ThemeProvider). `comfortable` keeps the 44px touch target (SRS-NFR-012); `compact`
+   tightens forms for data-dense dashboard screens. Components read these vars, not fixed heights. */
+:root {
+  --control-h: 2.75rem;
+  --control-h-sm: 2.25rem;
+  --control-px: 1rem;
+}
+:root[data-density='compact'] {
+  --control-h: 2.375rem;
+  --control-h-sm: 2rem;
+  --control-px: 0.75rem;
+}

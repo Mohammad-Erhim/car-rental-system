@@ -29,7 +29,7 @@ export default async function LocaleLayout({
   const dir = localeDir(locale);
 
   return (
-    <html lang={locale} dir={dir} suppressHydrationWarning>
+    <html lang={locale} dir={dir} data-density={branding.config.density} suppressHydrationWarning>
       <head>
         {/* SSR brand-token overlay (DEC-025) — applied before first paint, no FOUC */}
         <style
