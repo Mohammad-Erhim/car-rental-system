@@ -6,6 +6,62 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### STAGE-011 — E2E suite ported to the single-origin `apps/site` stack (2026-09-08)
+
+The 13 Playwright specs (customer + operations flows, interleaved) now run against one browser
+origin, closing the `verify:e2e` gap left by the `apps/web` → `/ops` split.
+
+**Changed**
+
+- `e2e/playwright.config.ts` — `baseURL` is `apps/site` (`:3000`, served by the new
+  `start:standalone` script — `next start` mis-renders error/not-found boundaries with
+  `output: 'standalone'`). It proxies `/ops` → `apps/web` (`vite preview :3100`) and `/api` →
+  the API (`:3001`). `qa-matrix.spec` is ignored here (it has its own config).
+- `verify:e2e` / `verify:a11y` also build `apps/site`; `verify:e2e` runs `db:reset` first so
+  every run starts from a full fleet.
+- `_helpers` — Next's benign "Failed to fetch RSC payload … falling back to browser
+  navigation" console line is allow-listed; the evidence-screenshot budget is 30s → 60s.
+
+**Added / adjusted in `apps/site` for the on-page contract the specs assert**
+
+- Search island + results: `search-form` / `search-location` / `search-pickup-at` /
+  `search-return-at` / `search-submit` testids; `results-list`, `result-<code>` +
+  `-price` + `-count`, and a "View & reserve" link. The no-results state is now keyed off
+  *bookable* options (a closed-hours search returns sold-out options plus a notice).
+- `components/vehicle-reserve.tsx` — a client island on the vehicle page: live price
+  (`detail-total`) and a `reserve-button` that creates a quote + hold and routes to checkout.
+- `next.config` redirect `/[locale]/vehicle/:c` → `/[locale]/vehicles/:c` (legacy path).
+- Account sub-pages render their own `<h1>`; every noindex segment (auth / account / trips /
+  checkout) gets a localised `<title>` from a per-route `generateMetadata` layout.
+- `[locale]/[...notFound]` — a localised soft-404 (Next 14 breaks `not-found.tsx` triggered
+  from a dynamic segment in a `standalone` build); `[locale]/not-found.tsx` kept as a static
+  fallback.
+- Header nav / bottom nav switch at the `lg` breakpoint (was `sm`) so tablet keeps the bottom
+  nav; the bottom nav is `fixed`.
+
+**Added (API)**
+
+- `GET /api/v1/meta/translations` — public, published-only translation overlay for a namespace
+  + locale. `apps/site` was calling the staff-gated `/config/translations` and always falling
+  back to the bundled strings.
+- Translation catalogue (`/ops/config/translations`): a filter box + a 50-row cap + "show
+  more" (650 keys made the page's full-page screenshot time out; also a real UX win).
+- `/ops` grouped-nav section labels: `text-muted-foreground/70` → full opacity (axe
+  `color-contrast`).
+
+### STAGE-011 — `verify:seo` gate for `apps/site` (2026-09-07)
+
+**Added**
+
+- `scripts/verify-seo.{mjs,sh}` + `pnpm verify:seo` (in `verify:all`) — for every indexable
+  route × {en, ar, fr}: a unique non-empty `<title>` and meta description, a self-consistent
+  `rel=canonical`, `hreflang` alternates (en/ar/fr + `x-default`) that are reciprocal across
+  locales, the right `<html lang>` / `dir`, OG + `twitter:card`, and parseable JSON-LD; plus
+  `robots.txt` (Sitemap line) and `sitemap.xml` (valid, covers the routes, carries
+  `xhtml:link` alternates), and `robots: noindex` on `/account` · `/checkout` · `/trips`.
+- Fix it surfaced: the legal pages used their (short) title as the meta description →
+  `site.legal.{terms,privacy}.description` authored en/ar/fr.
+
 ### STAGE-009 — Brand-asset upload + self-hosted web fonts (2026-09-07)
 
 **Added**
