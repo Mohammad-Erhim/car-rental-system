@@ -33,8 +33,11 @@ export async function generateMetadata({
 export default async function HomePage({ params }: { params: { locale: string } }) {
   const { locale } = params;
   const t = await getT(locale);
-  const [categories, origin, seo] = await Promise.all([
+  const [categories, locations, origin, seo] = await Promise.all([
     apiGet<Category[]>('/catalogue/categories', { revalidate: 300 }).catch(() => [] as Category[]),
+    apiGet<Array<{ code: string; name: string }>>('/config/locations', { revalidate: 300 })
+      .then((rows) => rows.map((r) => ({ code: r.code, name: r.name })))
+      .catch(() => [] as Array<{ code: string; name: string }>),
     seoOrigin(),
     getSeoConfig(),
   ]);
@@ -58,7 +61,7 @@ export default async function HomePage({ params }: { params: { locale: string } 
         </h1>
         <p className="max-w-2xl text-muted-foreground">{t.t('site.home.heroSubtitle')}</p>
         <div className="rounded-xl border bg-card p-4 shadow-sm md:p-6">
-          <HomeSearch locale={locale} />
+          <HomeSearch locale={locale} locations={locations} />
         </div>
       </section>
 
