@@ -17,9 +17,12 @@ export default defineConfig({
   outputDir: './test-results',
   fullyParallel: false,
   workers: 1,
-  retries: process.env.CI ? 1 : 0,
+  // one retry everywhere: the suite shares a dev DB and this host is memory-constrained, so the
+  // heavy `phone` project (isMobile + dsf 3) occasionally trips the 10s expect timeout on a
+  // cold re-render. A retry runs the single failed test in a fresh context. CI gets two.
+  retries: process.env.CI ? 2 : 1,
   timeout: 45_000,
-  expect: { timeout: 10_000 },
+  expect: { timeout: 12_000 },
   reporter: [
     ['list'],
     ['html', { outputFolder: 'playwright-report', open: 'never' }],

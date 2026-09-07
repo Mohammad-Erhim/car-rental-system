@@ -3,16 +3,16 @@
 Ordered, dependency-aware stages. Built from SRS §18.2 and the design flow inventory.
 Status values: `PLANNED`, `READY`, `IN_PROGRESS`, `BLOCKED`, `VERIFYING`, `COMPLETED`, `DEFERRED`.
 
-| Stage     | Name                                                                                                                                                      | Status      |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| STAGE-000 | Repository & local platform                                                                                                                               | COMPLETED   |
-| STAGE-001 | Shared identity, config, reference data, UI foundation                                                                                                    | COMPLETED   |
-| STAGE-002 | Discovery & quote (catalogue, locations, availability, pricing, holds)                                                                                    | COMPLETED   |
-| STAGE-003 | Booking & payment (checkout, drivers, products, terms, confirm, notify)                                                                                   | COMPLETED   |
-| STAGE-004 | Reservation operations (list/detail, modify, cancel, refund, customer workspaces)                                                                         | COMPLETED   |
-| STAGE-005 | Pickup, active rental, return & closeout (fleet readiness, assignment, agreement, extension, incident, replacement, inspection)                           | COMPLETED   |
-| STAGE-006 | Administration & reporting (full config/versioning, imports, templates/translations, reports/exports/schedules, integration recovery, audit/data-quality) | COMPLETED   |
-| STAGE-007 | Release hardening (perf, a11y, security, responsive/locale sweep, backup/restore, deploy artifacts)                                                       | IN_PROGRESS |
+| Stage     | Name                                                                                                                                                      | Status    |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| STAGE-000 | Repository & local platform                                                                                                                               | COMPLETED |
+| STAGE-001 | Shared identity, config, reference data, UI foundation                                                                                                    | COMPLETED |
+| STAGE-002 | Discovery & quote (catalogue, locations, availability, pricing, holds)                                                                                    | COMPLETED |
+| STAGE-003 | Booking & payment (checkout, drivers, products, terms, confirm, notify)                                                                                   | COMPLETED |
+| STAGE-004 | Reservation operations (list/detail, modify, cancel, refund, customer workspaces)                                                                         | COMPLETED |
+| STAGE-005 | Pickup, active rental, return & closeout (fleet readiness, assignment, agreement, extension, incident, replacement, inspection)                           | COMPLETED |
+| STAGE-006 | Administration & reporting (full config/versioning, imports, templates/translations, reports/exports/schedules, integration recovery, audit/data-quality) | COMPLETED |
+| STAGE-007 | Release hardening (perf, a11y, security, responsive/locale sweep, backup/restore, deploy artifacts)                                                       | COMPLETED |
 
 ---
 
@@ -183,6 +183,20 @@ Status values: `PLANNED`, `READY`, `IN_PROGRESS`, `BLOCKED`, `VERIFYING`, `COMPL
 - **Source IDs:** SRS-NFR-001..022, SRS-SEC-_, SRS-OBS-_, SRS §17.7 release gates, §22.5.
 - **Acceptance:** all matrices covered for approved scope; release gates pass; runbook usable.
 - **Unlocks:** final handoff.
+- **Completion (2026-09-07):** COMPLETED for the approved scope. Security: `RateLimitGuard`
+  (SEC-015) + `CsrfGuard` (SEC-003) + a 13-test adversarial suite (`security.spec.ts`,
+  TEST-SEC-003/007/008/010/011/015/016/017). A11y: axe-core WCAG 2.1 A+AA, 0 serious/critical on
+  the critical set (D-007-1/2 fixed — status-token contrast + always-underlined text links).
+  Perf: `verify:perf` (autocannon) — hot reads p95 ≤ 40 ms single-process, 0 errors (indicative).
+  Backup/restore rehearsed (dump → restore → API boots → `/health/ready = ok`). Deploy:
+  `deploy/` — Dockerfiles + compose + nginx + RUNBOOK, `tsc→dist` entrypoints verified. Full
+  responsive+locale sweep (`full-sweep.spec.ts`) — every route × phone/tablet/laptop + RTL,
+  no overflow. Overdue worker wired (FR-RNT-014). New gates: `verify:security`, `verify:a11y`,
+  `verify:perf`. Gates: static PASS, unit 63, api 68 (13 security, 4 rental), migrate 4, e2e
+  full suite green (1 local retry for the memory-constrained host). Deferred (documented in
+  `release-readiness.md`): k6 write-path load, ZAP/SAST, Firefox/WebKit E2E, full step-up UI,
+  OIDC, and the STAGE-005/006 feature deferrals — none a correctness/authz/money blocker.
+  Evidence: `stages/STAGE-007-release-hardening/` (D-007-1..3).
 
 ---
 

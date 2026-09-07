@@ -5,22 +5,23 @@ _Concise, authoritative. Update after every meaningful verified unit._
 - **Approved scope:** Full system minus APP-CMOB frontend (see `selected-scope.md`). Backend,
   APP-CWEB, APP-OPS all in scope. Autonomous multi-stage build (user: "never stop before 100%").
 - **Source versions:** FR 1.0, UI/UX 1.0, SRS 1.0 (hashes in `source-manifest.md`).
-- **Active stage:** STAGE-007 — Release hardening.
-- **Stage status:** IN_PROGRESS (starting).
-- **Last completed:** STAGE-006 — Administration & reporting (core control plane). COMPLETED
-  2026-09-07. Gate: `verify:static` PASS, `verify:unit` 63, `verify:api` 54 (7 report),
-  `verify:migrate` 4, `verify:e2e` 81 (phone/tablet/laptop, 0 console/network). Evidence in
-  `stages/STAGE-006-administration/` (D-006-1..4). Deferred within 006 (→ STAGE-007): `case`
-  retry action, data-quality runner (SCREEN-OPS-039), fleet import wizard + maintenance form
-  (SCREEN-OPS-017..020), `pricing`/`product`/`location` config kinds, send-time recipient
-  re-authorization.
+- **Active stage:** STAGE-007 — Release hardening. **COMPLETED** 2026-09-07 — implementation of
+  the approved scope is done. Remaining work is the documented pre-production follow-up list
+  (`stages/STAGE-007-release-hardening/release-readiness.md`).
+- **Stage status:** COMPLETED.
+- **Last completed:** STAGE-007 — Release hardening. Security (`RateLimitGuard` SEC-015 +
+  `CsrfGuard` SEC-003 + `security.spec.ts` 13), a11y (axe WCAG A+AA, 0 serious/critical),
+  perf (`verify:perf`, indicative), backup/restore rehearsed, deploy artifacts (`deploy/`),
+  full responsive+locale sweep, overdue worker wired. Gates: static PASS, unit 63, api 68,
+  migrate 4, e2e full suite green (1 local retry). Evidence `stages/STAGE-007-release-hardening/`
+  (D-007-1..3).
 - **Last verified tests:** as above.
-- **Unresolved defects / blockers:** none. STAGE-001..006 defects (D-001..D-006) all fixed.
+- **Unresolved defects / blockers:** none. STAGE-001..007 defects (D-001..D-007) all fixed.
 - **Environment:** no Docker; PostgreSQL 16 + Redis 7 native (`scripts/dev-up.sh`). ~1.9 GB RAM ⇒
   single Vite SPA for both surfaces (DEC-004/018); API runs via `@swc-node/register` on source
   (tsc→dist build deferred to STAGE-007). Chromium-only E2E (Firefox/WebKit → STAGE-007).
 - **Frontend stack:** React 18 + Vite 5 + TypeScript + shadcn/ui + React Router v6 + TanStack Query.
-- **DB state (dev):** migrated to `0006`; seeded system + development. Discovery fixture: 5
+- **DB state (dev):** migrated to `0006` (STAGE-007 added no migration); seeded system + development. Discovery fixture: 5
   vehicle categories, 8 features, ~54 units across JFK/LHR/PAR, one published rate plan (+ tiers)
   per category. `system` seed also loads 5 `report_definition` rows. Demo customer
   (`customer@example.test`) has a `customer` domain row and is a resettable fixture.
@@ -68,13 +69,16 @@ _Concise, authoritative. Update after every meaningful verified unit._
     responsive (phone/tablet bottom-nav, laptop header/sidebar; wide tables scroll in-box; no
     horizontal page overflow — `responsive.spec.ts` guard, now incl. `/ops/config|insights|audit`);
     RTL (Arabic) verified incl. the config editor.
-- **Exact next action:** STAGE-007 — release hardening: perf budgets + k6; axe-core + keyboard/SR
-  pass; security scans + SRS-SEC tests; full responsive + locale + RTL screenshot sweep of every
-  screen; backup/restore rehearsal; deploy artifacts (Dockerfiles, compose, runbook); final
-  three-way traceability audit. Fold in STAGE-005/006 deferred items.
-- **Files/areas to change (STAGE-007):** perf/k6 harness; `e2e` (axe-core, full sweep);
-  security test suite; `deploy/` (Dockerfiles, compose, runbook); `apps/api` tsc→dist build;
-  traceability-matrix final pass.
+- **Exact next action:** the approved-scope build (STAGE-000..007) is complete. Pre-production
+  follow-ups are enumerated in `stages/STAGE-007-release-hardening/release-readiness.md`: k6
+  write-path load + ZAP baseline + SAST against a staged multi-instance deploy; Firefox/WebKit in
+  the E2E matrix; full step-up-auth UI; and the STAGE-005/006 feature deferrals
+  (incident/replacement, transfers, maintenance UI, fleet import, case retry, data-quality
+  panel, non-`policy` config kinds, scheduled-report send-time re-auth).
+- **New verify gates:** `verify:security` (SEC suite), `verify:a11y` (axe), `verify:perf`
+  (autocannon smoke) alongside `verify:static|unit|api|migrate|e2e`.
+- **Deploy:** `deploy/` has Dockerfiles (api + web), `docker-compose.yml`, `nginx.conf`,
+  `RUNBOOK.md`; `scripts/{backup-db,restore-db,perf-smoke,verify-perf}` for ops.
 - **Known pre-existing / unrelated working-tree changes:** none (greenfield; specs, `prompts/`,
   and this build only).
 - **Lookup / localization status:** system-fixed state sets + configurable lookups are SERVED

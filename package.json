@@ -23,13 +23,17 @@
     "verify:migrate": "pnpm build:packages && pnpm --filter @carrental/api test:migrate",
     "verify:e2e": "pnpm build:packages && pnpm --filter @carrental/web build && pnpm --filter @carrental/e2e test",
     "verify:quick": "pnpm verify:static && pnpm verify:unit && pnpm verify:api",
-    "verify:all": "pnpm verify:static && pnpm verify:unit && pnpm verify:api && pnpm verify:migrate && pnpm verify:e2e",
+    "verify:all": "pnpm verify:static && pnpm verify:unit && pnpm verify:api && pnpm verify:migrate && pnpm verify:security && pnpm verify:e2e && pnpm verify:a11y",
     "format": "prettier --write \"**/*.{ts,tsx,js,mjs,cjs,json,md,yaml,yml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,cjs,json,md,yaml,yml}\"",
-    "check:secrets": "bash scripts/check-env.sh"
+    "check:secrets": "bash scripts/check-env.sh",
+    "verify:perf": "bash scripts/verify-perf.sh",
+    "verify:a11y": "pnpm --filter @carrental/web build && pnpm --filter @carrental/e2e exec playwright test a11y.spec.ts --project=laptop",
+    "verify:security": "pnpm --filter @carrental/api exec vitest run --config vitest.api.config.ts test/security.spec.ts"
   },
   "devDependencies": {
     "@types/node": "20.14.15",
+    "autocannon": "^8.0.0",
     "prettier": "3.3.3",
     "typescript": "5.5.4"
   }

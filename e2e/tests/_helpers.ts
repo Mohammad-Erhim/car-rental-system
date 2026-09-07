@@ -64,11 +64,13 @@ export function attachConsoleGuards(page: Page) {
   };
 }
 
-/** Save a named, deterministic screenshot into the stage evidence folder. */
+/** Save a named, deterministic screenshot into the stage evidence folder. A full-page capture of
+ *  a long table page at the phone project's deviceScaleFactor 3 can exceed the default 10s on a
+ *  memory-constrained host — allow it 30s. */
 export async function shot(page: Page, testInfo: TestInfo, name: string) {
   const project = testInfo.project.name; // phone | tablet | laptop
   const file = resolve(SHOTS_ROOT, `${name}.${project}.png`);
   mkdirSync(dirname(file), { recursive: true });
-  await page.screenshot({ path: file, fullPage: true, animations: 'disabled' });
+  await page.screenshot({ path: file, fullPage: true, animations: 'disabled', timeout: 30_000 });
   await testInfo.attach(`${name}.${project}`, { path: file, contentType: 'image/png' });
 }
