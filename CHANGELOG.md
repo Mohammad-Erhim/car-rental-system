@@ -59,6 +59,31 @@ plumbing for dashboard-managed branding.
 **Verified** — `verify:static` PASS · `verify:unit` 72 · `verify:api` 68 · `verify:theme` PASS ·
 `apps/web` build OK · compose configs valid.
 
+### STAGE-010 — Internationalization completion · increment 1 (2026-09-07)
+
+The i18n gate + Languages admin. Bulk string extraction follows in increment 2.
+
+**Added**
+
+- `verify:i18n` gate (`scripts/verify-i18n.mjs`) — completeness + empty/placeholder + ICU
+  placeholder parity for every active locale (en / ar / fr); `--strict` also flags un-i18n'd
+  literals in the app surfaces. Added to `verify:all`.
+- `/ops/config/languages` — add a language, activate / deactivate, set the default, see
+  per-locale translation coverage, jump to the catalogue. `GET /api/v1/config/locales` +
+  `POST /config/locales` + `/:code/{activate,deactivate,default}` (`config.publish`).
+- `apps/api/test/locale-admin.spec.ts` (4).
+
+**Changed**
+
+- **DEC-024** — `en` / `ar` / `fr` promoted to production launch locales (`testOnly: false` in
+  `packages/i18n` config + the `system` seed; `meta.spec` assertion flipped). Closes the
+  DEC-020 open question.
+- `openapi.json` regenerated (locale routes); `check:drift` OK.
+
+**Verified** — `verify:static` PASS · `verify:i18n` OK · `verify:theme` PASS · `verify:unit`
+72 · api `locale-admin` 4 + `meta`/`config-lookup`/`branding` regression green · `apps/web`
+build OK.
+
 ### Enhancement program — STAGE-009 … STAGE-013 (planned 2026-09-07)
 
 Master plan documented in `docs/ai-delivery/04-implementation/enhancement-program.md`;

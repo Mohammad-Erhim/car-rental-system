@@ -70,6 +70,12 @@ const NAV: NavItem[] = [
     anyOf: ['config.read', 'config.publish'],
   },
   {
+    to: '/ops/config/languages',
+    label: 'Languages',
+    Icon: Languages,
+    anyOf: ['config.read', 'config.publish'],
+  },
+  {
     to: '/ops/config/translations',
     label: 'Translations',
     Icon: Languages,

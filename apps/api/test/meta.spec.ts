@@ -24,7 +24,7 @@ describe('meta API', () => {
     const codes = parsed.locales.map((l) => l.code).sort();
     expect(codes).toEqual(['ar', 'en', 'fr']);
     expect(parsed.locales.find((l) => l.code === 'ar')?.direction).toBe('rtl');
-    expect(parsed.locales.every((l) => l.testOnly)).toBe(true); // DEC-020
+    expect(parsed.locales.every((l) => !l.testOnly)).toBe(true); // DEC-024 launch locales
     expect(res.headers['x-correlation-id']).toBeTruthy();
   });
 

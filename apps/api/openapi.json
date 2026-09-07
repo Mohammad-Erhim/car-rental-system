@@ -518,6 +518,76 @@
         ]
       }
     },
+    "/api/v1/config/locales": {
+      "get": {
+        "operationId": "config_listLocalesAdmin",
+        "summary": "All locales incl. inactive",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      },
+      "post": {
+        "operationId": "config_upsertLocale",
+        "summary": "Add or edit a locale",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/v1/config/locales/{code}/activate": {
+      "post": {
+        "operationId": "ConfigController_activateLocale",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/v1/config/locales/{code}/deactivate": {
+      "post": {
+        "operationId": "ConfigController_deactivateLocale",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/v1/config/locales/{code}/default": {
+      "post": {
+        "operationId": "ConfigController_makeDefaultLocale",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
     "/api/v1/admin/roles": {
       "get": {
         "operationId": "admin_listRoles",

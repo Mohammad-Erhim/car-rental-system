@@ -2,8 +2,8 @@ import type { BrandingResponse } from '@carrental/contracts';
 import type { BrandConfig } from '@carrental/theme';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { apiFetch } from './api.js';
 import type { ConfigVersion } from './admin-hooks.js';
+import { apiFetch } from './api.js';
 
 /** STAGE-009 (DEC-025) — the `branding` config-version rides the generic config workflow. */
 export const BRANDING_KIND = 'branding';

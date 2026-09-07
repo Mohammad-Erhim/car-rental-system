@@ -1,6 +1,6 @@
 import { SUPPORTED_LOCALE_CODES } from '@carrental/i18n';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, ne, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
@@ -152,6 +152,110 @@ export class TranslationService {
       await this.cache.invalidate(`i18n:${input.localeCode}`, { namespace: input.namespace });
     }
     return row;
+  }
+
+  /* ---- locale administration (SRS-I18N-001, FR-GBL-002, DEC-024) ------------------------- */
+
+  async listLocales() {
+    return this.db.select().from(locale).orderBy(asc(locale.sortOrder), asc(locale.code));
+  }
+
+  async upsertLocale(
+    actor: Actor,
+    input: {
+      code: string;
+      nativeName: string;
+      englishName: string;
+      direction: 'ltr' | 'rtl';
+      fallbackChain?: string[];
+      sortOrder?: number;
+    },
+  ) {
+    const code = input.code.trim().toLowerCase();
+    if (!/^[a-z]{2}(-[a-z0-9]{2,8})*$/i.test(code)) {
+      throw new AppError('validation_failed', {
+        title: 'Invalid BCP-47 locale code',
+        fieldErrors: [{ path: 'code', code: 'invalid' }],
+      });
+    }
+    const fallback = (input.fallbackChain ?? ['en']).filter((c) => c !== code);
+    const [row] = await this.db
+      .insert(locale)
+      .values({
+        code,
+        nativeName: input.nativeName,
+        englishName: input.englishName,
+        direction: input.direction,
+        fallbackChain: fallback,
+        isActive: false,
+        isDefault: false,
+        testOnly: false,
+        sortOrder: input.sortOrder ?? 99,
+      })
+      .onConflictDoUpdate({
+        target: locale.code,
+        set: {
+          nativeName: input.nativeName,
+          englishName: input.englishName,
+          direction: input.direction,
+          fallbackChain: fallback,
+          sortOrder: input.sortOrder ?? sql`${locale.sortOrder}`,
+          updatedAt: sql`now()`,
+        },
+      })
+      .returning();
+    await this.audit.record({
+      action: 'config.locale.upserted',
+      targetType: 'locale',
+      targetId: row!.id,
+      actor,
+      after: { code, direction: input.direction },
+    });
+    await this.cache.invalidate('i18n:locales', {});
+    return row;
+  }
+
+  async setLocaleActive(actor: Actor, code: string, isActive: boolean) {
+    const [row] = await this.db.select().from(locale).where(eq(locale.code, code)).limit(1);
+    if (!row) throw AppError.notFound('locale');
+    if (!isActive && row.isDefault) {
+      throw AppError.businessRule('The default locale cannot be deactivated', {
+        reason: 'is_default',
+      });
+    }
+    await this.db
+      .update(locale)
+      .set({ isActive, updatedAt: sql`now()` })
+      .where(eq(locale.code, code));
+    await this.audit.record({
+      action: isActive ? 'config.locale.activated' : 'config.locale.deactivated',
+      targetType: 'locale',
+      targetId: row.id,
+      actor,
+    });
+    await this.cache.invalidate('i18n:locales', {});
+    return { code, isActive };
+  }
+
+  async setDefaultLocale(actor: Actor, code: string) {
+    const [row] = await this.db.select().from(locale).where(eq(locale.code, code)).limit(1);
+    if (!row) throw AppError.notFound('locale');
+    await this.db.transaction(async (tx) => {
+      await tx.update(locale).set({ isDefault: false }).where(ne(locale.code, code));
+      await tx
+        .update(locale)
+        .set({ isDefault: true, isActive: true, updatedAt: sql`now()` })
+        .where(eq(locale.code, code));
+    });
+    await this.audit.record({
+      action: 'config.locale.default_changed',
+      targetType: 'locale',
+      targetId: row.id,
+      actor,
+      after: { code },
+    });
+    await this.cache.invalidate('i18n:locales', {});
+    return { code, isDefault: true };
   }
 
   async publish(actor: Actor, namespace: string, localeCode: string) {

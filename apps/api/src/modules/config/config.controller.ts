@@ -19,6 +19,15 @@ const zUpsertTranslation = z.object({
   status: z.enum(['draft', 'in_review', 'published']).optional(),
 });
 
+const zUpsertLocale = z.object({
+  code: z.string().min(2).max(12),
+  nativeName: z.string().min(1).max(80),
+  englishName: z.string().min(1).max(80),
+  direction: z.enum(['ltr', 'rtl']),
+  fallbackChain: z.array(z.string().min(2).max(12)).max(5).optional(),
+  sortOrder: z.number().int().min(0).max(999).optional(),
+});
+
 @ApiTags('config')
 @Controller({ path: 'config', version: '1' })
 export class ConfigController {
@@ -69,5 +78,42 @@ export class ConfigController {
   @Permissions('config.publish')
   publish(@Req() req: Request, @CurrentActor() actor: Actor) {
     return this.translations.publish(actor, req.params.namespace!, req.params.locale!);
+  }
+
+  // --- locale administration (SRS-I18N-001, DEC-024) ---
+
+  @Get('locales')
+  @Permissions('config.read', 'config.publish')
+  @ApiOperation({ operationId: 'config_listLocalesAdmin', summary: 'All locales incl. inactive' })
+  listLocalesAdmin() {
+    return this.translations.listLocales();
+  }
+
+  @Post('locales')
+  @Permissions('config.publish')
+  @ApiOperation({ operationId: 'config_upsertLocale', summary: 'Add or edit a locale' })
+  upsertLocale(
+    @Body(new ZodValidationPipe(zUpsertLocale)) body: z.infer<typeof zUpsertLocale>,
+    @CurrentActor() actor: Actor,
+  ) {
+    return this.translations.upsertLocale(actor, body);
+  }
+
+  @Post('locales/:code/activate')
+  @Permissions('config.publish')
+  activateLocale(@Req() req: Request, @CurrentActor() actor: Actor) {
+    return this.translations.setLocaleActive(actor, req.params.code!, true);
+  }
+
+  @Post('locales/:code/deactivate')
+  @Permissions('config.publish')
+  deactivateLocale(@Req() req: Request, @CurrentActor() actor: Actor) {
+    return this.translations.setLocaleActive(actor, req.params.code!, false);
+  }
+
+  @Post('locales/:code/default')
+  @Permissions('config.publish')
+  makeDefaultLocale(@Req() req: Request, @CurrentActor() actor: Actor) {
+    return this.translations.setDefaultLocale(actor, req.params.code!);
   }
 }

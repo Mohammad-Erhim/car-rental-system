@@ -446,6 +446,7 @@ export async function seedSystem(db: Database): Promise<void> {
           direction: def.direction,
           fallbackChain: def.fallback,
           isDefault: def.code === DEFAULT_LOCALE,
+          testOnly: def.testOnly,
           updatedAt: sql`now()`,
         },
       });

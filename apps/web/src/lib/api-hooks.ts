@@ -138,6 +138,64 @@ export function usePublishTranslations() {
   });
 }
 
+// ---- locale administration (SCREEN-OPS — Languages, DEC-024) ----
+
+export interface AdminLocale {
+  id: string;
+  code: string;
+  nativeName: string;
+  englishName: string;
+  direction: 'ltr' | 'rtl';
+  fallbackChain: string[];
+  isDefault: boolean;
+  isActive: boolean;
+  testOnly: boolean;
+  sortOrder: number;
+}
+
+export function useAdminLocales() {
+  return useQuery({
+    queryKey: ['locales', 'admin'],
+    queryFn: ({ signal }) => apiFetch<AdminLocale[]>('/config/locales', { signal }),
+  });
+}
+
+export function useUpsertLocale() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      code: string;
+      nativeName: string;
+      englishName: string;
+      direction: 'ltr' | 'rtl';
+      fallbackChain?: string[];
+      sortOrder?: number;
+    }) => apiFetch<AdminLocale>('/config/locales', { method: 'POST', body }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['locales'] });
+      qc.invalidateQueries({ queryKey: ['meta', 'locales'] });
+    },
+  });
+}
+
+export function useLocaleAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      code,
+      action,
+    }: {
+      code: string;
+      action: 'activate' | 'deactivate' | 'default';
+    }) => apiFetch(`/config/locales/${encodeURIComponent(code)}/${action}`, { method: 'POST' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['locales'] });
+      qc.invalidateQueries({ queryKey: ['meta', 'locales'] });
+      qc.invalidateQueries({ queryKey: ['translations'] });
+    },
+  });
+}
+
 // ---- reference data ----
 
 export function useLookupTypes(params?: { classification?: string; search?: string }) {

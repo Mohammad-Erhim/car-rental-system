@@ -32,7 +32,7 @@ export const LOCALES: Record<string, LocaleDefinition> = {
     englishName: 'English',
     direction: 'ltr',
     fallback: [],
-    testOnly: true,
+    testOnly: false,
   },
   fr: {
     code: 'fr',
@@ -40,7 +40,7 @@ export const LOCALES: Record<string, LocaleDefinition> = {
     englishName: 'French',
     direction: 'ltr',
     fallback: ['en'],
-    testOnly: true,
+    testOnly: false,
   },
   ar: {
     code: 'ar',
@@ -48,7 +48,7 @@ export const LOCALES: Record<string, LocaleDefinition> = {
     englishName: 'Arabic',
     direction: 'rtl',
     fallback: ['en'],
-    testOnly: true,
+    testOnly: false,
   },
 };
 

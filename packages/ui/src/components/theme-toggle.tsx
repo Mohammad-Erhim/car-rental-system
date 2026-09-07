@@ -4,6 +4,7 @@ import type { ComponentType } from 'react';
 
 import { cn } from '../lib/utils.js';
 import { useTheme, type Theme } from '../providers/theme-provider.js';
+
 import { Button } from './button.js';
 
 const OPTIONS: Array<{ value: Theme; Icon: ComponentType<{ className?: string }> }> = [
