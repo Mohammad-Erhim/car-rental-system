@@ -1,15 +1,27 @@
 # STAGE-011 — checkpoint
 
-- **Status:** IN PROGRESS.
+- **Status:** IN PROGRESS (increment 3 underway).
 - **Increment 1 (done, 2026-09-07):** `apps/site` scaffold + home / search / vehicle-detail /
   help / legal, full technical SEO, `/[locale]/` i18n routing (en/ar/fr + RTL), brand overlay,
   Docker image + compose wiring. Builds + runs verified.
 - **Increment 2 core (done, 2026-09-07):** `apps/web` reduced to `/ops` only (router `basename`,
   Vite `base: /ops/`, customer surface deleted) + a single **edge** nginx proxy (`/`→site,
   `/ops`→web, `/api`+`/health`→api). Full prod-stack edge integration verified.
-- **Increment 3 (deferred):** the authenticated customer flows (auth, account, trips, checkout)
-  on `apps/site`; `/ops/config/seo` panel + `seo` config kind; `verify:seo` gate; Lighthouse
-  evidence; `og-default.png` from the brand config.
+- **Increment 2b — SEO panel (done, 2026-09-07):** `/ops/config/seo` + `seo` config kind +
+  `GET /meta/seo` + `og-default.png` (see the STAGE-011 SEO CHANGELOG entry).
+- **Increment 3a — auth surface (done, 2026-09-07):** `apps/site` `sign-in` / `register` /
+  `recovery` under a `(auth)` route group (`robots:noindex`); `lib/api-client.ts` (browser
+  token + silent refresh), `lib/auth-context.tsx` (`AuthProvider`, customer audience),
+  `lib/{use-form-errors,return-to,nav}.ts`, `lib/customer-hooks.ts`; `RequireAuth` guard;
+  auth-aware `SiteHeader`. next build green (SSG en/fr/ar).
+- **Increment 3b — account / trips / checkout (done, 2026-09-07):** `account/` (overview,
+  profile, drivers, payments, data — server layout `RequireAuth` + `AccountShell` +
+  `robots:noindex`), `trips/` (list + `[reference]` detail: cancel/refund, modify, rental
+  extend, history), `checkout/` (held-quote review, one charge, confirmation + guest CTA).
+  Full en/ar/fr; `verify:i18n` 638 + `--strict` reports **0** literals in `apps/site/src`.
+  `pnpm -r typecheck` green; next build green (65 static pages, `trips/[reference]` dynamic).
+- **Increment 3 remaining:** port the legacy customer-flow E2E specs to `apps/site` (close the
+  RED `verify:e2e`); `verify:seo` gate + Lighthouse evidence.
 
 ## Completed — increment 1
 

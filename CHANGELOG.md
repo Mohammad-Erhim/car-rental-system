@@ -6,6 +6,46 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### STAGE-011 — Authenticated customer surface on `apps/site` (2026-09-07)
+
+The customer flows deferred at the `apps/web` → `/ops` split are now on the Next.js App Router,
+fully localised (en/ar/fr), and private (`robots: noindex` on every authed segment).
+
+**Added**
+
+- **Auth** — `/[locale]/sign-in`, `/register`, `/recovery` in a `(auth)` route group.
+  `lib/api-client.ts` (browser access-token holder + one silent `/auth/refresh` on 401,
+  same-origin `/api/v1` via the `next.config` rewrite), `lib/auth-context.tsx`
+  (`AuthProvider`/`useAuth`, customer audience only) wired into `components/providers.tsx`
+  with a `ToastProvider`. `RequireAuth` client guard stashes the return target and redirects
+  anonymous visitors to sign-in (FLOW-CUS-002, SRS-UI-006).
+- **Account** — `/[locale]/account` (server layout: `RequireAuth` + `AccountShell` tab nav +
+  `robots:noindex`): overview (SCREEN-CUS-011), profile & preferences (SCREEN-CUS-012, keeps
+  the optimistic `version` + 409→reload), saved drivers (SCREEN-CUS-013), payments & receipts
+  (SCREEN-CUS-023 — charges per booking, link to the breakdown), data requests & closure
+  (SCREEN-CUS-024, blocker surfacing).
+- **Trips** — `/[locale]/trips` list (SCREEN-CUS-014) + `/[locale]/trips/[reference]` detail
+  (SCREEN-CUS-015/016/019): itinerary, cancel with refund shown, modify return → re-price
+  delta, in-progress rental extend, change history.
+- **Checkout** — `/[locale]/checkout` (SCREEN-CUS-004..007): held-quote review with a live
+  hold timer, driver + payer details, one intended charge, confirmation with the booking
+  reference and a guest add-to-account CTA. `useSearchParams` under a `Suspense` boundary.
+- `lib/customer-hooks.ts` — the customer-relevant React Query hooks (profile, drivers,
+  privacy, discovery quote/confirm, reservations, rental), ported from the pre-split
+  `apps/web` hooks. `lib/{use-form-errors,return-to,nav}.ts` ported.
+- `[locale]/not-found.tsx` now renders a localised body (`components/not-found-content.tsx`).
+- **i18n** — +152 keys (`auth.register.*`, `account.*`, `profile.*`, `driver.*`, `privacy.*`,
+  `payments.*`, `trips.*`, `reservation.*`, `checkout.*`, `notFound.home`) authored in
+  en / ar / fr. `verify:i18n` 638 keys green; `verify:i18n --strict` — **0** un-i18n'd
+  literals in `apps/site/src`.
+
+**Verified**
+
+- `pnpm -r typecheck` green; `apps/site` lint + prettier clean.
+- `pnpm --filter @carrental/site build` — green: 65 static pages
+  (`sign-in`/`register`/`recovery`/`account*`/`trips`/`checkout` × en/fr/ar SSG),
+  `trips/[reference]` server-rendered on demand.
+
 ### STAGE-009 — Density controls + default OG image (2026-09-07)
 
 **Added**
