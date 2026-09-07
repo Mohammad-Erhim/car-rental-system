@@ -37,8 +37,12 @@
   New public `GET /api/v1/meta/translations` (published overlay, no auth) — the site was hitting
   the staff-gated `/config/translations` and always falling back. Translation catalogue gains a
   filter + 50-row cap (650 keys made the page's full-page screenshot time out).
-  **Laptop project: green** (a handful of hydration-race + shared-fixture flakes hardened);
-  full phone/tablet sweep next.
+  First full 3-viewport run: **85 passed / 3 flaky / 4 distinct failures**, all shared-fixture
+  accumulation on the `laptop` (last) project. Fix: `scripts/verify-e2e.sh` runs the three
+  viewport projects as separate invocations with a `db:reset` before each (`E2E_REUSE_SERVER`);
+  `rental.spec` scopes the rental card to its own `resRef` (new `data-reservation` on the card);
+  `full-sweep` RTL visits `/ar/…` directly; `SCREEN-CUS-012` `setLocale` waits for the save
+  mutation to settle. Confirming 3-viewport run pending (the host is ~19 min per full run).
 
 ## Completed — increment 1
 
