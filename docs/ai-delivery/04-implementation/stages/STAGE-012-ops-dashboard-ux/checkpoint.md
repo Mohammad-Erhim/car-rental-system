@@ -3,8 +3,10 @@
 - **Status:** IN PROGRESS. Shell/nav, `PageHeader` on all screens, grouped nav, per-page i18n,
   and density were landed in earlier sessions (see `enhancement-program.md` row 012). This
   session added the shared `DataTable` primitive + adoption across every tabular `/ops` screen,
-  and the command palette. Remaining: `FormLayout` / `DetailLayout` primitives, breadcrumbs,
-  the per-screen a11y sweep, and the before/after evidence bundle (→ STAGE-013).
+  the command palette, and the breadcrumb trail; the `verify:a11y` sweep is green. Remaining:
+  `FormLayout` / `DetailLayout` primitives (deferred until a consuming screen needs them —
+  the heavy-flow reworks / deferred features), and the before/after evidence bundle
+  (→ STAGE-013).
 
 ## Completed — this session (2026-09-08)
 
@@ -48,6 +50,23 @@ wrapping rows with inline actions), the `translations` per-key inline-edit `<ul>
   navigates, `Esc` closes (Radix owns the focus trap). `sr-only` `DialogTitle` /
   `DialogDescription`. Keys `ops.cmdk.{open,placeholder,empty,hint}`. **5 unit tests**.
 
+### Breadcrumbs
+
+- `apps/web/src/surfaces/ops/breadcrumbs.tsx` — above `<Outlet>` for an authed staff session.
+  The ops router is flat, so the trail is `Dashboard › [Configuration] › <screen>`: `/config/*`
+  screens get the real `/config` page as a middle crumb, everything else is two levels. Labels
+  - reachability come from the same permission-filtered nav list; an unmapped trailing segment
+    (a future `/work/:ref`) falls back to the raw segment. RTL-aware chevron. Key
+    `ops.nav.breadcrumb`. **4 unit tests**.
+
+### Accessibility
+
+- `verify:a11y` (axe-core, WCAG 2.1 A/AA) over `/ops`, `/ops/work`, `/ops/rentals`,
+  `/ops/fleet`, `/ops/config`, `/ops/insights`, `/ops/audit`, `/ops/config/reference-data`
+  (laptop project, light + the a11y spec's runs) — **0 serious/critical**, with the new
+  `DataTable` markup, command-palette trigger, and breadcrumb in place. `rtl` +
+  `responsive` specs green on phone / tablet / laptop (no overflow LTR or RTL).
+
 ## Verified — this session
 
 - `pnpm --filter @carrental/web typecheck | lint | build` — green.
@@ -63,11 +82,11 @@ wrapping rows with inline actions), the `translations` per-key inline-edit `<ul>
 ## Not done yet
 
 - `FormLayout` (section groups, sticky save bar, dirty guard) + `DetailLayout` (summary rail +
-  tabbed body) primitives; apply `DetailList` to the trip/reservation/rental detail panels.
-- Breadcrumbs for the nested `/config/*` routes.
-- Per-screen a11y sweep — `verify:a11y` (axe, light + dark) 0 serious/critical on every `/ops`
-  screen; keyboard operability + live-region announcements on the async flows.
+  tabbed body) primitives — deferred until a consuming screen needs them (the heavy-flow
+  reworks / the STAGE-005/006 deferred features, which are detail-panel + sectioned-form
+  shaped). `DetailList` is built + exported for them; no current `/ops` screen is a good fit.
 - Short-flow reworks of the heavy screens (config draft→approve in ≤3 visible steps; report
-  run as a 2-pane builder; fleet add/maintenance as one sectioned form; queue bulk actions).
+  run as a 2-pane builder; fleet add/maintenance as one sectioned form; queue bulk actions) —
+  folded into the deferred-feature work.
 - Before/after evidence bundle: all `/ops` screens, light + dark, 3 viewports, 2 brand presets;
   flow click-count table vs. the STAGE-006/007 baseline (→ folded into STAGE-013).
