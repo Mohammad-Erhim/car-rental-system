@@ -193,3 +193,26 @@ export function useAuditLog(filter: { action?: string; targetType?: string }) {
       apiFetch<AuditRow[]>(`/ops/audit${qs.toString() ? `?${qs}` : ''}`, { signal }),
   });
 }
+
+// ---- data quality (SCREEN-OPS-039, FR-ADM-013) ----
+
+export interface DataQualityCheck {
+  id: string;
+  title: string;
+  severity: 'high' | 'medium' | 'low';
+  count: number;
+  ok: boolean;
+  sample: string[];
+}
+export interface DataQualityReport {
+  checkedAt: string;
+  ok: boolean;
+  checks: DataQualityCheck[];
+}
+
+export function useDataQuality() {
+  return useQuery({
+    queryKey: ['ops', 'data-quality'],
+    queryFn: ({ signal }) => apiFetch<DataQualityReport>('/ops/data-quality', { signal }),
+  });
+}

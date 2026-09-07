@@ -9,6 +9,7 @@ import { SignInPage } from '../surfaces/auth/sign-in-page.js';
 import { AuditLogPage } from '../surfaces/ops/audit-log-page.js';
 import { BrandingPage } from '../surfaces/ops/branding-page.js';
 import { ConfigVersionsPage } from '../surfaces/ops/config-versions-page.js';
+import { DataQualityPage } from '../surfaces/ops/data-quality-page.js';
 import { FinanceCasesPage } from '../surfaces/ops/finance-cases-page.js';
 import { FleetInventoryPage } from '../surfaces/ops/fleet-inventory-page.js';
 import { LanguagesPage } from '../surfaces/ops/languages-page.js';
@@ -121,6 +122,10 @@ export const router = createBrowserRouter(
         },
         { path: 'insights', element: perm(['report.read'], <ReportsPage />) },
         { path: 'audit', element: perm(['audit.read'], <AuditLogPage />) },
+        {
+          path: 'data-quality',
+          element: perm(['audit.read', 'config.read'], <DataQualityPage />),
+        },
       ],
     },
     { path: '*', element: <NotFound /> },

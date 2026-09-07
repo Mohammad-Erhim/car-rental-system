@@ -287,4 +287,24 @@ describe('STAGE-006 administration & reporting', () => {
     expect(actions).toContain('config.version.submitted');
     expect(actions).toContain('config.version.approved');
   });
+
+  it('TEST-ADM-005 the data-quality panel runs its checks and a fresh seed is clean; agents are refused', async () => {
+    const res = await request(server)
+      .get('/api/v1/ops/data-quality')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(typeof res.body.checkedAt).toBe('string');
+    expect(Array.isArray(res.body.checks)).toBe(true);
+    expect(res.body.checks.length).toBeGreaterThanOrEqual(5);
+    for (const c of res.body.checks as Array<{ id: string; count: number; ok: boolean }>) {
+      expect(c.count).toBe(0);
+      expect(c.ok).toBe(true);
+    }
+    expect(res.body.ok).toBe(true);
+
+    await request(server)
+      .get('/api/v1/ops/data-quality')
+      .set('Authorization', `Bearer ${agentToken}`)
+      .expect(403);
+  });
 });

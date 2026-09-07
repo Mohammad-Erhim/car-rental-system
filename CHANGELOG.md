@@ -6,6 +6,26 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### STAGE-006 deferred — data-quality panel (SCREEN-OPS-039) (2026-09-08)
+
+**Added (API)**
+
+- `GET /api/v1/ops/data-quality` (`audit.read | config.read`) — a read-only sweep: 6 cheap
+  `COUNT` checks (active rentals with no unit; units pointing at a missing location; lookup
+  values with no type; reservations with a dangling account; config settings with revisions
+  but nothing published; recovery cases open > 14 days), each with an 8-row sample of offending
+  keys. Returns `{ checkedAt, ok, checks: [{ id, title, severity, count, ok, sample }] }`.
+  Never mutates. Add a check = one more entry in the `CHECKS` array.
+
+**Added (web)**
+
+- `/ops/data-quality` (new "Data quality" nav item under Administration) — a `DataTable` of the
+  checks (severity badge, finding count, sample) with a "Re-run checks" button and an
+  all-clear / N-need-attention banner. 15 `ops.dq.*` + `ops.nav.dataQuality` keys en/fr/ar.
+
+Verified: `report.spec.ts` +1 (fresh seed clean across all 6 checks; agent → 403) →
+`test:api` 99; web typecheck / lint / build / `verify:i18n` 745 + `--strict` green.
+
 ### STAGE-005 deferred — rental incident + replacement-vehicle swap (2026-09-08)
 
 `rental.service` had assign / pickup / extend / return / readiness but no way to record a

@@ -14,6 +14,7 @@ import {
   ScrollText,
   Search,
   Settings2,
+  ShieldCheck,
   Tag,
   Users,
   Wallet,
@@ -144,6 +145,12 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/admin/staff', label: 'ops.nav.staff', Icon: Users, anyOf: ['staff.manage'] },
       { to: '/insights', label: 'ops.nav.reports', Icon: BarChart3, anyOf: ['report.read'] },
       { to: '/audit', label: 'ops.nav.audit', Icon: ScrollText, anyOf: ['audit.read'] },
+      {
+        to: '/data-quality',
+        label: 'ops.nav.dataQuality',
+        Icon: ShieldCheck,
+        anyOf: ['audit.read', 'config.read'],
+      },
     ],
   },
 ];
