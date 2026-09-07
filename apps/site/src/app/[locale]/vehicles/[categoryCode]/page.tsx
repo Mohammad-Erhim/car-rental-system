@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 
 import { apiGet } from '../../../../lib/api';
 import { ACTIVE_LOCALES, getT } from '../../../../lib/i18n';
-import { buildMetadata, jsonLd, SITE_URL } from '../../../../lib/seo';
+import { buildMetadata, jsonLd, seoOrigin } from '../../../../lib/seo';
 
 interface Category {
   code: string;
@@ -69,7 +69,7 @@ export default async function VehicleDetailPage({
 }) {
   const { locale, categoryCode } = params;
   const t = await getT(locale);
-  const cat = await load(categoryCode);
+  const [cat, origin] = await Promise.all([load(categoryCode), seoOrigin()]);
   if (!cat) notFound();
 
   const ld = {
@@ -78,7 +78,7 @@ export default async function VehicleDetailPage({
     name: cat.displayName,
     category: cat.class,
     description: cat.description ?? undefined,
-    url: `${SITE_URL}/${locale}/vehicles/${cat.code}`,
+    url: `${origin}/${locale}/vehicles/${cat.code}`,
   };
 
   return (

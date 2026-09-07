@@ -1,3 +1,4 @@
+import { seoConfigSchema } from '@carrental/contracts';
 import { brandConfigSchema, validateBrandConfig } from '@carrental/theme';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
@@ -240,6 +241,28 @@ export class ConfigVersionService {
         aaClean: violations.length === 0,
       };
     }
+    if (kind === 'seo') {
+      const c = seoConfigSchema.parse(payload);
+      const home = c.titleTemplate.includes('%s')
+        ? c.titleTemplate.replace('%s', c.defaultTitle)
+        : c.defaultTitle;
+      return {
+        examples: [
+          c.indexable
+            ? `Pages are indexable. Home <title>: "${home}"`
+            : 'noindex, nofollow is set — the site will be hidden from search engines and the sitemap is empty.',
+          `A vehicle page <title>: "${
+            c.titleTemplate.includes('%s')
+              ? c.titleTemplate.replace('%s', 'Economy cars')
+              : 'Economy cars'
+          }"`,
+          `Canonical + hreflang built from ${c.canonicalBaseUrl}`,
+          c.defaultDescription.length > 160
+            ? `Default description is ${c.defaultDescription.length} chars — search results may truncate it.`
+            : `Default description (${c.defaultDescription.length} chars) fits a result snippet.`,
+        ],
+      };
+    }
     return { examples: ['No preview available for this kind yet.'] };
   }
 
@@ -275,6 +298,14 @@ export class ConfigVersionService {
             /^https:\/\/\S+$/.test(ref) ||
             (k === 'favicon' && /^data:image\/[a-z.+-]+;base64,[A-Za-z0-9+/=]+$/.test(ref));
           if (!ok) issues.push({ path: `assets.${k}`, code: 'must_be_https_url' });
+        }
+      }
+    }
+    if (kind === 'seo') {
+      const parsed = seoConfigSchema.safeParse(payload);
+      if (!parsed.success) {
+        for (const iss of parsed.error.issues) {
+          issues.push({ path: iss.path.join('.') || '(root)', code: iss.code });
         }
       }
     }

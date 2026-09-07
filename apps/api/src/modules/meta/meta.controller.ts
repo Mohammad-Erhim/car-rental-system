@@ -5,6 +5,7 @@ import {
   zBuildInfo,
   zHealthSummary,
   zLocalesResponse,
+  zSeoResponse,
 } from '@carrental/contracts';
 import { Controller, Get, Header, Res } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -19,6 +20,7 @@ class LocalesResponseDto extends createZodDto(zLocalesResponse) {}
 class BuildInfoDto extends createZodDto(zBuildInfo) {}
 class HealthSummaryDto extends createZodDto(zHealthSummary) {}
 class BrandingResponseDto extends createZodDto(zBrandingResponse) {}
+class SeoResponseDto extends createZodDto(zSeoResponse) {}
 
 @ApiTags('meta')
 @Public()
@@ -53,6 +55,23 @@ export class MetaController {
   async getBranding(@Res({ passthrough: true }) res: Response) {
     const body = await this.meta.branding();
     const etag = `"brand-${body.revision}-${createHash('sha1')
+      .update(JSON.stringify(body.config))
+      .digest('hex')
+      .slice(0, 16)}"`;
+    res.setHeader('ETag', etag);
+    return body;
+  }
+
+  @Get('seo')
+  @Header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
+  @ApiOperation({
+    operationId: 'meta_getSeo',
+    summary: 'Published SEO config for the public site (SRS-ADM-006)',
+  })
+  @ApiOkResponse({ type: SeoResponseDto })
+  async getSeo(@Res({ passthrough: true }) res: Response) {
+    const body = await this.meta.seo();
+    const etag = `"seo-${body.revision}-${createHash('sha1')
       .update(JSON.stringify(body.config))
       .digest('hex')
       .slice(0, 16)}"`;

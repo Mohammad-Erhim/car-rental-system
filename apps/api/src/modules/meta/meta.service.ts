@@ -1,4 +1,11 @@
-import type { BrandingResponse, HealthSummary, LocalesResponse } from '@carrental/contracts';
+import {
+  DEFAULT_SEO_CONFIG,
+  seoConfigSchema,
+  type BrandingResponse,
+  type HealthSummary,
+  type LocalesResponse,
+  type SeoResponse,
+} from '@carrental/contracts';
 import { DEFAULT_BRAND_CONFIG, brandConfigSchema } from '@carrental/theme';
 import { Inject, Injectable } from '@nestjs/common';
 import { asc, eq } from 'drizzle-orm';
@@ -12,6 +19,10 @@ import { ConfigVersionService } from '../config/config-version.service';
 /** kind/key the branding config lives under in `config_version` (DEC-025). */
 export const BRANDING_KIND = 'branding';
 export const BRANDING_KEY = 'default';
+
+/** kind/key the SEO config lives under in `config_version` (SRS-ADM-006). */
+export const SEO_KIND = 'seo';
+export const SEO_KEY = 'default';
 
 @Injectable()
 export class MetaService {
@@ -62,6 +73,24 @@ export class MetaService {
     const parsed = brandConfigSchema.safeParse(published.payload);
     return {
       config: parsed.success ? parsed.data : DEFAULT_BRAND_CONFIG,
+      revision: parsed.success ? published.revision : 0,
+      updatedAt: published.effectiveFrom ?? published.createdAt,
+    };
+  }
+
+  /**
+   * The published SEO config (SRS-ADM-006). Falls back to the built-in default when nothing is
+   * published. Public + cacheable — `apps/site` folds it into route metadata / robots / JSON-LD.
+   */
+  async seo(): Promise<SeoResponse> {
+    const rows = await this.configVersions.list(SEO_KIND, SEO_KEY);
+    const published = rows.find((r) => r.state === 'published');
+    if (!published) {
+      return { config: DEFAULT_SEO_CONFIG, revision: 0, updatedAt: null };
+    }
+    const parsed = seoConfigSchema.safeParse(published.payload);
+    return {
+      config: parsed.success ? parsed.data : DEFAULT_SEO_CONFIG,
       revision: parsed.success ? published.revision : 0,
       updatedAt: published.effectiveFrom ?? published.createdAt,
     };

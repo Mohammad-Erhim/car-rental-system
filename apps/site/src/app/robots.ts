@@ -1,11 +1,17 @@
 import type { MetadataRoute } from 'next';
 
-import { SITE_URL } from '../lib/seo';
+import { seoOrigin } from '../lib/seo';
+import { getSeoConfig } from '../lib/seo-config';
 
-export default function robots(): MetadataRoute.Robots {
+export default async function robots(): Promise<MetadataRoute.Robots> {
+  const [origin, seo] = await Promise.all([seoOrigin(), getSeoConfig()]);
+  if (!seo.indexable) {
+    // Master switch off (SRS-ADM-006): keep everyone out, no sitemap reference.
+    return { rules: { userAgent: '*', disallow: '/' } };
+  }
   return {
     rules: { userAgent: '*', allow: '/', disallow: ['/api/', '/*/account', '/*/checkout'] },
-    sitemap: `${SITE_URL}/sitemap.xml`,
-    host: SITE_URL,
+    sitemap: `${origin}/sitemap.xml`,
+    host: origin,
   };
 }

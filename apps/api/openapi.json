@@ -1883,6 +1883,28 @@
         ]
       }
     },
+    "/api/v1/meta/seo": {
+      "get": {
+        "operationId": "meta_getSeo",
+        "summary": "Published SEO config for the public site (SRS-ADM-006)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeoResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "meta"
+        ]
+      }
+    },
     "/api/v1/meta/health-summary": {
       "get": {
         "operationId": "meta_getHealthSummary",
@@ -2357,6 +2379,94 @@
             },
             "required": [
               "colors"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": false
+          },
+          "updatedAt": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "config",
+          "revision",
+          "updatedAt"
+        ]
+      },
+      "SeoResponseDto": {
+        "type": "object",
+        "properties": {
+          "config": {
+            "type": "object",
+            "properties": {
+              "siteName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "titleTemplate": {
+                "type": "string",
+                "maxLength": 80,
+                "default": "%s"
+              },
+              "defaultTitle": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "defaultDescription": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 320
+              },
+              "canonicalBaseUrl": {
+                "type": "string",
+                "format": "uri"
+              },
+              "ogImageUrl": {
+                "type": "string",
+                "format": "uri",
+                "nullable": true,
+                "default": null
+              },
+              "twitterHandle": {
+                "type": "string",
+                "pattern": "^@[A-Za-z0-9_]{1,15}$",
+                "nullable": true,
+                "default": null
+              },
+              "indexable": {
+                "type": "boolean",
+                "default": true
+              },
+              "googleSiteVerification": {
+                "type": "string",
+                "maxLength": 200,
+                "nullable": true,
+                "default": null
+              },
+              "bingSiteVerification": {
+                "type": "string",
+                "maxLength": 200,
+                "nullable": true,
+                "default": null
+              },
+              "organizationLogoUrl": {
+                "type": "string",
+                "format": "uri",
+                "nullable": true,
+                "default": null
+              }
+            },
+            "required": [
+              "siteName",
+              "defaultTitle",
+              "defaultDescription",
+              "canonicalBaseUrl"
             ]
           },
           "revision": {

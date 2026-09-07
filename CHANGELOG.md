@@ -6,6 +6,28 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### STAGE-011 — Dashboard-managed SEO (2026-09-07)
+
+Technical SEO is now configured from the dashboard, no redeploy (SRS-ADM-006).
+
+**Added**
+
+- `seo` config-version kind — rides the draft → submit → approve (author ≠ approver) + audit
+  workflow. Validates structure + `https://` URLs + `@handle` shape; `preview` echoes the
+  resolved home / vehicle `<title>`, the canonical base, and a description-length note.
+- `GET /api/v1/meta/seo` — public, cacheable (`ETag` + `Cache-Control`); returns the published
+  config or the built-in default (revision 0). `seoConfigSchema` + `DEFAULT_SEO_CONFIG` in
+  `@carrental/contracts`.
+- `/ops/config/seo` dashboard screen (new `Search` nav entry, Configuration group): site name,
+  title template, default title / description (with a live length hint), canonical base URL,
+  OG image, Twitter handle, organisation logo, an **indexable** master switch, and Google /
+  Bing verification tokens — with live preview and the version list (submit / approve). 33
+  `ops.seo.*` keys ×{en,ar,fr}.
+- `apps/site` consumes it: `buildMetadata` applies the title template, canonical + hreflang
+  origin, robots, `verification` meta, and OG/Twitter (`site`/`creator` from the handle);
+  `robots.ts` + `sitemap.ts` honour the indexable switch (deny-all + empty sitemap when off);
+  home / vehicle JSON-LD use the configured site name + logo.
+
 ### STAGE-012 — Ops nav grouping, auth-screen i18n, `<html lang>` sync (2026-09-07)
 
 **Added**

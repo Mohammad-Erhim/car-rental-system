@@ -2,9 +2,13 @@ import type { MetadataRoute } from 'next';
 
 import { apiGet } from '../lib/api';
 import { ACTIVE_LOCALES } from '../lib/i18n';
-import { SITE_URL } from '../lib/seo';
+import { seoOrigin } from '../lib/seo';
+import { getSeoConfig } from '../lib/seo-config';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const [origin, seo] = await Promise.all([seoOrigin(), getSeoConfig()]);
+  if (!seo.indexable) return []; // master switch off (SRS-ADM-006)
+
   const staticPaths = ['', '/search', '/help', '/legal/terms', '/legal/privacy'];
   let categoryCodes: string[] = [];
   try {
@@ -18,11 +22,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const all = [...staticPaths, ...categoryCodes];
   return all.flatMap((path) =>
     ACTIVE_LOCALES.map((locale) => ({
-      url: `${SITE_URL}/${locale}${path}`,
+      url: `${origin}/${locale}${path}`,
       lastModified: new Date(),
       changeFrequency: 'weekly' as const,
       alternates: {
-        languages: Object.fromEntries(ACTIVE_LOCALES.map((l) => [l, `${SITE_URL}/${l}${path}`])),
+        languages: Object.fromEntries(ACTIVE_LOCALES.map((l) => [l, `${origin}/${l}${path}`])),
       },
     })),
   );

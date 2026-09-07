@@ -19,6 +19,7 @@ import { ReferenceDataPage } from '../surfaces/ops/reference-data-page.js';
 import { RentalBoardPage } from '../surfaces/ops/rental-board-page.js';
 import { ReportsPage } from '../surfaces/ops/reports-page.js';
 import { ReservationQueuePage } from '../surfaces/ops/reservation-queue-page.js';
+import { SeoPage } from '../surfaces/ops/seo-page.js';
 import { StaffRolesPage } from '../surfaces/ops/staff-roles-page.js';
 import { TranslationsPage } from '../surfaces/ops/translations-page.js';
 
@@ -98,6 +99,10 @@ export const router = createBrowserRouter(
         {
           path: 'config/branding',
           element: perm(['config.read', 'config.publish'], <BrandingPage />),
+        },
+        {
+          path: 'config/seo',
+          element: perm(['config.read', 'config.publish'], <SeoPage />),
         },
         {
           path: 'config/languages',

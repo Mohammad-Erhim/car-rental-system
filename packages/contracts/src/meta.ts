@@ -57,6 +57,64 @@ export const zBrandingResponse = z.object({
 });
 export type BrandingResponse = z.infer<typeof zBrandingResponse>;
 
+/**
+ * SEO configuration managed from the dashboard (SRS-ADM-006, technical-SEO mandate). Rides the
+ * config-version workflow under kind `seo` / key `default`; `GET /api/v1/meta/seo` serves the
+ * published revision and `apps/site` folds it into every route's metadata, `robots`, and JSON-LD.
+ */
+const zHttpsUrl = z
+  .string()
+  .trim()
+  .url()
+  .refine((u) => u.startsWith('https://'), 'must be an https:// URL');
+
+export const seoConfigSchema = z.object({
+  /** brand/site name — used in the title template and JSON-LD Organization */
+  siteName: z.string().trim().min(1).max(80),
+  /** page-title template; `%s` is replaced by the page title (blank → just the page title) */
+  titleTemplate: z.string().trim().max(80).default('%s'),
+  /** title for routes that provide none (the home page) */
+  defaultTitle: z.string().trim().min(1).max(120),
+  /** meta description fallback (≤ ~160 chars renders fully in results) */
+  defaultDescription: z.string().trim().min(1).max(320),
+  /** absolute site origin used to build canonical + hreflang URLs */
+  canonicalBaseUrl: zHttpsUrl,
+  /** default Open Graph / Twitter card image */
+  ogImageUrl: zHttpsUrl.nullable().default(null),
+  /** `@handle` for Twitter card attribution */
+  twitterHandle: z
+    .string()
+    .trim()
+    .regex(/^@[A-Za-z0-9_]{1,15}$/, 'must look like @handle')
+    .nullable()
+    .default(null),
+  /** master switch — false emits `noindex, nofollow` everywhere and an empty sitemap */
+  indexable: z.boolean().default(true),
+  /** search-console ownership tokens (rendered as <meta> when set) */
+  googleSiteVerification: z.string().trim().max(200).nullable().default(null),
+  bingSiteVerification: z.string().trim().max(200).nullable().default(null),
+  /** JSON-LD Organization logo */
+  organizationLogoUrl: zHttpsUrl.nullable().default(null),
+});
+export type SeoConfig = z.infer<typeof seoConfigSchema>;
+
+export const DEFAULT_SEO_CONFIG: SeoConfig = seoConfigSchema.parse({
+  siteName: 'Car Rental',
+  titleTemplate: '%s · Car Rental',
+  defaultTitle: 'Car Rental — book a vehicle in minutes',
+  defaultDescription:
+    'Reserve a car from a modern fleet with transparent pricing, flexible pickup, and 24/7 support.',
+  canonicalBaseUrl: 'https://example.com',
+});
+
+/** `GET /api/v1/meta/seo` — published SEO config (revision 0 = built-in default). */
+export const zSeoResponse = z.object({
+  config: seoConfigSchema,
+  revision: z.number().int().nonnegative(),
+  updatedAt: z.string().nullable(),
+});
+export type SeoResponse = z.infer<typeof zSeoResponse>;
+
 /** `/health/ready` — richer, used by ops + load balancers (SRS §16.3). */
 export const zReadiness = z.object({
   status: z.enum(['ok', 'degraded', 'down']),

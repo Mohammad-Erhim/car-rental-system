@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { HomeSearch } from '../../components/home-search';
 import { apiGet } from '../../lib/api';
 import { getT } from '../../lib/i18n';
-import { buildMetadata, jsonLd, SITE_URL } from '../../lib/seo';
+import { buildMetadata, jsonLd, seoOrigin } from '../../lib/seo';
+import { getSeoConfig } from '../../lib/seo-config';
 
 interface Category {
   code: string;
@@ -32,16 +33,19 @@ export async function generateMetadata({
 export default async function HomePage({ params }: { params: { locale: string } }) {
   const { locale } = params;
   const t = await getT(locale);
-  const categories = await apiGet<Category[]>('/catalogue/categories', { revalidate: 300 }).catch(
-    () => [] as Category[],
-  );
+  const [categories, origin, seo] = await Promise.all([
+    apiGet<Category[]>('/catalogue/categories', { revalidate: 300 }).catch(() => [] as Category[]),
+    seoOrigin(),
+    getSeoConfig(),
+  ]);
 
   const ld = {
     '@context': 'https://schema.org',
     '@type': 'AutoRental',
-    name: t.t('app.name'),
-    url: `${SITE_URL}/${locale}`,
-    description: t.t('site.home.metaDescription'),
+    name: seo.siteName,
+    url: `${origin}/${locale}`,
+    description: seo.defaultDescription,
+    ...(seo.organizationLogoUrl ? { logo: seo.organizationLogoUrl } : {}),
   };
 
   return (
