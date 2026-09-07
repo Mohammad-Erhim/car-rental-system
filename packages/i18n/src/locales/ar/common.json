@@ -389,6 +389,8 @@
   "ops.rpt.scheduleFor": "جدولة «{name}»",
   "ops.rpt.scopeNote": "النطاق",
   "ops.rpt.subtitle": "ملخّصات تشغيلية ومالية. تقتصر النتائج على المواقع ضمن نطاقك؛ ويسجّل كل تشغيل النطاق المستخدَم.",
+  "ops.rpt.thRows": "الصفوف",
+  "ops.rpt.thWhen": "الوقت",
   "ops.rpt.title": "التقارير",
   "ops.seo.bingVerification": "رمز تحقّق Bing",
   "ops.seo.canonicalBase": "رابط الأساس الـ canonical",

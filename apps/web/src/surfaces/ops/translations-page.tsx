@@ -7,8 +7,10 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  DataTable,
   Input,
   PageHeader,
+  type DataTableColumn,
 } from '@carrental/ui';
 import { useState } from 'react';
 
@@ -40,7 +42,24 @@ export function TranslationsPage() {
   const ns = namespace || namespaces[0] || '';
   const loc = locale || locales[0] || '';
 
-  const TH = ['namespace', 'language', 'coverage', 'missing'] as const;
+  type CoverageRow = NonNullable<typeof completeness.data>['rows'][number];
+  const coverageColumns: Array<DataTableColumn<CoverageRow>> = [
+    {
+      key: 'namespace',
+      header: t('ops.tbl.namespace'),
+      cell: (r) => r.namespace,
+      className: 'font-mono text-xs',
+    },
+    { key: 'language', header: t('ops.tbl.language'), cell: (r) => r.locale },
+    {
+      key: 'coverage',
+      header: t('ops.tbl.coverage'),
+      cell: (r) => (
+        <Badge variant={r.coveragePct === 100 ? 'success' : 'warning'}>{r.coveragePct}%</Badge>
+      ),
+    },
+    { key: 'missing', header: t('ops.tbl.missing'), cell: (r) => r.missing },
+  ];
 
   return (
     <div className="space-y-6">
@@ -51,48 +70,23 @@ export function TranslationsPage() {
           <CardTitle className="text-base">{t('ops.trans.coverage')}</CardTitle>
         </CardHeader>
         <CardContent>
-          {completeness.isLoading ? (
-            <AppStateView kind="loading" title={t('ops.st.loading')} inline />
-          ) : completeness.isError ? (
-            <AppStateView
-              kind="failure"
-              inline
-              title={t('ops.trans.loadFail')}
-              primaryAction={{ label: t('ops.st.retry'), onClick: () => completeness.refetch() }}
-            />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[28rem] text-sm" data-testid="translation-coverage">
-                <thead className="text-start text-xs uppercase text-muted-foreground">
-                  <tr>
-                    {TH.map((k) => (
-                      <th key={k} className="py-1 text-start font-medium">
-                        {t(`ops.tbl.${k}`)}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {completeness.data!.rows.map((r) => (
-                    <tr
-                      key={`${r.namespace}:${r.locale}`}
-                      className="border-t"
-                      data-row={`${r.namespace}:${r.locale}`}
-                    >
-                      <td className="py-2 pe-2 font-mono text-xs">{r.namespace}</td>
-                      <td className="py-2 pe-2">{r.locale}</td>
-                      <td className="py-2 pe-2">
-                        <Badge variant={r.coveragePct === 100 ? 'success' : 'warning'}>
-                          {r.coveragePct}%
-                        </Badge>
-                      </td>
-                      <td className="py-2 pe-2">{r.missing}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <DataTable
+            columns={coverageColumns}
+            rows={completeness.data?.rows}
+            rowKey={(r) => `${r.namespace}:${r.locale}`}
+            isLoading={completeness.isLoading}
+            isError={completeness.isError}
+            onRetry={() => completeness.refetch()}
+            rowProps={(r) => ({ 'data-row': `${r.namespace}:${r.locale}` })}
+            testid="translation-coverage"
+            minWidth="28rem"
+            labels={{
+              loading: t('ops.st.loading'),
+              loadFailTitle: t('ops.trans.loadFail'),
+              retry: t('ops.st.retry'),
+              empty: t('ops.st.none'),
+            }}
+          />
         </CardContent>
       </Card>
 

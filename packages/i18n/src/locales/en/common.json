@@ -389,6 +389,8 @@
   "ops.rpt.scheduleFor": "Schedule “{name}”",
   "ops.rpt.scopeNote": "Scope",
   "ops.rpt.subtitle": "Operational and financial summaries. Results are limited to the locations you are scoped to; every run records the scope it used.",
+  "ops.rpt.thRows": "Rows",
+  "ops.rpt.thWhen": "When",
   "ops.rpt.title": "Reports",
   "ops.seo.bingVerification": "Bing verification token",
   "ops.seo.canonicalBase": "Canonical base URL",

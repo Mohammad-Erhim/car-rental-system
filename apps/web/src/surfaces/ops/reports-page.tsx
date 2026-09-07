@@ -66,6 +66,29 @@ export function ReportsPage() {
     className: 'pe-3 font-mono text-xs',
   }));
 
+  type ReportRun = NonNullable<typeof runs.data>[number];
+  const runColumns: Array<DataTableColumn<ReportRun>> = [
+    {
+      key: 'report',
+      header: t('ops.rpt.report'),
+      cell: (r) => r.definitionCode,
+      className: 'pe-3 font-medium',
+    },
+    {
+      key: 'scope',
+      header: t('ops.rpt.scopeNote'),
+      cell: (r) => r.scopeNote ?? '—',
+      className: 'pe-3 text-muted-foreground',
+    },
+    { key: 'rows', header: t('ops.rpt.thRows'), cell: (r) => r.rowCount, className: 'pe-3' },
+    {
+      key: 'when',
+      header: t('ops.rpt.thWhen'),
+      cell: (r) => new Date(r.createdAt).toLocaleString(),
+      className: 'text-xs text-muted-foreground',
+    },
+  ];
+
   async function doRun() {
     setRunError(null);
     setCsvOpen(null);
@@ -227,28 +250,22 @@ export function ReportsPage() {
             <CardTitle className="text-base">{t('ops.rpt.recent')}</CardTitle>
           </CardHeader>
           <CardContent>
-            {runs.isLoading ? (
-              <AppStateView kind="loading" inline title={t('ops.st.loading')} />
-            ) : !runs.data?.length ? (
-              <AppStateView kind="empty" inline title={t('ops.rpt.noRuns')} />
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[24rem] text-sm">
-                  <tbody data-testid="report-run-rows">
-                    {runs.data.map((r) => (
-                      <tr key={r.id} className="border-t">
-                        <td className="py-2 pe-3 font-medium">{r.definitionCode}</td>
-                        <td className="py-2 pe-3 text-muted-foreground">{r.scopeNote ?? '—'}</td>
-                        <td className="py-2 pe-3">{r.rowCount}</td>
-                        <td className="py-2 text-xs text-muted-foreground">
-                          {new Date(r.createdAt).toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            <DataTable
+              columns={runColumns}
+              rows={runs.data}
+              rowKey={(r) => r.id}
+              isLoading={runs.isLoading}
+              isError={runs.isError}
+              onRetry={() => runs.refetch()}
+              bodyTestid="report-run-rows"
+              minWidth="24rem"
+              labels={{
+                loading: t('ops.st.loading'),
+                loadFailTitle: t('ops.rpt.loadFail'),
+                retry: t('ops.st.retry'),
+                empty: t('ops.rpt.noRuns'),
+              }}
+            />
           </CardContent>
         </Card>
 
