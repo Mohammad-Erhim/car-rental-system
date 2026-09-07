@@ -1,16 +1,17 @@
 import { useI18n } from '@carrental/i18n/react';
 import {
-  AppStateView,
   Badge,
   Button,
   Card,
   CardContent,
   CardHeader,
   CardTitle,
+  DataTable,
   ErrorSummary,
   Field,
   Input,
   PageHeader,
+  type DataTableColumn,
 } from '@carrental/ui';
 import { useState } from 'react';
 
@@ -77,7 +78,44 @@ export function RatePlansPage() {
 
   const money = (m: number, c: string) => `${(m / 100).toFixed(2)} ${c}`;
 
-  const TH = ['name', 'category', 'baseDay', 'tax', 'status'] as const;
+  type Plan = NonNullable<typeof plans.data>[number];
+  const columns: Array<DataTableColumn<Plan>> = [
+    { key: 'name', header: t('ops.tbl.name'), cell: (p) => p.name },
+    {
+      key: 'category',
+      header: t('ops.tbl.category'),
+      cell: (p) => p.categoryCode,
+      className: 'font-mono text-xs',
+    },
+    {
+      key: 'baseDay',
+      header: t('ops.tbl.baseDay'),
+      cell: (p) => money(p.baseDayMinor, p.currency),
+    },
+    { key: 'tax', header: t('ops.tbl.tax'), cell: (p) => `${(p.taxBps / 100).toFixed(0)}%` },
+    {
+      key: 'status',
+      header: t('ops.tbl.status'),
+      cell: (p) => (
+        <Badge variant={p.status === 'published' ? 'success' : 'neutral'}>{p.status}</Badge>
+      ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      className: 'text-end',
+      cell: (p) =>
+        p.status !== 'published' && p.status !== 'retired' ? (
+          <Button
+            size="sm"
+            onClick={() => doPublish(p.id)}
+            data-testid={`publish-${p.name.replace(/\s+/g, '-')}`}
+          >
+            {t('ops.rp.publish')}
+          </Button>
+        ) : null,
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -88,59 +126,24 @@ export function RatePlansPage() {
           <CardTitle className="text-base">{t('ops.rp.card')}</CardTitle>
         </CardHeader>
         <CardContent>
-          {plans.isLoading ? (
-            <AppStateView kind="loading" inline title={t('ops.st.loading')} />
-          ) : plans.isError ? (
-            <AppStateView
-              kind="failure"
-              inline
-              title={t('ops.rp.loadFail')}
-              primaryAction={{ label: t('ops.st.retry'), onClick: () => plans.refetch() }}
-            />
-          ) : !plans.data?.length ? (
-            <AppStateView kind="empty" inline title={t('ops.rp.empty')} />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[36rem] text-sm" data-testid="rate-plan-table">
-                <thead className="text-start text-xs uppercase text-muted-foreground">
-                  <tr>
-                    {TH.map((k) => (
-                      <th key={k} className="py-1 text-start font-medium">
-                        {t(`ops.tbl.${k}`)}
-                      </th>
-                    ))}
-                    <th className="py-1"></th>
-                  </tr>
-                </thead>
-                <tbody data-testid="rate-plan-rows">
-                  {plans.data.map((p) => (
-                    <tr key={p.id} className="border-t" data-plan={p.name} data-status={p.status}>
-                      <td className="py-2 pe-2">{p.name}</td>
-                      <td className="py-2 pe-2 font-mono text-xs">{p.categoryCode}</td>
-                      <td className="py-2 pe-2">{money(p.baseDayMinor, p.currency)}</td>
-                      <td className="py-2 pe-2">{(p.taxBps / 100).toFixed(0)}%</td>
-                      <td className="py-2 pe-2">
-                        <Badge variant={p.status === 'published' ? 'success' : 'neutral'}>
-                          {p.status}
-                        </Badge>
-                      </td>
-                      <td className="py-2 text-end">
-                        {p.status !== 'published' && p.status !== 'retired' ? (
-                          <Button
-                            size="sm"
-                            onClick={() => doPublish(p.id)}
-                            data-testid={`publish-${p.name.replace(/\s+/g, '-')}`}
-                          >
-                            {t('ops.rp.publish')}
-                          </Button>
-                        ) : null}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <DataTable
+            columns={columns}
+            rows={plans.data}
+            rowKey={(p) => p.id}
+            isLoading={plans.isLoading}
+            isError={plans.isError}
+            onRetry={() => plans.refetch()}
+            rowProps={(p) => ({ 'data-plan': p.name, 'data-status': p.status })}
+            testid="rate-plan-table"
+            bodyTestid="rate-plan-rows"
+            minWidth="36rem"
+            labels={{
+              loading: t('ops.st.loading'),
+              loadFailTitle: t('ops.rp.loadFail'),
+              retry: t('ops.st.retry'),
+              empty: t('ops.rp.empty'),
+            }}
+          />
           {publishError ? (
             <p className="mt-2 text-sm text-destructive" data-testid="rate-plan-publish-error">
               {publishError}

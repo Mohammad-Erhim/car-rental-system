@@ -1,17 +1,18 @@
 import { useI18n } from '@carrental/i18n/react';
 import {
-  AppStateView,
   Badge,
   Button,
   Card,
   CardContent,
   CardHeader,
   CardTitle,
+  DataTable,
   ErrorSummary,
   Field,
   Input,
   PageHeader,
   useToast,
+  type DataTableColumn,
 } from '@carrental/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -87,7 +88,59 @@ export function StaffRolesPage() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['admin', 'staff'] }),
   });
 
-  const TH = ['name', 'email', 'roles', 'status'] as const;
+  type Staff = NonNullable<typeof staff.data>[number];
+  const staffColumns: Array<DataTableColumn<Staff>> = [
+    {
+      key: 'name',
+      header: t('ops.tbl.name'),
+      cell: (s) => s.displayName,
+      className: 'font-medium',
+    },
+    { key: 'email', header: t('ops.tbl.email'), cell: (s) => s.email, className: 'bidi-isolate' },
+    {
+      key: 'roles',
+      header: t('ops.tbl.roles'),
+      cell: (s) => (
+        <span className="flex flex-wrap gap-1">
+          {s.roleCodes.map((rc) => (
+            <Badge key={rc} variant="neutral">
+              {rc}
+            </Badge>
+          ))}
+        </span>
+      ),
+    },
+    {
+      key: 'status',
+      header: t('ops.tbl.status'),
+      cell: (s) => (
+        <Badge variant={s.status === 'active' ? 'success' : 'warning'}>{s.status}</Badge>
+      ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      className: 'text-end',
+      cell: (s) =>
+        s.status === 'active' ? (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => changeStatus.mutate({ accountId: s.accountId, status: 'suspended' })}
+          >
+            {t('ops.staff.suspend')}
+          </Button>
+        ) : (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => changeStatus.mutate({ accountId: s.accountId, status: 'active' })}
+          >
+            {t('ops.staff.reactivate')}
+          </Button>
+        ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -169,78 +222,22 @@ export function StaffRolesPage() {
           <CardTitle className="text-base">{t('ops.staff.card')}</CardTitle>
         </CardHeader>
         <CardContent>
-          {staff.isLoading ? (
-            <AppStateView kind="loading" title={t('ops.st.loading')} inline />
-          ) : staff.isError ? (
-            <AppStateView
-              kind="failure"
-              inline
-              title={t('ops.staff.loadFail')}
-              primaryAction={{ label: t('ops.st.retry'), onClick: () => staff.refetch() }}
-            />
-          ) : !staff.data?.length ? (
-            <AppStateView kind="empty" inline title={t('ops.st.none')} />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm" data-testid="staff-table">
-                <thead className="text-xs uppercase text-muted-foreground">
-                  <tr>
-                    {TH.map((k) => (
-                      <th key={k} className="py-1 text-start font-medium">
-                        {t(`ops.tbl.${k}`)}
-                      </th>
-                    ))}
-                    <th className="py-1"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {staff.data.map((s) => (
-                    <tr key={s.accountId} className="border-t">
-                      <td className="py-2 pe-3 font-medium">{s.displayName}</td>
-                      <td className="bidi-isolate py-2 pe-3">{s.email}</td>
-                      <td className="py-2 pe-3">
-                        <span className="flex flex-wrap gap-1">
-                          {s.roleCodes.map((rc) => (
-                            <Badge key={rc} variant="neutral">
-                              {rc}
-                            </Badge>
-                          ))}
-                        </span>
-                      </td>
-                      <td className="py-2 pe-3">
-                        <Badge variant={s.status === 'active' ? 'success' : 'warning'}>
-                          {s.status}
-                        </Badge>
-                      </td>
-                      <td className="py-2 text-end">
-                        {s.status === 'active' ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() =>
-                              changeStatus.mutate({ accountId: s.accountId, status: 'suspended' })
-                            }
-                          >
-                            {t('ops.staff.suspend')}
-                          </Button>
-                        ) : (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() =>
-                              changeStatus.mutate({ accountId: s.accountId, status: 'active' })
-                            }
-                          >
-                            {t('ops.staff.reactivate')}
-                          </Button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <DataTable
+            columns={staffColumns}
+            rows={staff.data}
+            rowKey={(s) => s.accountId}
+            isLoading={staff.isLoading}
+            isError={staff.isError}
+            onRetry={() => staff.refetch()}
+            testid="staff-table"
+            minWidth="0"
+            labels={{
+              loading: t('ops.st.loading'),
+              loadFailTitle: t('ops.staff.loadFail'),
+              retry: t('ops.st.retry'),
+              empty: t('ops.st.none'),
+            }}
+          />
         </CardContent>
       </Card>
     </div>
