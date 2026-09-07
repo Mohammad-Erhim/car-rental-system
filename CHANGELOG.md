@@ -6,6 +6,49 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### STAGE-012 — shared `DataTable` + `/ops` command palette (2026-09-08)
+
+Every `/ops` screen that renders a tabular list now uses one primitive for the
+loading / error / empty / scroll-in-box state machine it was each re-implementing.
+
+**Added (`packages/ui`)**
+
+- `DataTable<T>` — `columns` (`key` / `header` / `cell` / `className`), `rows`,
+  `rowKey(row, index)`, react-query-ish `isLoading` / `isError` / `onRetry`,
+  already-localised `labels`, `rowProps` (per-row `data-*`), `rowClassName`,
+  `renderSubRow(row)` (a full-width `<td colSpan>` detail row under a row; the
+  caller owns the open/closed state), `minWidth`, `caption`. Renders
+  `AppStateView` for the three non-data states, else an uppercase-muted-header
+  bordered table inside an `overflow-x-auto` box. 6 unit tests.
+- `DetailList`, `Toolbar` (from the earlier increment) unchanged.
+
+**Changed — `/ops` screens onto `DataTable`**
+
+- fleet-inventory, reservation-queue, rate-plans, staff-roles, config-versions
+  (revision history + `data-state` / `data-rev` / `config-row-<rev>` preserved),
+  audit-log (event table + expandable before/after diff via `renderSubRow`),
+  reports (the run-result table with run-defined columns, plus the "recent runs"
+  mini-table — which had no `<thead>` at all and now has proper headers),
+  reference-data (lookup values with the inline-edit label cell), translations
+  (coverage-by-namespace). All existing testids / row `data-*` kept; the ops
+  E2E specs (`report`, `auth-and-reference`, `discovery`) pass on phone / tablet
+  / laptop, 11/11 each.
+- Deliberately not converted: `rental-board` (kanban cards), `languages` (rich
+  wrapping rows), the translations per-key `<ul>` inline editor — none are
+  tables.
+
+**Added — command palette**
+
+- `apps/web/src/surfaces/ops/command-palette.tsx` — mounted in the `/ops` header
+  for an authenticated staff session. `⌘K` / `Ctrl+K` or the header button opens
+  it; it lists the same permission-filtered nav destinations the left rail shows
+  (built from the one `NAV_GROUPS` source), so it can never route to a section
+  the user cannot open. Substring match ranks above a fuzzy subsequence
+  (`rp` → "Rate plans"); `↑` / `↓` move, `Enter` navigates, `Esc` closes.
+  `sr-only` `DialogTitle` / `DialogDescription`. 5 unit tests.
+- Keys `ops.ref.noValues`, `ops.rpt.thRows`, `ops.rpt.thWhen`,
+  `ops.cmdk.{open,placeholder,empty,hint}` (en / fr / ar).
+
 ### STAGE-011 — E2E suite ported to the single-origin `apps/site` stack (2026-09-08)
 
 The 13 Playwright specs (customer + operations flows, interleaved) now run against one browser
