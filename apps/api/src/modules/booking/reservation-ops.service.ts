@@ -15,13 +15,10 @@ import {
   reservationLine,
 } from '../../database/schema/reservation';
 import { AvailabilityService } from '../availability/availability.service';
+import { ConfigVersionService } from '../config/config-version.service';
 import { NotifyService } from '../notify/notify.service';
 import { PaymentService } from '../payment/payment.service';
 import { PricingService } from '../pricing/pricing.service';
-
-/** Cancellation policy: free outside this window, otherwise a percentage of the total. */
-const FREE_CANCEL_HOURS = 48;
-const LATE_CANCEL_FEE_BPS = 2000; // 20%
 
 @Injectable()
 export class ReservationOpsService {
@@ -33,6 +30,7 @@ export class ReservationOpsService {
     private readonly notify: NotifyService,
     private readonly audit: AuditService,
     private readonly outbox: OutboxService,
+    private readonly config: ConfigVersionService,
   ) {}
 
   private async orgId(): Promise<string> {
@@ -122,13 +120,15 @@ export class ReservationOpsService {
       });
     }
 
+    const freeCancelHours = await this.config.policy('cancellation', 'freeCancelHours');
+    const lateFeeBps = await this.config.policy('cancellation', 'lateFeeBps');
     const hoursToPickup = (new Date(row.pickupAt).getTime() - Date.now()) / 3_600_000;
     const feeMinor =
       actor.kind === 'staff' && input.reasonCode === 'goodwill'
         ? 0
-        : hoursToPickup >= FREE_CANCEL_HOURS
+        : hoursToPickup >= freeCancelHours
           ? 0
-          : Math.round((row.totalMinor * LATE_CANCEL_FEE_BPS) / 10_000);
+          : Math.round((row.totalMinor * lateFeeBps) / 10_000);
     const refundMinor = Math.max(0, row.paidMinor - feeMinor);
 
     if (refundMinor > 0) {

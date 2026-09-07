@@ -11,8 +11,8 @@ Status values: `PLANNED`, `READY`, `IN_PROGRESS`, `BLOCKED`, `VERIFYING`, `COMPL
 | STAGE-003 | Booking & payment (checkout, drivers, products, terms, confirm, notify)                                                                                   | COMPLETED   |
 | STAGE-004 | Reservation operations (list/detail, modify, cancel, refund, customer workspaces)                                                                         | COMPLETED   |
 | STAGE-005 | Pickup, active rental, return & closeout (fleet readiness, assignment, agreement, extension, incident, replacement, inspection)                           | COMPLETED   |
-| STAGE-006 | Administration & reporting (full config/versioning, imports, templates/translations, reports/exports/schedules, integration recovery, audit/data-quality) | IN_PROGRESS |
-| STAGE-007 | Release hardening (perf, a11y, security, responsive/locale sweep, backup/restore, deploy artifacts)                                                       | PLANNED     |
+| STAGE-006 | Administration & reporting (full config/versioning, imports, templates/translations, reports/exports/schedules, integration recovery, audit/data-quality) | COMPLETED   |
+| STAGE-007 | Release hardening (perf, a11y, security, responsive/locale sweep, backup/restore, deploy artifacts)                                                       | IN_PROGRESS |
 
 ---
 
@@ -159,6 +159,19 @@ Status values: `PLANNED`, `READY`, `IN_PROGRESS`, `BLOCKED`, `VERIFYING`, `COMPL
 - **Acceptance:** invalid config cannot activate; publishing never mutates prior accepted facts;
   export obeys row/field scope; scheduled delivery stops when recipient authorization is removed.
 - **Unlocks:** STAGE-007.
+- **Completion (2026-09-07):** COMPLETED (core control plane). `config` versioning — append-only
+  `config_version` (unique `(kind,key,revision)`); draft → submit → approve/reject; the author
+  cannot approve their own draft (FR-ADM-006, `approval_required`); approve supersedes the prior
+  published revision in one transaction + emits `config.version.published.v1`. `policy` config
+  (cancellation fee, fuel rate) now drives `reservation-ops.cancel()` + `rental.returnRental()`
+  via `ConfigVersionService.policy()` with built-in fallbacks. `report` module — 5 whitelisted
+  aggregates (no free SQL), location-scoped rows (FR-RPT-004), `report_run` history, CSV export,
+  `report_schedule`. Audit read API (`GET /ops/audit`, masked before/after). Web: SCREEN-OPS-033/034
+  config versioning, SCREEN-OPS-035 reports hub, SCREEN-OPS-038 audit viewer; ops nav +
+  routes. Migration `0006`. Gates: static PASS, unit 63, api 54 (7 report), migrate 4, e2e 81.
+  Deferred to STAGE-007: `case` retry action, data-quality runner (SCREEN-OPS-039), fleet import
+  wizard + maintenance form (SCREEN-OPS-017..020), `pricing`/`product`/`location` config kinds,
+  send-time recipient re-authorization. Evidence: `stages/STAGE-006-administration/` (D-006-1..4).
 
 ## STAGE-007 — Release hardening
 

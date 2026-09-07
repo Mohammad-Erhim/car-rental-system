@@ -80,7 +80,13 @@ export async function seedTest(db: Database): Promise<void> {
       });
   }
 
-  const accounts = [
+  const accounts: Array<{
+    email: string;
+    name: string;
+    kind: string;
+    roles: string[];
+    locationScope?: string[];
+  }> = [
     {
       email: 'test-admin@example.test',
       name: 'Test Admin',
@@ -98,6 +104,21 @@ export async function seedTest(db: Database): Promise<void> {
       name: 'Test Finance',
       kind: 'staff',
       roles: ['finance_staff'],
+    },
+    {
+      // second config publisher — approval separation of duties (FR-ADM-006)
+      email: 'test-manager@example.test',
+      name: 'Test Manager',
+      kind: 'staff',
+      roles: ['manager'],
+    },
+    {
+      // finance staff confined to TST1 — proves report location-scoping (FR-RPT-004)
+      email: 'test-scoped@example.test',
+      name: 'Test Scoped Finance',
+      kind: 'staff',
+      roles: ['finance_staff'],
+      locationScope: ['TST1'],
     },
     { email: 'test-customer@example.test', name: 'Test Customer', kind: 'customer', roles: [] },
   ];
@@ -127,14 +148,19 @@ export async function seedTest(db: Database): Promise<void> {
           accountId: acc.id,
           organizationId: org.id,
           roleCodes: a.roles,
-          locationScope: [],
+          locationScope: a.locationScope ?? [],
           approvalLimitMinor: a.roles.includes('administrator') ? 1_000_000 : 50_000,
           status: 'active',
           activatedAt: sql`now()`,
         })
         .onConflictDoUpdate({
           target: staffProfile.accountId,
-          set: { roleCodes: a.roles, status: 'active', updatedAt: sql`now()` },
+          set: {
+            roleCodes: a.roles,
+            locationScope: a.locationScope ?? [],
+            status: 'active',
+            updatedAt: sql`now()`,
+          },
         });
     }
   }

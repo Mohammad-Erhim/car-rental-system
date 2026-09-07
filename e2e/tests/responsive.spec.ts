@@ -75,7 +75,14 @@ test.describe('responsive layout (APP-CWEB / APP-OPS)', () => {
     await page.getByRole('button', { name: /^Sign in$/ }).click();
     await expect(page).toHaveURL(/\/ops$/);
 
-    for (const path of ['/ops', '/ops/config/reference-data', '/ops/admin/staff']) {
+    for (const path of [
+      '/ops/config',
+      '/ops/insights',
+      '/ops/audit',
+      '/ops',
+      '/ops/config/reference-data',
+      '/ops/admin/staff',
+    ]) {
       await page.goto(path);
       await expect(page.getByRole('heading').first()).toBeVisible();
       await expectNoHorizontalScroll(`ops ${path}`, page);

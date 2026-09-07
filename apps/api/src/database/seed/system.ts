@@ -2,6 +2,7 @@ import { LOCALES, DEFAULT_LOCALE, NAMESPACED_RESOURCES } from '@carrental/i18n';
 import { sql } from 'drizzle-orm';
 
 import type { Database } from '../drizzle';
+import { reportDefinition } from '../schema/admin';
 import { locale, translation } from '../schema/i18n';
 import { permissionAction, role } from '../schema/iam';
 import { lookupType, lookupValue } from '../schema/lookup';
@@ -605,6 +606,83 @@ export async function seedSystem(db: Database): Promise<void> {
 
   // --- transactional notification templates (published, en/fr/ar) ---
   await seedTemplates(db);
+
+  // --- report definitions (whitelisted aggregates) ---
+  await seedReportDefinitions(db);
+}
+
+const REPORT_DEFINITIONS: Array<{
+  code: string;
+  title: string;
+  description: string;
+  queryKind: string;
+  columns: string[];
+  minPermission: string;
+}> = [
+  {
+    code: 'reservations_by_state',
+    title: 'Reservations by state',
+    description: 'Count and value of reservations grouped by their current state.',
+    queryKind: 'reservations_by_state',
+    columns: ['state', 'count', 'totalMinor'],
+    minPermission: 'report.read',
+  },
+  {
+    code: 'revenue_by_category',
+    title: 'Revenue by vehicle category',
+    description: 'Confirmed + fulfilled reservation revenue per category.',
+    queryKind: 'revenue_by_category',
+    columns: ['categoryCode', 'reservations', 'revenueMinor'],
+    minPermission: 'report.read',
+  },
+  {
+    code: 'fleet_utilisation',
+    title: 'Fleet utilisation',
+    description: 'Vehicle units grouped by their current state.',
+    queryKind: 'fleet_utilisation',
+    columns: ['state', 'units'],
+    minPermission: 'report.read',
+  },
+  {
+    code: 'refunds',
+    title: 'Refunds summary',
+    description: 'Total refunded amount and the number of intents with a refund.',
+    queryKind: 'refunds',
+    columns: ['refundedMinor', 'intents'],
+    minPermission: 'report.read',
+  },
+  {
+    code: 'open_cases',
+    title: 'Open recovery cases & reconciliation exceptions',
+    description: 'Owned items still needing resolution.',
+    queryKind: 'open_cases',
+    columns: ['kind', 'open'],
+    minPermission: 'audit.read',
+  },
+];
+
+async function seedReportDefinitions(db: Database): Promise<void> {
+  for (const d of REPORT_DEFINITIONS) {
+    await db
+      .insert(reportDefinition)
+      .values({
+        code: d.code,
+        title: d.title,
+        description: d.description,
+        queryKind: d.queryKind,
+        columns: d.columns,
+        minPermission: d.minPermission,
+      })
+      .onConflictDoUpdate({
+        target: reportDefinition.code,
+        set: {
+          title: d.title,
+          description: d.description,
+          columns: d.columns,
+          updatedAt: sql`now()`,
+        },
+      });
+  }
 }
 
 const TEMPLATES: Array<{

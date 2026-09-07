@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { ConfigVersionService } from './config-version.service';
 import { ConfigController } from './config.controller';
 import { ConfigPublic } from './config.public';
 import { LookupController } from './lookup.controller';
@@ -8,7 +9,7 @@ import { TranslationService } from './translation.service';
 
 @Module({
   controllers: [LookupController, ConfigController],
-  providers: [LookupService, TranslationService, ConfigPublic],
-  exports: [ConfigPublic, LookupService],
+  providers: [LookupService, TranslationService, ConfigPublic, ConfigVersionService],
+  exports: [ConfigPublic, LookupService, ConfigVersionService],
 })
 export class ConfigModule {}

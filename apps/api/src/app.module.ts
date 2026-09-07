@@ -15,6 +15,7 @@ import { IamModule } from './modules/iam/iam.module';
 import { MetaModule } from './modules/meta/meta.module';
 import { NotifyModule } from './modules/notify/notify.module';
 import { RentalModule } from './modules/rental/rental.module';
+import { ReportModule } from './modules/report/report.module';
 import { buildLoggerParams } from './observability/logger';
 import { ObservabilityModule } from './observability/observability.module';
 
@@ -33,6 +34,7 @@ import { ObservabilityModule } from './observability/observability.module';
     DiscoveryModule,
     BookingModule,
     RentalModule,
+    ReportModule,
     MetaModule,
   ],
   providers: [{ provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor }],

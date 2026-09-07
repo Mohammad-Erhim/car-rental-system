@@ -16,3 +16,4 @@ export * from './booking';
 export * from './reservation';
 export * from './payment';
 export * from './rental';
+export * from './admin';

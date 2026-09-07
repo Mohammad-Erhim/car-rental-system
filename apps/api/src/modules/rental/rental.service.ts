@@ -14,11 +14,11 @@ import { vehicleUnit } from '../../database/schema/fleet';
 import { location, organization } from '../../database/schema/org';
 import { inspection, inspectionFinding, rental, rentalEvent } from '../../database/schema/rental';
 import { reservation } from '../../database/schema/reservation';
+import { ConfigVersionService } from '../config/config-version.service';
 import { PaymentService } from '../payment/payment.service';
 import { PricingService } from '../pricing/pricing.service';
 
 const AGREEMENT_VERSION = '1.0';
-const FUEL_MINOR_PER_PCT = 150; // $1.50 per missing % of fuel
 
 @Injectable()
 export class RentalService {
@@ -28,6 +28,7 @@ export class RentalService {
     private readonly payments: PaymentService,
     private readonly audit: AuditService,
     private readonly outbox: OutboxService,
+    private readonly config: ConfigVersionService,
   ) {}
 
   private async orgId(): Promise<string> {
@@ -343,8 +344,9 @@ export class RentalService {
 
     const findings = input.findings ?? [];
     const damageMinor = findings.reduce((a, f) => a + Math.max(0, f.chargeMinor ?? 0), 0);
+    const fuelMinorPerPct = await this.config.policy('fuel_rate', 'minorPerPct');
     const fuelDeficitPct = Math.max(0, (row.fuelOutPct ?? 100) - input.fuelPct);
-    const fuelMinor = fuelDeficitPct * FUEL_MINOR_PER_PCT;
+    const fuelMinor = fuelDeficitPct * fuelMinorPerPct;
     const adjustmentMinor = damageMinor + fuelMinor;
 
     if (adjustmentMinor > 0) {

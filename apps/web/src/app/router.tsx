@@ -18,6 +18,8 @@ import { ReservationDetailPage } from '../surfaces/customer/reservation-detail-p
 import { SearchResultsPage } from '../surfaces/customer/search-results-page.js';
 import { TripsPage } from '../surfaces/customer/trips-page.js';
 import { VehicleDetailPage } from '../surfaces/customer/vehicle-detail-page.js';
+import { AuditLogPage } from '../surfaces/ops/audit-log-page.js';
+import { ConfigVersionsPage } from '../surfaces/ops/config-versions-page.js';
 import { FleetInventoryPage } from '../surfaces/ops/fleet-inventory-page.js';
 import { OpsDashboard } from '../surfaces/ops/ops-dashboard.js';
 import { OpsLayout } from '../surfaces/ops/ops-layout.js';
@@ -25,6 +27,7 @@ import { OpsPlaceholder } from '../surfaces/ops/ops-placeholder.js';
 import { RatePlansPage } from '../surfaces/ops/rate-plans-page.js';
 import { ReferenceDataPage } from '../surfaces/ops/reference-data-page.js';
 import { RentalBoardPage } from '../surfaces/ops/rental-board-page.js';
+import { ReportsPage } from '../surfaces/ops/reports-page.js';
 import { ReservationQueuePage } from '../surfaces/ops/reservation-queue-page.js';
 import { StaffRolesPage } from '../surfaces/ops/staff-roles-page.js';
 import { TranslationsPage } from '../surfaces/ops/translations-page.js';
@@ -181,19 +184,28 @@ export const router = createBrowserRouter([
       {
         path: 'config',
         element: staffOnly(
-          <OpsPlaceholder
-            title="Configuration"
-            note="Pricing / policy / product / location versioning land in the administration stage. Reference Data is available now."
-          />,
+          <RequirePermission anyOf={['config.read', 'config.publish']}>
+            <ConfigVersionsPage />
+          </RequirePermission>,
         ),
       },
       {
         path: 'insights',
         element: staffOnly(
-          <OpsPlaceholder
-            title="Insights"
-            note="Reports (SCREEN-OPS-035) land in the administration stage."
-          />,
+          <RequirePermission anyOf={['report.read']}>
+            <ReportsPage />
+          </RequirePermission>,
+        ),
+      },
+      {
+        path: 'audit',
+        element: staffOnly(
+          <RequirePermission
+            anyOf={['audit.read']}
+            fallbackTitle="The audit log requires the audit.read permission"
+          >
+            <AuditLogPage />
+          </RequirePermission>,
         ),
       },
     ],

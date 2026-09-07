@@ -9,6 +9,7 @@ import {
   Languages,
   LayoutDashboard,
   LogOut,
+  ScrollText,
   Settings2,
   Tag,
   Users,
@@ -61,7 +62,12 @@ const NAV: NavItem[] = [
     Icon: Tag,
     anyOf: ['config.read', 'config.publish'],
   },
-  { to: '/ops/config', label: 'Configuration', Icon: Settings2, anyOf: ['config.read'] },
+  {
+    to: '/ops/config',
+    label: 'Configuration',
+    Icon: Settings2,
+    anyOf: ['config.read', 'config.publish'],
+  },
   {
     to: '/ops/config/translations',
     label: 'Translations',
@@ -69,7 +75,8 @@ const NAV: NavItem[] = [
     anyOf: ['config.read', 'config.publish'],
   },
   { to: '/ops/admin/staff', label: 'Staff & roles', Icon: Users, anyOf: ['staff.manage'] },
-  { to: '/ops/insights', label: 'Insights', Icon: BarChart3, anyOf: ['report.read', 'audit.read'] },
+  { to: '/ops/insights', label: 'Reports', Icon: BarChart3, anyOf: ['report.read'] },
+  { to: '/ops/audit', label: 'Audit log', Icon: ScrollText, anyOf: ['audit.read'] },
 ];
 
 export function OpsLayout() {
@@ -127,7 +134,12 @@ export function OpsLayout() {
             {authed ? (
               <>
                 <span className="hidden text-sm font-medium sm:inline">{actor?.displayName}</span>
-                <Button variant="outline" size="sm" onClick={() => void signOut()}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void signOut()}
+                  aria-label={t('action.signOut')}
+                >
                   <LogOut className="size-4" aria-hidden="true" />
                   <span className="hidden sm:inline">{t('action.signOut')}</span>
                 </Button>

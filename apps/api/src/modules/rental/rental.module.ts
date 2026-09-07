@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { ConfigModule as DomainConfigModule } from '../config/config.module';
 import { DiscoveryModule } from '../discovery/discovery.module';
 import { PaymentModule } from '../payment/payment.module';
 
@@ -13,7 +14,7 @@ import { RentalService } from './rental.service';
  * invariant is a partial unique index on `rental.unit_id`.
  */
 @Module({
-  imports: [DiscoveryModule, PaymentModule],
+  imports: [DiscoveryModule, PaymentModule, DomainConfigModule],
   controllers: [RentalController],
   providers: [RentalService],
   exports: [RentalService],
