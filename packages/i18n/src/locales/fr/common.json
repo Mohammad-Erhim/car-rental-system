@@ -269,6 +269,7 @@
   "ops.languages.title": "Langues",
   "ops.nav.audit": "Journal d’audit",
   "ops.nav.branding": "Image de marque & thème",
+  "ops.nav.breadcrumb": "Fil d’Ariane",
   "ops.nav.configuration": "Configuration",
   "ops.nav.dashboard": "Tableau de bord",
   "ops.nav.finance": "Finance",

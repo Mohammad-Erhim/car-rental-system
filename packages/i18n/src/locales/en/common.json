@@ -269,6 +269,7 @@
   "ops.languages.title": "Languages",
   "ops.nav.audit": "Audit log",
   "ops.nav.branding": "Branding & theme",
+  "ops.nav.breadcrumb": "Breadcrumb",
   "ops.nav.configuration": "Configuration",
   "ops.nav.dashboard": "Dashboard",
   "ops.nav.finance": "Finance",

@@ -24,6 +24,7 @@ import { LanguageSwitcher } from '../../components/language-switcher.js';
 import { SystemStatus } from '../../components/system-status.js';
 import { useAuth } from '../../lib/auth.js';
 
+import { Breadcrumbs } from './breadcrumbs.js';
 import { CommandPalette } from './command-palette.js';
 
 /**
@@ -307,6 +308,7 @@ export function OpsLayout() {
         ) : null}
 
         <main id="ops-main" className="flex-1 p-4 md:p-6">
+          {authed ? <Breadcrumbs items={commandItems} /> : null}
           <Outlet />
         </main>
       </div>

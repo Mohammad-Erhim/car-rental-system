@@ -269,6 +269,7 @@
   "ops.languages.title": "اللغات",
   "ops.nav.audit": "سجل التدقيق",
   "ops.nav.branding": "الهوية والمظهر",
+  "ops.nav.breadcrumb": "مسار التنقل",
   "ops.nav.configuration": "الإعدادات",
   "ops.nav.dashboard": "لوحة التحكم",
   "ops.nav.finance": "المالية",
