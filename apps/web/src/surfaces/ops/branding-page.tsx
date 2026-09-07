@@ -1,3 +1,4 @@
+import type { BrandAssetPurpose } from '@carrental/contracts';
 import { useI18n } from '@carrental/i18n/react';
 import type { BrandConfig } from '@carrental/theme';
 import {
@@ -21,6 +22,7 @@ import {
   useBrandingVersions,
   useDraftBranding,
   usePublishedBranding,
+  useUploadBrandAsset,
 } from '../../lib/branding-hooks.js';
 
 /**
@@ -78,9 +80,11 @@ export function BrandingPage() {
   const draftMut = useDraftBranding();
   const previewMut = useBrandingPreview();
   const transition = useBrandingTransition();
+  const uploadAsset = useUploadBrandAsset();
 
   const [mode, setMode] = useState<Mode>('light');
   const [draft, setDraft] = useState<BrandConfig | null>(null);
+  const [uploadingKey, setUploadingKey] = useState<BrandAssetPurpose | null>(null);
   const cfg = draft ?? published.data?.config ?? DEFAULT_BRAND_CONFIG;
 
   const violations = useMemo(() => validateBrandConfig(cfg), [cfg]);
@@ -93,6 +97,18 @@ export function BrandingPage() {
   const mutate = (next: BrandConfig) => setDraft(next);
   const assign = <K extends keyof BrandConfig>(key: K, value: BrandConfig[K]) =>
     mutate({ ...structuredClone(cfg), [key]: value });
+
+  async function onUpload(purpose: BrandAssetPurpose, file: File) {
+    setUploadingKey(purpose);
+    try {
+      const res = await uploadAsset.mutateAsync({ purpose, file });
+      assign('assets', { ...cfg.assets, [purpose]: res.ref });
+    } catch {
+      /* surfaced by uploadAsset.isError below */
+    } finally {
+      setUploadingKey(null);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -234,18 +250,53 @@ export function BrandingPage() {
               </Row>
               {(['logo', 'logoDark', 'favicon', 'ogImage'] as const).map((k) => (
                 <Row key={k} label={k}>
-                  <Input
-                    placeholder="https://…"
-                    value={cfg.assets[k] ?? ''}
-                    onChange={(e) =>
-                      assign('assets', { ...cfg.assets, [k]: e.target.value || null })
-                    }
-                  />
+                  <div className="space-y-1">
+                    <Input
+                      placeholder="https://…"
+                      value={cfg.assets[k] ?? ''}
+                      onChange={(e) =>
+                        assign('assets', { ...cfg.assets, [k]: e.target.value || null })
+                      }
+                    />
+                    <div className="flex items-center gap-2">
+                      <label className="cursor-pointer text-xs text-primary underline underline-offset-2">
+                        {uploadAsset.isPending && uploadingKey === k
+                          ? t('ops.branding.uploading')
+                          : t('ops.branding.upload')}
+                        <input
+                          type="file"
+                          accept={
+                            k === 'ogImage'
+                              ? 'image/png,image/jpeg,image/webp'
+                              : k === 'favicon'
+                                ? 'image/png,image/x-icon,.ico'
+                                : 'image/png,image/jpeg,image/webp,image/svg+xml'
+                          }
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = '';
+                            if (file) onUpload(k, file);
+                          }}
+                        />
+                      </label>
+                      {cfg.assets[k]?.startsWith('obj:') ? (
+                        <span className="text-xs text-muted-foreground">
+                          {t('ops.branding.uploaded')}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
                 </Row>
               ))}
               <p className="text-xs text-muted-foreground sm:col-span-2">
                 {t('ops.branding.assetHint')}
               </p>
+              {uploadAsset.isError ? (
+                <p className="text-xs text-destructive sm:col-span-2">
+                  {(uploadAsset.error as Error).message || t('error.generic')}
+                </p>
+              ) : null}
             </CardContent>
           </Card>
 

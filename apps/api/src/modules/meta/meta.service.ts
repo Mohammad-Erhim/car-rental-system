@@ -10,6 +10,7 @@ import { DEFAULT_BRAND_CONFIG, brandConfigSchema } from '@carrental/theme';
 import { Inject, Injectable } from '@nestjs/common';
 import { asc, eq } from 'drizzle-orm';
 
+import { ObjectStorageService } from '../../common/object-storage/object-storage.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { locale } from '../../database/schema/i18n';
@@ -30,6 +31,7 @@ export class MetaService {
     @Inject(DB) private readonly db: Database,
     private readonly health: HealthService,
     private readonly configVersions: ConfigVersionService,
+    private readonly storage: ObjectStorageService,
   ) {}
 
   /** Enabled locales come from the DB, not a bundled array (FR-GBL-004, SRS-I18N-001). */
@@ -72,10 +74,23 @@ export class MetaService {
     }
     const parsed = brandConfigSchema.safeParse(published.payload);
     return {
-      config: parsed.success ? parsed.data : DEFAULT_BRAND_CONFIG,
+      config: parsed.success ? this.resolveAssetRefs(parsed.data) : DEFAULT_BRAND_CONFIG,
       revision: parsed.success ? published.revision : 0,
       updatedAt: published.effectiveFrom ?? published.createdAt,
     };
+  }
+
+  /** Turn `obj:<key>` asset refs into signed, time-limited URLs; leave external/data URLs alone. */
+  private resolveAssetRefs<T extends BrandingResponse['config']>(config: T): T {
+    const assets = { ...config.assets };
+    for (const k of ['logo', 'logoDark', 'favicon', 'ogImage'] as const) {
+      const v = assets[k];
+      if (typeof v === 'string' && v.startsWith('obj:')) {
+        // long TTL — brand assets are immutable per key and the URL is cacheable
+        assets[k] = this.storage.signRef(v, 7 * 24 * 3600);
+      }
+    }
+    return { ...config, assets };
   }
 
   /**

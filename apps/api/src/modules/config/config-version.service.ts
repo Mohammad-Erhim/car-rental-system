@@ -296,6 +296,9 @@ export class ConfigVersionService {
           if (k === 'wordmark' || ref == null) continue;
           const ok =
             /^https:\/\/\S+$/.test(ref) ||
+            // `obj:<key>` — an uploaded asset (POST /config/branding/assets); the API resolves
+            // it to a short-lived signed URL in GET /meta/branding (STAGE-009).
+            /^obj:[A-Za-z0-9._/-]+$/.test(ref) ||
             (k === 'favicon' && /^data:image\/[a-z.+-]+;base64,[A-Za-z0-9+/=]+$/.test(ref));
           if (!ok) issues.push({ path: `assets.${k}`, code: 'must_be_https_url' });
         }

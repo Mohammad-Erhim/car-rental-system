@@ -1,4 +1,8 @@
-import type { BrandingResponse } from '@carrental/contracts';
+import type {
+  BrandAssetPurpose,
+  BrandAssetUploadResponse,
+  BrandingResponse,
+} from '@carrental/contracts';
 import type { BrandConfig } from '@carrental/theme';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -69,5 +73,27 @@ export function useBrandingTransition() {
       qc.invalidateQueries({ queryKey: ['ops', 'config-versions'] });
       qc.invalidateQueries({ queryKey: ['meta', 'branding'] });
     },
+  });
+}
+
+/** STAGE-009 — upload a brand image; returns an `obj:` ref to store in `assets.<purpose>`. */
+export function useUploadBrandAsset() {
+  return useMutation({
+    mutationFn: async (input: { purpose: BrandAssetPurpose; file: File }) => {
+      const dataBase64 = await fileToBase64(input.file);
+      return apiFetch<BrandAssetUploadResponse>('/config/branding/assets', {
+        method: 'POST',
+        body: { purpose: input.purpose, mediaType: input.file.type, dataBase64 },
+      });
+    },
+  });
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(',')[1] ?? '');
+    r.onerror = () => reject(r.error ?? new Error('read failed'));
+    r.readAsDataURL(file);
   });
 }

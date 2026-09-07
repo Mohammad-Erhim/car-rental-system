@@ -588,6 +588,21 @@
         ]
       }
     },
+    "/api/v1/config/branding/assets": {
+      "post": {
+        "operationId": "config_uploadBrandAsset",
+        "summary": "Upload a brand image (logo / favicon / OG) and get an obj: ref for the config (DEC-025)",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
     "/api/v1/admin/roles": {
       "get": {
         "operationId": "admin_listRoles",

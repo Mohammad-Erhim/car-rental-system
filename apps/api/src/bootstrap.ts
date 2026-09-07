@@ -28,6 +28,10 @@ export async function createApp(): Promise<NestExpressApplication> {
   app.useLogger(app.get(Logger));
   app.flushLogs();
 
+  // Brand-asset uploads (DEC-025) send an image as base64 JSON; the 100 KB default is too small.
+  // 3 MB covers a 2 MB OG image (~2.7 MB encoded); every upload route is staff-only + rate-limited.
+  app.useBodyParser('json', { limit: '3mb' });
+
   app.set('trust proxy', 1);
   app.use(
     helmet({

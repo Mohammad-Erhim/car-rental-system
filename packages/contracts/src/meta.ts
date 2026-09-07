@@ -58,6 +58,34 @@ export const zBrandingResponse = z.object({
 export type BrandingResponse = z.infer<typeof zBrandingResponse>;
 
 /**
+ * `POST /api/v1/config/branding/assets` (staff, `config.publish`) — upload one brand image and
+ * get back an opaque `obj:` ref to store in the branding config's `assets`. Body is base64 (no
+ * multipart) so it validates like any other DTO; the server sniffs the real media type, caps
+ * the size, checks raster dimensions, and sanitises SVG (STAGE-009, DEC-025).
+ */
+export const BRAND_ASSET_PURPOSES = ['logo', 'logoDark', 'favicon', 'ogImage'] as const;
+export type BrandAssetPurpose = (typeof BRAND_ASSET_PURPOSES)[number];
+
+export const zBrandAssetUploadRequest = z.object({
+  purpose: z.enum(BRAND_ASSET_PURPOSES),
+  /** declared media type — must match the sniffed bytes and the accepted set */
+  mediaType: z.enum(['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'image/x-icon']),
+  /** raw file bytes, base64 (with or without a `data:` prefix) — capped server-side */
+  dataBase64: z.string().min(1).max(4_000_000),
+});
+export type BrandAssetUploadRequest = z.infer<typeof zBrandAssetUploadRequest>;
+
+export const zBrandAssetUploadResponse = z.object({
+  ref: z.string(), // `obj:<key>` — persist this in brandConfig.assets
+  url: z.string(), // signed, short-lived preview URL
+  mediaType: z.string(),
+  sizeBytes: z.number().int().nonnegative(),
+  width: z.number().int().positive().nullable(),
+  height: z.number().int().positive().nullable(),
+});
+export type BrandAssetUploadResponse = z.infer<typeof zBrandAssetUploadResponse>;
+
+/**
  * SEO configuration managed from the dashboard (SRS-ADM-006, technical-SEO mandate). Rides the
  * config-version workflow under kind `seo` / key `default`; `GET /api/v1/meta/seo` serves the
  * published revision and `apps/site` folds it into every route's metadata, `robots`, and JSON-LD.

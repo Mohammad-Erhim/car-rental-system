@@ -1,3 +1,4 @@
+import { zBrandAssetUploadRequest, type BrandAssetUploadRequest } from '@carrental/contracts';
 import { Body, Controller, Get, Post, Query, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -8,6 +9,7 @@ import { Permissions } from '../../common/auth/permissions.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 
+import { BrandAssetService } from './brand-asset.service';
 import { ConfigPublic } from './config.public';
 import { TranslationService } from './translation.service';
 
@@ -34,6 +36,7 @@ export class ConfigController {
   constructor(
     private readonly cfg: ConfigPublic,
     private readonly translations: TranslationService,
+    private readonly brandAssets: BrandAssetService,
   ) {}
 
   @Get('locations')
@@ -115,5 +118,18 @@ export class ConfigController {
   @Permissions('config.publish')
   makeDefaultLocale(@Req() req: Request, @CurrentActor() actor: Actor) {
     return this.translations.setDefaultLocale(actor, req.params.code!);
+  }
+
+  @Post('branding/assets')
+  @Permissions('config.publish')
+  @ApiOperation({
+    operationId: 'config_uploadBrandAsset',
+    summary:
+      'Upload a brand image (logo / favicon / OG) and get an obj: ref for the config (DEC-025)',
+  })
+  uploadBrandAsset(
+    @Body(new ZodValidationPipe(zBrandAssetUploadRequest)) body: BrandAssetUploadRequest,
+  ) {
+    return this.brandAssets.upload(body);
   }
 }
