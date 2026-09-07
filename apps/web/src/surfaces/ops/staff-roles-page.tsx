@@ -10,6 +10,7 @@ import {
   ErrorSummary,
   Field,
   Input,
+  PageHeader,
   useToast,
 } from '@carrental/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -48,7 +49,11 @@ export function StaffRolesPage() {
     queryFn: ({ signal }) => apiFetch<StaffRow[]>('/admin/staff', { signal }),
   });
 
-  const errs = useFormErrors({ email: 'Email', fullName: 'Full name', roleCodes: 'Roles' });
+  const errs = useFormErrors({
+    email: t('ops.tbl.email'),
+    fullName: t('ops.staff.fullName'),
+    roleCodes: t('ops.tbl.roles'),
+  });
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [roleCode, setRoleCode] = useState('rental_agent');
@@ -64,8 +69,8 @@ export function StaffRolesPage() {
       setFullName('');
       errs.clear();
       toast({
-        title: 'Invitation sent',
-        description: 'They receive a set-password link.',
+        title: t('ops.staff.inviteSent'),
+        description: t('ops.staff.inviteSentBody'),
         variant: 'success',
       });
       void qc.invalidateQueries({ queryKey: ['admin', 'staff'] });
@@ -82,19 +87,15 @@ export function StaffRolesPage() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['admin', 'staff'] }),
   });
 
+  const TH = ['name', 'email', 'roles', 'status'] as const;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Staff &amp; roles</h1>
-        <p className="text-sm text-muted-foreground">
-          Invite staff, assign roles, and suspend access. Roles are composed from fixed permission
-          actions.
-        </p>
-      </div>
+      <PageHeader title={t('ops.staff.title')} description={t('ops.staff.subtitle')} />
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Invite a staff member</CardTitle>
+          <CardTitle className="text-base">{t('ops.staff.invite')}</CardTitle>
         </CardHeader>
         <CardContent>
           <ErrorSummary title={t('state.validation.title')} errors={errs.summary} />
@@ -106,7 +107,7 @@ export function StaffRolesPage() {
             }}
           >
             <Field
-              label="Full name"
+              label={t('ops.staff.fullName')}
               htmlFor="field-fullName"
               required
               error={errs.fieldError('fullName')}
@@ -122,7 +123,12 @@ export function StaffRolesPage() {
                 />
               )}
             </Field>
-            <Field label="Email" htmlFor="field-email" required error={errs.fieldError('email')}>
+            <Field
+              label={t('ops.tbl.email')}
+              htmlFor="field-email"
+              required
+              error={errs.fieldError('email')}
+            >
               {({ id, describedBy, invalid }) => (
                 <Input
                   id={id}
@@ -135,7 +141,7 @@ export function StaffRolesPage() {
                 />
               )}
             </Field>
-            <Field label="Role" htmlFor="field-role">
+            <Field label={t('ops.staff.role')} htmlFor="field-role">
               {({ id }) => (
                 <select
                   id={id}
@@ -152,7 +158,7 @@ export function StaffRolesPage() {
               )}
             </Field>
             <Button type="submit" loading={invite.isPending}>
-              Send invite
+              {t('ops.staff.inviteAction')}
             </Button>
           </form>
         </CardContent>
@@ -160,29 +166,30 @@ export function StaffRolesPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Staff</CardTitle>
+          <CardTitle className="text-base">{t('ops.staff.card')}</CardTitle>
         </CardHeader>
         <CardContent>
           {staff.isLoading ? (
-            <AppStateView kind="loading" title={t('state.loading.title')} inline />
+            <AppStateView kind="loading" title={t('ops.st.loading')} inline />
           ) : staff.isError ? (
             <AppStateView
               kind="failure"
               inline
-              title={t('state.failure.title')}
-              primaryAction={{ label: t('action.retry'), onClick: () => staff.refetch() }}
+              title={t('ops.staff.loadFail')}
+              primaryAction={{ label: t('ops.st.retry'), onClick: () => staff.refetch() }}
             />
           ) : !staff.data?.length ? (
-            <AppStateView kind="empty" inline title={t('state.empty.title')} />
+            <AppStateView kind="empty" inline title={t('ops.st.none')} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm" data-testid="staff-table">
                 <thead className="text-xs uppercase text-muted-foreground">
                   <tr>
-                    <th className="py-1 text-start font-medium">Name</th>
-                    <th className="py-1 text-start font-medium">Email</th>
-                    <th className="py-1 text-start font-medium">Roles</th>
-                    <th className="py-1 text-start font-medium">Status</th>
+                    {TH.map((k) => (
+                      <th key={k} className="py-1 text-start font-medium">
+                        {t(`ops.tbl.${k}`)}
+                      </th>
+                    ))}
                     <th className="py-1"></th>
                   </tr>
                 </thead>
@@ -190,7 +197,7 @@ export function StaffRolesPage() {
                   {staff.data.map((s) => (
                     <tr key={s.accountId} className="border-t">
                       <td className="py-2 pe-3 font-medium">{s.displayName}</td>
-                      <td className="py-2 pe-3 bidi-isolate">{s.email}</td>
+                      <td className="bidi-isolate py-2 pe-3">{s.email}</td>
                       <td className="py-2 pe-3">
                         <span className="flex flex-wrap gap-1">
                           {s.roleCodes.map((rc) => (
@@ -214,7 +221,7 @@ export function StaffRolesPage() {
                               changeStatus.mutate({ accountId: s.accountId, status: 'suspended' })
                             }
                           >
-                            Suspend
+                            {t('ops.staff.suspend')}
                           </Button>
                         ) : (
                           <Button
@@ -224,7 +231,7 @@ export function StaffRolesPage() {
                               changeStatus.mutate({ accountId: s.accountId, status: 'active' })
                             }
                           >
-                            Reactivate
+                            {t('ops.staff.reactivate')}
                           </Button>
                         )}
                       </td>

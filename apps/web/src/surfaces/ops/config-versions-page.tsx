@@ -1,3 +1,4 @@
+import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
   Badge,
@@ -9,6 +10,7 @@ import {
   ErrorSummary,
   Field,
   Input,
+  PageHeader,
   Textarea,
 } from '@carrental/ui';
 import { useMemo, useState } from 'react';
@@ -29,46 +31,22 @@ import { useFormErrors } from '../../lib/use-form-errors.js';
  * submitted for review, then published by a *different* person (FR-ADM-006 separation of
  * duties). Publishing supersedes the prior published revision and takes effect with no
  * redeploy; a published revision is never edited in place (FR-ADM-005).
+ *
+ * Display strings for areas / settings / fields resolve through i18n at render (`ops.cfg.kind.*`,
+ * `ops.cfg.key.*`, `ops.cfg.field.*` + `…Hint`); the structure below is identifiers only.
  */
 
 interface PolicyKey {
   key: string;
-  label: string;
-  fields: Array<{ name: string; label: string; hint: string }>;
+  fields: Array<{ name: string }>;
 }
 
-const KINDS: Array<{ kind: string; label: string; keys: PolicyKey[] }> = [
+const KINDS: Array<{ kind: string; keys: PolicyKey[] }> = [
   {
     kind: 'policy',
-    label: 'Policy',
     keys: [
-      {
-        key: 'cancellation',
-        label: 'Cancellation',
-        fields: [
-          {
-            name: 'freeCancelHours',
-            label: 'Free-cancel window (hours)',
-            hint: 'cancel at least this long before pickup for no fee',
-          },
-          {
-            name: 'lateFeeBps',
-            label: 'Late-cancel fee (basis points)',
-            hint: '2000 = 20% of the reservation total',
-          },
-        ],
-      },
-      {
-        key: 'fuel_rate',
-        label: 'Fuel recharge rate',
-        fields: [
-          {
-            name: 'minorPerPct',
-            label: 'Charge per 1% missing fuel (minor units)',
-            hint: '150 = $1.50 per percentage point below pickup level',
-          },
-        ],
-      },
+      { key: 'cancellation', fields: [{ name: 'freeCancelHours' }, { name: 'lateFeeBps' }] },
+      { key: 'fuel_rate', fields: [{ name: 'minorPerPct' }] },
     ],
   },
 ];
@@ -82,6 +60,7 @@ const STATE_VARIANT: Record<ConfigState, 'success' | 'warning' | 'neutral' | 'de
 };
 
 export function ConfigVersionsPage() {
+  const { t } = useI18n();
   const { hasPermission } = useAuth();
   const canPublish = hasPermission('config.publish');
 
@@ -90,12 +69,18 @@ export function ConfigVersionsPage() {
   const [key, setKey] = useState(kindDef.keys[0]!.key);
   const keyDef = kindDef.keys.find((k) => k.key === key) ?? kindDef.keys[0]!;
 
+  const fieldLabel = (name: string) => t(`ops.cfg.field.${name}`);
+  const fieldHint = (name: string) => t(`ops.cfg.field.${name}Hint`);
+
   const versions = useConfigVersions(kind, key);
   const draft = useDraftConfigVersion();
   const preview = useConfigPreview();
   const transition = useConfigVersionTransition();
   const errs = useFormErrors(
-    Object.fromEntries(keyDef.fields.map((f) => [f.name, f.label])) as Record<string, string>,
+    Object.fromEntries(keyDef.fields.map((f) => [f.name, fieldLabel(f.name)])) as Record<
+      string,
+      string
+    >,
   );
 
   const [values, setValues] = useState<Record<string, string>>({});
@@ -118,7 +103,7 @@ export function ConfigVersionsPage() {
     try {
       await preview.mutateAsync({ kind, payload: payloadFromForm() });
     } catch (err) {
-      setActionError(err instanceof ApiError ? err.message : 'Preview failed.');
+      setActionError(err instanceof ApiError ? err.message : t('ops.cfg.previewFail'));
     }
   }
 
@@ -146,7 +131,7 @@ export function ConfigVersionsPage() {
     setActionError(null);
     let reason: string | undefined;
     if (action === 'reject') {
-      reason = window.prompt('Reason for rejecting this version?')?.trim() ?? '';
+      reason = window.prompt(t('ops.cfg.rejectPrompt'))?.trim() ?? '';
       if (!reason) return;
     }
     try {
@@ -155,26 +140,21 @@ export function ConfigVersionsPage() {
       setActionError(
         err instanceof ApiError
           ? err.problem.params?.reason === 'author_cannot_approve'
-            ? 'A different reviewer must approve this change (separation of duties).'
+            ? t('ops.cfg.authorCannotApprove')
             : err.message
-          : 'Action failed.',
+          : t('ops.cfg.actionFail'),
       );
     }
   }
 
+  const TH = ['rev', 'state', 'payload', 'note', 'effective'] as const;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Configuration versioning</h1>
-        <p className="text-sm text-muted-foreground">
-          Draft a change, preview its effect, then submit it for review. Publishing is done by a
-          different person and takes effect immediately — the previous revision is kept, never
-          overwritten.
-        </p>
-      </div>
+      <PageHeader title={t('ops.cfg.title')} description={t('ops.cfg.subtitle')} />
 
       <div className="flex flex-wrap gap-3">
-        <Field label="Area" htmlFor="cfg-kind">
+        <Field label={t('ops.cfg.area')} htmlFor="cfg-kind">
           {({ id }) => (
             <select
               id={id}
@@ -189,13 +169,13 @@ export function ConfigVersionsPage() {
             >
               {KINDS.map((k) => (
                 <option key={k.kind} value={k.kind}>
-                  {k.label}
+                  {t(`ops.cfg.kind.${k.kind}`)}
                 </option>
               ))}
             </select>
           )}
         </Field>
-        <Field label="Setting" htmlFor="cfg-key">
+        <Field label={t('ops.cfg.setting')} htmlFor="cfg-key">
           {({ id }) => (
             <select
               id={id}
@@ -209,7 +189,7 @@ export function ConfigVersionsPage() {
             >
               {kindDef.keys.map((k) => (
                 <option key={k.key} value={k.key}>
-                  {k.label}
+                  {t(`ops.cfg.key.${k.key}`)}
                 </option>
               ))}
             </select>
@@ -220,35 +200,34 @@ export function ConfigVersionsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            Revision history — {kindDef.label} / {keyDef.label}
+            {t('ops.cfg.revHistory', {
+              area: t(`ops.cfg.kind.${kind}`),
+              setting: t(`ops.cfg.key.${key}`),
+            })}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {versions.isLoading ? (
-            <AppStateView kind="loading" inline title="Loading…" />
+            <AppStateView kind="loading" inline title={t('ops.st.loading')} />
           ) : versions.isError ? (
             <AppStateView
               kind="failure"
               inline
-              title="Couldn't load versions"
-              primaryAction={{ label: 'Retry', onClick: () => versions.refetch() }}
+              title={t('ops.cfg.loadFail')}
+              primaryAction={{ label: t('ops.st.retry'), onClick: () => versions.refetch() }}
             />
           ) : !versions.data?.length ? (
-            <AppStateView
-              kind="empty"
-              inline
-              title="No revisions yet — draft the first one below"
-            />
+            <AppStateView kind="empty" inline title={t('ops.cfg.empty')} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[40rem] text-sm" data-testid="config-version-table">
                 <thead className="text-start text-xs uppercase text-muted-foreground">
                   <tr>
-                    <th className="py-1 text-start font-medium">Rev</th>
-                    <th className="py-1 text-start font-medium">State</th>
-                    <th className="py-1 text-start font-medium">Payload</th>
-                    <th className="py-1 text-start font-medium">Note</th>
-                    <th className="py-1 text-start font-medium">Effective</th>
+                    {TH.map((k) => (
+                      <th key={k} className="py-1 text-start font-medium">
+                        {t(`ops.tbl.${k}`)}
+                      </th>
+                    ))}
                     <th className="py-1"></th>
                   </tr>
                 </thead>
@@ -283,7 +262,7 @@ export function ConfigVersionsPage() {
                               onClick={() => act(v.id, 'submit')}
                               data-testid={`submit-${v.revision}`}
                             >
-                              Submit
+                              {t('ops.cfg.submit')}
                             </Button>
                           ) : null}
                           {v.state === 'in_review' && canPublish ? (
@@ -293,7 +272,7 @@ export function ConfigVersionsPage() {
                                 onClick={() => act(v.id, 'approve')}
                                 data-testid={`approve-${v.revision}`}
                               >
-                                Approve &amp; publish
+                                {t('ops.cfg.approve')}
                               </Button>
                               <Button
                                 size="sm"
@@ -301,7 +280,7 @@ export function ConfigVersionsPage() {
                                 onClick={() => act(v.id, 'reject')}
                                 data-testid={`reject-${v.revision}`}
                               >
-                                Reject
+                                {t('ops.cfg.reject')}
                               </Button>
                             </>
                           ) : null}
@@ -323,19 +302,19 @@ export function ConfigVersionsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">New revision (draft)</CardTitle>
+          <CardTitle className="text-base">{t('ops.cfg.newDraft')}</CardTitle>
         </CardHeader>
         <CardContent>
-          <ErrorSummary title="Check the highlighted fields" errors={errs.summary} />
+          <ErrorSummary title={t('ops.cfg.checkFields')} errors={errs.summary} />
           <form onSubmit={submitDraft} className="space-y-4" noValidate>
             <div className="grid gap-4 sm:grid-cols-2">
               {keyDef.fields.map((f) => (
                 <Field
                   key={f.name}
-                  label={f.label}
+                  label={fieldLabel(f.name)}
                   htmlFor={`cfg-${f.name}`}
                   required
-                  hint={f.hint}
+                  hint={fieldHint(f.name)}
                   error={errs.fieldError(f.name)}
                 >
                   {({ id, invalid }) => (
@@ -354,7 +333,7 @@ export function ConfigVersionsPage() {
                 </Field>
               ))}
             </div>
-            <Field label="Change note" htmlFor="cfg-note" hint="why this change is being made">
+            <Field label={t('ops.cfg.note')} htmlFor="cfg-note" hint={t('ops.cfg.noteHint')}>
               {({ id }) => (
                 <Textarea id={id} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
               )}
@@ -368,10 +347,10 @@ export function ConfigVersionsPage() {
                 loading={preview.isPending}
                 data-testid="config-preview"
               >
-                Preview effect
+                {t('ops.cfg.preview')}
               </Button>
               <Button type="submit" loading={draft.isPending} data-testid="config-draft">
-                Save draft
+                {t('ops.cfg.saveDraft')}
               </Button>
             </div>
 
@@ -380,7 +359,7 @@ export function ConfigVersionsPage() {
                 className="rounded-md border bg-muted/40 p-3 text-sm"
                 data-testid="config-preview-output"
               >
-                <p className="mb-1 font-medium">Preview</p>
+                <p className="mb-1 font-medium">{t('ops.cfg.previewOut')}</p>
                 <ul className="list-disc space-y-1 ps-5 text-muted-foreground">
                   {preview.data.examples.map((ex, i) => (
                     <li key={i}>{ex}</li>

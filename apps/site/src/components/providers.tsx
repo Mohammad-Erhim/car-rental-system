@@ -1,7 +1,7 @@
 'use client';
 
-import { I18nProvider } from '@carrental/i18n/react';
-import { ThemeProvider } from '@carrental/ui';
+import { I18nProvider, useI18n } from '@carrental/i18n/react';
+import { ThemeProvider, UiStringsProvider } from '@carrental/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 
@@ -37,9 +37,17 @@ export function Providers({
             document.cookie = `carrental.locale=${l};path=/;max-age=${60 * 60 * 24 * 365}`;
           }}
         >
-          {children}
+          <LocalisedUiStrings>{children}</LocalisedUiStrings>
         </I18nProvider>
       </ThemeProvider>
     </QueryClientProvider>
+  );
+}
+
+/** Localises the micro-copy the shared `packages/ui` components render themselves. */
+function LocalisedUiStrings({ children }: { children: ReactNode }) {
+  const { t } = useI18n();
+  return (
+    <UiStringsProvider value={{ optional: t('field.optional') }}>{children}</UiStringsProvider>
   );
 }

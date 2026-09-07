@@ -1,3 +1,4 @@
+import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
   Badge,
@@ -8,6 +9,7 @@ import {
   CardTitle,
   Field,
   Input,
+  PageHeader,
 } from '@carrental/ui';
 import { useState } from 'react';
 
@@ -29,6 +31,7 @@ import { useAuth } from '../../lib/auth.js';
  * result. A completed run can be exported as CSV or scheduled for recurring delivery.
  */
 export function ReportsPage() {
+  const { t } = useI18n();
   const { hasPermission } = useAuth();
   const canSchedule = hasPermission('report.export');
 
@@ -55,7 +58,7 @@ export function ReportsPage() {
       const r = await run.mutateAsync({ code });
       setResult(r);
     } catch (err) {
-      setRunError(err instanceof ApiError ? err.message : 'Report run failed.');
+      setRunError(err instanceof ApiError ? err.message : t('ops.rpt.runFail'));
     }
   }
 
@@ -64,7 +67,7 @@ export function ReportsPage() {
       const text = await fetchReportCsv(runId);
       setCsvOpen(text);
     } catch {
-      setCsvOpen('Export failed.');
+      setCsvOpen(t('ops.rpt.exportFail'));
     }
   }
 
@@ -89,38 +92,32 @@ export function ReportsPage() {
       await schedule.mutateAsync({ definitionCode: code, cron: sched.cron, recipients });
       setSched((s) => ({ ...s, recipients: '' }));
     } catch (err) {
-      setSchedError(err instanceof ApiError ? err.message : 'Could not save the schedule.');
+      setSchedError(err instanceof ApiError ? err.message : t('ops.rpt.scheduleFail'));
     }
   }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Reports</h1>
-        <p className="text-sm text-muted-foreground">
-          Operational and financial summaries. Results are limited to the locations you are scoped
-          to; every run records the scope it used.
-        </p>
-      </div>
+      <PageHeader title={t('ops.rpt.title')} description={t('ops.rpt.subtitle')} />
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Run a report</CardTitle>
+          <CardTitle className="text-base">{t('ops.rpt.run')}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           {defs.isLoading ? (
-            <AppStateView kind="loading" inline title="Loading…" />
+            <AppStateView kind="loading" inline title={t('ops.st.loading')} />
           ) : defs.isError ? (
             <AppStateView
               kind="failure"
               inline
-              title="Couldn't load reports"
-              primaryAction={{ label: 'Retry', onClick: () => defs.refetch() }}
+              title={t('ops.rpt.loadFail')}
+              primaryAction={{ label: t('ops.st.retry'), onClick: () => defs.refetch() }}
             />
           ) : (
             <>
               <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                <Field label="Report" htmlFor="rpt-select" className="w-full sm:w-72">
+                <Field label={t('ops.rpt.report')} htmlFor="rpt-select" className="w-full sm:w-72">
                   {({ id }) => (
                     <select
                       id={id}
@@ -141,7 +138,7 @@ export function ReportsPage() {
                   )}
                 </Field>
                 <Button onClick={doRun} loading={run.isPending} data-testid="report-run">
-                  Run
+                  {t('ops.rpt.runAction')}
                 </Button>
               </div>
               <p className="text-sm text-muted-foreground">
@@ -163,7 +160,7 @@ export function ReportsPage() {
                   {result.scopeNote}
                 </Badge>
                 <span className="text-muted-foreground">
-                  {result.rowCount} row{result.rowCount === 1 ? '' : 's'}
+                  {t('ops.rpt.rows', { n: result.rowCount })}
                 </span>
                 <Button
                   size="sm"
@@ -171,7 +168,7 @@ export function ReportsPage() {
                   onClick={() => showCsv(result.runId)}
                   data-testid="report-export"
                 >
-                  Export CSV
+                  {t('ops.rpt.export')}
                 </Button>
               </div>
               <div className="overflow-x-auto">
@@ -205,7 +202,7 @@ export function ReportsPage() {
                           className="py-2 text-muted-foreground"
                           colSpan={result.columns.length || 1}
                         >
-                          No data for this scope yet.
+                          {t('ops.rpt.noData')}
                         </td>
                       </tr>
                     )}
@@ -225,7 +222,7 @@ export function ReportsPage() {
                     variant="outline"
                     onClick={() => downloadCsv(result.runId, csvOpen)}
                   >
-                    Download file
+                    {t('ops.rpt.download')}
                   </Button>
                 </div>
               ) : null}
@@ -237,13 +234,13 @@ export function ReportsPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 [&>*]:min-w-0">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Recent runs</CardTitle>
+            <CardTitle className="text-base">{t('ops.rpt.recent')}</CardTitle>
           </CardHeader>
           <CardContent>
             {runs.isLoading ? (
-              <AppStateView kind="loading" inline title="Loading…" />
+              <AppStateView kind="loading" inline title={t('ops.st.loading')} />
             ) : !runs.data?.length ? (
-              <AppStateView kind="empty" inline title="No runs yet" />
+              <AppStateView kind="empty" inline title={t('ops.rpt.noRuns')} />
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[24rem] text-sm">
@@ -267,13 +264,13 @@ export function ReportsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Scheduled delivery</CardTitle>
+            <CardTitle className="text-base">{t('ops.rpt.schedule')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {schedules.isLoading ? (
-              <AppStateView kind="loading" inline title="Loading…" />
+              <AppStateView kind="loading" inline title={t('ops.st.loading')} />
             ) : !schedules.data?.length ? (
-              <p className="text-sm text-muted-foreground">No schedules yet.</p>
+              <p className="text-sm text-muted-foreground">{t('ops.rpt.noSchedules')}</p>
             ) : (
               <ul className="space-y-2 text-sm" data-testid="report-schedule-rows">
                 {schedules.data.map((s) => (
@@ -283,7 +280,7 @@ export function ReportsPage() {
                       <span className="font-mono text-xs text-muted-foreground">{s.cron}</span>
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {s.recipients.length} recipient{s.recipients.length === 1 ? '' : 's'}
+                      {t('ops.rpt.recipientCount', { n: s.recipients.length })}
                     </span>
                   </li>
                 ))}
@@ -292,7 +289,7 @@ export function ReportsPage() {
 
             {canSchedule ? (
               <form onSubmit={submitSchedule} className="space-y-3" noValidate>
-                <Field label="Cron" htmlFor="sch-cron" hint="minute hour day month weekday">
+                <Field label={t('ops.rpt.cron')} htmlFor="sch-cron" hint={t('ops.rpt.cronHint')}>
                   {({ id }) => (
                     <Input
                       id={id}
@@ -302,7 +299,11 @@ export function ReportsPage() {
                     />
                   )}
                 </Field>
-                <Field label="Recipients" htmlFor="sch-to" hint="comma-separated email addresses">
+                <Field
+                  label={t('ops.rpt.recipients')}
+                  htmlFor="sch-to"
+                  hint={t('ops.rpt.recipientsHint')}
+                >
                   {({ id }) => (
                     <Input
                       id={id}
@@ -319,7 +320,9 @@ export function ReportsPage() {
                   loading={schedule.isPending}
                   data-testid="report-schedule"
                 >
-                  Schedule “{defs.data?.find((d) => d.code === code)?.title ?? code}”
+                  {t('ops.rpt.scheduleFor', {
+                    name: defs.data?.find((d) => d.code === code)?.title ?? code,
+                  })}
                 </Button>
                 {schedError ? (
                   <p className="text-sm text-destructive" data-testid="report-schedule-error">
@@ -328,9 +331,7 @@ export function ReportsPage() {
                 ) : null}
               </form>
             ) : (
-              <p className="text-xs text-muted-foreground">
-                Scheduling requires the report.export permission.
-              </p>
+              <p className="text-xs text-muted-foreground">{t('ops.rpt.needExport')}</p>
             )}
           </CardContent>
         </Card>

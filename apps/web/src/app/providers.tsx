@@ -1,6 +1,6 @@
 import { BASE_RESOURCES, SUPPORTED_LOCALE_CODES } from '@carrental/i18n';
-import { I18nProvider } from '@carrental/i18n/react';
-import { ThemeProvider, ToastProvider } from '@carrental/ui';
+import { I18nProvider, useI18n } from '@carrental/i18n/react';
+import { ThemeProvider, ToastProvider, UiStringsProvider } from '@carrental/ui';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useMemo, useState, type ReactNode } from 'react';
 
@@ -18,6 +18,14 @@ function BrandedThemeProvider({ children }: { children: ReactNode }) {
     <ThemeProvider defaultTheme="system" brand={branding.data?.config ?? null}>
       {children}
     </ThemeProvider>
+  );
+}
+
+/** Localises the micro-copy the shared `packages/ui` components render themselves. */
+function LocalisedUiStrings({ children }: { children: ReactNode }) {
+  const { t } = useI18n();
+  return (
+    <UiStringsProvider value={{ optional: t('field.optional') }}>{children}</UiStringsProvider>
   );
 }
 
@@ -42,9 +50,11 @@ export function AppProviders({ children }: { children: ReactNode }) {
             }
           }}
         >
-          <AuthProvider>
-            <ToastProvider>{children}</ToastProvider>
-          </AuthProvider>
+          <LocalisedUiStrings>
+            <AuthProvider>
+              <ToastProvider>{children}</ToastProvider>
+            </AuthProvider>
+          </LocalisedUiStrings>
         </I18nProvider>
       </BrandedThemeProvider>
     </QueryClientProvider>

@@ -1,6 +1,7 @@
 import { useId, type ReactNode } from 'react';
 
 import { cn } from '../lib/utils.js';
+import { useUiStrings } from '../providers/ui-strings.js';
 
 import { Label } from './label.js';
 
@@ -13,6 +14,7 @@ export interface FieldProps {
   hint?: ReactNode;
   /** validation error — associated via aria-describedby, shown inline */
   error?: string | null;
+  /** overrides the "(optional)" suffix; defaults to the localized value from `UiStringsProvider` */
   optionalText?: string;
   className?: string;
   children: (ids: { id: string; describedBy: string | undefined; invalid: boolean }) => ReactNode;
@@ -28,10 +30,12 @@ export function Field({
   required,
   hint,
   error,
-  optionalText = 'optional',
+  optionalText,
   className,
   children,
 }: FieldProps) {
+  const ui = useUiStrings();
+  const optional = optionalText ?? ui.optional;
   const generated = useId();
   const id = htmlFor ?? generated;
   const hintId = hint ? `${id}-hint` : undefined;
@@ -43,7 +47,7 @@ export function Field({
       <Label htmlFor={id} required={required}>
         {label}
         {!required ? (
-          <span className="ms-1 text-xs font-normal text-muted-foreground">({optionalText})</span>
+          <span className="ms-1 text-xs font-normal text-muted-foreground">({optional})</span>
         ) : null}
       </Label>
       {hint ? (

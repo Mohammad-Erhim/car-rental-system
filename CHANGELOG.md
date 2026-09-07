@@ -6,6 +6,32 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### STAGE-012 — Ops dashboard · full per-page i18n (2026-09-07)
+
+Every operations screen is now authored end-to-end in **English, Arabic, and French** —
+no screen renders mixed-language or mixed-direction. Swept in a browser across the 13 ops
+routes × 3 locales × light/dark: 99/99 checks (correct `<html lang>`/`dir`, zero Latin-script
+UI-string leaks under `ar`, zero console errors).
+
+**Added**
+
+- 63 `ops.*` message keys ×3 locales covering the eight screens that still had inline
+  English: audit log, staff & roles, rate plans, translations, reference data, configuration
+  versioning, reports, rental board. Includes the config-versioning area / setting / field
+  labels + hints, which now resolve through `ops.cfg.{kind,key,field}.*` instead of a
+  hard-coded structure.
+- `packages/ui` `PageHeader` adopted on all 13 ops screens (consistent title / description /
+  actions; replaces ad-hoc `<h1>` blocks).
+- `UiStringsProvider` / `useUiStrings` in `packages/ui` — feeds the micro-copy the shared
+  components render themselves (the `Field` "(optional)" suffix) from the host's i18n
+  runtime; English defaults keep `packages/ui` usable without a provider. Wired in both
+  `apps/web` and `apps/site`. New `field.optional` key ×3.
+
+**Changed**
+
+- Table headers, empty / error / loading states, filter labels, and every button on the
+  eight screens above route through `t()` (`ops.st.*`, `ops.tbl.*`, per-screen namespaces).
+
 ### STAGE-012 — Ops dashboard UX · fix pass (2026-09-07)
 
 Reported issues: dashboard navigation double-prefixed `/ops`, the public site was

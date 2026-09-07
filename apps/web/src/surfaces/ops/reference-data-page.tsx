@@ -11,6 +11,7 @@ import {
   ErrorSummary,
   Field,
   Input,
+  PageHeader,
 } from '@carrental/ui';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Lock } from 'lucide-react';
@@ -36,38 +37,33 @@ export function ReferenceDataPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Reference data</h1>
-        <p className="text-sm text-muted-foreground">
-          Every business option list, its owner, classification, and whether it is editable.
-        </p>
-      </div>
+      <PageHeader title={t('ops.ref.title')} description={t('ops.ref.subtitle')} />
 
       {/* min-w-0 on the grid items so the values table can scroll inside its own box
           instead of forcing the whole column (and the page) wider on small screens */}
       <div className="grid gap-6 lg:grid-cols-[20rem_1fr] [&>*]:min-w-0">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Catalogue</CardTitle>
+            <CardTitle className="text-base">{t('ops.ref.catalogue')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <Input
               placeholder={t('action.search')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              aria-label="Search reference types"
+              aria-label={t('ops.ref.search')}
             />
             {types.isLoading ? (
-              <AppStateView kind="loading" title={t('state.loading.title')} inline />
+              <AppStateView kind="loading" title={t('ops.st.loading')} inline />
             ) : types.isError ? (
               <AppStateView
                 kind="failure"
                 inline
-                title={t('state.failure.title')}
-                primaryAction={{ label: t('action.retry'), onClick: () => types.refetch() }}
+                title={t('ops.st.loadFail', { what: t('ops.ref.title') })}
+                primaryAction={{ label: t('ops.st.retry'), onClick: () => types.refetch() }}
               />
             ) : !types.data?.length ? (
-              <AppStateView kind="no-results" inline title={t('state.noResults.title')} />
+              <AppStateView kind="no-results" inline title={t('ops.ref.noTypes')} />
             ) : (
               <ul className="max-h-[28rem] space-y-1 overflow-auto" data-testid="lookup-type-list">
                 {types.data.map((tp) => (
@@ -83,13 +79,14 @@ export function ReferenceDataPage() {
                       <span className="min-w-0">
                         <span className="block truncate font-medium">{tp.code}</span>
                         <span className="block text-xs text-muted-foreground">
-                          {tp.classification} · {tp.activeValueCount} active
+                          {tp.classification} ·{' '}
+                          {t('ops.ref.activeCount', { n: tp.activeValueCount })}
                         </span>
                       </span>
                       {tp.editability === 'read_only' ? (
                         <Lock
                           className="size-3.5 shrink-0 text-muted-foreground"
-                          aria-label="read-only"
+                          aria-label={t('ops.ref.readOnly')}
                         />
                       ) : (
                         <ChevronRight className="size-4 shrink-0" aria-hidden="true" />
@@ -107,7 +104,7 @@ export function ReferenceDataPage() {
         ) : (
           <Card>
             <CardContent className="py-12">
-              <AppStateView kind="empty" title="Select a reference type" inline />
+              <AppStateView kind="empty" title={t('ops.ref.pickType')} inline />
             </CardContent>
           </Card>
         )}
@@ -120,7 +117,7 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
   const { t } = useI18n();
   const qc = useQueryClient();
   const values = useLookupValues(typeCode, { locale: 'en', includeInactive: true });
-  const errs = useFormErrors({ code: 'Code', label: 'Label' });
+  const errs = useFormErrors({ code: t('ops.tbl.code'), label: t('ops.tbl.label') });
   const [newCode, setNewCode] = useState('');
   const [newLabel, setNewLabel] = useState('');
   const [deactivateId, setDeactivateId] = useState<string | null>(null);
@@ -163,6 +160,8 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
     onSuccess: () => void invalidate(),
   });
 
+  const TH = ['code', 'labelEn', 'state'] as const;
+
   return (
     <Card>
       <CardHeader>
@@ -171,7 +170,7 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
           {type ? <Badge variant="neutral">{type.classification}</Badge> : null}
           {readOnly ? (
             <Badge variant="warning">
-              <Lock className="size-3" aria-hidden="true" /> read-only
+              <Lock className="size-3" aria-hidden="true" /> {t('ops.ref.readOnly')}
             </Badge>
           ) : null}
         </CardTitle>
@@ -181,22 +180,24 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
       </CardHeader>
       <CardContent className="space-y-4">
         {values.isLoading ? (
-          <AppStateView kind="loading" title={t('state.loading.title')} inline />
+          <AppStateView kind="loading" title={t('ops.st.loading')} inline />
         ) : values.isError ? (
           <AppStateView
             kind="failure"
             inline
-            title={t('state.failure.title')}
-            primaryAction={{ label: t('action.retry'), onClick: () => values.refetch() }}
+            title={t('ops.ref.loadValuesFail')}
+            primaryAction={{ label: t('ops.st.retry'), onClick: () => values.refetch() }}
           />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[30rem] text-sm">
               <thead className="text-start text-xs uppercase text-muted-foreground">
                 <tr>
-                  <th className="py-1 text-start font-medium">Code</th>
-                  <th className="py-1 text-start font-medium">Label (en)</th>
-                  <th className="py-1 text-start font-medium">State</th>
+                  {TH.map((k) => (
+                    <th key={k} className="py-1 text-start font-medium">
+                      {k === 'labelEn' ? t('ops.ref.labelEn') : t(`ops.tbl.${k}`)}
+                    </th>
+                  ))}
                   <th className="py-1"></th>
                 </tr>
               </thead>
@@ -218,9 +219,9 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
                     </td>
                     <td className="py-2 pe-2 align-top">
                       {v.isActive ? (
-                        <Badge variant="success">Active</Badge>
+                        <Badge variant="success">{t('ops.ref.active')}</Badge>
                       ) : (
-                        <Badge variant="neutral">Inactive — historical</Badge>
+                        <Badge variant="neutral">{t('ops.ref.inactive')}</Badge>
                       )}
                     </td>
                     <td className="py-2 text-end align-top">
@@ -232,7 +233,7 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
                             onClick={() => setDeactivateId(v.id)}
                             data-testid={`deactivate-${v.code}`}
                           >
-                            Deactivate
+                            {t('ops.ref.deactivate')}
                           </Button>
                         ) : (
                           <Button
@@ -240,7 +241,7 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
                             variant="ghost"
                             onClick={() => setActive.mutate({ id: v.id, active: true })}
                           >
-                            Restore
+                            {t('ops.ref.restore')}
                           </Button>
                         )
                       ) : null}
@@ -260,15 +261,15 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
               create.mutate();
             }}
           >
-            <p className="text-sm font-medium">Add a value</p>
+            <p className="text-sm font-medium">{t('ops.ref.addValue')}</p>
             <ErrorSummary title={t('state.validation.title')} errors={errs.summary} />
             <div className="grid gap-3 sm:grid-cols-2">
               <Field
-                label="Stable code"
+                label={t('ops.ref.stableCode')}
                 htmlFor="field-code"
                 required
                 error={errs.fieldError('code')}
-                hint="lowercase, digits, underscore"
+                hint={t('ops.ref.codeHint')}
               >
                 {({ id, describedBy, invalid }) => (
                   <Input
@@ -279,13 +280,13 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
                     onChange={(e) =>
                       setNewCode(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))
                     }
-                    placeholder="e.g. severe_weather"
+                    placeholder={t('ops.ref.codePlaceholder')}
                     required
                   />
                 )}
               </Field>
               <Field
-                label="Label (English)"
+                label={t('ops.ref.labelEn')}
                 htmlFor="field-label"
                 required
                 error={errs.fieldError('label')}
@@ -303,7 +304,7 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
               </Field>
             </div>
             <Button type="submit" size="sm" loading={create.isPending}>
-              Add value
+              {t('ops.ref.add')}
             </Button>
           </form>
         ) : null}
@@ -312,9 +313,9 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
       <ConfirmDialog
         open={!!deactivateId}
         onOpenChange={(v) => !v && setDeactivateId(null)}
-        title="Deactivate this value?"
-        description="It will be removed from new selections but stays readable on existing records."
-        confirmLabel="Deactivate"
+        title={t('ops.ref.deactivateQ')}
+        description={t('ops.ref.deactivateBody')}
+        confirmLabel={t('ops.ref.deactivate')}
         destructive
         onConfirm={() => {
           if (deactivateId) setActive.mutate({ id: deactivateId, active: false });
@@ -325,6 +326,7 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
 }
 
 function InlineLabel({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+  const { t } = useI18n();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   if (!editing) {
@@ -347,7 +349,7 @@ function InlineLabel({ value, onSave }: { value: string; onSave: (v: string) => 
         className="h-8"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        aria-label="Edit label"
+        aria-label={t('ops.ref.editLabel')}
         autoFocus
       />
       <Button
@@ -357,10 +359,10 @@ function InlineLabel({ value, onSave }: { value: string; onSave: (v: string) => 
           setEditing(false);
         }}
       >
-        Save
+        {t('ops.st.save')}
       </Button>
       <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
-        Cancel
+        {t('ops.st.cancel')}
       </Button>
     </span>
   );

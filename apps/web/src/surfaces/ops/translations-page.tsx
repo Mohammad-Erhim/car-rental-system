@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
   Input,
+  PageHeader,
 } from '@carrental/ui';
 import { useState } from 'react';
 
@@ -39,39 +40,36 @@ export function TranslationsPage() {
   const ns = namespace || namespaces[0] || '';
   const loc = locale || locales[0] || '';
 
+  const TH = ['namespace', 'language', 'coverage', 'missing'] as const;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Translation catalogue</h1>
-        <p className="text-sm text-muted-foreground">
-          Coverage by language and namespace. Publishing a namespace is blocked while a mandatory
-          legal string is still untranslated.
-        </p>
-      </div>
+      <PageHeader title={t('ops.trans.title')} description={t('ops.trans.subtitle')} />
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Coverage</CardTitle>
+          <CardTitle className="text-base">{t('ops.trans.coverage')}</CardTitle>
         </CardHeader>
         <CardContent>
           {completeness.isLoading ? (
-            <AppStateView kind="loading" title={t('state.loading.title')} inline />
+            <AppStateView kind="loading" title={t('ops.st.loading')} inline />
           ) : completeness.isError ? (
             <AppStateView
               kind="failure"
               inline
-              title={t('state.failure.title')}
-              primaryAction={{ label: t('action.retry'), onClick: () => completeness.refetch() }}
+              title={t('ops.trans.loadFail')}
+              primaryAction={{ label: t('ops.st.retry'), onClick: () => completeness.refetch() }}
             />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[28rem] text-sm" data-testid="translation-coverage">
                 <thead className="text-start text-xs uppercase text-muted-foreground">
                   <tr>
-                    <th className="py-1 text-start font-medium">Namespace</th>
-                    <th className="py-1 text-start font-medium">Language</th>
-                    <th className="py-1 text-start font-medium">Coverage</th>
-                    <th className="py-1 text-start font-medium">Missing</th>
+                    {TH.map((k) => (
+                      <th key={k} className="py-1 text-start font-medium">
+                        {t(`ops.tbl.${k}`)}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -146,17 +144,17 @@ function NamespaceEditor({
       await publish.mutateAsync({ namespace, locale });
       void entries.refetch();
     } catch (err) {
-      setPublishError(err instanceof ApiError ? err.message : 'Publish failed — please try again.');
+      setPublishError(err instanceof ApiError ? err.message : t('ops.trans.publishFail'));
     }
   }
 
   return (
     <Card>
       <CardHeader className="gap-3">
-        <CardTitle className="text-base">Strings</CardTitle>
+        <CardTitle className="text-base">{t('ops.trans.strings')}</CardTitle>
         <div className="flex flex-wrap gap-2">
           <select
-            aria-label="Namespace"
+            aria-label={t('ops.tbl.namespace')}
             className={selectClass}
             value={namespace}
             onChange={(e) => onPick(e.target.value, locale)}
@@ -168,7 +166,7 @@ function NamespaceEditor({
             ))}
           </select>
           <select
-            aria-label="Language"
+            aria-label={t('ops.tbl.language')}
             className={selectClass}
             value={locale}
             onChange={(e) => onPick(namespace, e.target.value)}
@@ -186,7 +184,7 @@ function NamespaceEditor({
               loading={publish.isPending}
               data-testid="translation-publish"
             >
-              Publish reviewed
+              {t('ops.trans.publish')}
             </Button>
           ) : null}
         </div>
@@ -198,13 +196,13 @@ function NamespaceEditor({
       </CardHeader>
       <CardContent>
         {entries.isLoading ? (
-          <AppStateView kind="loading" title={t('state.loading.title')} inline />
+          <AppStateView kind="loading" title={t('ops.st.loading')} inline />
         ) : entries.isError ? (
           <AppStateView
             kind="failure"
             inline
-            title={t('state.failure.title')}
-            primaryAction={{ label: t('action.retry'), onClick: () => entries.refetch() }}
+            title={t('ops.trans.loadFail')}
+            primaryAction={{ label: t('ops.st.retry'), onClick: () => entries.refetch() }}
           />
         ) : (
           <ul className="divide-y" data-testid="translation-entries">
@@ -215,7 +213,9 @@ function NamespaceEditor({
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-mono text-xs">{row.key}</span>
                     <div className="flex items-center gap-1.5">
-                      {row.outdated ? <Badge variant="warning">outdated</Badge> : null}
+                      {row.outdated ? (
+                        <Badge variant="warning">{t('ops.trans.outdated')}</Badge>
+                      ) : null}
                       <Badge
                         variant={row.status === 'published' ? 'success' : 'neutral'}
                         data-testid={`translation-status-${row.key}`}
@@ -229,7 +229,7 @@ function NamespaceEditor({
                     <Input
                       className="min-w-[16rem] flex-1"
                       value={draft}
-                      aria-label={`Translation for ${row.key}`}
+                      aria-label={t('ops.trans.editAria', { key: row.key })}
                       disabled={!canManage}
                       onChange={(e) => setDrafts((d) => ({ ...d, [row.key]: e.target.value }))}
                     />
@@ -249,7 +249,7 @@ function NamespaceEditor({
                             })
                           }
                         >
-                          Save draft
+                          {t('ops.trans.saveDraft')}
                         </Button>
                         <Button
                           size="sm"
@@ -265,7 +265,7 @@ function NamespaceEditor({
                             })
                           }
                         >
-                          Mark reviewed
+                          {t('ops.trans.markReviewed')}
                         </Button>
                       </>
                     ) : null}

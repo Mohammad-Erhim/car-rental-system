@@ -1,3 +1,4 @@
+import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
   Badge,
@@ -8,6 +9,7 @@ import {
   CardTitle,
   Field,
   Input,
+  PageHeader,
 } from '@carrental/ui';
 import { useState } from 'react';
 
@@ -27,31 +29,26 @@ import {
  * the readiness check so the unit becomes bookable again.
  */
 export function RentalBoardPage() {
+  const { t } = useI18n();
   const rentals = useOpsRentals({});
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Rentals</h1>
-        <p className="text-sm text-muted-foreground">
-          Pickup, active, and returned rentals. A returned vehicle is not bookable until readiness
-          passes.
-        </p>
-      </div>
+      <PageHeader title={t('ops.rent.title')} description={t('ops.rent.subtitle')} />
 
       {rentals.isLoading ? (
-        <AppStateView kind="loading" inline title="Loading…" />
+        <AppStateView kind="loading" inline title={t('ops.st.loading')} />
       ) : rentals.isError ? (
         <AppStateView
           kind="failure"
           inline
-          title="Couldn't load rentals"
-          primaryAction={{ label: 'Retry', onClick: () => rentals.refetch() }}
+          title={t('ops.rent.loadFail')}
+          primaryAction={{ label: t('ops.st.retry'), onClick: () => rentals.refetch() }}
         />
       ) : !rentals.data?.length ? (
         <AppStateView
           kind="empty"
-          title="No rentals yet"
-          description="Assign a vehicle to a confirmed reservation from the Reservations queue to start one."
+          title={t('ops.rent.empty')}
+          description={t('ops.rent.emptyBody')}
         />
       ) : (
         <ul className="space-y-3" data-testid="rental-list">
@@ -67,6 +64,7 @@ export function RentalBoardPage() {
 }
 
 function RentalRow({ rental: r }: { rental: Rental }) {
+  const { t } = useI18n();
   const pickup = usePickup(r.reference);
   const ret = useReturnRental(r.reference);
   const readiness = useReadiness(r.reference);
@@ -89,7 +87,7 @@ function RentalRow({ rental: r }: { rental: Rental }) {
       });
       setOpen(false);
     } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : 'Pickup failed.');
+      setMsg(e instanceof ApiError ? e.message : t('ops.rent.pickupFail'));
     }
   }
 
@@ -101,11 +99,14 @@ function RentalRow({ rental: r }: { rental: Rental }) {
         fuelPct: Number(fuel || 100),
       });
       setMsg(
-        `Returned — settlement ${formatMinor(res.adjustmentMinor, r.currency)} (fuel ${formatMinor(res.fuelMinor, r.currency)}).`,
+        t('ops.rent.returnedMsg', {
+          total: formatMinor(res.adjustmentMinor, r.currency),
+          fuel: formatMinor(res.fuelMinor, r.currency),
+        }),
       );
       setOpen(false);
     } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : 'Return failed.');
+      setMsg(e instanceof ApiError ? e.message : t('ops.rent.returnFail'));
     }
   }
 
@@ -132,7 +133,7 @@ function RentalRow({ rental: r }: { rental: Rental }) {
         <p className="text-xs text-muted-foreground">
           {r.pickupLocationCode} → {r.returnLocationCode} ·{' '}
           {new Date(r.scheduledPickupAt).toLocaleDateString()} –{' '}
-          {new Date(r.scheduledReturnAt).toLocaleDateString()} · settlement{' '}
+          {new Date(r.scheduledReturnAt).toLocaleDateString()} · {t('ops.rent.settlement')}{' '}
           {formatMinor(r.settlementMinor, r.currency)}
         </p>
       </CardHeader>
@@ -146,11 +147,11 @@ function RentalRow({ rental: r }: { rental: Rental }) {
         {r.state === 'awaiting_pickup' ? (
           !open ? (
             <Button onClick={() => setOpen(true)} data-testid={`pickup-open-${r.reference}`}>
-              Run pickup
+              {t('ops.rent.runPickup')}
             </Button>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Odometer out (km)" htmlFor={`odo-${r.reference}`}>
+              <Field label={t('ops.rent.odoOut')} htmlFor={`odo-${r.reference}`}>
                 {({ id }) => (
                   <Input
                     id={id}
@@ -161,7 +162,7 @@ function RentalRow({ rental: r }: { rental: Rental }) {
                   />
                 )}
               </Field>
-              <Field label="Fuel out (%)" htmlFor={`fuel-${r.reference}`}>
+              <Field label={t('ops.rent.fuelOut')} htmlFor={`fuel-${r.reference}`}>
                 {({ id }) => (
                   <Input
                     id={id}
@@ -171,7 +172,7 @@ function RentalRow({ rental: r }: { rental: Rental }) {
                   />
                 )}
               </Field>
-              <Field label="Driver name" htmlFor={`drv-${r.reference}`}>
+              <Field label={t('ops.rent.driverName')} htmlFor={`drv-${r.reference}`}>
                 {({ id }) => (
                   <Input
                     id={id}
@@ -181,7 +182,7 @@ function RentalRow({ rental: r }: { rental: Rental }) {
                   />
                 )}
               </Field>
-              <Field label="Licence number" htmlFor={`lic-${r.reference}`}>
+              <Field label={t('ops.rent.licence')} htmlFor={`lic-${r.reference}`}>
                 {({ id }) => (
                   <Input
                     id={id}
@@ -197,7 +198,7 @@ function RentalRow({ rental: r }: { rental: Rental }) {
                   loading={pickup.isPending}
                   data-testid={`pickup-submit-${r.reference}`}
                 >
-                  Confirm pickup
+                  {t('ops.rent.confirmPickup')}
                 </Button>
               </div>
             </div>
@@ -211,11 +212,11 @@ function RentalRow({ rental: r }: { rental: Rental }) {
               onClick={() => setOpen(true)}
               data-testid={`return-open-${r.reference}`}
             >
-              Run return
+              {t('ops.rent.runReturn')}
             </Button>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Odometer in (km)" htmlFor={`odoi-${r.reference}`}>
+              <Field label={t('ops.rent.odoIn')} htmlFor={`odoi-${r.reference}`}>
                 {({ id }) => (
                   <Input
                     id={id}
@@ -227,9 +228,9 @@ function RentalRow({ rental: r }: { rental: Rental }) {
                 )}
               </Field>
               <Field
-                label="Fuel in (%)"
+                label={t('ops.rent.fuelIn')}
                 htmlFor={`fueli-${r.reference}`}
-                hint="a deficit vs pickup is billed"
+                hint={t('ops.rent.fuelInHint')}
               >
                 {({ id }) => (
                   <Input
@@ -247,7 +248,7 @@ function RentalRow({ rental: r }: { rental: Rental }) {
                   loading={ret.isPending}
                   data-testid={`return-submit-${r.reference}`}
                 >
-                  Confirm return
+                  {t('ops.rent.confirmReturn')}
                 </Button>
               </div>
             </div>
@@ -261,7 +262,7 @@ function RentalRow({ rental: r }: { rental: Rental }) {
             loading={readiness.isPending}
             data-testid={`readiness-${r.reference}`}
           >
-            Mark ready for hire
+            {t('ops.rent.markReady')}
           </Button>
         ) : null}
       </CardContent>

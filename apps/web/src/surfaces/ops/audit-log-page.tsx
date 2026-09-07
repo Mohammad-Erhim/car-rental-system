@@ -1,3 +1,4 @@
+import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
   Badge,
@@ -8,6 +9,7 @@ import {
   CardTitle,
   Field,
   Input,
+  PageHeader,
 } from '@carrental/ui';
 import { Fragment, useState } from 'react';
 
@@ -20,6 +22,7 @@ import { useAuditLog } from '../../lib/admin-hooks.js';
  * table renders the most recent 120 of them (narrow the filter to reach older ones).
  */
 export function AuditLogPage() {
+  const { t } = useI18n();
   const [draft, setDraft] = useState({ action: '', targetType: '' });
   const [filter, setFilter] = useState<{ action?: string; targetType?: string }>({});
   const rows = useAuditLog(filter);
@@ -38,23 +41,23 @@ export function AuditLogPage() {
     });
   }
 
+  const TH = ['hWhen', 'hActor', 'hAction', 'hTarget', 'hOutcome'] as const;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Audit &amp; activity</h1>
-        <p className="text-sm text-muted-foreground">
-          Every consequential action, in order, with who did it and a masked before/after. This log
-          is append-only — entries are never edited or removed.
-        </p>
-      </div>
+      <PageHeader title={t('ops.audit.title')} description={t('ops.audit.subtitle')} />
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Filter</CardTitle>
+          <CardTitle className="text-base">{t('ops.audit.filter')}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={apply} className="flex flex-wrap items-end gap-3" noValidate>
-            <Field label="Action" htmlFor="aud-action" hint="e.g. config.version.approved">
+            <Field
+              label={t('ops.audit.filterAction')}
+              htmlFor="aud-action"
+              hint={t('ops.audit.actionHint')}
+            >
               {({ id }) => (
                 <Input
                   id={id}
@@ -64,7 +67,11 @@ export function AuditLogPage() {
                 />
               )}
             </Field>
-            <Field label="Target type" htmlFor="aud-target" hint="e.g. config_version">
+            <Field
+              label={t('ops.audit.filterTarget')}
+              htmlFor="aud-target"
+              hint={t('ops.audit.targetHint')}
+            >
               {({ id }) => (
                 <Input
                   id={id}
@@ -75,7 +82,7 @@ export function AuditLogPage() {
               )}
             </Field>
             <Button type="submit" data-testid="audit-apply">
-              Apply
+              {t('ops.audit.apply')}
             </Button>
             {(filter.action || filter.targetType) && (
               <Button
@@ -86,7 +93,7 @@ export function AuditLogPage() {
                   setFilter({});
                 }}
               >
-                Clear
+                {t('ops.st.clear')}
               </Button>
             )}
           </form>
@@ -95,30 +102,30 @@ export function AuditLogPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Events</CardTitle>
+          <CardTitle className="text-base">{t('ops.audit.events')}</CardTitle>
         </CardHeader>
         <CardContent>
           {rows.isLoading ? (
-            <AppStateView kind="loading" inline title="Loading…" />
+            <AppStateView kind="loading" inline title={t('ops.st.loading')} />
           ) : rows.isError ? (
             <AppStateView
               kind="failure"
               inline
-              title="Couldn't load the audit log"
-              primaryAction={{ label: 'Retry', onClick: () => rows.refetch() }}
+              title={t('ops.audit.loadFail')}
+              primaryAction={{ label: t('ops.st.retry'), onClick: () => rows.refetch() }}
             />
           ) : !rows.data?.length ? (
-            <AppStateView kind="empty" inline title="No matching events" />
+            <AppStateView kind="empty" inline title={t('ops.audit.empty')} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[44rem] text-sm" data-testid="audit-table">
                 <thead className="text-start text-xs uppercase text-muted-foreground">
                   <tr>
-                    <th className="py-1 pe-3 text-start font-medium">When</th>
-                    <th className="py-1 pe-3 text-start font-medium">Actor</th>
-                    <th className="py-1 pe-3 text-start font-medium">Action</th>
-                    <th className="py-1 pe-3 text-start font-medium">Target</th>
-                    <th className="py-1 pe-3 text-start font-medium">Outcome</th>
+                    {TH.map((k) => (
+                      <th key={k} className="py-1 pe-3 text-start font-medium">
+                        {t(`ops.audit.${k}`)}
+                      </th>
+                    ))}
                     <th className="py-1"></th>
                   </tr>
                 </thead>
@@ -160,7 +167,7 @@ export function AuditLogPage() {
                               variant="outline"
                               onClick={() => setExpanded(expanded === r.id ? null : r.id)}
                             >
-                              {expanded === r.id ? 'Hide' : 'Diff'}
+                              {expanded === r.id ? t('ops.audit.hide') : t('ops.audit.diff')}
                             </Button>
                           ) : null}
                         </td>
@@ -171,7 +178,7 @@ export function AuditLogPage() {
                             <div className="grid gap-3 sm:grid-cols-2">
                               <div>
                                 <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
-                                  Before
+                                  {t('ops.audit.before')}
                                 </p>
                                 <pre className="overflow-auto rounded border bg-background p-2 text-xs">
                                   {JSON.stringify(r.before ?? {}, null, 2)}
@@ -179,7 +186,7 @@ export function AuditLogPage() {
                               </div>
                               <div>
                                 <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
-                                  After
+                                  {t('ops.audit.after')}
                                 </p>
                                 <pre className="overflow-auto rounded border bg-background p-2 text-xs">
                                   {JSON.stringify(r.after ?? {}, null, 2)}
@@ -195,8 +202,7 @@ export function AuditLogPage() {
               </table>
               {hiddenCount > 0 ? (
                 <p className="mt-3 text-xs text-muted-foreground">
-                  Showing the {RENDER_CAP} most recent — narrow the filter to see older events (
-                  {hiddenCount} more match).
+                  {t('ops.audit.capped', { n: RENDER_CAP, more: hiddenCount })}
                 </p>
               ) : null}
             </div>

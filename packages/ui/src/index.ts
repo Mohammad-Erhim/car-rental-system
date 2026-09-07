@@ -48,5 +48,11 @@ export {
   applyBrandTokens,
   type Theme,
 } from './providers/theme-provider.js';
+export {
+  UiStringsProvider,
+  useUiStrings,
+  DEFAULT_UI_STRINGS,
+  type UiStrings,
+} from './providers/ui-strings.js';
 export { ThemeToggle, type ThemeToggleProps } from './components/theme-toggle.js';
 export { PageHeader, type PageHeaderProps } from './components/page-header.js';

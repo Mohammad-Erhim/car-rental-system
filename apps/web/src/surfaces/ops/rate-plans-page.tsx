@@ -1,3 +1,4 @@
+import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
   Badge,
@@ -9,6 +10,7 @@ import {
   ErrorSummary,
   Field,
   Input,
+  PageHeader,
 } from '@carrental/ui';
 import { useState } from 'react';
 
@@ -27,11 +29,12 @@ import { useFormErrors } from '../../lib/use-form-errors.js';
  * scope and takes effect on the customer search with no redeploy.
  */
 export function RatePlansPage() {
+  const { t } = useI18n();
   const plans = useRatePlans();
   const cats = useOpsCategories();
   const create = useCreateRatePlan();
   const publish = usePublishRatePlan();
-  const errs = useFormErrors({ baseDayMinor: 'Base day price', name: 'Name' });
+  const errs = useFormErrors({ baseDayMinor: t('ops.rp.baseDay'), name: t('ops.tbl.name') });
   const [publishError, setPublishError] = useState<string | null>(null);
 
   const [form, setForm] = useState({
@@ -68,48 +71,44 @@ export function RatePlansPage() {
     try {
       await publish.mutateAsync(id);
     } catch (err) {
-      setPublishError(err instanceof ApiError ? err.message : 'Publish failed.');
+      setPublishError(err instanceof ApiError ? err.message : t('ops.rp.publishFail'));
     }
   }
 
   const money = (m: number, c: string) => `${(m / 100).toFixed(2)} ${c}`;
 
+  const TH = ['name', 'category', 'baseDay', 'tax', 'status'] as const;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Rate plans</h1>
-        <p className="text-sm text-muted-foreground">
-          Versioned price books per category. Publishing takes effect immediately on customer
-          search; a published plan cannot be edited.
-        </p>
-      </div>
+      <PageHeader title={t('ops.rp.title')} description={t('ops.rp.subtitle')} />
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Plans</CardTitle>
+          <CardTitle className="text-base">{t('ops.rp.card')}</CardTitle>
         </CardHeader>
         <CardContent>
           {plans.isLoading ? (
-            <AppStateView kind="loading" inline title="Loading…" />
+            <AppStateView kind="loading" inline title={t('ops.st.loading')} />
           ) : plans.isError ? (
             <AppStateView
               kind="failure"
               inline
-              title="Couldn't load rate plans"
-              primaryAction={{ label: 'Retry', onClick: () => plans.refetch() }}
+              title={t('ops.rp.loadFail')}
+              primaryAction={{ label: t('ops.st.retry'), onClick: () => plans.refetch() }}
             />
           ) : !plans.data?.length ? (
-            <AppStateView kind="empty" inline title="No rate plans yet — add one below" />
+            <AppStateView kind="empty" inline title={t('ops.rp.empty')} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[36rem] text-sm" data-testid="rate-plan-table">
                 <thead className="text-start text-xs uppercase text-muted-foreground">
                   <tr>
-                    <th className="py-1 text-start font-medium">Name</th>
-                    <th className="py-1 text-start font-medium">Category</th>
-                    <th className="py-1 text-start font-medium">Base / day</th>
-                    <th className="py-1 text-start font-medium">Tax</th>
-                    <th className="py-1 text-start font-medium">Status</th>
+                    {TH.map((k) => (
+                      <th key={k} className="py-1 text-start font-medium">
+                        {t(`ops.tbl.${k}`)}
+                      </th>
+                    ))}
                     <th className="py-1"></th>
                   </tr>
                 </thead>
@@ -132,7 +131,7 @@ export function RatePlansPage() {
                             onClick={() => doPublish(p.id)}
                             data-testid={`publish-${p.name.replace(/\s+/g, '-')}`}
                           >
-                            Publish
+                            {t('ops.rp.publish')}
                           </Button>
                         ) : null}
                       </td>
@@ -152,12 +151,12 @@ export function RatePlansPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">New rate plan (draft)</CardTitle>
+          <CardTitle className="text-base">{t('ops.rp.newDraft')}</CardTitle>
         </CardHeader>
         <CardContent>
-          <ErrorSummary title="Check the highlighted fields" errors={errs.summary} />
+          <ErrorSummary title={t('ops.cfg.checkFields')} errors={errs.summary} />
           <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2" noValidate>
-            <Field label="Category" htmlFor="rp-category">
+            <Field label={t('ops.rp.category')} htmlFor="rp-category">
               {({ id }) => (
                 <select
                   id={id}
@@ -165,7 +164,7 @@ export function RatePlansPage() {
                   value={form.categoryCode}
                   onChange={(e) => setForm((f) => ({ ...f, categoryCode: e.target.value }))}
                 >
-                  <option value="">First available</option>
+                  <option value="">{t('ops.rp.firstAvail')}</option>
                   {(cats.data ?? []).map((c) => (
                     <option key={c.code} value={c.code}>
                       {c.displayName} ({c.code})
@@ -174,7 +173,12 @@ export function RatePlansPage() {
                 </select>
               )}
             </Field>
-            <Field label="Plan name" htmlFor="rp-name" required error={errs.fieldError('name')}>
+            <Field
+              label={t('ops.rp.name')}
+              htmlFor="rp-name"
+              required
+              error={errs.fieldError('name')}
+            >
               {({ id, invalid }) => (
                 <Input
                   id={id}
@@ -186,10 +190,10 @@ export function RatePlansPage() {
               )}
             </Field>
             <Field
-              label="Base price / day"
+              label={t('ops.rp.baseDay')}
               htmlFor="rp-base"
               required
-              hint="in the plan currency, e.g. 42.00"
+              hint={t('ops.rp.baseDayHint')}
               error={errs.fieldError('baseDayMinor')}
             >
               {({ id, invalid }) => (
@@ -203,7 +207,7 @@ export function RatePlansPage() {
                 />
               )}
             </Field>
-            <Field label="Extra hour price" htmlFor="rp-hour" hint="for a partial trailing day">
+            <Field label={t('ops.rp.extraHour')} htmlFor="rp-hour" hint={t('ops.rp.extraHourHint')}>
               {({ id }) => (
                 <Input
                   id={id}
@@ -213,7 +217,7 @@ export function RatePlansPage() {
                 />
               )}
             </Field>
-            <Field label="Tax %" htmlFor="rp-tax">
+            <Field label={t('ops.rp.taxPct')} htmlFor="rp-tax">
               {({ id }) => (
                 <Input
                   id={id}
@@ -225,7 +229,7 @@ export function RatePlansPage() {
             </Field>
             <div className="sm:col-span-2">
               <Button type="submit" loading={create.isPending} data-testid="rate-plan-create">
-                Create draft
+                {t('ops.rp.createDraft')}
               </Button>
             </div>
           </form>
