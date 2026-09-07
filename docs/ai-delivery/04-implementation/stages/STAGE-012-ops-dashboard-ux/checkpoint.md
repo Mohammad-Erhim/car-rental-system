@@ -23,17 +23,17 @@
 
 ### `/ops` screens moved onto `DataTable`
 
-| Screen | testids / row attrs preserved | notes |
-| --- | --- | --- |
-| `fleet-inventory-page` | `fleet-table` / `fleet-rows` / `tr[data-plate]` | + `Toolbar` filters |
-| `reservation-queue-page` | `ops-res-table` / `ops-res-rows` / `tr[data-ref]` / `assign-<ref>` | + `Toolbar` |
-| `rate-plans-page` | `rate-plan-table` / `rate-plan-rows` / `tr[data-plan]` / `tr[data-status]` / `publish-<name>` | |
-| `staff-roles-page` | `staff-table` | invite form unchanged |
-| `config-versions-page` | `config-version-table` / `config-version-rows` / `tr[data-state]` / `tr[data-rev]` / `config-row-<rev>` / `submit`\|`approve`\|`reject-<rev>` | `rowClassName="align-top"` |
-| `audit-log-page` | `audit-table` / `audit-rows` / `tr[data-action]` | before/after diff via `renderSubRow`; `RENDER_CAP` note kept |
-| `reports-page` | `report-table`; `report-run-rows` | result table uses run-defined columns; "recent runs" mini-table gained a real `<thead>` (a11y); keys `ops.rpt.thRows` / `ops.rpt.thWhen` |
-| `reference-data-page` | `lookup-value-rows` / `tr[data-code]` / `tr[data-active]` / `deactivate-<code>` | inline-edit label cell kept; key `ops.ref.noValues` |
-| `translations-page` | `translation-coverage` / `tr[data-row]` | coverage table only; the per-key editor stays a `<ul>` |
+| Screen                   | testids / row attrs preserved                                                                                                                 | notes                                                                                                                                    |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `fleet-inventory-page`   | `fleet-table` / `fleet-rows` / `tr[data-plate]`                                                                                               | + `Toolbar` filters                                                                                                                      |
+| `reservation-queue-page` | `ops-res-table` / `ops-res-rows` / `tr[data-ref]` / `assign-<ref>`                                                                            | + `Toolbar`                                                                                                                              |
+| `rate-plans-page`        | `rate-plan-table` / `rate-plan-rows` / `tr[data-plan]` / `tr[data-status]` / `publish-<name>`                                                 |                                                                                                                                          |
+| `staff-roles-page`       | `staff-table`                                                                                                                                 | invite form unchanged                                                                                                                    |
+| `config-versions-page`   | `config-version-table` / `config-version-rows` / `tr[data-state]` / `tr[data-rev]` / `config-row-<rev>` / `submit`\|`approve`\|`reject-<rev>` | `rowClassName="align-top"`                                                                                                               |
+| `audit-log-page`         | `audit-table` / `audit-rows` / `tr[data-action]`                                                                                              | before/after diff via `renderSubRow`; `RENDER_CAP` note kept                                                                             |
+| `reports-page`           | `report-table`; `report-run-rows`                                                                                                             | result table uses run-defined columns; "recent runs" mini-table gained a real `<thead>` (a11y); keys `ops.rpt.thRows` / `ops.rpt.thWhen` |
+| `reference-data-page`    | `lookup-value-rows` / `tr[data-code]` / `tr[data-active]` / `deactivate-<code>`                                                               | inline-edit label cell kept; key `ops.ref.noValues`                                                                                      |
+| `translations-page`      | `translation-coverage` / `tr[data-row]`                                                                                                       | coverage table only; the per-key editor stays a `<ul>`                                                                                   |
 
 Deliberately **not** converted (not tables): `rental-board` (kanban cards), `languages` (rich
 wrapping rows with inline actions), the `translations` per-key inline-edit `<ul>`.
