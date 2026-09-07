@@ -5,6 +5,7 @@ import { Providers } from '../../components/providers';
 import { SiteFooter } from '../../components/site-footer';
 import { SiteHeader } from '../../components/site-header';
 import { brandingCss, getBranding } from '../../lib/branding';
+import { fontClassName } from '../../lib/fonts';
 import { ACTIVE_LOCALES, getMessages, getT, isSupportedLocale, localeDir } from '../../lib/i18n';
 
 export function generateStaticParams() {
@@ -42,7 +43,11 @@ export default async function LocaleLayout({
           }}
         />
       </head>
-      <body className="flex min-h-screen flex-col bg-background text-foreground">
+      <body
+        className={`flex min-h-screen flex-col bg-background text-foreground ${fontClassName(
+          branding.config.font,
+        )}`}
+      >
         <Providers locale={locale} messages={messages} branding={branding}>
           <a href="#main" className="skip-link">
             {t.t('common.skipToContent')}

@@ -9,7 +9,14 @@ export function resolveCssVars(config: BrandConfig, mode: ThemeMode): Record<str
   const vars: Record<string, string> = {};
   for (const token of COLOR_TOKENS) vars[cssVarName(token)] = scale[token];
   vars['--radius'] = RADII[config.radius as keyof typeof RADII] ?? RADII.md;
-  vars['--font-sans'] = FONTS[config.font as keyof typeof FONTS]?.stack ?? FONTS.inter.stack;
+  // `--font-brand` is set by the host when a curated web font is actually loaded (apps/site
+  // wires `next/font`); its `var()` fallback is the first family of the curated stack so an
+  // environment without the web font still resolves to something sensible.
+  const stack = FONTS[config.font as keyof typeof FONTS]?.stack ?? FONTS.inter.stack;
+  const firstComma = stack.indexOf(',');
+  const primary = firstComma === -1 ? stack : stack.slice(0, firstComma).trim();
+  const rest = firstComma === -1 ? '' : stack.slice(firstComma + 1).trim();
+  vars['--font-sans'] = `var(--font-brand, ${primary})${rest ? `, ${rest}` : ''}`;
   return vars;
 }
 
