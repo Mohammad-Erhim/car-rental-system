@@ -631,6 +631,27 @@ const TEMPLATES: Array<{
     },
   },
   {
+    key: 'reservation_confirmed',
+    variables: [
+      { name: 'reference', required: true },
+      { name: 'total', required: true },
+    ],
+    byLocale: {
+      en: {
+        subject: 'Your booking {{reference}} is confirmed',
+        body: 'Your booking {{reference}} is confirmed.\n\nTotal charged: {{total}}.\n\nYou can view or manage it any time from your account.',
+      },
+      fr: {
+        subject: 'Votre réservation {{reference}} est confirmée',
+        body: 'Votre réservation {{reference}} est confirmée.\n\nMontant débité : {{total}}.\n\nVous pouvez la consulter ou la gérer à tout moment depuis votre compte.',
+      },
+      ar: {
+        subject: 'تم تأكيد حجزك {{reference}}',
+        body: 'تم تأكيد حجزك {{reference}}.\n\nالمبلغ المدفوع: {{total}}.\n\nيمكنك عرضه أو إدارته في أي وقت من حسابك.',
+      },
+    },
+  },
+  {
     key: 'account_recovery',
     variables: [{ name: 'code', required: true }, { name: 'name' }],
     byLocale: {

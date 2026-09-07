@@ -8,6 +8,7 @@ import { IdempotencyInterceptor } from './common/idempotency/idempotency.interce
 import { ConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { BookingModule } from './modules/booking/booking.module';
 import { ConfigModule as DomainConfigModule } from './modules/config/config.module';
 import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { IamModule } from './modules/iam/iam.module';
@@ -29,6 +30,7 @@ import { ObservabilityModule } from './observability/observability.module';
     DomainConfigModule,
     AdminModule,
     DiscoveryModule,
+    BookingModule,
     MetaModule,
   ],
   providers: [{ provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor }],

@@ -15,6 +15,7 @@ import { HomePage } from '../surfaces/customer/home-page.js';
 import { PlaceholderPage } from '../surfaces/customer/placeholder-page.js';
 import { ProfilePage } from '../surfaces/customer/profile-page.js';
 import { SearchResultsPage } from '../surfaces/customer/search-results-page.js';
+import { TripsPage } from '../surfaces/customer/trips-page.js';
 import { VehicleDetailPage } from '../surfaces/customer/vehicle-detail-page.js';
 import { FleetInventoryPage } from '../surfaces/ops/fleet-inventory-page.js';
 import { OpsDashboard } from '../surfaces/ops/ops-dashboard.js';
@@ -85,15 +86,7 @@ export const router = createBrowserRouter([
         ),
       },
       { path: 'account/data', element: cust(<DataRequestsPage />) },
-      {
-        path: 'trips',
-        element: (
-          <PlaceholderPage
-            title="Your trips"
-            note="Reservations and rentals appear here once booking is implemented."
-          />
-        ),
-      },
+      { path: 'trips', element: <TripsPage /> },
       {
         path: 'help',
         element: (

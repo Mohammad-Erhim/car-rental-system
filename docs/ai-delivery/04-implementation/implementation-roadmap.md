@@ -8,8 +8,8 @@ Status values: `PLANNED`, `READY`, `IN_PROGRESS`, `BLOCKED`, `VERIFYING`, `COMPL
 | STAGE-000 | Repository & local platform                                                                                                                               | COMPLETED   |
 | STAGE-001 | Shared identity, config, reference data, UI foundation                                                                                                    | COMPLETED   |
 | STAGE-002 | Discovery & quote (catalogue, locations, availability, pricing, holds)                                                                                    | COMPLETED   |
-| STAGE-003 | Booking & payment (checkout, drivers, products, terms, confirm, notify)                                                                                   | IN_PROGRESS |
-| STAGE-004 | Reservation operations (list/detail, modify, cancel, refund, customer workspaces)                                                                         | PLANNED     |
+| STAGE-003 | Booking & payment (checkout, drivers, products, terms, confirm, notify)                                                                                   | COMPLETED   |
+| STAGE-004 | Reservation operations (list/detail, modify, cancel, refund, customer workspaces)                                                                         | IN_PROGRESS |
 | STAGE-005 | Pickup, active rental, return & closeout (fleet readiness, assignment, agreement, extension, incident, replacement, inspection)                           | PLANNED     |
 | STAGE-006 | Administration & reporting (full config/versioning, imports, templates/translations, reports/exports/schedules, integration recovery, audit/data-quality) | PLANNED     |
 | STAGE-007 | Release hardening (perf, a11y, security, responsive/locale sweep, backup/restore, deploy artifacts)                                                       | PLANNED     |
@@ -101,6 +101,13 @@ Status values: `PLANNED`, `READY`, `IN_PROGRESS`, `BLOCKED`, `VERIFYING`, `COMPL
   timeout ⇒ no hidden charge + no duplicate; reservation-write failure after provider success
   ⇒ visible recovery case; failed email ⇒ reservation still confirmed.
 - **Unlocks:** STAGE-004.
+- **Completion (2026-09-07):** COMPLETED. `payment` (PaymentPort + deterministic simulator,
+  idempotent authorize+capture, timeout/decline/capture-fail paths, refund, recovery_case) +
+  `booking` (deterministic RES-ref, quote+hold re-validation, atomic persist with 23505 catch,
+  hold consume, non-fatal notify, guest token + claim). SCREEN-CUS-004/005/007 + trips list.
+  Gates: static PASS, unit 63, api 38 (7 booking — incl. the concurrency, timeout, decline,
+  write-after-charge and snapshot-immutability cases), migrate 4, e2e 60. 72 screenshots.
+  Evidence: `stages/STAGE-003-booking/` (D-003-1..5 all fixed).
 
 ## STAGE-004 — Reservation operations
 

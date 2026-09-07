@@ -935,6 +935,83 @@
         ]
       }
     },
+    "/api/v1/bookings/confirm": {
+      "post": {
+        "operationId": "booking_confirm",
+        "summary": "Confirm a held quote into a reservation",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "booking"
+        ]
+      }
+    },
+    "/api/v1/bookings/mine": {
+      "get": {
+        "operationId": "booking_listMine",
+        "summary": "The signed-in customer reservations",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "booking"
+        ]
+      }
+    },
+    "/api/v1/bookings/{reference}": {
+      "get": {
+        "operationId": "BookingController_get",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "booking"
+        ]
+      }
+    },
+    "/api/v1/bookings/{reference}/claim": {
+      "post": {
+        "operationId": "booking_claimGuest",
+        "summary": "Attach a guest booking to my account",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "booking"
+        ]
+      }
+    },
     "/api/v1/meta/locales": {
       "get": {
         "operationId": "meta_getLocales",

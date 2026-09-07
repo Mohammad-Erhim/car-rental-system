@@ -1,4 +1,10 @@
-import type { AvailabilitySearchResponse, Quote, VehicleCategory } from '@carrental/contracts';
+import type {
+  AvailabilitySearchResponse,
+  ConfirmBookingRequest,
+  Quote,
+  Reservation,
+  VehicleCategory,
+} from '@carrental/contracts';
 import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { apiFetch } from './api.js';
@@ -68,6 +74,51 @@ export function useQuoteByRef(reference: string | null) {
     queryFn: ({ signal }) =>
       apiFetch<Quote>(`/discovery/quotes/${reference}`, { signal, anonymous: true }),
     enabled: !!reference,
+  });
+}
+
+export interface ReservationResult extends Reservation {
+  guestAccessToken: string | null;
+  payment: { brand: string | null; last4: string | null; alreadyProcessed: boolean };
+  heldUnitPinned: boolean;
+}
+
+export function useConfirmBooking() {
+  return useMutation({
+    // sends the bearer when signed in (ties the reservation to the account); works without one
+    // for guest checkout — the endpoint is @OptionalAuth().
+    mutationFn: (body: ConfirmBookingRequest) =>
+      apiFetch<ReservationResult>('/bookings/confirm', { method: 'POST', body }),
+  });
+}
+
+export function useReservation(reference: string | null, token?: string | null) {
+  const qs = token ? `?token=${encodeURIComponent(token)}` : '';
+  return useQuery({
+    queryKey: ['booking', reference, token],
+    queryFn: ({ signal }) =>
+      apiFetch<Reservation>(`/bookings/${reference}${qs}`, { signal, anonymous: !!token }),
+    enabled: !!reference,
+  });
+}
+
+export function useMyReservations(enabled: boolean) {
+  return useQuery({
+    queryKey: ['booking', 'mine'],
+    queryFn: ({ signal }) =>
+      apiFetch<
+        Array<{
+          reference: string;
+          state: string;
+          categoryCode: string;
+          pickupLocationCode: string;
+          pickupAt: string;
+          returnAt: string;
+          totalMinor: number;
+          currency: string;
+        }>
+      >('/bookings/mine', { signal }),
+    enabled,
   });
 }
 

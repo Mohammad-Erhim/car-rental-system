@@ -13,3 +13,5 @@ export * from './catalogue';
 export * from './fleet';
 export * from './pricing';
 export * from './booking';
+export * from './reservation';
+export * from './payment';

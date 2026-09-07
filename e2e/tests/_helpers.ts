@@ -8,6 +8,22 @@ const SHOTS_ROOT = resolve(
     '../docs/ai-delivery/04-implementation/stages/STAGE-000-platform/screenshots',
 );
 
+/**
+ * URL + status combinations a healthy journey may legitimately produce (a session probe with no
+ * cookie, a deliberate wrong-credentials / declined-card assertion in a test). Both the
+ * `response` guard and the browser's automatic "Failed to load resource" console error are
+ * checked against this.
+ */
+function isExpectedNegative(url: string, status: number): boolean {
+  return (
+    (status === 401 && /\/auth\/(refresh|me)\b/.test(url)) ||
+    (status === 401 && /\/auth\/sign-in\b/.test(url)) ||
+    (status === 422 && /\/auth\/verify-contact\b/.test(url)) ||
+    ((status === 422 || status === 504) && /\/bookings\/confirm\b/.test(url)) ||
+    (status === 401 && /\/bookings\/[^/]+/.test(url))
+  );
+}
+
 /** Console errors + failed responses that must not occur on a healthy journey (SRS-UI-014). */
 export function attachConsoleGuards(page: Page) {
   const consoleErrors: string[] = [];
@@ -15,24 +31,23 @@ export function attachConsoleGuards(page: Page) {
   const pageErrors: string[] = [];
 
   page.on('console', (msg) => {
-    if (msg.type() === 'error') {
-      const text = msg.text();
-      // allow-list: nothing yet
-      consoleErrors.push(text);
+    if (msg.type() !== 'error') return;
+    const text = msg.text();
+    // Chromium logs "Failed to load resource: the server responded with a status of NNN" for
+    // every 4xx/5xx fetch — allow the ones a test deliberately provokes and asserts on.
+    const m = text.match(/status of (\d{3})/);
+    if (m) {
+      const status = Number(m[1]);
+      const loc = msg.location()?.url ?? '';
+      if (isExpectedNegative(loc, status)) return;
     }
+    consoleErrors.push(text);
   });
   page.on('pageerror', (err) => pageErrors.push(err.message));
   page.on('response', (res) => {
     const url = res.url();
     const status = res.status();
-    // Expected, handled negative responses (not defects):
-    //  - session probe with no cookie yet
-    //  - a deliberate wrong-code / invalid-credentials assertion in a test
-    const expectedNegative =
-      (status === 401 && /\/auth\/(refresh|me)\b/.test(url)) ||
-      (status === 401 && /\/auth\/sign-in\b/.test(url)) ||
-      (status === 422 && /\/auth\/verify-contact\b/.test(url));
-    if (status >= 400 && !url.includes('/favicon') && !expectedNegative) {
+    if (status >= 400 && !url.includes('/favicon') && !isExpectedNegative(url, status)) {
       failedRequests.push(`${status} ${res.request().method()} ${url}`);
     }
   });
