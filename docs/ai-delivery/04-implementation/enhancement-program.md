@@ -165,12 +165,16 @@ Per‑stage `checkpoint.md` / `test-evidence` / `defects.md` under `stages/STAGE
 - **STAGE‑009 inc 3:** brand‑asset upload (fs `ObjectStoragePort`, sniff + caps + SVG
   sanitiser, signed serving, `meta/branding` ref resolution, editor file inputs) +
   self‑hosted `next/font` for the curated set. STAGE‑009 now has **no open residual**.
+- **STAGE‑011 `verify:seo`:** `scripts/verify-seo.{mjs,sh}` — per indexable route × {en,ar,fr}:
+  unique title/description, self‑consistent canonical, reciprocal hreflang, `<html lang/dir>`,
+  OG + `twitter:card`, parseable JSON‑LD; + `robots.txt`/`sitemap.xml` validity + coverage +
+  `noindex` on the private routes. Wired into `verify:all`. Green.
 
 ### Still open after session 2
 
 | Area                                        | Item                                                                                                                                                                                       |
 | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| STAGE‑011                                   | port customer‑flow E2E specs to `apps/site` (RED `verify:e2e`); `verify:seo` (Lighthouse)                                                                                                  |
+| STAGE‑011                                   | port the mixed customer/ops E2E specs to the `apps/site` origin (RED `verify:e2e`) — `verify:seo` **done** (`scripts/verify-seo.{mjs,sh}`, in `verify:all`)                                |
 | STAGE‑012                                   | reusable `DataTable`/`FormLayout`/`DetailLayout` in `packages/ui` + refactor the 13 `/ops` screens; command palette / breadcrumbs; per‑screen a11y pass                                    |
 | STAGE‑013                                   | widen `/ops` QA‑matrix coverage; `verify:seo` / `verify:perf` for `apps/site`; full matrix re‑run                                                                                          |
 | STAGE‑005/006 (deferred, in approved scope) | incident/replacement, vehicle transfers, maintenance UI, fleet import, case retry, data‑quality panel, non‑`policy` config kinds, scheduled‑report send‑time re‑auth, full step‑up‑auth UI |
