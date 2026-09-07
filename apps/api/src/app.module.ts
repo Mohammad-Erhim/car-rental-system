@@ -1,9 +1,17 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
 
+import { AuthModule } from './common/auth/auth.module';
+import { CommonModule } from './common/common.module';
+import { IdempotencyInterceptor } from './common/idempotency/idempotency.interceptor';
 import { ConfigModule } from './config/config.module';
 import { DatabaseModule } from './database/database.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { ConfigModule as DomainConfigModule } from './modules/config/config.module';
+import { IamModule } from './modules/iam/iam.module';
 import { MetaModule } from './modules/meta/meta.module';
+import { NotifyModule } from './modules/notify/notify.module';
 import { buildLoggerParams } from './observability/logger';
 import { ObservabilityModule } from './observability/observability.module';
 
@@ -13,7 +21,14 @@ import { ObservabilityModule } from './observability/observability.module';
     LoggerModule.forRootAsync({ useFactory: buildLoggerParams }),
     ObservabilityModule,
     DatabaseModule,
+    CommonModule,
+    AuthModule,
+    NotifyModule,
+    IamModule,
+    DomainConfigModule,
+    AdminModule,
     MetaModule,
   ],
+  providers: [{ provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor }],
 })
 export class AppModule {}

@@ -3,6 +3,8 @@ import { Controller, Get } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { createZodDto } from 'nestjs-zod';
 
+import { Public } from '../../common/auth/decorators';
+
 import { MetaService } from './meta.service';
 
 class LocalesResponseDto extends createZodDto(zLocalesResponse) {}
@@ -10,6 +12,7 @@ class BuildInfoDto extends createZodDto(zBuildInfo) {}
 class HealthSummaryDto extends createZodDto(zHealthSummary) {}
 
 @ApiTags('meta')
+@Public()
 @Controller({ path: 'meta', version: '1' })
 export class MetaController {
   constructor(private readonly meta: MetaService) {}

@@ -1,10 +1,11 @@
 import { useI18n } from '@carrental/i18n/react';
 import { Button } from '@carrental/ui';
-import { Car, LifeBuoy, Luggage, UserRound } from 'lucide-react';
+import { Car, LifeBuoy, Luggage, LogIn, UserRound } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
 
 import { LanguageSwitcher } from '../../components/language-switcher.js';
 import { SystemStatus } from '../../components/system-status.js';
+import { useAuth } from '../../lib/auth.js';
 
 /**
  * APP-CWEB shell (design §4.1 / §7.1). Responsive: header nav on wide screens, bottom nav on
@@ -12,6 +13,8 @@ import { SystemStatus } from '../../components/system-status.js';
  */
 export function CustomerLayout() {
   const { t } = useI18n();
+  const { status } = useAuth();
+  const authed = status === 'authenticated';
 
   const links = [
     { to: '/', label: t('nav.rentACar'), Icon: Car, end: true },
@@ -35,14 +38,14 @@ export function CustomerLayout() {
             <span className="hidden sm:inline">{t('app.name')}</span>
           </NavLink>
 
-          <nav aria-label="Primary" className="hidden items-center gap-1 md:flex">
+          <nav aria-label="Primary" className="hidden items-center gap-1 lg:flex">
             {links.map(({ to, label, Icon, end }) => (
               <NavLink
                 key={to}
                 to={to}
                 end={end}
                 className={({ isActive }) =>
-                  `inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  `inline-flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium transition-colors ${
                     isActive
                       ? 'bg-accent text-accent-foreground'
                       : 'text-muted-foreground hover:text-foreground'
@@ -59,9 +62,15 @@ export function CustomerLayout() {
             <SystemStatus />
             <LanguageSwitcher />
             <Button variant="outline" size="sm" asChild>
-              <NavLink to="/account">
-                <UserRound className="size-4" aria-hidden="true" />
-                <span className="hidden sm:inline">{t('nav.account')}</span>
+              <NavLink to={authed ? '/account' : '/sign-in'}>
+                {authed ? (
+                  <UserRound className="size-4" aria-hidden="true" />
+                ) : (
+                  <LogIn className="size-4" aria-hidden="true" />
+                )}
+                <span className="hidden sm:inline">
+                  {authed ? t('nav.account') : t('action.signIn')}
+                </span>
               </NavLink>
             </Button>
           </div>
@@ -72,10 +81,11 @@ export function CustomerLayout() {
         <Outlet />
       </main>
 
-      {/* Bottom nav on phones (design §4.1) */}
+      {/* Bottom nav on phones & tablets (design §4.1); header nav takes over on laptops */}
       <nav
         aria-label="Primary"
-        className="sticky bottom-0 z-40 grid grid-cols-3 border-t bg-background md:hidden"
+        data-testid="mobile-bottom-nav"
+        className="sticky bottom-0 z-40 grid grid-cols-3 border-t bg-background lg:hidden"
       >
         {links.map(({ to, label, Icon, end }) => (
           <NavLink
@@ -94,7 +104,7 @@ export function CustomerLayout() {
         ))}
       </nav>
 
-      <footer className="hidden border-t py-6 text-center text-xs text-muted-foreground md:block">
+      <footer className="hidden border-t py-6 text-center text-xs text-muted-foreground lg:block">
         {t('app.name')} — demo environment
       </footer>
     </div>

@@ -1,6 +1,583 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/api/v1/auth/register": {
+      "post": {
+        "operationId": "auth_register",
+        "summary": "Create a customer account",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/verify-contact": {
+      "post": {
+        "operationId": "auth_verifyContact",
+        "summary": "Verify email/phone with a code",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/resend-verification": {
+      "post": {
+        "operationId": "IamController_resend",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/sign-in": {
+      "post": {
+        "operationId": "auth_signIn",
+        "summary": "Sign in with credentials",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "operationId": "auth_refresh",
+        "summary": "Rotate the refresh session",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/sign-out": {
+      "post": {
+        "operationId": "auth_signOut",
+        "summary": "End the current (or all) sessions",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/recovery/start": {
+      "post": {
+        "operationId": "auth_startRecovery",
+        "summary": "Begin account recovery",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/recovery/complete": {
+      "post": {
+        "operationId": "auth_completeRecovery",
+        "summary": "Finish account recovery",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/change-password": {
+      "post": {
+        "operationId": "auth_changePassword",
+        "summary": "Change password (signed-in)",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "auth_me",
+        "summary": "Current session actor + profile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/profile": {
+      "get": {
+        "operationId": "IamController_getProfile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      },
+      "post": {
+        "operationId": "IamController_updateProfile",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/drivers": {
+      "get": {
+        "operationId": "IamController_listDrivers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      },
+      "post": {
+        "operationId": "IamController_addDriver",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/drivers/{id}/remove": {
+      "post": {
+        "operationId": "IamController_removeDriver",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/data-requests": {
+      "get": {
+        "operationId": "IamController_listDataRequests",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      },
+      "post": {
+        "operationId": "IamController_createDataRequest",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/data-requests/{id}/cancel": {
+      "post": {
+        "operationId": "IamController_cancelDataRequest",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/reference-data/types": {
+      "get": {
+        "operationId": "lookup_listTypes",
+        "summary": "List reference-data catalogue",
+        "parameters": [
+          {
+            "name": "classification",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ownerModule",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reference-data"
+        ]
+      }
+    },
+    "/api/v1/reference-data/types/{code}": {
+      "get": {
+        "operationId": "LookupController_getType",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reference-data"
+        ]
+      }
+    },
+    "/api/v1/reference-data/types/{code}/values": {
+      "get": {
+        "operationId": "lookup_getValues",
+        "summary": "Dynamic option list for a type",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reference-data"
+        ]
+      },
+      "post": {
+        "operationId": "lookup_createValue",
+        "summary": "Add a reference value",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reference-data"
+        ]
+      }
+    },
+    "/api/v1/reference-data/types/{code}/values/{valueCode}/usage": {
+      "get": {
+        "operationId": "LookupController_usage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reference-data"
+        ]
+      }
+    },
+    "/api/v1/reference-data/types/{code}/values/{valueId}": {
+      "post": {
+        "operationId": "lookup_updateValue",
+        "summary": "Edit a reference value / labels",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reference-data"
+        ]
+      }
+    },
+    "/api/v1/reference-data/types/{code}/values/{valueId}/deactivate": {
+      "post": {
+        "operationId": "LookupController_deactivate",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reference-data"
+        ]
+      }
+    },
+    "/api/v1/reference-data/types/{code}/values/{valueId}/restore": {
+      "post": {
+        "operationId": "LookupController_restore",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reference-data"
+        ]
+      }
+    },
+    "/api/v1/reference-data/types/{code}/reorder": {
+      "post": {
+        "operationId": "LookupController_reorder",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reference-data"
+        ]
+      }
+    },
+    "/api/v1/config/locations": {
+      "get": {
+        "operationId": "config_listLocations",
+        "summary": "Active rental locations",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/v1/config/organization": {
+      "get": {
+        "operationId": "ConfigController_organization",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/v1/config/translations/completeness": {
+      "get": {
+        "operationId": "ConfigController_completeness",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/v1/config/translations": {
+      "get": {
+        "operationId": "ConfigController_list",
+        "parameters": [
+          {
+            "name": "namespace",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locale",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      },
+      "post": {
+        "operationId": "ConfigController_upsert",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/v1/config/translations/{namespace}/{locale}/publish": {
+      "post": {
+        "operationId": "ConfigController_publish",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/v1/admin/roles": {
+      "get": {
+        "operationId": "admin_listRoles",
+        "summary": "Roles + permission action catalogue",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/staff": {
+      "get": {
+        "operationId": "admin_listStaff",
+        "summary": "Staff accounts + access",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/staff/invite": {
+      "post": {
+        "operationId": "admin_inviteStaff",
+        "summary": "Invite a staff member",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/staff/{accountId}/access": {
+      "post": {
+        "operationId": "admin_changeStaffAccess",
+        "summary": "Change roles / scope / status",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/meta/locales": {
       "get": {
         "operationId": "meta_getLocales",

@@ -6,8 +6,8 @@ Status values: `PLANNED`, `READY`, `IN_PROGRESS`, `BLOCKED`, `VERIFYING`, `COMPL
 | Stage     | Name                                                                                                                                                      | Status      |
 | --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
 | STAGE-000 | Repository & local platform                                                                                                                               | COMPLETED   |
-| STAGE-001 | Shared identity, config, reference data, UI foundation                                                                                                    | IN_PROGRESS |
-| STAGE-002 | Discovery & quote (catalogue, locations, availability, pricing, holds)                                                                                    | PLANNED     |
+| STAGE-001 | Shared identity, config, reference data, UI foundation                                                                                                    | COMPLETED   |
+| STAGE-002 | Discovery & quote (catalogue, locations, availability, pricing, holds)                                                                                    | IN_PROGRESS |
 | STAGE-003 | Booking & payment (checkout, drivers, products, terms, confirm, notify)                                                                                   | PLANNED     |
 | STAGE-004 | Reservation operations (list/detail, modify, cancel, refund, customer workspaces)                                                                         | PLANNED     |
 | STAGE-005 | Pickup, active rental, return & closeout (fleet readiness, assignment, agreement, extension, incident, replacement, inspection)                           | PLANNED     |
@@ -62,6 +62,12 @@ Status values: `PLANNED`, `READY`, `IN_PROGRESS`, `BLOCKED`, `VERIFYING`, `COMPL
   no redeploy; locale switch keeps task + data; audit rows for sensitive actions; API/DB/E2E
   green; screenshots at 3 widths + 1 RTL set.
 - **Unlocks:** STAGE-002.
+- **Completion (2026-09-07):** COMPLETED. All planned screens delivered (SCREEN-CUS-008..013/024,
+  SCREEN-OPS-001/030/031/032/034) — no placeholders. Gates: `verify:static` PASS,
+  `verify:unit` 27, `verify:api` 24, `verify:migrate` 4, `verify:e2e` 42 (phone/tablet/laptop),
+  45 screenshots incl. RTL, 0 console/network errors. Added a `responsive.spec.ts` no-horizontal-
+  overflow guard. Evidence: `stages/STAGE-001-foundation/` (`checkpoint.md`, `test-evidence.md`,
+  `defects.md` D-001-1..9 all fixed).
 
 ## STAGE-002 — Discovery & quote
 

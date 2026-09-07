@@ -8,6 +8,7 @@ export const API_MODULES = [
   'meta',
   'iam',
   'config',
+  'admin',
   'customer',
   'catalogue',
   'fleet',

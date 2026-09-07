@@ -5,8 +5,9 @@ import { resolve } from 'node:path';
 import { beforeAll } from 'vitest';
 
 /**
- * Ensures the test database (DATABASE_URL_TEST) is migrated + system/test seeded before any API
- * spec runs. Idempotent; cheap on re-run.
+ * Rebuilds the test database (DATABASE_URL_TEST) from scratch before the suite: drop schemas,
+ * migrate empty->current, then seed system + test. Deterministic regardless of prior migration
+ * history (SRS §22.3).
  */
 process.env.NODE_ENV = 'test';
 
@@ -33,15 +34,18 @@ beforeAll(() => {
   if (prepared) return;
   const testUrl = process.env.DATABASE_URL_TEST;
   if (!testUrl) throw new Error('DATABASE_URL_TEST is required for API tests');
-  const env = { ...process.env, DATABASE_URL: testUrl, NODE_ENV: 'test' as const };
-  execSync('node -r @swc-node/register src/database/migrate.ts', { stdio: 'inherit', env });
-  execSync('node -r @swc-node/register src/database/seed/seed.ts --profile=system', {
+  if (!/_test$/.test(new URL(testUrl).pathname)) {
+    throw new Error('DATABASE_URL_TEST must point at a database whose name ends in _test');
+  }
+  const env = {
+    ...process.env,
+    DATABASE_URL: testUrl,
+    DATABASE_URL_TEST: testUrl,
+    NODE_ENV: 'test' as const,
+  };
+  execSync('node -r @swc-node/register src/database/reset.ts --profile=test', {
     stdio: 'inherit',
     env,
-  });
-  execSync('node -r @swc-node/register src/database/seed/seed.ts --profile=test', {
-    stdio: 'inherit',
-    env: { ...env, DATABASE_URL_TEST: testUrl },
   });
   prepared = true;
 }, 120_000);

@@ -594,6 +594,100 @@ export async function seedSystem(db: Database): Promise<void> {
     PERMISSION_ACTIONS.map(([c, , , d]) => [c, d] as [string, string]),
     true,
   );
+
+  // --- transactional notification templates (published, en/fr/ar) ---
+  await seedTemplates(db);
+}
+
+const TEMPLATES: Array<{
+  key: string;
+  variables: Array<{ name: string; required?: boolean; legal?: boolean }>;
+  byLocale: Record<string, { subject: string; body: string }>;
+}> = [
+  {
+    key: 'account_verification',
+    variables: [{ name: 'code', required: true }, { name: 'name' }],
+    byLocale: {
+      en: {
+        subject: 'Your verification code: {{code}}',
+        body: 'Hi {{name}},\n\nYour verification code is {{code}}. It expires in 15 minutes.\n\nIf you did not request this, you can ignore this message.',
+      },
+      fr: {
+        subject: 'Votre code de vérification : {{code}}',
+        body: 'Bonjour {{name}},\n\nVotre code de vérification est {{code}}. Il expire dans 15 minutes.\n\nSi vous n’êtes pas à l’origine de cette demande, ignorez ce message.',
+      },
+      ar: {
+        subject: 'رمز التحقق الخاص بك: {{code}}',
+        body: 'مرحبًا {{name}}،\n\nرمز التحقق الخاص بك هو {{code}}. تنتهي صلاحيته خلال 15 دقيقة.\n\nإذا لم تطلب ذلك، يمكنك تجاهل هذه الرسالة.',
+      },
+    },
+  },
+  {
+    key: 'account_recovery',
+    variables: [{ name: 'code', required: true }, { name: 'name' }],
+    byLocale: {
+      en: {
+        subject: 'Reset your password — code {{code}}',
+        body: 'Hi {{name}},\n\nUse code {{code}} to reset your password. It expires in 15 minutes and can be used once.\n\nIf you did not request a reset, your account is still secure — no action is needed.',
+      },
+      fr: {
+        subject: 'Réinitialisez votre mot de passe — code {{code}}',
+        body: 'Bonjour {{name}},\n\nUtilisez le code {{code}} pour réinitialiser votre mot de passe. Il expire dans 15 minutes et est à usage unique.\n\nSi vous n’avez pas fait cette demande, votre compte reste sécurisé.',
+      },
+      ar: {
+        subject: 'إعادة تعيين كلمة المرور — الرمز {{code}}',
+        body: 'مرحبًا {{name}}،\n\nاستخدم الرمز {{code}} لإعادة تعيين كلمة المرور. تنتهي صلاحيته خلال 15 دقيقة ويُستخدم مرة واحدة.\n\nإذا لم تطلب ذلك، فحسابك آمن ولا حاجة لأي إجراء.',
+      },
+    },
+  },
+  {
+    key: 'security_alert',
+    variables: [{ name: 'event' }, { name: 'name' }],
+    byLocale: {
+      en: {
+        subject: 'Security update on your account',
+        body: 'Hi {{name}},\n\nA security-relevant change was made to your account ({{event}}). If this was you, no action is needed. If not, reset your password and contact support.',
+      },
+      fr: {
+        subject: 'Mise à jour de sécurité sur votre compte',
+        body: 'Bonjour {{name}},\n\nUn changement lié à la sécurité a été effectué sur votre compte ({{event}}). Si c’était vous, aucune action n’est requise. Sinon, réinitialisez votre mot de passe et contactez le support.',
+      },
+      ar: {
+        subject: 'تحديث أمني على حسابك',
+        body: 'مرحبًا {{name}}،\n\nتم إجراء تغيير متعلق بالأمان على حسابك ({{event}}). إذا كنت أنت، فلا حاجة لأي إجراء. وإلا، أعد تعيين كلمة المرور وتواصل مع الدعم.',
+      },
+    },
+  },
+];
+
+async function seedTemplates(db: Database): Promise<void> {
+  const { template } = await import('../schema/notify');
+  for (const t of TEMPLATES) {
+    for (const [loc, content] of Object.entries(t.byLocale)) {
+      await db
+        .insert(template)
+        .values({
+          key: t.key,
+          channel: 'email',
+          localeCode: loc,
+          version: '1.0',
+          subject: content.subject,
+          bodyTemplate: content.body,
+          variables: t.variables,
+          status: 'published',
+          publishedAt: sql`now()`,
+        })
+        .onConflictDoUpdate({
+          target: [template.key, template.channel, template.localeCode, template.version],
+          set: {
+            subject: content.subject,
+            bodyTemplate: content.body,
+            status: 'published',
+            updatedAt: sql`now()`,
+          },
+        });
+    }
+  }
 }
 
 function humanize(code: string): string {

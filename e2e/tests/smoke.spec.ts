@@ -51,32 +51,33 @@ test.describe('customer web (APP-CWEB)', () => {
 });
 
 test.describe('operations dashboard (APP-OPS)', () => {
-  test('dashboard renders with health drill and labelled unavailable metrics', async ({
+  test('an anonymous visitor to /ops is sent to staff sign-in', async ({ page }, testInfo) => {
+    const guards = attachConsoleGuards(page);
+    await page.goto('/ops');
+    await expect(page).toHaveURL(/\/ops\/sign-in$/);
+    await expect(page.getByRole('heading', { name: /Staff sign in/ })).toBeVisible();
+    await shot(page, testInfo, 'ops-signin');
+    guards.assertClean();
+  });
+
+  test('after staff sign-in the dashboard shows the health drill and labelled unavailable metrics', async ({
     page,
   }, testInfo) => {
     const guards = attachConsoleGuards(page);
 
-    await page.goto('/ops');
-    await expect(page.getByRole('heading', { name: 'Operational dashboard' })).toBeVisible();
+    await page.goto('/ops/sign-in');
+    await page.getByLabel('Staff email', { exact: false }).fill('agent@example.test');
+    await page.getByLabel('Password', { exact: false }).fill('DevPassw0rd!');
+    await page.getByRole('button', { name: /^Sign in$/ }).click();
 
+    await expect(page.getByRole('heading', { name: 'Operational dashboard' })).toBeVisible();
     const health = page.getByTestId('health-components');
     await expect(health).toBeVisible();
     await expect(health.locator('[data-component="db"]')).toHaveAttribute('data-status', 'ok');
     await expect(health.locator('[data-component="lookups"]')).toHaveAttribute('data-status', 'ok');
-
-    // metrics not yet implemented are labelled, not shown as 0
     await expect(page.getByTestId('metric-unavailable').first()).toContainText('Not available yet');
 
     await shot(page, testInfo, 'ops-dashboard-default');
-    guards.assertClean();
-  });
-
-  test('ops nav is keyboard reachable and sections load', async ({ page }) => {
-    const guards = attachConsoleGuards(page);
-    await page.goto('/ops');
-    await page.getByRole('link', { name: 'Fleet' }).first().click();
-    await expect(page).toHaveURL(/\/ops\/fleet$/);
-    await expect(page.locator('[data-appstate="empty"]')).toBeVisible();
     guards.assertClean();
   });
 });

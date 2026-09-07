@@ -10,7 +10,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
 
-import { auditColumns } from './_helpers';
+import { actorColumns, auditColumns } from './_helpers';
 
 /**
  * DAT-LOOKUP-TYPE (SRS-LKP-002). Metadata for every business-facing option source.
@@ -59,6 +59,7 @@ export const lookupValue = pgTable(
   'lookup_value',
   {
     ...auditColumns,
+    ...actorColumns,
     typeCode: text('type_code').notNull(),
     code: text('code').notNull(), // stable within (type, scope)
     scopeKey: text('scope_key').notNull().default('global'),

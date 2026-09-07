@@ -1,0 +1,59 @@
+import { expect, test, type Page } from '@playwright/test';
+
+import { attachConsoleGuards, shot } from './_helpers.js';
+
+/**
+ * STAGE-001 RTL set (SRS-I18N-006/009). The auth surface and an operations management screen
+ * render correctly right-to-left in Arabic, with no horizontal page overflow.
+ */
+
+const openLanguageMenu = (page: Page) =>
+  page
+    .getByRole('button', { name: /Current language|Langue actuelle|اللغة الحالية/ })
+    .first()
+    .click();
+
+async function assertNoOverflow(label: string, page: Page) {
+  const o = await page.evaluate(() => ({
+    sw: document.documentElement.scrollWidth,
+    cw: document.documentElement.clientWidth,
+  }));
+  expect(o.sw, `${label}: horizontal overflow`).toBeLessThanOrEqual(o.cw + 1);
+}
+
+test('RTL: customer auth + operations reference data render right-to-left', async ({
+  page,
+}, testInfo) => {
+  const guards = attachConsoleGuards(page);
+
+  // customer sign-in in Arabic
+  await page.goto('/sign-in');
+  await openLanguageMenu(page);
+  await page.getByRole('menuitem', { name: /العربية/ }).click();
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await shot(page, testInfo, 'rtl-cweb-signin');
+  await assertNoOverflow('RTL customer sign-in', page);
+
+  // back to English so the operations sign-in controls are addressable by their English names
+  await openLanguageMenu(page);
+  await page.getByRole('menuitem', { name: /English/ }).click();
+  await expect(page.locator('html')).not.toHaveAttribute('dir', 'rtl');
+
+  // operations: sign in as admin, open reference data, switch to Arabic
+  await page.goto('/ops/sign-in');
+  await page.getByLabel('Staff email', { exact: false }).fill('admin@example.test');
+  await page.getByLabel('Password', { exact: false }).fill('DevPassw0rd!');
+  await page.locator('button[type="submit"]').click();
+  await expect(page).toHaveURL(/\/ops$/);
+
+  await page.goto('/ops/config/reference-data');
+  await expect(page.getByTestId('lookup-value-rows')).toBeVisible();
+  await openLanguageMenu(page);
+  await page.getByRole('menuitem', { name: /العربية/ }).click();
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  await expect(page.getByTestId('lookup-value-rows')).toBeVisible();
+  await shot(page, testInfo, 'rtl-ops-reference-data');
+  await assertNoOverflow('RTL ops reference-data', page);
+
+  guards.assertClean();
+});

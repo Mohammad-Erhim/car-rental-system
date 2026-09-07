@@ -11,11 +11,12 @@ if git ls-files --error-unmatch .env >/dev/null 2>&1; then
   fail=1
 fi
 
-# Scan tracked files (excluding docs/examples) for obvious secret patterns.
+# Scan tracked files (excluding docs/examples and this scanner itself) for obvious secret patterns.
 patterns='(BEGIN (RSA |EC )?PRIVATE KEY|AKIA[0-9A-Z]{16}|sk_live_[0-9a-zA-Z]{16,}|xox[baprs]-[0-9A-Za-z-]{10,}|-----BEGIN OPENSSH PRIVATE KEY-----)'
-if git grep -nEI "$patterns" -- ':!*.example' ':!docs/**' ':!**/*.md' >/dev/null 2>&1; then
+scan_excludes=(':!*.example' ':!docs/**' ':!**/*.md' ':!scripts/check-env.sh')
+if git grep -nEI "$patterns" -- "${scan_excludes[@]}" >/dev/null 2>&1; then
   echo "!! Potential secret found in tracked files:"
-  git grep -nEI "$patterns" -- ':!*.example' ':!docs/**' ':!**/*.md' || true
+  git grep -nEI "$patterns" -- "${scan_excludes[@]}" || true
   fail=1
 fi
 

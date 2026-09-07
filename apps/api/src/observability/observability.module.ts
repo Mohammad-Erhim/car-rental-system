@@ -10,12 +10,15 @@ import {
 } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
 
+import { Public } from '../common/auth/decorators';
+
 import { CorrelationMiddleware } from './correlation.middleware';
 import { HealthService } from './health.service';
 import { MetricsService } from './metrics';
 
-// Health + metrics live outside the /api prefix and outside URI versioning.
+// Health + metrics live outside the /api prefix and outside URI versioning, and outside auth.
 @ApiExcludeController()
+@Public()
 @Controller({ version: VERSION_NEUTRAL })
 class OpsController {
   constructor(

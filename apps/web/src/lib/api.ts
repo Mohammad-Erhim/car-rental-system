@@ -21,18 +21,38 @@ export class ApiError extends Error {
   get status() {
     return this.problem.status;
   }
+  get fieldErrors() {
+    return this.problem.fieldErrors ?? [];
+  }
+}
+
+// --- access token holder + silent refresh hook (set by AuthProvider) ---
+let accessToken: string | null = null;
+let refreshFn: (() => Promise<boolean>) | null = null;
+let refreshing: Promise<boolean> | null = null;
+
+export function setAccessToken(token: string | null): void {
+  accessToken = token;
+}
+export function getAccessToken(): string | null {
+  return accessToken;
+}
+export function registerRefreshHandler(fn: (() => Promise<boolean>) | null): void {
+  refreshFn = fn;
 }
 
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: unknown;
-  /** sent as Idempotency-Key for consequential commands (SRS-API-006) */
   idempotencyKey?: string;
-  /** sent as If-Match for optimistic concurrency (SRS-API-007) */
   ifMatch?: string | number;
   signal?: AbortSignal;
   locale?: string;
   headers?: Record<string, string>;
+  /** internal: prevents infinite refresh recursion */
+  _retried?: boolean;
+  /** skip attaching the bearer token (auth endpoints) */
+  anonymous?: boolean;
 }
 
 function newCorrelationId(): string {
@@ -52,6 +72,7 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   if (opts.idempotencyKey) headers['Idempotency-Key'] = opts.idempotencyKey;
   if (opts.ifMatch !== undefined) headers['If-Match'] = String(opts.ifMatch);
+  if (!opts.anonymous && accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
   const res = await fetch(`${BASE}${path}`, {
     method: opts.method ?? 'GET',
@@ -64,17 +85,31 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
   const text = await res.text();
   const json = text ? safeJson(text) : null;
 
-  if (!res.ok) {
-    if (isProblem(json)) throw new ApiError(json);
-    throw new ApiError({
-      code: res.status === 0 ? 'dependency_unavailable' : 'internal_error',
-      category: 'internal',
-      status: res.status || 503,
-      title: res.statusText || 'Request failed',
-      correlationId,
+  if (res.ok) return json as T;
+
+  // silent refresh once on 401 for authenticated calls
+  if (
+    res.status === 401 &&
+    !opts._retried &&
+    !opts.anonymous &&
+    refreshFn &&
+    !path.startsWith('/auth/')
+  ) {
+    refreshing ??= refreshFn().finally(() => {
+      refreshing = null;
     });
+    const ok = await refreshing;
+    if (ok) return apiFetch<T>(path, { ...opts, _retried: true });
   }
-  return json as T;
+
+  if (isProblem(json)) throw new ApiError(json);
+  throw new ApiError({
+    code: res.status === 0 ? 'dependency_unavailable' : 'internal_error',
+    category: 'internal',
+    status: res.status || 503,
+    title: res.statusText || 'Request failed',
+    correlationId,
+  });
 }
 
 function safeJson(text: string): unknown {
@@ -85,10 +120,10 @@ function safeJson(text: string): unknown {
   }
 }
 
-/** Typed helpers for the meta endpoints used by STAGE-000 landings. */
 export const metaApi = {
-  locales: (signal?: AbortSignal) => apiFetch<LocalesResponse>('/meta/locales', { signal }),
-  build: (signal?: AbortSignal) => apiFetch<BuildInfo>('/meta/build', { signal }),
+  locales: (signal?: AbortSignal) =>
+    apiFetch<LocalesResponse>('/meta/locales', { signal, anonymous: true }),
+  build: (signal?: AbortSignal) => apiFetch<BuildInfo>('/meta/build', { signal, anonymous: true }),
   healthSummary: (signal?: AbortSignal) =>
-    apiFetch<HealthSummary>('/meta/health-summary', { signal }),
+    apiFetch<HealthSummary>('/meta/health-summary', { signal, anonymous: true }),
 };

@@ -1,9 +1,10 @@
 import { BASE_RESOURCES, SUPPORTED_LOCALE_CODES } from '@carrental/i18n';
 import { I18nProvider } from '@carrental/i18n/react';
-import { ThemeProvider } from '@carrental/ui';
+import { ThemeProvider, ToastProvider } from '@carrental/ui';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useMemo, useState, type ReactNode } from 'react';
 
+import { AuthProvider } from '../lib/auth.js';
 import { detectInitialLocale, storeLocale } from '../lib/locale-storage.js';
 import { createQueryClient } from '../lib/query.js';
 
@@ -30,7 +31,9 @@ export function AppProviders({ children }: { children: ReactNode }) {
             }
           }}
         >
-          {children}
+          <AuthProvider>
+            <ToastProvider>{children}</ToastProvider>
+          </AuthProvider>
         </I18nProvider>
       </ThemeProvider>
     </QueryClientProvider>

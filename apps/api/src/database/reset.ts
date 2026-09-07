@@ -29,8 +29,10 @@ async function main() {
   const { db, sql, close } = createDb(url, { max: 1 });
   try {
     // eslint-disable-next-line no-console
-    console.log(`[reset] dropping schema public on ${dbName}`);
-    await sql.unsafe('DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;');
+    console.log(`[reset] dropping schemas public + drizzle on ${dbName}`);
+    await sql.unsafe(
+      'DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; DROP SCHEMA IF EXISTS drizzle CASCADE;',
+    );
     // eslint-disable-next-line no-console
     console.log('[reset] migrating');
     await migrate(db, { migrationsFolder: resolve(here, 'migrations') });

@@ -7,3 +7,5 @@ export * from './lookup';
 export * from './org';
 export * from './iam';
 export * from './platform';
+export * from './customer';
+export * from './notify';

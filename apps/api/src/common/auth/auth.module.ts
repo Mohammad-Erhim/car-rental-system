@@ -1,0 +1,29 @@
+import { Global, Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+
+import { ActorService } from './actor.service';
+import { AuthGuard } from './auth.guard';
+import { PasswordService } from './password.service';
+import { PermissionsGuard } from './permissions.guard';
+import { RbacService } from './rbac.service';
+import { SessionService } from './session.service';
+import { TokenService } from './token.service';
+
+/**
+ * Global auth wiring. AuthGuard + PermissionsGuard run on every route; routes opt out with
+ * @Public() / @OptionalAuth() and opt in to permissions with @Permissions().
+ */
+@Global()
+@Module({
+  providers: [
+    PasswordService,
+    TokenService,
+    SessionService,
+    RbacService,
+    ActorService,
+    { provide: APP_GUARD, useClass: AuthGuard },
+    { provide: APP_GUARD, useClass: PermissionsGuard },
+  ],
+  exports: [PasswordService, TokenService, SessionService, RbacService, ActorService],
+})
+export class AuthModule {}

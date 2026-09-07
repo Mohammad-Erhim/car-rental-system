@@ -43,7 +43,9 @@
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.1",
     "uuid": "10.0.0",
-    "zod": "3.23.8"
+    "zod": "3.23.8",
+    "jose": "5.6.3",
+    "nanoid": "5.0.7"
   },
   "devDependencies": {
     "@carrental/config": "workspace:*",

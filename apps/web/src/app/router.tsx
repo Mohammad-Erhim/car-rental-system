@@ -1,12 +1,24 @@
 import { AppStateView } from '@carrental/ui';
+import type { ReactNode } from 'react';
 import { createBrowserRouter, useNavigate, useRouteError } from 'react-router-dom';
 
+import { RequireAuth, RequirePermission } from '../components/route-guards.js';
+import { RecoveryPage } from '../surfaces/auth/recovery-page.js';
+import { RegisterPage } from '../surfaces/auth/register-page.js';
+import { SignInPage } from '../surfaces/auth/sign-in-page.js';
+import { AccountOverviewPage } from '../surfaces/customer/account-overview-page.js';
 import { CustomerLayout } from '../surfaces/customer/customer-layout.js';
+import { DataRequestsPage } from '../surfaces/customer/data-requests-page.js';
+import { DriversPage } from '../surfaces/customer/drivers-page.js';
 import { HomePage } from '../surfaces/customer/home-page.js';
 import { PlaceholderPage } from '../surfaces/customer/placeholder-page.js';
+import { ProfilePage } from '../surfaces/customer/profile-page.js';
 import { OpsDashboard } from '../surfaces/ops/ops-dashboard.js';
 import { OpsLayout } from '../surfaces/ops/ops-layout.js';
 import { OpsPlaceholder } from '../surfaces/ops/ops-placeholder.js';
+import { ReferenceDataPage } from '../surfaces/ops/reference-data-page.js';
+import { StaffRolesPage } from '../surfaces/ops/staff-roles-page.js';
+import { TranslationsPage } from '../surfaces/ops/translations-page.js';
 
 function RouteError() {
   const error = useRouteError();
@@ -39,6 +51,9 @@ function NotFound() {
   );
 }
 
+const cust = (el: ReactNode) => <RequireAuth audience="customer">{el}</RequireAuth>;
+const staffOnly = (el: ReactNode) => <RequireAuth audience="staff">{el}</RequireAuth>;
+
 export const router = createBrowserRouter([
   {
     path: '/',
@@ -46,21 +61,28 @@ export const router = createBrowserRouter([
     errorElement: <RouteError />,
     children: [
       { index: true, element: <HomePage /> },
+      { path: 'sign-in', element: <SignInPage audience="customer" /> },
+      { path: 'register', element: <RegisterPage /> },
+      { path: 'recovery', element: <RecoveryPage audience="customer" /> },
+      { path: 'account', element: cust(<AccountOverviewPage />) },
+      { path: 'account/profile', element: cust(<ProfilePage />) },
+      { path: 'account/drivers', element: cust(<DriversPage />) },
+      {
+        path: 'account/payments',
+        element: cust(
+          <PlaceholderPage
+            title="Payments & receipts"
+            note="Payment history appears once booking & payments are implemented."
+          />,
+        ),
+      },
+      { path: 'account/data', element: cust(<DataRequestsPage />) },
       {
         path: 'trips',
         element: (
           <PlaceholderPage
             title="Your trips"
             note="Reservations and rentals appear here once booking is implemented."
-          />
-        ),
-      },
-      {
-        path: 'account',
-        element: (
-          <PlaceholderPage
-            title="Your account"
-            note="Sign in, profile, drivers, and data requests are implemented in the identity stage."
           />
         ),
       },
@@ -80,59 +102,79 @@ export const router = createBrowserRouter([
     element: <OpsLayout />,
     errorElement: <RouteError />,
     children: [
-      { index: true, element: <OpsDashboard /> },
+      { path: 'sign-in', element: <SignInPage audience="staff" /> },
+      { path: 'recovery', element: <RecoveryPage audience="staff" /> },
+      { index: true, element: staffOnly(<OpsDashboard />) },
       {
-        path: 'sign-in',
-        element: (
-          <OpsPlaceholder
-            title="Staff sign in"
-            note="Credential + session handling is implemented in the identity stage (SCREEN-OPS-001)."
-          />
+        path: 'config/reference-data',
+        element: staffOnly(
+          <RequirePermission anyOf={['config.read', 'lookup.manage']}>
+            <ReferenceDataPage />
+          </RequirePermission>,
+        ),
+      },
+      {
+        path: 'admin/staff',
+        element: staffOnly(
+          <RequirePermission
+            anyOf={['staff.manage']}
+            fallbackTitle="Staff administration requires the staff.manage permission"
+          >
+            <StaffRolesPage />
+          </RequirePermission>,
+        ),
+      },
+      {
+        path: 'config/translations',
+        element: staffOnly(
+          <RequirePermission anyOf={['config.read', 'config.publish']}>
+            <TranslationsPage />
+          </RequirePermission>,
         ),
       },
       {
         path: 'work',
-        element: (
+        element: staffOnly(
           <OpsPlaceholder
             title="Work queues"
             note="Operations queues (SCREEN-OPS-003) are built with the rental lifecycle stages."
-          />
+          />,
         ),
       },
       {
         path: 'fleet',
-        element: (
+        element: staffOnly(
           <OpsPlaceholder
             title="Fleet"
             note="Fleet inventory (SCREEN-OPS-013) lands in the fleet stage."
-          />
+          />,
         ),
       },
       {
         path: 'finance',
-        element: (
+        element: staffOnly(
           <OpsPlaceholder
             title="Finance"
             note="Payments & reconciliation (SCREEN-OPS-023/024) land in the reservation-operations stage."
-          />
+          />,
         ),
       },
       {
         path: 'config',
-        element: (
+        element: staffOnly(
           <OpsPlaceholder
             title="Configuration"
-            note="Reference data (SCREEN-OPS-030/031) is implemented in the identity/config stage."
-          />
+            note="Pricing / policy / product / location versioning land in the administration stage. Reference Data is available now."
+          />,
         ),
       },
       {
         path: 'insights',
-        element: (
+        element: staffOnly(
           <OpsPlaceholder
             title="Insights"
             note="Reports (SCREEN-OPS-035) land in the administration stage."
-          />
+          />,
         ),
       },
     ],

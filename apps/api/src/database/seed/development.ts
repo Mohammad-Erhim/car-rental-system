@@ -2,6 +2,7 @@ import { hash } from '@node-rs/argon2';
 import { sql } from 'drizzle-orm';
 
 import type { Database } from '../drizzle';
+import { customer } from '../schema/customer';
 import { account, staffProfile } from '../schema/iam';
 import { location, organization } from '../schema/org';
 
@@ -155,7 +156,7 @@ export async function seedDevelopment(db: Database): Promise<void> {
 
   // --- demo customer ---
   const custEmail = 'customer@example.test';
-  await db
+  const [custAcc] = await db
     .insert(account)
     .values({
       kind: 'customer',
@@ -169,9 +170,45 @@ export async function seedDevelopment(db: Database): Promise<void> {
       phone: '+15555550123',
     })
     .onConflictDoUpdate({
+      // the demo customer is a fixture — re-seeding restores a known baseline
       target: account.emailNormalized,
-      set: { status: 'active', updatedAt: sql`now()` },
-    });
+      set: {
+        status: 'active',
+        displayName: 'Demo Customer',
+        localeCode: 'en',
+        updatedAt: sql`now()`,
+      },
+    })
+    .returning();
+
+  // domain profile row — the register/verify flow creates this; the seed must mirror it so the
+  // demo customer can edit their profile & preferences (FR-IAM-006).
+  if (custAcc) {
+    await db
+      .insert(customer)
+      .values({
+        accountId: custAcc.id,
+        organizationId: org.id,
+        fullName: 'Demo Customer',
+        email: custEmail,
+        emailNormalized: custEmail,
+        phone: '+15555550123',
+        localeCode: 'en',
+        communicationPrefs: { marketingEmail: false },
+        consents: [{ type: 'account_terms', version: '1.0', acceptedAt: new Date().toISOString() }],
+        status: 'active',
+      })
+      .onConflictDoUpdate({
+        target: customer.accountId,
+        set: {
+          status: 'active',
+          fullName: 'Demo Customer',
+          localeCode: 'en',
+          communicationPrefs: { marketingEmail: false },
+          updatedAt: sql`now()`,
+        },
+      });
+  }
 }
 
 function weekly(open: string, close: string, closedDays: number[] = []) {

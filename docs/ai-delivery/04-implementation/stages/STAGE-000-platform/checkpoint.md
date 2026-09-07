@@ -24,7 +24,7 @@
       `/metrics` (prom-client), `MetricsInterceptor` with route-template labels.
     - `common/` `AppError` + `GlobalErrorFilter` (Problem envelope, no leak), `ZodValidationPipe`,
       cursor pagination helpers.
-    - `database/` Drizzle client (`postgres` driver), migration runner, `reset` (guards _dev/_test),
+    - `database/` Drizzle client (`postgres` driver), migration runner, `reset` (guards \_dev/\_test),
       seed framework with `system` / `development` / `test` profiles. Schema: `i18n` (locale,
       translation), `lookup` (type, value), `org` (organization, location, hours-exception,
       one-way-route), `iam` (account, session, auth-challenge, role, permission-action,
@@ -33,7 +33,7 @@
     - `modules/meta` — `GET /api/v1/meta/{locales,build,health-summary}` with full test set.
     - `bootstrap.ts` helmet + CORS allowlist + compression + cookie-parser + global zod pipe +
       error filter + metrics interceptor + URI versioning (`/api/v1`, health/metrics VERSION_NEUTRAL)
-      + OpenAPI at `/api/v1/docs` + `/api/v1/openapi.json`.
+      - OpenAPI at `/api/v1/docs` + `/api/v1/openapi.json`.
     - `worker.ts` BullMQ `housekeeping` queue (reaps expired challenges/idempotency keys, logs
       outbox backlog) + dead-letter queue.
     - `openapi.ts` emits committed `apps/api/openapi.json`.
@@ -49,10 +49,10 @@
       call `meta` endpoints and render loading/failure/success via `AppStateView`.
     - Placeholder routes for trips/account/help and ops work/fleet/finance/config/insights.
   - `e2e` — Playwright, 3 responsive projects (chromium), `smoke.spec.ts` (12 tests), screenshot
-    + console/network guards, HTML report.
+    - console/network guards, HTML report.
   - Local platform: `scripts/dev-up.sh`/`dev-down.sh` (native pg+redis or docker compose),
     `check-env.sh`, `evidence-bundle.sh`. `.env.example` (placeholders), generated local `.env`.
-  - Root `README.md`, verify:* scripts.
+  - Root `README.md`, verify:\* scripts.
 - **Files changed:** whole repo scaffold (see git).
 - **Commands run / verified results:**
   - `pnpm install` clean · `pnpm dev:up` · `pnpm db:migrate` · `pnpm db:seed` (3 locales, 34

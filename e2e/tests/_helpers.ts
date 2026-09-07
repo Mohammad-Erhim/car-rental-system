@@ -23,8 +23,17 @@ export function attachConsoleGuards(page: Page) {
   });
   page.on('pageerror', (err) => pageErrors.push(err.message));
   page.on('response', (res) => {
-    if (res.status() >= 400 && !res.url().includes('/favicon')) {
-      failedRequests.push(`${res.status()} ${res.request().method()} ${res.url()}`);
+    const url = res.url();
+    const status = res.status();
+    // Expected, handled negative responses (not defects):
+    //  - session probe with no cookie yet
+    //  - a deliberate wrong-code / invalid-credentials assertion in a test
+    const expectedNegative =
+      (status === 401 && /\/auth\/(refresh|me)\b/.test(url)) ||
+      (status === 401 && /\/auth\/sign-in\b/.test(url)) ||
+      (status === 422 && /\/auth\/verify-contact\b/.test(url));
+    if (status >= 400 && !url.includes('/favicon') && !expectedNegative) {
+      failedRequests.push(`${status} ${res.request().method()} ${url}`);
     }
   });
 
