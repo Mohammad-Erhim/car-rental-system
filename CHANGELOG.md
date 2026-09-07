@@ -6,6 +6,42 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### STAGE-009 — Brand-asset upload + self-hosted web fonts (2026-09-07)
+
+**Added**
+
+- `POST /api/v1/config/branding/assets` (staff, `config.publish`) — upload a brand image
+  (logo / logoDark / favicon / ogImage) as a base64 JSON body and get an opaque `obj:` ref to
+  store in the branding config. The server magic-byte-sniffs the real media type (rejects a
+  mismatch with the declared one), enforces per-purpose byte caps (favicon 128 KB, logo
+  512 KB, OG 2 MB) and pixel-dimension bounds, and runs SVG through an allowlist sanitiser
+  that strips `<script>` / `<foreignObject>` / `<style>`, `on*` handlers, and external
+  `href` / `src` / `url()` before storage.
+- `common/object-storage/` — an fs `ObjectStorageService` (DEC-015): content under
+  `OBJECT_STORAGE_FS_ROOT`, a `stored_object` metadata row, and reads handed out only as
+  short-lived HMAC-signed `GET /api/v1/assets/:key?exp&sig` URLs (SVG served with a locked
+  `Content-Security-Policy`). `image.util.ts` carries dependency-free PNG/JPEG/WebP/ICO
+  dimension readers and the SVG sanitiser.
+- `GET /api/v1/meta/branding` now resolves `obj:` asset refs to signed URLs; the branding
+  editor gains a file `<input>` per asset (upload → base64 → store the ref).
+- **Self-hosted web fonts** — `apps/site` loads the curated font set (Inter, IBM Plex Sans +
+  IBM Plex Sans Arabic, Cairo, Tajawal) via `next/font/google`: 38 `.woff2` built into
+  `.next/static/media`, `font-display: swap`, computed fallback metrics, **no runtime request
+  to Google**. `packages/theme` emits `--font-sans: var(--font-brand, <primary>), <fallbacks>`
+  and `[locale]/layout` sets `--font-brand` from the brand `font` key. `system` loads nothing.
+
+**Changed**
+
+- Global JSON body limit 100 KB → 3 MB (the staff-only, rate-limited brand-asset route needs
+  room for a base64 OG image).
+
+**Verified**
+
+- `api test:api` 92 (14 files; +8 `brand-asset.spec.ts`: PNG round-trip, tampered-sig 404,
+  MIME mismatch, dimension cap, byte cap, SVG sanitisation, RBAC, `meta/branding` resolution).
+- `verify:theme` green (token CSS regenerated + `check:css` clean, 9 unit tests, no literal
+  colours); `pnpm -r typecheck` + lint green; `next build` green with fonts self-hosted.
+
 ### STAGE-011 — Authenticated customer surface on `apps/site` (2026-09-07)
 
 The customer flows deferred at the `apps/web` → `/ops` split are now on the Next.js App Router,

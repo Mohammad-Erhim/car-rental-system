@@ -110,7 +110,23 @@ non-`https` asset rejected; `preview` reports AA cleanliness; a `rental_agent` (
 117 KB gz) · native smoke: `GET /meta/branding` → 200, revision 0, correct `Cache-Control` +
 `ETag`.
 
-## Not done yet (this stage → increment 3 / STAGE-013)
+## Increment 3 (done, 2026-09-07)
 
-Density → actual control-size changes in `packages/ui`; web-font loading for the non-Inter
-choices; `apps/site` application (needs STAGE-011); the light/dark × preset screenshot set.
+- **Density** → real control-size changes: `--control-h`/`-sm`/`-px` flip on
+  `[data-density='compact']`, `Button`/`Input` read them (44 → 38 px).
+- **Brand-asset upload** — `common/object-storage/` fs `ObjectStorageService` (content under
+  `OBJECT_STORAGE_FS_ROOT`, `stored_object` row, HMAC-signed `/api/v1/assets/:key` reads) +
+  `image.util.ts` (magic-byte sniff, PNG/JPEG/WebP/ICO dimension readers, allowlist SVG
+  sanitiser). `POST /api/v1/config/branding/assets` (`config.publish`, base64 body):
+  sniff-vs-declared check, per-purpose byte + dimension caps, SVG sanitised pre-storage →
+  `{ ref: "obj:<key>", url, width, height }`. `GET /api/v1/assets/*` public + signed (locked
+  CSP for SVG). `meta/branding` resolves `obj:` refs → signed URLs; config-version validation
+  accepts `obj:` alongside `https://`. Body limit 100 KB → 3 MB. Editor: a file `<input>` per
+  asset (logo/logoDark/favicon/ogImage). `test/brand-asset.spec.ts` **8** (`api test:api` 92).
+- **Self-hosted web fonts** — `apps/site/src/lib/fonts.ts` uses `next/font/google` for Inter,
+  IBM Plex Sans (+ IBM Plex Sans Arabic), Cairo, Tajawal — built into `.next/static/media`
+  (38 woff2), `font-display: swap`, no runtime Google request. `packages/theme` `--font-sans`
+  is now `var(--font-brand, <primary>), <fallbacks>`; `[locale]/layout` sets `--font-brand`
+  via `fontClassName(branding.config.font)`. Token CSS regenerated; `verify:theme` green.
+
+STAGE-009 has **no open residual**. The light/dark × preset screenshot set rolls into STAGE-013.
