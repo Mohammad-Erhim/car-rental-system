@@ -1,10 +1,11 @@
 'use client';
 
 import { I18nProvider, useI18n } from '@carrental/i18n/react';
-import { ThemeProvider, UiStringsProvider } from '@carrental/ui';
+import { ThemeProvider, ToastProvider, UiStringsProvider } from '@carrental/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
 
+import { AuthProvider } from '../lib/auth-context';
 import type { Branding } from '../lib/branding';
 import type { Messages } from '../lib/i18n';
 
@@ -37,7 +38,11 @@ export function Providers({
             document.cookie = `carrental.locale=${l};path=/;max-age=${60 * 60 * 24 * 365}`;
           }}
         >
-          <LocalisedUiStrings>{children}</LocalisedUiStrings>
+          <AuthProvider>
+            <ToastProvider>
+              <LocalisedUiStrings>{children}</LocalisedUiStrings>
+            </ToastProvider>
+          </AuthProvider>
         </I18nProvider>
       </ThemeProvider>
     </QueryClientProvider>

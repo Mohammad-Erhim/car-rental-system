@@ -2,21 +2,25 @@
 
 import { getLocaleDefinition, SUPPORTED_LOCALE_CODES } from '@carrental/i18n';
 import { useI18n } from '@carrental/i18n/react';
-import { ThemeToggle } from '@carrental/ui';
-import { Car, Globe } from 'lucide-react';
+import { Button, ThemeToggle } from '@carrental/ui';
+import { Car, Globe, LogIn, Luggage, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 
+import { useAuth } from '../lib/auth-context';
 import { ACTIVE_LOCALES } from '../lib/i18n';
 
 export function SiteHeader({ locale }: { locale: string }) {
   const { t, setLocale } = useI18n();
   const router = useRouter();
   const pathname = usePathname() || `/${locale}`;
+  const { status } = useAuth();
+  const authed = status === 'authenticated';
 
   const nav = [
     { href: `/${locale}`, label: t('nav.rentACar') },
     { href: `/${locale}/search`, label: t('action.search') },
+    { href: `/${locale}/trips`, label: t('nav.myTrips') },
     { href: `/${locale}/help`, label: t('nav.help') },
   ];
 
@@ -72,8 +76,47 @@ export function SiteHeader({ locale }: { locale: string }) {
               current: t('theme.current'),
             }}
           />
+          <Button variant="outline" size="sm" asChild>
+            <Link href={authed ? `/${locale}/account` : `/${locale}/sign-in`}>
+              {authed ? (
+                <UserRound className="size-4" aria-hidden="true" />
+              ) : (
+                <LogIn className="size-4" aria-hidden="true" />
+              )}
+              <span className="hidden sm:inline">
+                {authed ? t('nav.account') : t('action.signIn')}
+              </span>
+            </Link>
+          </Button>
         </div>
       </div>
+
+      {/* Bottom nav on phones/tablets (design §4.1); the header nav takes over from `sm` up. */}
+      <nav
+        aria-label="Primary"
+        data-testid="mobile-bottom-nav"
+        className="grid grid-cols-4 border-t bg-background sm:hidden"
+      >
+        {[
+          { href: `/${locale}`, label: t('nav.rentACar'), Icon: Car },
+          { href: `/${locale}/search`, label: t('action.search'), Icon: Globe },
+          { href: `/${locale}/trips`, label: t('nav.myTrips'), Icon: Luggage },
+          {
+            href: authed ? `/${locale}/account` : `/${locale}/sign-in`,
+            label: authed ? t('nav.account') : t('action.signIn'),
+            Icon: authed ? UserRound : LogIn,
+          },
+        ].map(({ href, label, Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className="flex flex-col items-center gap-1 py-2 text-xs text-muted-foreground"
+          >
+            <Icon className="size-5" aria-hidden="true" />
+            {label}
+          </Link>
+        ))}
+      </nav>
     </header>
   );
 }
