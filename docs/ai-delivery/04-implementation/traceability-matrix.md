@@ -179,3 +179,23 @@ screenshot set (phone/tablet/laptop [+RTL]), and the owning TEST-SCREEN-\* / TES
 | FLOW-CUS-002         | protected route → sign-in → origin         | `components/route-guards.tsx` + `lib/return-to`             | `auth-and-reference` FLOW-CUS-002                             | `cweb-signin` → `cweb-profile`                     | COMPLETED                                                                |
 | FLOW-OPS-014/015/016 | staff sign-in / lookup edit / staff access | ops layout + reference-data + staff-roles                   | `auth-and-reference`, `account-and-i18n`                      | `ops-*`                                            | COMPLETED                                                                |
 | COMP-SH-001..020     | shared UI kit                              | `packages/ui/src/components/*`, `apps/web/src/components/*` | `packages/ui` unit + used across all E2E                      | all sets                                           | PARTIAL (core set done; data-table / step-progress / unsaved-guard 002+) |
+
+---
+
+## Enhancement program (STAGE-009..013)
+
+Master plan: `enhancement-program.md`. Every mandate item closes to VALIDATED only with a named
+validation artifact. Status ladder: PLANNED → IN_PROGRESS → IMPLEMENTED → VALIDATED.
+
+| Mandate item                                             | Stage(s)    | Implementation (planned)                                                                                        | Validation (planned)                                                      | Status  |
+| -------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ------- | ------- |
+| §1.1 Professional UI/UX — public + dashboard, responsive | 009,011,012 | `packages/ui` patterns; `apps/site`; `apps/web` `/ops` rework                                                   | STAGE-013 screenshot matrix; `verify:e2e                                  | a11y`   | PLANNED |
+| §1.2 System-wide light / dark mode                       | 009         | `packages/theme`, shared `ThemeProvider`, `.dark` wired in both apps                                            | `verify:theme` (AA both modes); STAGE-013 ×2 themes                       | PLANNED |
+| §1.3 Customizable theming, dashboard-managed, both apps  | 009         | `branding` `configVersion` kind; `GET /meta/branding`; `packages/theme` resolver; `/ops/config/branding`        | `branding.spec.ts`; live re-theme demo in `test-evidence.md`              | PLANNED |
+| §1.4 Branding section — logos/assets/colors/themes       | 009         | brand-asset upload (`ObjectStoragePort`, MIME/size/SVG-sanitise); branding editor UI                            | `branding.spec.ts` (upload validation); screenshots                       | PLANNED |
+| §1.5 Complete i18n — every element, no mixed screens     | 010         | string extraction both apps; full en/ar/fr; ICU; RTL; zod/enum/email localized                                  | `verify:i18n`; STAGE-013 ×3 locales DOM scan; `translation-admin.spec.ts` | PLANNED |
+| §1.6 Dynamic locale + translation management             | 010         | `/ops/config/languages`; `locale` `configVersion` kind; completeness matrix + import/export                     | "add a 4th locale from the UI" walkthrough; `translation-admin.spec.ts`   | PLANNED |
+| §1.7 Dashboard UX best practices                         | 012         | shell/nav/command-palette; reusable `DataTable`/`FormLayout`/`DetailLayout`/…; short-flow reworks               | `verify:a11y` all `/ops`; click-count table; STAGE-013                    | PLANNED |
+| §1.8 Public pages on Next.js — SEO/perf/meta/indexing    | 011         | `apps/site` App Router, SSG/ISR, Metadata API, `sitemap.ts`/`robots.ts`, JSON-LD, `hreflang`; `/ops/config/seo` | `verify:seo`; Lighthouse ≥95; sitemap/robots/JSON-LD dumps                | PLANNED |
+| §1.9 Cohesive brand-appropriate design (not generic)     | 009,011,012 | shared token system + presets applied everywhere                                                                | STAGE-013 visual review; no default-fallback colour with a preset active  | PLANNED |
+| §1.10 Trace + checkpoint + changelog + fix-loop          | 013 (+ all) | per-stage `checkpoint.md`/`test-evidence.md`; `CHANGELOG.md`; this table                                        | STAGE-013 `defects.md` all resolved; final `verify:all` transcript        | PLANNED |

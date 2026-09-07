@@ -189,3 +189,66 @@ Append-only. Do not rewrite history. Newest at the bottom of each area.
 - Consequences: `deploy/docker-compose.yml` removed; `RUNBOOK.md` / `README.md` / traceability
   updated; BuildKit (`docker-buildx`) required to build the images. Defect D-008-1 (stale
   bind-mounted `*.tsbuildinfo` → empty `dist_*` volume) fixed in the `deps` one-shot.
+
+---
+
+## Enhancement program (STAGE-009..013) — see `enhancement-program.md`
+
+### DEC-023 — Public site on Next.js (supersedes DEC-004 for the customer surface)
+
+- Date: 2026-09-07 (enhancement program)
+- Context: DEC-004 chose one React + Vite SPA for both surfaces, citing an explicit earlier user
+  constraint and the ~1.9 GB RAM authoring host, and deferred SSR/SEO "to release hardening if
+  needed". A later explicit instruction: **"ensure all public-facing pages use Next.js"** and be
+  optimized for SEO / metadata / indexing / performance. Confirmed with the user: **public site
+  only** — not the dashboard.
+- Decision: New `apps/site` = Next.js (App Router, TS strict) hosting the **entire customer
+  surface** (the current `/` route tree) with SSG/ISR, `/[locale]/` routing, and full technical
+  SEO. `apps/web` (Vite SPA) is reduced to **`/ops` only** and overhauled in place (STAGE-012).
+  Shared design system in `packages/ui` + new `packages/theme`; shared contracts + i18n. In
+  prod both sit behind one proxy/origin (`/` → site, `/ops` → web, `/api` → API) so the
+  `SameSite=Lax` refresh cookie (DEC-021) is unaffected.
+- SRS clauses affected: SRS-CMP-WEB "React Router routes" → Next.js App Router for the customer
+  surface (SRS-CMP-OPS unchanged). SRS-UI-014 hydration-warning assertions now **do** apply to
+  `apps/site`.
+- Source IDs: explicit user instruction (2026-09-07), SRS §5.2, SRS-UI-001..015, SRS-NFR-005,
+  DEC-021.
+- Consequences: DEC-004/018 remain in force for `/ops`. New `deploy/Dockerfile.site`, compose +
+  nginx routing changes, `RUNBOOK.md` update. RAM risk handled by building/running `apps/site`
+  in the Docker `build` stage / dev container (DEC-013).
+
+### DEC-024 — Launch locales: en + ar + fr (closes the DEC-020 open question)
+
+- Date: 2026-09-07 (enhancement program)
+- Context: DEC-020 seeded `en`/`ar`/`fr` as **test/dev** locales and surfaced "confirm the real
+  launch locale list" to the user. The user confirmed: ship **all three, fully translated**.
+- Decision: `en` (default, LTR), `ar` (RTL), `fr` (LTR) are **production** launch locales. Every
+  page/component/field/label/message/validation/option/UI element and every email/notification
+  is authored in all three; no screen renders mixed-language or mixed-direction. `testOnly` is
+  cleared for the three in the system seed. The dynamic add-a-locale + translation-catalogue
+  machinery (SRS §9.2, `/ops/config/languages`) still lets the business add more with no code
+  change.
+- Source IDs: explicit user instruction (2026-09-07), SRS-I18N-001..009, SRS §21.1, BR-028,
+  FR-GBL-002..005.
+- Consequences: `verify:i18n` gate added; full string extraction (STAGE-010); RTL pass; QA
+  matrix ×3 locales (STAGE-013).
+
+### DEC-025 — Curated dashboard theming + branding, versioned via config
+
+- Date: 2026-09-07 (enhancement program)
+- Context: mandate for "professional customizable theming" + a branding section, applied to both
+  the public site and the dashboard. User chose **curated controls** over raw-CSS/token-JSON.
+- Decision: A `branding` `configVersion` kind (reusing the STAGE-006 draft→submit→approve→
+  publish workflow + audit + `config.version.published.v1`) holds: brand colors
+  (primary/accent/semantic, light + dark maps), radius scale, density (`comfortable|compact`),
+  font key (curated set incl. an Arabic face), and logo/favicon/OG asset refs. `packages/theme`
+  resolves the config to the shadcn CSS-variable set; `GET /api/v1/meta/branding` (public,
+  ETagged) serves it; `apps/site` inlines critical tokens at build/ISR, `apps/web` applies
+  pre-paint. No arbitrary CSS or script injection. Brand assets upload via `ObjectStoragePort`
+  with MIME/size/dimension limits and SVG sanitisation. A `system` seed writes the default
+  preset as published `branding` v1.
+- Source IDs: explicit user choice (2026-09-07), SRS-UI-002, SRS-NFR-010/012, SRS-ADM-006,
+  SRS-DAT-009, SRS-SEC-\* (upload hardening).
+- Consequences: token duplication (`apps/web/src/index.css` + `packages/ui/src/styles.css`)
+  collapsed to one source; `verify:theme` gate (AA contrast for presets, no literal colours);
+  new `/ops/config/branding` + `/ops/config/seo` screens.

@@ -6,6 +6,19 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### Enhancement program — STAGE-009 … STAGE-013 (planned 2026-09-07)
+
+Master plan documented in `docs/ai-delivery/04-implementation/enhancement-program.md`;
+per-stage plans in `stages/STAGE-009…013-*/plan.md`. Locked decisions: **DEC-023** public
+site on Next.js (`apps/site`; `apps/web` → `/ops` only), **DEC-024** launch locales en + ar +
+fr (all fully translated), **DEC-025** curated dashboard theming + branding versioned via the
+config workflow. Scope: professional UI/UX for both surfaces; system-wide light/dark +
+customizable theming + branding assets; complete i18n across every element with dynamic
+locale/translation management; Next.js public site with full technical SEO; ops dashboard UX
+overhaul; system-wide QA matrix (routes × 3 locales × 2 themes × 3 viewports) with a
+fix-until-clean loop. New gates: `verify:i18n`, `verify:theme`, `verify:seo`; widened
+`verify:e2e|a11y|perf`. _No implementation in this entry — plan only._
+
 ### STAGE-008 — Containerization & local-run parity (2026-09-07)
 
 Docker is now a fully working, tested way to run every stage of the system, and the no-Docker
