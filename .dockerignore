@@ -20,7 +20,6 @@ e2e/playwright.config.ts
 
 # specs & delivery docs — never needed by an image build, ~1 MB of context otherwise
 docs/
-prompts/
 *.md
 /functional-requirements-v1.0.md
 /srs-v1.0.md

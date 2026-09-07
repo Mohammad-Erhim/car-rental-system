@@ -1,0 +1,21 @@
+# Baseline Reconstruction — MIG-20260907-001
+
+Evidence order used (per the migration prompt's Phase 5): explicit acceptance record → manifest
+pointer with valid hash → internal cross-links → implementation history/checkpoints → repository
+evidence → filename/timestamp (last resort, not needed here since no version ambiguity exists).
+
+| Layer | Canonical version | Evidence basis |
+|---|---|---|
+| Functional Requirements | v1.0, `01-functional-requirements/functional-requirements-v1.0.md` | `manifest.md` explicit pointer + hash; only version present; referenced by `04-implementation/source-manifest.md` as the input baseline for all completed stages. |
+| UI/UX Design and Flow Plan | v1.0, `02-ui-ux-design/ui-ux-design-plan-v1.0.md` | Same evidence class. |
+| SRS | v1.0, `03-srs/srs-v1.0.md` | Same evidence class. |
+| Implementation roadmap/history | STAGE-000 through STAGE-007 = the SRS-scoped roadmap (`04-implementation/implementation-roadmap.md`), all `COMPLETED` with dated completion notes and gate evidence; STAGE-008 through STAGE-013 = `enhancement-program.md`, all shipped and committed but not yet folded into a revised roadmap version. | `implementation-roadmap.md`, `current-state.md`, `session-log.md`, `enhancement-program.md` §Progress, and independently, git log (14 stage-tagged commit groups on `implementation`, HEAD `065234b`). |
+| Source code/schema/configuration revision | git `implementation` branch, HEAD `065234b968a6d2878399855c44831e9f449b74e5` at migration start, tracking `origin/implementation`, working tree clean before migration writes. DB migrations through `0006`. | `git log`, `git status`, `repository-snapshot.md`. |
+| Tests and validation evidence | `verify:static/unit/api/migrate` green (unit 72, api 84 per latest session-log entry); `verify:e2e` red (legacy specs not ported to `apps/site`); `verify:i18n`/`verify:theme` green; `verify:seo`/`verify:perf` for `apps/site` not yet run; `STAGE-013-system-qa` matrix 30/30 with 138 screenshots (self-scoped QA, not a formal Stage 7 report). | `current-state.md`, `enhancement-program.md` §Progress, `stages/STAGE-013-system-qa/checkpoint.md`. |
+
+No ambiguous/competing candidates were found for any layer (single version each), so the
+"preserve every candidate and ask only if materially decision-changing" branch of Phase 5 does
+not apply. The one material judgment this migration made — that the enhancement-program
+implementation is real, evidenced, ahead of its own documentation, and should be tracked as a
+draft CR rather than either (a) ignored, or (b) treated as if it never happened — is recorded in
+`adoption-decisions.md` DEC-M-001.

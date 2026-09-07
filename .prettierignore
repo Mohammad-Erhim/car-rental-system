@@ -20,9 +20,11 @@ CHANGELOG.md
 functional-requirements-v1.0.md
 srs-v1.0.md
 ui-ux-design-plan-v1.0.md
-prompts/
 docs/ai-delivery/00-input/
 docs/ai-delivery/01-functional-requirements/
 docs/ai-delivery/02-ui-ux-design/
 docs/ai-delivery/03-srs/
+# Prompt-pack files are hash-verified against the attached source; never reformat
+docs/ai-delivery/README.md
+docs/ai-delivery/prompt-library/
 docs/ai-delivery/manifest.md
