@@ -433,6 +433,7 @@
   "site.legal.terms.title": "شروط الخدمة",
   "site.search.available": "{n, plural, zero {غير متاح} one {متاح واحد} two {متاحان} few {# متاحة} many {# متاحًا} other {# متاح}}",
   "site.search.badLocation": "تعذّر العثور على موقع الاستلام هذا — اختر واحدًا من القائمة.",
+  "site.search.fromPrice": "ابتداءً من {price}",
   "site.search.metaDescription": "توفر الإيجار والأسعار التقديرية لتواريخك في الوقت الفعلي.",
   "site.search.noQuery": "أدخِل الموقع والتواريخ في الأعلى لعرض التوفّر.",
   "site.search.noResults": "لا تتوفر مركبات في تلك التواريخ.",

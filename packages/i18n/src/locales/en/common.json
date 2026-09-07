@@ -433,6 +433,7 @@
   "site.legal.terms.title": "Terms of Service",
   "site.search.available": "{n, plural, one {# available} other {# available}}",
   "site.search.badLocation": "We couldn't find that pickup location — pick one from the list.",
+  "site.search.fromPrice": "from {price}",
   "site.search.metaDescription": "Real-time rental availability and estimated prices for your dates.",
   "site.search.noQuery": "Enter a location and dates above to see availability.",
   "site.search.noResults": "No vehicles are available for those dates.",

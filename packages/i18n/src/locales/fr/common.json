@@ -433,6 +433,7 @@
   "site.legal.terms.title": "Conditions d’utilisation",
   "site.search.available": "{n, plural, one {# disponible} other {# disponibles}}",
   "site.search.badLocation": "Ce lieu de prise en charge est introuvable — choisissez-en un dans la liste.",
+  "site.search.fromPrice": "à partir de {price}",
   "site.search.metaDescription": "Disponibilité de location en temps réel et prix estimés pour vos dates.",
   "site.search.noQuery": "Saisissez un lieu et des dates ci-dessus pour voir la disponibilité.",
   "site.search.noResults": "Aucun véhicule n'est disponible pour ces dates.",

@@ -6,11 +6,13 @@ import { apiGet, apiPost } from '../../../lib/api';
 import { getT } from '../../../lib/i18n';
 import { buildMetadata } from '../../../lib/seo';
 
+/** Shape returned by `POST /api/v1/discovery/search` (SearchResult.options). */
 interface Option {
   categoryCode: string;
   categoryName: string;
-  available: number;
-  estimatedTotal?: { amountMinor: number; currency: string } | null;
+  bookableCount: number;
+  fromTotalMinor?: number | null;
+  currency?: string | null;
 }
 interface Notice {
   code: string;
@@ -39,6 +41,7 @@ export async function generateMetadata({
 }
 
 function money(minor: number, currency: string, locale: string) {
+  if (!Number.isFinite(minor)) return '—';
   try {
     return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(minor / 100);
   } catch {
@@ -141,12 +144,14 @@ export default async function SearchPage({
                 <div>
                   <h2 className="font-medium">{o.categoryName}</h2>
                   <p className="text-xs text-muted-foreground">
-                    {t.t('site.search.available', { n: o.available })}
+                    {t.t('site.search.available', { n: o.bookableCount })}
                   </p>
                 </div>
-                {o.estimatedTotal ? (
+                {typeof o.fromTotalMinor === 'number' && o.currency ? (
                   <p className="whitespace-nowrap text-sm font-semibold">
-                    {money(o.estimatedTotal.amountMinor, o.estimatedTotal.currency, locale)}
+                    {t.t('site.search.fromPrice', {
+                      price: money(o.fromTotalMinor, o.currency, locale),
+                    })}
                   </p>
                 ) : null}
               </div>
