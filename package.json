@@ -1,0 +1,36 @@
+{
+  "name": "car-rental-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Car Rental System — customer web, operations dashboard, and shared backend (also serves the deferred mobile app).",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20.11.0"
+  },
+  "scripts": {
+    "dev:up": "bash scripts/dev-up.sh",
+    "dev:down": "bash scripts/dev-down.sh",
+    "dev": "pnpm build:packages && pnpm --parallel --filter @carrental/api --filter @carrental/web dev",
+    "build:packages": "pnpm --filter @carrental/contracts --filter @carrental/i18n --filter @carrental/ui build",
+    "build": "pnpm build:packages && pnpm --filter @carrental/api build && pnpm --filter @carrental/web build",
+    "db:migrate": "pnpm --filter @carrental/api db:migrate",
+    "db:seed": "pnpm --filter @carrental/api db:seed",
+    "db:reset": "pnpm --filter @carrental/api db:reset",
+    "openapi:generate": "pnpm --filter @carrental/api openapi:generate",
+    "verify:static": "pnpm build:packages && pnpm -r lint && pnpm -r typecheck && pnpm format:check && pnpm openapi:generate && pnpm --filter @carrental/contracts check:drift",
+    "verify:unit": "pnpm build:packages && pnpm -r --filter @carrental/api --filter @carrental/i18n --filter @carrental/ui --filter @carrental/contracts --filter @carrental/web test:unit",
+    "verify:api": "pnpm build:packages && pnpm --filter @carrental/api test:api",
+    "verify:migrate": "pnpm build:packages && pnpm --filter @carrental/api test:migrate",
+    "verify:e2e": "pnpm build:packages && pnpm --filter @carrental/web build && pnpm --filter @carrental/e2e test",
+    "verify:quick": "pnpm verify:static && pnpm verify:unit && pnpm verify:api",
+    "verify:all": "pnpm verify:static && pnpm verify:unit && pnpm verify:api && pnpm verify:migrate && pnpm verify:e2e",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,cjs,json,md,yaml,yml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,cjs,json,md,yaml,yml}\"",
+    "check:secrets": "bash scripts/check-env.sh"
+  },
+  "devDependencies": {
+    "@types/node": "20.14.15",
+    "prettier": "3.3.3",
+    "typescript": "5.5.4"
+  }
+}

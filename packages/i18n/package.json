@@ -1,0 +1,46 @@
+{
+  "name": "@carrental/i18n",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run",
+    "build": "tsc -p tsconfig.build.json && node -e \"require('fs').cpSync('src/locales','dist/locales',{recursive:true})\""
+  },
+  "dependencies": {
+    "intl-messageformat": "10.5.14"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@carrental/config": "workspace:*",
+    "@types/react": "18.3.3",
+    "eslint": "9.9.0",
+    "globals": "15.9.0",
+    "react": "18.3.1",
+    "typescript": "5.5.4",
+    "vitest": "2.0.5"
+  }
+}

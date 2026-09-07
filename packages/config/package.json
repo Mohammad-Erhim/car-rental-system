@@ -1,0 +1,31 @@
+{
+  "name": "@carrental/config",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./tsconfig.base.json": "./tsconfig.base.json",
+    "./tsconfig.node.json": "./tsconfig.node.json",
+    "./tsconfig.react.json": "./tsconfig.react.json",
+    "./eslint": "./eslint.preset.mjs"
+  },
+  "files": [
+    "*.json",
+    "*.mjs"
+  ],
+  "scripts": {
+    "lint": "echo 'config: no lint'",
+    "typecheck": "echo 'config: no typecheck'",
+    "test:unit": "echo 'config: no unit tests'",
+    "build": "echo 'config: nothing to build'"
+  },
+  "dependencies": {
+    "@eslint/js": "9.9.0",
+    "eslint-plugin-import": "2.32.0",
+    "globals": "15.9.0",
+    "typescript-eslint": "8.1.0"
+  },
+  "peerDependencies": {
+    "eslint": "^9"
+  }
+}

@@ -1,0 +1,36 @@
+# STAGE-000 — test evidence
+
+Environment: Node 24.20, pnpm 9.15, PostgreSQL 16 (native, 127.0.0.1:5432), Redis 7 (native,
+127.0.0.1:6379). All commands run locally, no paid accounts.
+
+| Test ID | Requirement / design IDs | Command / action | Result | Evidence |
+| --- | --- | --- | --- | --- |
+| TEST-STATIC-000 | SRS-NFR-013/014, SRS §5.3 | `pnpm verify:static` | PASS — build:packages + lint (8 projects, 0 err/0 warn) + typecheck (8) + prettier + openapi:generate + contracts check:drift | terminal 2026-09-07 |
+| TEST-ARCH-000 | SRS-ARC-001, SRS-NFR-013 | ESLint `apiModuleBoundaries` rule active in `apps/api/eslint.config.mjs`; deep cross-module import pattern blocked | PASS (rule loaded; enforced from STAGE-001 when 2nd module lands) | `packages/config/eslint.preset.mjs` |
+| TEST-DAT-010a | SRS-DAT-010/011 | `pnpm verify:migrate` → `test/migrate.spec.ts` | PASS (4 tests): empty DB → current schema on disposable `carrental_migtest`; 14 core tables + `drizzle.__drizzle_migrations` ledger present; system seed idempotent (row counts stable on 2nd run); migrate re-run is a no-op | `test/migrate.spec.ts` |
+| TEST-API-META-001 | FR-GBL-002, SRS-I18N-001, SRS-API-004 | `GET /api/v1/meta/locales` | PASS — 3 DB-backed locales (`en` default, `fr`, `ar` RTL), all `testOnly:true` (DEC-020); `x-correlation-id` header present; zod schema validated | `test/meta.spec.ts` |
+| TEST-API-META-002 | SRS-OBS-002, SRS-SEC-013/017 | `GET /api/v1/meta/build` | PASS — safe metadata only; assertion: no `secret\|password\|pepper\|DATABASE_URL` in body | `test/meta.spec.ts` |
+| TEST-API-META-003 | FR-GBL-005, SRS §16.3 | `GET /api/v1/meta/health-summary` + `/health/ready` | PASS — status `ok`; components `db`, `redis`, `migrations`, `lookups` all `ok`; lookups check verifies 34 lookup types incl. required closed code sets (SRS-LKP-012) | `test/meta.spec.ts` |
+| TEST-API-META-004 | SRS §14.1, SRS-API-008 | `GET /api/v1/meta/does-not-exist` | PASS — 404 Problem envelope `{code, category, status, correlationId}`; assertion: no stack trace / `node_modules` / SQL in body | `test/meta.spec.ts` |
+| TEST-OBS-001 | SRS-OBS-001/002 | API logs inspected during E2E run | PASS — single-line JSON, keys `service/env/time/req/res/traceId/requestId/actorType`; redaction paths configured for authorization/cookie/password/token/card | `/tmp/api.log`, playwright `[WebServer]` output |
+| TEST-OBS-003 | SRS-OBS-003 | `curl -D- /api/v1/meta/build` | PASS — `x-correlation-id` response header; same id as `requestId`/`traceId` in the matching log line | terminal capture |
+| TEST-OBS-006 | SRS-OBS-006 | `GET /metrics` | PASS — Prometheus text: `http_requests_total{method,route,status}` with route templates + status class; default `process_*` / `nodejs_eventloop_*` gauges | terminal capture |
+| TEST-E2E-SMOKE (12) | SRS-UI-001..015, SRS §17.5, FR-GBL-002/003/005/007, FR-RPT-001 | `pnpm --filter @carrental/web build && (e2e) playwright test` | PASS — 12/12 across phone(390)/tablet(820)/laptop(1440). Asserts: heading visible, DB-backed `build-info` + `locale-list` rendered, health chip resolves to real status, locale switch → `html[dir=rtl]` + Arabic button label, unknown route → recoverable `data-appstate="no-results"`, ops health drill `db/lookups = ok`, unimplemented metrics labelled "Not available yet" (never `0`), ops nav keyboard-reachable. Console/network guards: 0 console errors, 0 failed requests, 0 page errors. | `e2e/tests/smoke.spec.ts`, `e2e/playwright-report/` |
+| TEST-SECRET-000 | SRS-SEC-013 | `pnpm check:secrets` + `.env` gitignored | PASS — no committed secret patterns; `.env` is ignored; `.env.example` placeholders only | `scripts/check-env.sh` |
+
+## Screenshots (analysed)
+
+`stages/STAGE-000-platform/screenshots/` — 9 PNGs:
+
+| File | Analysis |
+| --- | --- |
+| `cweb-home-default.{phone,tablet,laptop}.png` | Trip-first hero, one primary action (Search, disabled with explanatory note), status chip green, DB-backed "Backend connection" + "Available languages" cards. Responsive: laptop = 2-col cards + inline search row; tablet = 2-col; phone = single column, icon-only brand, bottom nav (Rent a car / My trips / Help), sticky search. Hierarchy, spacing, contrast good. |
+| `cweb-home-rtl.{phone,tablet,laptop}.png` | Arabic: page chrome mirrors (nav right-aligned, brand right, controls left); heading `ابحث واحجز سيارتك` from `app.customer.tagline` key; version/built line localized incl. Arabic-locale date; bidi isolation keeps `carrental-api` / `0.1.0-dev` / `development` LTR. Placeholder prose still English (foundation slice — real SCREEN-CUS-001 is fully keyed in STAGE-002). |
+| `ops-dashboard-default.{phone,tablet,laptop}.png` | Scope bar (Demo Rental Co. / All locations), sidebar nav on laptop, horizontal section nav on tablet/phone. "System health" card drills to db/migrations/redis/lookups = ok. 4 metric cards all show "Not available yet — implemented with its operational area" (FR-RPT-001: unavailable labelled, not zero). |
+
+## Known minor polish (non-blocking, tracked)
+
+- Phone status chip truncates to "All systems oper…" (title attr carries full text). Consider icon-only at `<sm`. → STAGE-001 shared `COMP-SH-003`/`COMP-SH-020` work.
+- Placeholder page prose is hardcoded English (wiring-check pages, not real screens). Real screens use translation keys from STAGE-001 onward.
+- `pnpm build` (tsc→dist for the API) deferred; API runs via `@swc-node/register` on source (reliable on this host). Real dist build is a STAGE-007 hardening item. Server, tests, and E2E all run.
+- Browser matrix is Chromium-only (Firefox/WebKit not installable here) → STAGE-007.

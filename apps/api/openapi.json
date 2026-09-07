@@ -1,0 +1,235 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/v1/meta/locales": {
+      "get": {
+        "operationId": "meta_getLocales",
+        "summary": "Enabled locales, default, and fallbacks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalesResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/api/v1/meta/build": {
+      "get": {
+        "operationId": "meta_getBuild",
+        "summary": "Safe build/version metadata",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuildInfoDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/api/v1/meta/health-summary": {
+      "get": {
+        "operationId": "meta_getHealthSummary",
+        "summary": "Coarse system status for the UI status bar",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthSummaryDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "meta"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Car Rental System API",
+    "description": "Versioned REST boundary consumed by Customer Web, Operations Dashboard, workers, and the mobile app. All business options are served dynamically; money is integer minor units.",
+    "version": "1",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "access-token": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      },
+      "cookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "refresh_token"
+      }
+    },
+    "schemas": {
+      "LocalesResponseDto": {
+        "type": "object",
+        "properties": {
+          "defaultLocale": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 35
+          },
+          "locales": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "minLength": 2,
+                  "maxLength": 35
+                },
+                "nativeName": {
+                  "type": "string"
+                },
+                "englishName": {
+                  "type": "string"
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "ltr",
+                    "rtl"
+                  ]
+                },
+                "isDefault": {
+                  "type": "boolean"
+                },
+                "fallback": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 35
+                  }
+                },
+                "testOnly": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "code",
+                "nativeName",
+                "englishName",
+                "direction",
+                "isDefault",
+                "fallback",
+                "testOnly"
+              ]
+            }
+          }
+        },
+        "required": [
+          "defaultLocale",
+          "locales"
+        ]
+      },
+      "BuildInfoDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "gitSha": {
+            "type": "string",
+            "nullable": true
+          },
+          "builtAt": {
+            "type": "string"
+          },
+          "nodeEnv": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "name",
+          "version",
+          "gitSha",
+          "builtAt",
+          "nodeEnv",
+          "schemaVersion"
+        ]
+      },
+      "HealthSummaryDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded",
+              "down"
+            ]
+          },
+          "checkedAt": {
+            "type": "string"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "degraded",
+                    "down"
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "status"
+              ]
+            }
+          }
+        },
+        "required": [
+          "status",
+          "checkedAt",
+          "components"
+        ]
+      }
+    }
+  }
+}
