@@ -114,6 +114,30 @@ build OK.
 proxy); `docker build` OK (368 MB) + container run; `verify:static` PASS (now covers
 `apps/site`); `verify:i18n` OK.
 
+### STAGE-013 — System-wide QA matrix (2026-09-07)
+
+**Added**
+
+- `e2e/tests/qa-matrix.spec.ts` + `e2e/playwright.qa.config.ts` — every `apps/site` public
+  route + key `/ops` screens × {en, ar, fr} × {light, dark} × {phone, tablet, laptop}. Each
+  cell: screenshot, axe (0 serious/critical), no h-overflow, no missing-translation marker,
+  `<html lang/dir>`, no console/network errors. **30/30 cells pass**; **138 screenshots** under
+  `stages/STAGE-013-system-qa/screenshots/`.
+
+**Fixed** (found by the matrix — see `stages/STAGE-013-system-qa/defects.md`)
+
+- **D-013-1** `@carrental/ui` `ThemeProvider` — SSR-safe first render (was ~38 React
+  #418/#423 hydration errors per `apps/site` page).
+- **D-013-2** `apps/site/next.config` `outputFileTracingRoot` → `experimental.*`.
+- **D-013-3** `HomeSearch` datetime defaults computed after mount (SSR/client mismatch).
+- **D-013-4** dark `--destructive` `0 72% 51%` → `0 84% 62%` (+ dark foreground) — `text-destructive`
+  on the dark background was 3.93:1 (axe serious).
+- **D-013-5** `apps/web` `/ops` header — phone (390 px) horizontal overflow on the sign-in
+  screen, worst in Arabic; responsive collapse of the scope block + language label.
+
+**Verified** — `qa-matrix` 30/30 · `verify:static` PASS · `verify:unit` 72 · `verify:theme` 9
+· `verify:i18n` OK · `apps/web` + `apps/site` builds OK.
+
 ### Enhancement program — STAGE-009 … STAGE-013 (planned 2026-09-07)
 
 Master plan documented in `docs/ai-delivery/04-implementation/enhancement-program.md`;

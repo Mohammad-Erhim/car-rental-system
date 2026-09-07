@@ -22,7 +22,7 @@ export function LanguageSwitcher({ className }: { className?: string }) {
           aria-label={t('lang.switcher.current', { name: current.nativeName })}
         >
           <Globe className="size-4" aria-hidden="true" />
-          <span>{current.nativeName}</span>
+          <span className="hidden sm:inline">{current.nativeName}</span>
         </Button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>

@@ -148,7 +148,7 @@ export function OpsLayout() {
               </span>
             ) : null}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink items-center gap-1 sm:gap-2">
             <SystemStatus />
             <ThemeToggle
               labels={{
