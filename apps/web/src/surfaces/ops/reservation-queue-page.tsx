@@ -1,6 +1,7 @@
 import {
   AppStateView,
   Badge,
+  Button,
   Card,
   CardContent,
   CardHeader,
@@ -10,6 +11,7 @@ import {
 import { useState } from 'react';
 
 import { formatMinor } from '../../lib/discovery-hooks.js';
+import { useAssignVehicle } from '../../lib/rental-hooks.js';
 import { useOpsReservations } from '../../lib/reservation-hooks.js';
 
 /**
@@ -23,6 +25,8 @@ export function ReservationQueuePage() {
     state: state || undefined,
     locationCode: locationCode || undefined,
   });
+  const assign = useAssignVehicle();
+  const [assignMsg, setAssignMsg] = useState<string | null>(null);
 
   return (
     <div className="space-y-6">
@@ -81,6 +85,7 @@ export function ReservationQueuePage() {
                     <th className="py-1 text-start font-medium">Pickup</th>
                     <th className="py-1 text-start font-medium">Total</th>
                     <th className="py-1 text-start font-medium">Paid</th>
+                    <th className="py-1"></th>
                   </tr>
                 </thead>
                 <tbody data-testid="ops-res-rows">
@@ -105,12 +110,38 @@ export function ReservationQueuePage() {
                       <td className="py-2 pe-2">{new Date(r.pickupAt).toLocaleString()}</td>
                       <td className="py-2 pe-2">{formatMinor(r.totalMinor, r.currency)}</td>
                       <td className="py-2 pe-2">{formatMinor(r.paidMinor, r.currency)}</td>
+                      <td className="py-2 text-end">
+                        {r.state === 'confirmed' ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            loading={assign.isPending}
+                            data-testid={`assign-${r.reference}`}
+                            onClick={async () => {
+                              setAssignMsg(null);
+                              try {
+                                await assign.mutateAsync(r.reference);
+                                setAssignMsg(`Vehicle assigned for ${r.reference}.`);
+                              } catch {
+                                setAssignMsg(`Could not assign a vehicle for ${r.reference}.`);
+                              }
+                            }}
+                          >
+                            Assign vehicle
+                          </Button>
+                        ) : null}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
+          {assignMsg ? (
+            <p className="mt-2 text-sm text-muted-foreground" data-testid="assign-msg">
+              {assignMsg}
+            </p>
+          ) : null}
         </CardContent>
       </Card>
     </div>

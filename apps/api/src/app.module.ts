@@ -14,6 +14,7 @@ import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { IamModule } from './modules/iam/iam.module';
 import { MetaModule } from './modules/meta/meta.module';
 import { NotifyModule } from './modules/notify/notify.module';
+import { RentalModule } from './modules/rental/rental.module';
 import { buildLoggerParams } from './observability/logger';
 import { ObservabilityModule } from './observability/observability.module';
 
@@ -31,6 +32,7 @@ import { ObservabilityModule } from './observability/observability.module';
     AdminModule,
     DiscoveryModule,
     BookingModule,
+    RentalModule,
     MetaModule,
   ],
   providers: [{ provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor }],

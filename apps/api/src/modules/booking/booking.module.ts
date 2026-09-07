@@ -6,8 +6,8 @@ import { PaymentModule } from '../payment/payment.module';
 
 import { BookingController } from './booking.controller';
 import { BookingService } from './booking.service';
-import { ReservationController } from './reservation.controller';
 import { ReservationOpsService } from './reservation-ops.service';
+import { ReservationController } from './reservation.controller';
 
 /**
  * STAGE-003 — Booking & payment. `confirm()` consumes a STAGE-002 hold + quote (via the

@@ -1268,6 +1268,189 @@
         ]
       }
     },
+    "/api/v1/rentals/mine": {
+      "get": {
+        "operationId": "RentalController_mine",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rentals/{reference}": {
+      "get": {
+        "operationId": "RentalController_detail",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rentals/{reference}/extend": {
+      "post": {
+        "operationId": "RentalController_extend",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/ops/rentals": {
+      "get": {
+        "operationId": "RentalController_list",
+        "parameters": [
+          {
+            "name": "state",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locationCode",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/ops/reservations/{reservationReference}/assign": {
+      "post": {
+        "operationId": "RentalController_assign",
+        "parameters": [
+          {
+            "name": "reservationReference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/ops/rentals/{reference}/pickup": {
+      "post": {
+        "operationId": "RentalController_pickup",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/ops/rentals/{reference}/return": {
+      "post": {
+        "operationId": "RentalController_returnRental",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/ops/rentals/{reference}/readiness": {
+      "post": {
+        "operationId": "RentalController_readiness",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
     "/api/v1/meta/locales": {
       "get": {
         "operationId": "meta_getLocales",

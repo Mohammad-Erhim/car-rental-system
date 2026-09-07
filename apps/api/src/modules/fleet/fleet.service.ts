@@ -24,7 +24,9 @@ export interface UnitRow {
 }
 
 /** Bookable vehicle states — a unit not in one of these cannot be counted for availability. */
-export const BOOKABLE_STATES = ['available', 'prep', 'reserved'] as const;
+/** A unit must be `available` to be counted for a new booking — `prep` (just returned, awaiting
+ *  readiness), `on_rent`, `maintenance`, etc. are excluded (FR-RNT-013). */
+export const BOOKABLE_STATES = ['available'] as const;
 
 @Injectable()
 export class FleetService {

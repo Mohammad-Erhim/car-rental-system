@@ -10,8 +10,8 @@ Status values: `PLANNED`, `READY`, `IN_PROGRESS`, `BLOCKED`, `VERIFYING`, `COMPL
 | STAGE-002 | Discovery & quote (catalogue, locations, availability, pricing, holds)                                                                                    | COMPLETED   |
 | STAGE-003 | Booking & payment (checkout, drivers, products, terms, confirm, notify)                                                                                   | COMPLETED   |
 | STAGE-004 | Reservation operations (list/detail, modify, cancel, refund, customer workspaces)                                                                         | COMPLETED   |
-| STAGE-005 | Pickup, active rental, return & closeout (fleet readiness, assignment, agreement, extension, incident, replacement, inspection)                           | IN_PROGRESS |
-| STAGE-006 | Administration & reporting (full config/versioning, imports, templates/translations, reports/exports/schedules, integration recovery, audit/data-quality) | PLANNED     |
+| STAGE-005 | Pickup, active rental, return & closeout (fleet readiness, assignment, agreement, extension, incident, replacement, inspection)                           | COMPLETED   |
+| STAGE-006 | Administration & reporting (full config/versioning, imports, templates/translations, reports/exports/schedules, integration recovery, audit/data-quality) | IN_PROGRESS |
 | STAGE-007 | Release hardening (perf, a11y, security, responsive/locale sweep, backup/restore, deploy artifacts)                                                       | PLANNED     |
 
 ---
@@ -139,6 +139,14 @@ Status values: `PLANNED`, `READY`, `IN_PROGRESS`, `BLOCKED`, `VERIFYING`, `COMPL
   until readiness passes; damage charge needs a linked inspection finding; overdue immediately
   affects availability.
 - **Unlocks:** STAGE-006.
+- **Completion (2026-09-07):** COMPLETED (core lifecycle). `rental` module — assign (auto unit
+  pick, advisory-locked) → pickup (agreement + odo/fuel, licence required) → extend (re-price +
+  delta) → return (inspection + fuel/damage settlement) → readiness. Partial unique index
+  `rental_open_unit_unq` enforces one-open-rental-per-unit; `BOOKABLE_STATES = ['available']`
+  gates a returned unit until readiness. SCREEN-OPS-004(+assign)/009/012/016 + SCREEN-CUS-021/022.
+  Gates: static PASS, unit 63, api 47 (3 rental), migrate 4, e2e 72. 90 screenshots. Deferred:
+  incident/replacement, transfers, maintenance UI, fleet import (see checkpoint). Evidence:
+  `stages/STAGE-005-rental-lifecycle/` (D-005-1..3).
 
 ## STAGE-006 — Administration & reporting
 

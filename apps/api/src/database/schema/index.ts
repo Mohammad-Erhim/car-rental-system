@@ -15,3 +15,4 @@ export * from './pricing';
 export * from './booking';
 export * from './reservation';
 export * from './payment';
+export * from './rental';

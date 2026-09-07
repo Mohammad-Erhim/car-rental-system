@@ -1,0 +1,9 @@
+# STAGE-005 — defects
+
+All found and fixed within the stage. No open defects; no known critical/high.
+
+| ID      | Severity | Description                                                                                                                                                                  | Status | Resolution                                                                                                                                                          |
+| ------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D-005-1 | Medium   | `BOOKABLE_STATES` included `prep` and `reserved`, so a just-returned vehicle (moved to `prep`) was immediately bookable again — the FR-RNT-013 readiness gate had no effect. | Fixed  | `BOOKABLE_STATES = ['available']` only. A returned unit is `prep` until `runReadiness(passed)` moves it to `available` (or `maintenance`). Covered by TEST-RNT-001. |
+| D-005-2 | Low      | `rental.spec.ts` used `require('node:crypto')` inline, failing the ESLint no-require / import rule.                                                                          | Fixed  | Top-level `import { createHash } from 'node:crypto'` + a `rentalRef()` helper.                                                                                      |
+| D-005-3 | Low      | `rental.spec.ts` declared an unused `adminToken`; `booking.module.ts` import order regressed after adding the reservation controller.                                        | Fixed  | Removed the unused binding; `eslint --fix` on the import order.                                                                                                     |

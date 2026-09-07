@@ -23,8 +23,9 @@ import { OpsDashboard } from '../surfaces/ops/ops-dashboard.js';
 import { OpsLayout } from '../surfaces/ops/ops-layout.js';
 import { OpsPlaceholder } from '../surfaces/ops/ops-placeholder.js';
 import { RatePlansPage } from '../surfaces/ops/rate-plans-page.js';
-import { ReservationQueuePage } from '../surfaces/ops/reservation-queue-page.js';
 import { ReferenceDataPage } from '../surfaces/ops/reference-data-page.js';
+import { RentalBoardPage } from '../surfaces/ops/rental-board-page.js';
+import { ReservationQueuePage } from '../surfaces/ops/reservation-queue-page.js';
 import { StaffRolesPage } from '../surfaces/ops/staff-roles-page.js';
 import { TranslationsPage } from '../surfaces/ops/translations-page.js';
 
@@ -157,6 +158,14 @@ export const router = createBrowserRouter([
         element: staffOnly(
           <RequirePermission anyOf={['config.read', 'config.publish']}>
             <RatePlansPage />
+          </RequirePermission>,
+        ),
+      },
+      {
+        path: 'rentals',
+        element: staffOnly(
+          <RequirePermission anyOf={['rental.read', 'rental.pickup', 'rental.return']}>
+            <RentalBoardPage />
           </RequirePermission>,
         ),
       },

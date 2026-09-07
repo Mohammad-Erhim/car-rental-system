@@ -15,6 +15,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 import { ApiError } from '../../lib/api.js';
 import { formatMinor } from '../../lib/discovery-hooks.js';
+import { useExtendRental, useMyRental } from '../../lib/rental-hooks.js';
 import {
   useCancelReservation,
   useModifyReservation,
@@ -33,10 +34,28 @@ export function ReservationDetailPage() {
   const history = useReservationHistory(reference);
   const cancel = useCancelReservation(reference);
   const modify = useModifyReservation(reference);
+  const rental = useMyRental(reference);
+  const extend = useExtendRental(rental.data?.reference ?? '');
 
   const [showCancel, setShowCancel] = useState(false);
   const [newReturn, setNewReturn] = useState('');
   const [modifyMsg, setModifyMsg] = useState<string | null>(null);
+  const [extendReturn, setExtendReturn] = useState('');
+  const [extendMsg, setExtendMsg] = useState<string | null>(null);
+
+  async function doExtend() {
+    setExtendMsg(null);
+    try {
+      const res = await extend.mutateAsync({
+        newReturnAt: new Date(extendReturn).toISOString(),
+        paymentToken: 'tok_ok',
+      });
+      setExtendMsg(`Rental extended — ${formatMinor(res.deltaMinor, res.currency)} charged.`);
+      setExtendReturn('');
+    } catch (e) {
+      setExtendMsg(e instanceof ApiError ? e.message : 'Could not extend the rental.');
+    }
+  }
 
   const r = detail.data;
 
@@ -134,6 +153,48 @@ export function ReservationDetailPage() {
           </p>
         </CardContent>
       </Card>
+
+      {rental.data && ['active', 'overdue'].includes(rental.data.state) ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              Your rental is {rental.data.state}
+              <Badge variant={rental.data.state === 'active' ? 'success' : 'warning'}>
+                {rental.data.reference}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Due back {new Date(rental.data.scheduledReturnAt).toLocaleString()}.
+            </p>
+            <Field label="Extend to" htmlFor="rental-extend-to">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  type="datetime-local"
+                  value={extendReturn}
+                  onChange={(e) => setExtendReturn(e.target.value)}
+                  data-testid="rental-extend-to"
+                />
+              )}
+            </Field>
+            {extendMsg ? (
+              <p className="text-sm" data-testid="rental-extend-msg">
+                {extendMsg}
+              </p>
+            ) : null}
+            <Button
+              onClick={doExtend}
+              loading={extend.isPending}
+              disabled={!extendReturn}
+              data-testid="rental-extend"
+            >
+              Extend rental
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {r.modifiable ? (
         <Card>
