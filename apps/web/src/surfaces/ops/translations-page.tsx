@@ -134,6 +134,17 @@ function NamespaceEditor({
   const publish = usePublishTranslations();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [publishError, setPublishError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [limit, setLimit] = useState(50);
+
+  const allRows = entries.data ?? [];
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? allRows.filter(
+        (r) => r.key.toLowerCase().includes(q) || (r.source ?? '').toLowerCase().includes(q),
+      )
+    : allRows;
+  const visible = filtered.slice(0, limit);
 
   const selectClass =
     'flex h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
@@ -205,75 +216,99 @@ function NamespaceEditor({
             primaryAction={{ label: t('ops.st.retry'), onClick: () => entries.refetch() }}
           />
         ) : (
-          <ul className="divide-y" data-testid="translation-entries">
-            {entries.data!.map((row) => {
-              const draft = drafts[row.key] ?? row.translation ?? '';
-              return (
-                <li key={row.key} className="space-y-1 py-3" data-key={row.key}>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-mono text-xs">{row.key}</span>
-                    <div className="flex items-center gap-1.5">
-                      {row.outdated ? (
-                        <Badge variant="warning">{t('ops.trans.outdated')}</Badge>
-                      ) : null}
-                      <Badge
-                        variant={row.status === 'published' ? 'success' : 'neutral'}
-                        data-testid={`translation-status-${row.key}`}
-                      >
-                        {row.status}
-                      </Badge>
+          <>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <Input
+                className="max-w-xs"
+                value={query}
+                placeholder={t('ops.trans.filterPlaceholder')}
+                aria-label={t('ops.trans.filterPlaceholder')}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setLimit(50);
+                }}
+              />
+              <span className="text-xs text-muted-foreground">
+                {t('ops.trans.showing', { shown: visible.length, total: filtered.length })}
+              </span>
+            </div>
+            <ul className="divide-y" data-testid="translation-entries">
+              {visible.map((row) => {
+                const draft = drafts[row.key] ?? row.translation ?? '';
+                return (
+                  <li key={row.key} className="space-y-1 py-3" data-key={row.key}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-mono text-xs">{row.key}</span>
+                      <div className="flex items-center gap-1.5">
+                        {row.outdated ? (
+                          <Badge variant="warning">{t('ops.trans.outdated')}</Badge>
+                        ) : null}
+                        <Badge
+                          variant={row.status === 'published' ? 'success' : 'neutral'}
+                          data-testid={`translation-status-${row.key}`}
+                        >
+                          {row.status}
+                        </Badge>
+                      </div>
                     </div>
-                  </div>
-                  <p className="text-xs text-muted-foreground">{row.source}</p>
-                  <div className="flex flex-wrap gap-2">
-                    <Input
-                      className="min-w-[16rem] flex-1"
-                      value={draft}
-                      aria-label={t('ops.trans.editAria', { key: row.key })}
-                      disabled={!canManage}
-                      onChange={(e) => setDrafts((d) => ({ ...d, [row.key]: e.target.value }))}
-                    />
-                    {canManage ? (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          disabled={!draft || draft === row.translation}
-                          onClick={() =>
-                            upsert.mutate({
-                              namespace,
-                              key: row.key,
-                              localeCode: locale,
-                              value: draft,
-                              status: 'draft',
-                            })
-                          }
-                        >
-                          {t('ops.trans.saveDraft')}
-                        </Button>
-                        <Button
-                          size="sm"
-                          disabled={!draft}
-                          data-testid={`translation-review-${row.key}`}
-                          onClick={() =>
-                            upsert.mutate({
-                              namespace,
-                              key: row.key,
-                              localeCode: locale,
-                              value: draft,
-                              status: 'in_review',
-                            })
-                          }
-                        >
-                          {t('ops.trans.markReviewed')}
-                        </Button>
-                      </>
-                    ) : null}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                    <p className="text-xs text-muted-foreground">{row.source}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <Input
+                        className="min-w-[16rem] flex-1"
+                        value={draft}
+                        aria-label={t('ops.trans.editAria', { key: row.key })}
+                        disabled={!canManage}
+                        onChange={(e) => setDrafts((d) => ({ ...d, [row.key]: e.target.value }))}
+                      />
+                      {canManage ? (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={!draft || draft === row.translation}
+                            onClick={() =>
+                              upsert.mutate({
+                                namespace,
+                                key: row.key,
+                                localeCode: locale,
+                                value: draft,
+                                status: 'draft',
+                              })
+                            }
+                          >
+                            {t('ops.trans.saveDraft')}
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={!draft}
+                            data-testid={`translation-review-${row.key}`}
+                            onClick={() =>
+                              upsert.mutate({
+                                namespace,
+                                key: row.key,
+                                localeCode: locale,
+                                value: draft,
+                                status: 'in_review',
+                              })
+                            }
+                          >
+                            {t('ops.trans.markReviewed')}
+                          </Button>
+                        </>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            {filtered.length > visible.length ? (
+              <div className="mt-3 text-center">
+                <Button variant="outline" size="sm" onClick={() => setLimit((n) => n + 100)}>
+                  {t('ops.trans.showMore')}
+                </Button>
+              </div>
+            ) : null}
+          </>
         )}
       </CardContent>
     </Card>

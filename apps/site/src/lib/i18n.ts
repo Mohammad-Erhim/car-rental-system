@@ -24,15 +24,11 @@ export type Messages = ResourceBundle;
 /** Published translation overrides from the catalogue, merged over the bundled base. Cached. */
 async function fetchOverrides(locale: string): Promise<Record<string, string>> {
   try {
-    const rows = await apiGet<Array<{ key: string; translation: string | null; status: string }>>(
-      `/config/translations?namespace=common&locale=${locale}`,
+    // public endpoint — published `common` overrides merged over the bundled base (DEC-024)
+    return await apiGet<Record<string, string>>(
+      `/meta/translations?namespace=common&locale=${locale}`,
       { revalidate: 300 },
     );
-    const out: Record<string, string> = {};
-    for (const r of rows ?? []) {
-      if (r.translation && r.status === 'published') out[r.key] = r.translation;
-    }
-    return out;
   } catch {
     return {};
   }

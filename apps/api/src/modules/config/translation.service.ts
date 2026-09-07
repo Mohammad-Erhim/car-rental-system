@@ -63,6 +63,28 @@ export class TranslationService {
     return { locales: locales.map((l) => l.code), rows };
   }
 
+  /**
+   * Published overrides for one namespace + locale as a flat `{ key: value }` map. Public
+   * (no draft/in-review content) — `apps/site` merges this over the bundled base at build/ISR
+   * time (enhancement-program §4).
+   */
+  async publishedBundle(namespace: string, localeCode: string): Promise<Record<string, string>> {
+    if (!SUPPORTED_LOCALE_CODES.includes(localeCode)) return {};
+    const rows = await this.db
+      .select({ key: translation.key, value: translation.value })
+      .from(translation)
+      .where(
+        and(
+          eq(translation.namespace, namespace),
+          eq(translation.localeCode, localeCode),
+          eq(translation.status, 'published'),
+        ),
+      );
+    const out: Record<string, string> = {};
+    for (const r of rows) out[r.key] = r.value;
+    return out;
+  }
+
   async list(namespace: string, localeCode: string) {
     const src = await this.db
       .select()

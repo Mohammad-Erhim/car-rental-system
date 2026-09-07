@@ -30,7 +30,10 @@ async function signIn(page: Page) {
 
 async function toCheckout(page: Page, category = 'economy') {
   await page.goto('/');
-  await page.getByTestId('search-location').selectOption('JFK');
+  await page.waitForLoadState('networkidle'); // let the client search island hydrate
+  const loc = page.getByTestId('search-location');
+  await loc.selectOption('JFK');
+  await expect(loc).toHaveValue('JFK');
   await page.getByTestId('search-pickup-at').fill(localDateTime(6, 11));
   await page.getByTestId('search-return-at').fill(localDateTime(9, 11));
   await page.getByTestId('search-submit').click();
@@ -39,7 +42,7 @@ async function toCheckout(page: Page, category = 'economy') {
     .getByTestId(`result-${category}`)
     .getByRole('link', { name: /View & reserve/ })
     .click();
-  await expect(page).toHaveURL(new RegExp(`/vehicle/${category}\\?`));
+  await expect(page).toHaveURL(new RegExp(`/vehicles/${category}\\?`));
   await page.getByTestId('reserve-button').click();
   await expect(page).toHaveURL(/\/checkout\?quote=/);
 }

@@ -184,7 +184,7 @@ export function OpsLayout() {
             {groups.map((g, gi) => (
               <div key={g.titleKey ?? `g${gi}`} className="space-y-1">
                 {g.titleKey ? (
-                  <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
+                  <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     {t(g.titleKey)}
                   </p>
                 ) : null}

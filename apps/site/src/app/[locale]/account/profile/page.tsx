@@ -83,6 +83,7 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-6">
+      <h1 className="text-xl font-semibold">{t('profile.title')}</h1>
       {stale ? (
         <AppStateView
           kind="stale"

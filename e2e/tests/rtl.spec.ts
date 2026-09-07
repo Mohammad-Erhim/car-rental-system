@@ -7,11 +7,20 @@ import { attachConsoleGuards, shot } from './_helpers.js';
  * render correctly right-to-left in Arabic, with no horizontal page overflow.
  */
 
+/** Ops dashboard (apps/web) — a menu-button language switcher. */
 const openLanguageMenu = (page: Page) =>
   page
     .getByRole('button', { name: /Current language|Langue actuelle|اللغة الحالية/ })
     .first()
     .click();
+
+/** Customer site (apps/site) — a plain <select> in the header. Wait for hydration first: a
+ *  pre-hydration selectOption sets the DOM value but React's onChange (which navigates) never
+ *  fires. */
+async function setSiteLocale(page: Page, code: string) {
+  await page.waitForLoadState('networkidle');
+  await page.locator('header select').first().selectOption(code);
+}
 
 async function assertNoOverflow(label: string, page: Page) {
   const o = await page.evaluate(() => ({
@@ -26,18 +35,13 @@ test('RTL: customer auth + operations reference data render right-to-left', asyn
 }, testInfo) => {
   const guards = attachConsoleGuards(page);
 
-  // customer sign-in in Arabic
+  // customer sign-in in Arabic (apps/site — locale is a URL segment set from the header <select>)
   await page.goto('/sign-in');
-  await openLanguageMenu(page);
-  await page.getByRole('menuitem', { name: /العربية/ }).click();
+  await setSiteLocale(page, 'ar');
+  await expect(page).toHaveURL(/\/ar\/sign-in/);
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
   await shot(page, testInfo, 'rtl-cweb-signin');
   await assertNoOverflow('RTL customer sign-in', page);
-
-  // back to English so the operations sign-in controls are addressable by their English names
-  await openLanguageMenu(page);
-  await page.getByRole('menuitem', { name: /English/ }).click();
-  await expect(page.locator('html')).not.toHaveAttribute('dir', 'rtl');
 
   // operations: sign in as admin, open reference data, switch to Arabic
   await page.goto('/ops/sign-in');

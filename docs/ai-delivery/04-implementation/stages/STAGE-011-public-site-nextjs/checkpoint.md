@@ -20,8 +20,25 @@
   extend, history), `checkout/` (held-quote review, one charge, confirmation + guest CTA).
   Full en/ar/fr; `verify:i18n` 638 + `--strict` reports **0** literals in `apps/site/src`.
   `pnpm -r typecheck` green; next build green (65 static pages, `trips/[reference]` dynamic).
-- **Increment 3 remaining:** port the legacy customer-flow E2E specs to `apps/site` (close the
-  RED `verify:e2e`); `verify:seo` gate + Lighthouse evidence.
+- **Increment 3c — `verify:seo` (done, 2026-09-07):** `scripts/verify-seo.{mjs,sh}` — per
+  indexable route × {en,ar,fr}: unique title/description, self-consistent canonical, reciprocal
+  hreflang, `<html lang/dir>`, OG + `twitter:card`, parseable JSON-LD; + `robots.txt` /
+  `sitemap.xml` validity + coverage + `noindex` on the private routes. In `verify:all`. Green.
+- **Increment 3d — E2E port (in progress, 2026-09-08):** `playwright.config.ts` reworked to the
+  single-origin model — `apps/site` (`start:standalone`, :3000) is the browser origin; it
+  proxies `/ops` → `apps/web` (`vite preview`, :3100) and `/api` → the API (:3001). `verify:e2e`
+  now also builds `apps/site` and `db:reset`s first. `apps/site` gained the E2E contract the
+  specs rely on: `search-*` / `result-*` testids on the search island + results, a client
+  `VehicleReserve` island (`detail-total`, `reserve-button` → checkout), a `/[locale]/vehicle/*`
+  → `/vehicles/*` redirect, per-page `<h1>`s on the account sub-pages, `<title>` via per-route
+  layouts on every noindex segment, a `[locale]/[...notFound]` localised soft-404 (Next 14
+  mis-renders `not-found.tsx` from a dynamic segment under `output: standalone`), bottom-nav at
+  the `lg` breakpoint. Ops nav group-label contrast fixed (`text-muted-foreground/70` → full).
+  New public `GET /api/v1/meta/translations` (published overlay, no auth) — the site was hitting
+  the staff-gated `/config/translations` and always falling back. Translation catalogue gains a
+  filter + 50-row cap (650 keys made the page's full-page screenshot time out).
+  **Laptop project: green** (a handful of hydration-race + shared-fixture flakes hardened);
+  full phone/tablet sweep next.
 
 ## Completed — increment 1
 

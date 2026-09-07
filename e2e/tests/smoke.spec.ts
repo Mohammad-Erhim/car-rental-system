@@ -9,31 +9,27 @@ import { attachConsoleGuards, shot } from './_helpers.js';
  */
 
 test.describe('customer web (APP-CWEB)', () => {
-  test('home renders, loads API data, and switches locale', async ({ page }, testInfo) => {
+  test('home renders (SSR), is API-backed, and switches locale to RTL', async ({
+    page,
+  }, testInfo) => {
     const guards = attachConsoleGuards(page);
 
-    await page.goto('/');
+    await page.goto('/'); // → 307 → /en
+    await expect(page).toHaveURL(/\/en$/);
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 
-    // API-backed content
-    await expect(page.getByTestId('build-info')).toContainText('carrental-api');
-    const localeList = page.getByTestId('locale-list');
-    await expect(localeList).toContainText('English');
-    await expect(localeList).toContainText('العربية');
-
-    // health chip resolved to a real status
-    await expect(page.getByTestId('system-status')).toHaveAttribute(
-      'data-status',
-      /ok|degraded|down/,
-    );
+    // the search island is SSR'd with the real location list from the API
+    const form = page.getByTestId('search-form');
+    await expect(form).toBeVisible();
+    await expect(form.getByTestId('search-location').locator('option')).not.toHaveCount(1);
 
     await shot(page, testInfo, 'cweb-home-default');
 
-    // switch to Arabic -> RTL
-    await page
-      .getByRole('button', { name: /Current language|Langue actuelle|اللغة الحالية/ })
-      .click();
-    await page.getByRole('menuitem', { name: /العربية/ }).click();
+    // switch to Arabic via the header <select> → URL segment + RTL (wait for hydration first)
+    await page.waitForLoadState('networkidle');
+    await page.locator('header select').first().selectOption('ar');
+    await expect(page).toHaveURL(/\/ar$/);
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
     await expect(page.getByRole('button', { name: /Search|Rechercher|بحث/ })).toBeVisible();
     await shot(page, testInfo, 'cweb-home-rtl');
@@ -43,9 +39,9 @@ test.describe('customer web (APP-CWEB)', () => {
 
   test('unknown route shows a recoverable not-found state', async ({ page }) => {
     const guards = attachConsoleGuards(page);
-    await page.goto('/nope-does-not-exist');
+    await page.goto('/en/nope-does-not-exist');
     await expect(page.locator('[data-appstate="no-results"]')).toBeVisible();
-    await expect(page.getByRole('button', { name: /Go home/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Go home/ })).toBeVisible();
     guards.assertClean();
   });
 });

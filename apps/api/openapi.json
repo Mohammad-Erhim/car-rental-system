@@ -1920,6 +1920,21 @@
         ]
       }
     },
+    "/api/v1/meta/translations": {
+      "get": {
+        "operationId": "meta_getTranslations",
+        "summary": "Published translation overrides for a namespace + locale (public, DEC-024)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "meta"
+        ]
+      }
+    },
     "/api/v1/meta/health-summary": {
       "get": {
         "operationId": "meta_getHealthSummary",

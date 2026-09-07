@@ -47,18 +47,28 @@ test.describe('customer auth (APP-CWEB)', () => {
     await page.getByRole('button', { name: /^Sign in$/ }).click();
     await expect(page).toHaveURL(/\/account$/);
 
+    const localeField = page.locator('#field-locale');
     const save = () => page.getByRole('button', { name: /^(Save|Enregistrer)$/ }).click();
+    // set the language select and wait for the value to actually stick — the profile form
+    // repopulates from its own fetch after every save, which can race a `selectOption`.
+    const setLocale = async (code: string) => {
+      await expect(localeField).toBeEnabled();
+      await expect(async () => {
+        await localeField.selectOption(code);
+        await expect(localeField).toHaveValue(code);
+      }).toPass({ timeout: 10_000 });
+      await save();
+    };
 
     // Self-contained: normalise to English first (the demo customer is shared dev state),
     // then prove that *changing* the language re-renders the running app, then restore.
     await page.goto('/account/profile');
-    await page.locator('#field-locale').selectOption('en');
-    await save();
+    await page.waitForLoadState('networkidle');
+    await setLocale('en');
     await expect(page.getByRole('link', { name: /^My trips$/ })).toBeVisible();
 
     // change → the app chrome re-renders into French without a reload (SRS-I18N-009)
-    await page.locator('#field-locale').selectOption('fr');
-    await save();
+    await setLocale('fr');
     await expect(page.getByRole('link', { name: /^Mes trajets$/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /^Enregistrer$/ })).toBeVisible();
 
@@ -67,8 +77,7 @@ test.describe('customer auth (APP-CWEB)', () => {
     await expect(page.getByRole('link', { name: /^Mes trajets$/ })).toBeVisible();
 
     // restore baseline for other specs / reruns against the shared dev DB
-    await page.locator('#field-locale').selectOption('en');
-    await save();
+    await setLocale('en');
     await expect(page.getByRole('link', { name: /^My trips$/ })).toBeVisible();
 
     guards.assertClean();

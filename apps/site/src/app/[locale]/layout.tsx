@@ -53,7 +53,10 @@ export default async function LocaleLayout({
             {t.t('common.skipToContent')}
           </a>
           <SiteHeader locale={locale} />
-          <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 md:py-12">
+          <main
+            id="main"
+            className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 pb-24 md:py-12 lg:pb-12"
+          >
             {children}
           </main>
           <SiteFooter locale={locale} />

@@ -34,14 +34,13 @@ export function AccountShell({ children }: { children: ReactNode }) {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">{t('account.title')}</h1>
-          {actor ? (
-            <p className="text-sm text-muted-foreground">
-              {t('account.signedInAs', { name: actor.displayName })}
-            </p>
-          ) : null}
-        </div>
+        {actor ? (
+          <p className="text-sm text-muted-foreground">
+            {t('account.signedInAs', { name: actor.displayName })}
+          </p>
+        ) : (
+          <span />
+        )}
         <Button variant="outline" size="sm" onClick={onSignOut}>
           <LogOut className="size-4" aria-hidden="true" />
           {t('action.signOut')}

@@ -74,7 +74,11 @@ export function HomeSearch({
   const field = 'h-11 w-full rounded-md border border-input bg-background px-3 text-sm';
 
   return (
-    <form onSubmit={submit} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end">
+    <form
+      onSubmit={submit}
+      data-testid="search-form"
+      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end"
+    >
       <label className="space-y-1 text-sm lg:col-span-1">
         <span className="font-medium text-muted-foreground">{t('search.location')}</span>
         {locations && locations.length ? (
@@ -83,6 +87,7 @@ export function HomeSearch({
             value={pickup}
             onChange={(e) => setPickup(e.target.value)}
             aria-label={t('search.location')}
+            data-testid="search-location"
           >
             <option value="">{t('search.locationPlaceholder')}</option>
             {locations.map((l) => (
@@ -98,6 +103,7 @@ export function HomeSearch({
             onChange={(e) => setPickup(e.target.value)}
             placeholder="JFK"
             aria-label={t('search.location')}
+            data-testid="search-location"
           />
         )}
       </label>
@@ -108,6 +114,7 @@ export function HomeSearch({
           className={field}
           value={pickupAt}
           onChange={(e) => setPickupAt(e.target.value)}
+          data-testid="search-pickup-at"
         />
       </label>
       <label className="space-y-1 text-sm">
@@ -117,11 +124,13 @@ export function HomeSearch({
           className={field}
           value={returnAt}
           onChange={(e) => setReturnAt(e.target.value)}
+          data-testid="search-return-at"
         />
       </label>
       <div>
         <button
           type="submit"
+          data-testid="search-submit"
           className="h-11 w-full rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
         >
           {t('action.search')}

@@ -16,6 +16,7 @@ import type { Database } from '../../database/drizzle';
 import { locale } from '../../database/schema/i18n';
 import { HealthService } from '../../observability/health.service';
 import { ConfigVersionService } from '../config/config-version.service';
+import { TranslationService } from '../config/translation.service';
 
 /** kind/key the branding config lives under in `config_version` (DEC-025). */
 export const BRANDING_KIND = 'branding';
@@ -32,7 +33,13 @@ export class MetaService {
     private readonly health: HealthService,
     private readonly configVersions: ConfigVersionService,
     private readonly storage: ObjectStorageService,
+    private readonly translations: TranslationService,
   ) {}
+
+  /** Published translation overrides for a namespace + locale (public). Empty when none. */
+  translationsBundle(namespace: string, locale: string) {
+    return this.translations.publishedBundle(namespace || 'common', locale);
+  }
 
   /** Enabled locales come from the DB, not a bundled array (FR-GBL-004, SRS-I18N-001). */
   async locales(): Promise<LocalesResponse> {

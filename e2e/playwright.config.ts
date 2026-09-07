@@ -5,15 +5,19 @@ import { defineConfig, devices } from '@playwright/test';
  * screenshot exists at phone / tablet / laptop. Traces on first retry; screenshots on failure;
  * console + network assertions live in the specs.
  *
- * Servers: the API (:3001) and the built web app served by `vite preview` (:3000). On this
- * memory-constrained host we serve a production build rather than a long-lived dev server.
+ * Single origin (STAGE-011, DEC-021/026): `apps/site` (Next, :3000) is the browser origin; it
+ * proxies `/ops` → the operations dashboard (`apps/web`, `vite preview` :3100) and `/api` +
+ * `/health` → the API (:3001). A production build of each is served — lighter on this
+ * memory-constrained host than long-lived dev servers.
  */
 const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3001';
+const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:3000';
 const WEB_URL = process.env.E2E_WEB_URL ?? 'http://localhost:3100';
 const REUSE = !!process.env.E2E_REUSE_SERVER;
 
 export default defineConfig({
   testDir: './tests',
+  testIgnore: /qa-matrix\.spec\.ts/,
   outputDir: './test-results',
   fullyParallel: false,
   workers: 1,
@@ -29,7 +33,7 @@ export default defineConfig({
     ['json', { outputFile: 'test-results/results.json' }],
   ],
   use: {
-    baseURL: WEB_URL,
+    baseURL: BASE_URL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'off',
@@ -82,13 +86,30 @@ export default defineConfig({
           env: { ...process.env, RATE_LIMIT_AUTH_MAX: '2000', RATE_LIMIT_AUTH_WINDOW_SEC: '60' },
         },
         {
-          command: 'pnpm --filter @carrental/web preview',
+          command: 'pnpm --filter @carrental/web exec vite preview --port 3100 --strictPort',
           cwd: '..',
-          url: WEB_URL,
+          url: `${WEB_URL}/ops/`,
           reuseExistingServer: false,
           timeout: 60_000,
           stdout: 'pipe',
           stderr: 'pipe',
+        },
+        {
+          // the standalone server, not `next start` (unsupported with output: 'standalone')
+          command: 'pnpm --filter @carrental/site start:standalone',
+          cwd: '..',
+          url: `${BASE_URL}/en`,
+          reuseExistingServer: false,
+          timeout: 90_000,
+          stdout: 'pipe',
+          stderr: 'pipe',
+          env: {
+            ...process.env,
+            PORT: '3000',
+            API_UPSTREAM: API_URL,
+            WEB_UPSTREAM: WEB_URL,
+            SITE_URL: BASE_URL,
+          },
         },
       ],
 });

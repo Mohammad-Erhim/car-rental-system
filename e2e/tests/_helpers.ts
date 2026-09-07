@@ -41,6 +41,9 @@ export function attachConsoleGuards(page: Page) {
       const loc = msg.location()?.url ?? '';
       if (isExpectedNegative(loc, status)) return;
     }
+    // Next.js logs this when an in-viewport <Link> prefetch's RSC fetch is dropped (common
+    // under load on the standalone server); it transparently falls back to a full navigation.
+    if (/Failed to fetch RSC payload .* Falling back to browser navigation/.test(text)) return;
     consoleErrors.push(text);
   });
   page.on('pageerror', (err) => pageErrors.push(err.message));
@@ -65,12 +68,12 @@ export function attachConsoleGuards(page: Page) {
 }
 
 /** Save a named, deterministic screenshot into the stage evidence folder. A full-page capture of
- *  a long table page at the phone project's deviceScaleFactor 3 can exceed the default 10s on a
- *  memory-constrained host — allow it 30s. */
+ *  a long list page (the translation catalogue is ~650 keys) at the phone project's
+ *  deviceScaleFactor 3 can exceed the default 10s on a memory-constrained host — allow it 60s. */
 export async function shot(page: Page, testInfo: TestInfo, name: string) {
   const project = testInfo.project.name; // phone | tablet | laptop
   const file = resolve(SHOTS_ROOT, `${name}.${project}.png`);
   mkdirSync(dirname(file), { recursive: true });
-  await page.screenshot({ path: file, fullPage: true, animations: 'disabled', timeout: 30_000 });
+  await page.screenshot({ path: file, fullPage: true, animations: 'disabled', timeout: 60_000 });
   await testInfo.attach(`${name}.${project}`, { path: file, contentType: 'image/png' });
 }

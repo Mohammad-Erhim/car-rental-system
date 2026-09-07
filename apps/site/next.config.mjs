@@ -23,6 +23,16 @@ const nextConfig = {
   ],
   eslint: { ignoreDuringBuilds: true }, // lint runs as its own `pnpm lint` step
   images: { formats: ['image/avif', 'image/webp'] },
+  async redirects() {
+    // legacy singular path from the pre-split apps/web customer tree
+    return [
+      {
+        source: '/:locale/vehicle/:categoryCode',
+        destination: '/:locale/vehicles/:categoryCode',
+        permanent: true,
+      },
+    ];
+  },
   async rewrites() {
     // same-origin API + health in every environment (DEC-021): the browser calls /api, we proxy.
     const rules = [

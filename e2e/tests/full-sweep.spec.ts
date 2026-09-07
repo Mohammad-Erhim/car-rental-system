@@ -31,7 +31,7 @@ async function visit(page: Page, testInfo: TestInfo, path: string, name: string)
 const CUSTOMER_ROUTES: Array<[string, string]> = [
   ['/', 'home'],
   ['/search', 'search'],
-  ['/vehicle/economy', 'vehicle-detail'],
+  ['/vehicles/economy', 'vehicle-detail'],
   ['/sign-in', 'signin'],
   ['/register', 'register'],
   ['/recovery', 'recovery'],
@@ -96,22 +96,22 @@ test.describe('full sweep — Arabic / RTL', () => {
     test.skip(testInfo.project.name === 'tablet', 'RTL sweep on phone + laptop is enough');
     const guards = attachConsoleGuards(page);
 
-    // set the locale from the customer sign-in language menu, then sweep
+    // apps/site — locale is a URL segment, set from the header <select>; the choice sticks in a
+    // cookie so subsequent bare-path visits redirect to the Arabic route.
     await page.goto('/sign-in');
-    await page
-      .getByRole('button', { name: /Current language|Langue actuelle|اللغة الحالية/ })
-      .first()
-      .click();
-    await page.getByRole('menuitem', { name: /العربية/ }).click();
+    await page.waitForLoadState('networkidle'); // hydrate before driving the client <select>
+    await page.locator('header select').first().selectOption('ar');
+    await expect(page).toHaveURL(/\/ar\/sign-in/);
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
 
     for (const [path, name] of [
-      ['/', 'home'],
-      ['/search', 'search'],
-      ['/register', 'register'],
-      ['/sign-in', 'signin'],
+      ['/ar', 'home'],
+      ['/ar/search', 'search'],
+      ['/ar/register', 'register'],
+      ['/ar/sign-in', 'signin'],
     ] as Array<[string, string]>) {
       await page.goto(path);
+      await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
       await expect(page.getByRole('heading').first()).toBeVisible();
       await noOverflow(`rtl ${name} (${path})`, page);
       await shot(page, testInfo, `sweep-rtl-${name}`);

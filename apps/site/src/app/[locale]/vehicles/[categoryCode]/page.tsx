@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
+import { VehicleReserve } from '../../../../components/vehicle-reserve';
 import { apiGet } from '../../../../lib/api';
 import { ACTIVE_LOCALES, getT } from '../../../../lib/i18n';
 import { buildMetadata, jsonLd, seoOrigin } from '../../../../lib/seo';
@@ -118,7 +119,7 @@ export default async function VehicleDetailPage({
       {cat.features.length ? (
         <section>
           <h2 className="mb-2 text-lg font-semibold">{t.t('site.vehicle.features')}</h2>
-          <ul className="flex flex-wrap gap-2">
+          <ul className="flex flex-wrap gap-2" data-testid="vehicle-features">
             {cat.features.map((f) => (
               <li key={f.code} className="rounded-full bg-muted px-3 py-1 text-xs">
                 {f.label}
@@ -128,12 +129,7 @@ export default async function VehicleDetailPage({
         </section>
       ) : null}
 
-      <a
-        href={`/${locale}/search`}
-        className="inline-block rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-      >
-        {t.t('site.vehicle.checkAvailability')}
-      </a>
+      <VehicleReserve categoryCode={cat.code} />
     </article>
   );
 }

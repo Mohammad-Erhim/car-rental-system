@@ -23,7 +23,12 @@ function localDateTime(daysAhead: number, hour = 11): string {
 }
 
 async function runSearch(page: Page, location: string, pickup: string, ret: string) {
-  await page.getByTestId('search-location').selectOption(location);
+  // the search island is a client component — wait for hydration before driving it, otherwise
+  // a pre-hydration selectOption is reset to '' on mount and submit fails its own validation.
+  await page.waitForLoadState('networkidle');
+  const loc = page.getByTestId('search-location');
+  await loc.selectOption(location);
+  await expect(loc).toHaveValue(location);
   await page.getByTestId('search-pickup-at').fill(pickup);
   await page.getByTestId('search-return-at').fill(ret);
   await page.getByTestId('search-submit').click();
@@ -52,7 +57,7 @@ test.describe('customer discovery (APP-CWEB)', () => {
     await shot(page, testInfo, 'cweb-search-results');
 
     await economy.getByRole('link', { name: /View & reserve/ }).click();
-    await expect(page).toHaveURL(/\/vehicle\/economy\?/);
+    await expect(page).toHaveURL(/\/vehicles\/economy\?/);
     await expect(page.getByTestId('vehicle-features')).toBeVisible();
     await expect(page.getByTestId('detail-total')).toContainText('121.14');
     await shot(page, testInfo, 'cweb-vehicle-detail');
@@ -85,8 +90,10 @@ test.describe('customer discovery (APP-CWEB)', () => {
   }) => {
     const guards = attachConsoleGuards(page);
     await page.goto('/');
-    // PAR opens 08:00 local; ask for 05:00 → closed.
-    await runSearch(page, 'PAR', localDateTime(4, 5), localDateTime(6, 11));
+    // PAR (Europe/Paris) opens 08:00 local, no after-hours. The datetime-local value is read in
+    // the browser tz (America/New_York, playwright config); 01:00 NY ≈ 07:00 Paris — before PAR
+    // opens — so availability returns a "closed" notice and no bookable options.
+    await runSearch(page, 'PAR', localDateTime(4, 1), localDateTime(6, 1));
     await expect(page.locator('[data-appstate="no-results"]')).toBeVisible();
     guards.assertClean();
   });

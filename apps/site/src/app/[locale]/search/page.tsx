@@ -93,8 +93,13 @@ export default async function SearchPage({
   }
 
   const notices = data?.notices ?? [];
-  const hasResults = (data?.options.length ?? 0) > 0;
+  const options = data?.options ?? [];
+  const hasOptions = options.length > 0;
+  const hasBookable = options.some(
+    (o) => o.bookableCount > 0 && typeof o.fromTotalMinor === 'number',
+  );
   const searched = Boolean(pickup && pickupAt && returnAt);
+  const showNoResults = searched && !failure && !hasBookable;
 
   return (
     <div className="space-y-6">
@@ -132,26 +137,37 @@ export default async function SearchPage({
         </ul>
       ) : null}
 
-      {searched && !failure && !hasResults && !notices.length ? (
-        <p className="text-sm text-muted-foreground">{t.t('site.search.noResults')}</p>
+      {showNoResults ? (
+        <p data-appstate="no-results" className="text-sm text-muted-foreground">
+          {t.t('site.search.noResults')}
+        </p>
       ) : null}
 
-      {hasResults ? (
-        <ul className="grid gap-4 sm:grid-cols-2">
-          {data!.options.map((o) => (
-            <li key={o.categoryCode} className="rounded-lg border bg-card p-4">
+      {hasOptions ? (
+        <ul className="grid gap-4 sm:grid-cols-2" data-testid="results-list">
+          {options.map((o) => (
+            <li
+              key={o.categoryCode}
+              data-testid={`result-${o.categoryCode}`}
+              data-soldout={o.bookableCount < 1}
+              className="rounded-lg border bg-card p-4"
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h2 className="font-medium">{o.categoryName}</h2>
-                  <p className="text-xs text-muted-foreground">
+                  <p
+                    className="text-xs text-muted-foreground"
+                    data-testid={`result-${o.categoryCode}-count`}
+                  >
                     {t.t('site.search.available', { n: o.bookableCount })}
                   </p>
                 </div>
                 {typeof o.fromTotalMinor === 'number' && o.currency ? (
-                  <p className="whitespace-nowrap text-sm font-semibold">
-                    {t.t('site.search.fromPrice', {
-                      price: money(o.fromTotalMinor, o.currency, locale),
-                    })}
+                  <p
+                    className="whitespace-nowrap text-sm font-semibold"
+                    data-testid={`result-${o.categoryCode}-price`}
+                  >
+                    {money(o.fromTotalMinor, o.currency, locale)}
                   </p>
                 ) : null}
               </div>
@@ -159,7 +175,7 @@ export default async function SearchPage({
                 href={`/${locale}/vehicles/${o.categoryCode}?${new URLSearchParams({ pickup, pickupAt, returnAt }).toString()}`}
                 className="mt-3 inline-block rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
               >
-                {t.t('action.viewDetails')}
+                {t.t('site.search.viewReserve')}
               </Link>
             </li>
           ))}

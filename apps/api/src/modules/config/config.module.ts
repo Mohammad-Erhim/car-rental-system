@@ -17,6 +17,6 @@ import { TranslationService } from './translation.service';
     ConfigVersionService,
     BrandAssetService,
   ],
-  exports: [ConfigPublic, LookupService, ConfigVersionService],
+  exports: [ConfigPublic, LookupService, ConfigVersionService, TranslationService],
 })
 export class ConfigModule {}

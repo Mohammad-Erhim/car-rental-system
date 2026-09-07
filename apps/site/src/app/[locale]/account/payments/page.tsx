@@ -17,6 +17,7 @@ export default function PaymentsPage() {
 
   return (
     <div className="space-y-6">
+      <h1 className="text-xl font-semibold">{t('payments.title')}</h1>
       <p className="text-sm text-muted-foreground">{t('payments.intro')}</p>
 
       {list.isLoading ? (

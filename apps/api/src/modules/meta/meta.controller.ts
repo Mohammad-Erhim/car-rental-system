@@ -7,7 +7,7 @@ import {
   zLocalesResponse,
   zSeoResponse,
 } from '@carrental/contracts';
-import { Controller, Get, Header, Res } from '@nestjs/common';
+import { Controller, Get, Header, Query, Res } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { createZodDto } from 'nestjs-zod';
@@ -77,6 +77,19 @@ export class MetaController {
       .slice(0, 16)}"`;
     res.setHeader('ETag', etag);
     return body;
+  }
+
+  @Get('translations')
+  @Header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
+  @ApiOperation({
+    operationId: 'meta_getTranslations',
+    summary: 'Published translation overrides for a namespace + locale (public, DEC-024)',
+  })
+  getTranslations(
+    @Query('namespace') namespace = 'common',
+    @Query('locale') locale = 'en',
+  ): Promise<Record<string, string>> {
+    return this.meta.translationsBundle(namespace, locale);
   }
 
   @Get('health-summary')

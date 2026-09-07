@@ -38,7 +38,7 @@ export function SiteHeader({ locale }: { locale: string }) {
           <span>{t('app.name')}</span>
         </Link>
 
-        <nav aria-label="Primary" className="hidden items-center gap-1 sm:flex">
+        <nav aria-label="Primary" className="hidden items-center gap-1 lg:flex">
           {nav.map((n) => (
             <Link
               key={n.href}
@@ -91,11 +91,11 @@ export function SiteHeader({ locale }: { locale: string }) {
         </div>
       </div>
 
-      {/* Bottom nav on phones/tablets (design §4.1); the header nav takes over from `sm` up. */}
+      {/* Bottom nav on phones/tablets (design §4.1); the header nav takes over at `lg`. */}
       <nav
         aria-label="Primary"
         data-testid="mobile-bottom-nav"
-        className="grid grid-cols-4 border-t bg-background sm:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t bg-background lg:hidden"
       >
         {[
           { href: `/${locale}`, label: t('nav.rentACar'), Icon: Car },
