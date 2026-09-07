@@ -731,6 +731,24 @@ const TEMPLATES: Array<{
     },
   },
   {
+    key: 'reservation_cancelled',
+    variables: [{ name: 'reference', required: true }, { name: 'refund' }],
+    byLocale: {
+      en: {
+        subject: 'Your booking {{reference}} was cancelled',
+        body: 'Your booking {{reference}} has been cancelled.\n\nRefund: {{refund}}.\n\nIf you did not request this cancellation, contact support.',
+      },
+      fr: {
+        subject: 'Votre réservation {{reference}} a été annulée',
+        body: 'Votre réservation {{reference}} a été annulée.\n\nRemboursement : {{refund}}.\n\nSi vous n’êtes pas à l’origine de cette annulation, contactez le support.',
+      },
+      ar: {
+        subject: 'تم إلغاء حجزك {{reference}}',
+        body: 'تم إلغاء حجزك {{reference}}.\n\nالمبلغ المسترد: {{refund}}.\n\nإذا لم تطلب هذا الإلغاء، فتواصل مع الدعم.',
+      },
+    },
+  },
+  {
     key: 'account_recovery',
     variables: [{ name: 'code', required: true }, { name: 'name' }],
     byLocale: {

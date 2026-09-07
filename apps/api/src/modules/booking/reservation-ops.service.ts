@@ -465,20 +465,31 @@ export class ReservationOpsService {
     event: string,
     variables: Record<string, unknown>,
   ) {
+    const locale = actor.localeCode ?? 'en';
+    // Localised last-resort copy for the (rare) case a published template is missing — the
+    // normal path renders the seeded `reservation_*` template in the recipient's locale.
+    const fallbackByLocale: Record<string, { subject: string; body: string }> = {
+      en: {
+        subject: `Update on ${reference}`,
+        body: `There is an update on your booking ${reference}.`,
+      },
+      fr: {
+        subject: `Mise à jour concernant ${reference}`,
+        body: `Votre réservation ${reference} a été mise à jour.`,
+      },
+      ar: { subject: `تحديث بشأن ${reference}`, body: `هناك تحديث على حجزك ${reference}.` },
+    };
     try {
       await this.notify.send({
         event,
         channel: 'email',
         recipient: actor.accountId,
         recipientRef: actor.accountId,
-        localeCode: actor.localeCode ?? 'en',
+        localeCode: locale,
         sourceType: 'reservation',
         sourceId: reference,
         variables,
-        fallback: {
-          subject: `Update on ${reference}`,
-          body: `There is an update on your booking ${reference}.`,
-        },
+        fallback: fallbackByLocale[locale] ?? fallbackByLocale.en,
       });
     } catch {
       /* non-fatal */
