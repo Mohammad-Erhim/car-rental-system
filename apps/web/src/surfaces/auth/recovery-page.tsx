@@ -182,20 +182,14 @@ export function RecoveryPage({ audience = 'customer' as 'customer' | 'staff' }) 
                   out. A security notification was sent.
                 </AlertDescription>
               </Alert>
-              <Button
-                className="w-full"
-                onClick={() => navigate(audience === 'staff' ? '/ops/sign-in' : '/sign-in')}
-              >
+              <Button className="w-full" onClick={() => navigate('/sign-in')}>
                 {t('action.signIn')}
               </Button>
             </div>
           )}
 
           <p className="text-center text-sm">
-            <Link
-              to={audience === 'staff' ? '/ops/sign-in' : '/sign-in'}
-              className="text-primary underline underline-offset-4"
-            >
+            <Link to="/sign-in" className="text-primary underline underline-offset-4">
               Back to sign in
             </Link>
           </p>

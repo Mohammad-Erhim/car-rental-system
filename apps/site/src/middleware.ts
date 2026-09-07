@@ -19,10 +19,12 @@ function negotiate(req: NextRequest): string {
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // let API/health rewrites, next internals, and static files through
+  // let API/health rewrites, the /ops dashboard proxy, next internals, and static files through
   if (
     pathname.startsWith('/api') ||
     pathname.startsWith('/health') ||
+    pathname === '/ops' ||
+    pathname.startsWith('/ops/') ||
     pathname.startsWith('/_next') ||
     pathname.startsWith('/_vercel') ||
     PUBLIC_FILE.test(pathname)

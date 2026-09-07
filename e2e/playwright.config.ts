@@ -9,7 +9,7 @@ import { defineConfig, devices } from '@playwright/test';
  * memory-constrained host we serve a production build rather than a long-lived dev server.
  */
 const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3001';
-const WEB_URL = process.env.E2E_WEB_URL ?? 'http://localhost:3000';
+const WEB_URL = process.env.E2E_WEB_URL ?? 'http://localhost:3100';
 const REUSE = !!process.env.E2E_REUSE_SERVER;
 
 export default defineConfig({

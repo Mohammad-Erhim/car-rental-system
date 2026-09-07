@@ -255,3 +255,34 @@ Append-only. Do not rewrite history. Newest at the bottom of each area.
 - Consequences: token duplication (`apps/web/src/index.css` + `packages/ui/src/styles.css`)
   collapsed to one source; `verify:theme` gate (AA contrast for presets, no literal colours);
   new `/ops/config/branding` + `/ops/config/seo` screens.
+
+### DEC-026 — Single-origin local dev; dashboard on `:3100` under `/ops`
+
+- Date: 2026-09-07 (enhancement program, STAGE-012 fix pass)
+- Context: DEC-021 keeps one browser origin so the `SameSite=Lax` refresh cookie is first-party;
+  DEC-023 split the customer surface (`apps/site`, Next) from the dashboard (`apps/web`, Vite,
+  served under `/ops`). In prod the `edge` nginx is that origin. Local dev had no equivalent:
+  `apps/web` ran on `:3000` standalone, `apps/site` was not started by `pnpm dev` at all, and a
+  refresh on the dashboard hit the API from an origin the CSRF guard did not trust → the session
+  was cleared on every reload. Nav also broke: `apps/web`'s router uses `basename: '/ops'`, but
+  the nav targets still carried a literal `/ops`, resolving to `/ops/ops/…`.
+- Decision:
+  - `apps/site` (`:3000`) is the single dev origin. It proxies `/ops` → `apps/web` (`:3100`)
+    and `/api` + `/health` → the API via `next.config.mjs` rewrites (`WEB_UPSTREAM`,
+    default `http://localhost:3100`; `next dev` re-evaluates per request, a production build
+    bakes it — so `Dockerfile.site` builds with `WEB_UPSTREAM=""` since the edge owns `/ops`
+    there). The site `middleware` lets `/ops*` pass through untouched.
+  - `apps/web` dev + preview move to `:3100` (was `:3000`); Vite `base` stays `/ops/`.
+  - `pnpm dev` runs API + dashboard + site together; `pnpm dev:ops` is the lighter
+    API-plus-dashboard flow.
+  - Every `apps/web` route target is basename-relative (`/work`, not `/ops/work`); the same
+    for the post-sign-in and post-recovery redirects.
+  - `CORS_ALLOWED_ORIGINS` gains `http://localhost:3100` for direct dashboard-dev-server
+    access; the single-origin flow does not need it.
+  - The dashboard links out to the site via `VITE_SITE_URL` (default `/`, correct behind the
+    edge; a full navigation, not an SPA route).
+- Source IDs: user bug report (2026-09-07), DEC-021, DEC-023, SRS-SEC-003 (CSRF), SRS-UI-006.
+- Consequences: `apps/web/vite.config.ts`, `apps/web/package.json`, `apps/site/next.config.mjs`,
+  `apps/site/src/middleware.ts`, `deploy/Dockerfile.site`, `compose.yaml`, `.env.example`, root
+  `package.json`, `e2e/playwright.config.ts` (`E2E_WEB_URL` default → `:3100`) updated. Verified
+  in-browser: 40/40 route + session checks, 9/9 responsive-evidence checks.

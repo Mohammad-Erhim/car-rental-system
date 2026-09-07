@@ -6,6 +6,40 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### STAGE-012 — Ops dashboard UX · fix pass (2026-09-07)
+
+Reported issues: dashboard navigation double-prefixed `/ops`, the public site was
+unreachable from the dashboard, the sign-in screen showed an empty sidebar, the sidebar
+did not fit the viewport, and the staff session was dropped on a page refresh. All fixed
+and verified in a browser (40/40 route + session checks, 9/9 responsive-evidence checks).
+
+**Fixed**
+
+- **Navigation** — the ops router runs with `basename: '/ops'`, but `ops-layout` nav
+  targets and two post-auth redirects still included the `/ops` prefix, so every click
+  resolved to `/ops/ops/…` (a 404 caught by the SPA). Nav `to` values and
+  `sign-in` / `recovery` redirects are now basename-relative.
+- **Session lost on refresh** — the dashboard dev server moved to `:3100`; the API's CSRF
+  guard rejected `POST /auth/refresh` from that origin (not in `CORS_ALLOWED_ORIGINS`),
+  which cleared the session on boot. `http://localhost:3100` is now an allowed dev origin,
+  and the primary dev flow is single-origin (below) where this cannot happen.
+- **Sign-in shows an empty sidebar** — the shell `<aside>` rendered for unauthenticated
+  routes. It now renders only for an authenticated staff session; sign-in / recovery are a
+  bare centred card.
+- **Sidebar overflow** — the sidebar is `sticky top-0 h-screen`; the nav list scrolls
+  (`overflow-y-auto`) while the brand header and the new footer link stay pinned.
+
+**Added**
+
+- **"View public site" link** — in the sidebar footer, the header (≥sm), and the mobile
+  nav strip. Points at `VITE_SITE_URL` (default `/`).
+- **Single-origin local dev** — `apps/site` (`:3000`) is the one origin; it proxies
+  `/ops` → `apps/web` (`:3100`) and `/api` → the API, mirroring the prod edge, so the
+  `SameSite=Lax` refresh cookie stays first-party (DEC-021, DEC-026). `pnpm dev` now runs
+  the API, dashboard, and site together; `pnpm dev:ops` keeps the API-plus-dashboard-only
+  flow. `Dockerfile.site` gains `ARG WEB_UPSTREAM` (build-time; the prod image builds with
+  the proxy off — the edge owns `/ops`).
+
 ### STAGE-009 — Design system, theming & branding · increment 2 (2026-09-07)
 
 Dashboard-managed branding, end to end.

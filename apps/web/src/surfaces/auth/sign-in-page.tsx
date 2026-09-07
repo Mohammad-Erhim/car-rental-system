@@ -44,7 +44,8 @@ export function SignInPage({ audience = 'customer' as 'customer' | 'staff' }) {
     setBusy(true);
     try {
       await signIn({ email, password, audience });
-      navigate(takeReturnTo(isStaff ? '/ops' : '/account'), { replace: true });
+      // This router (apps/web) runs under basename `/ops`; `/` is the dashboard index.
+      navigate(takeReturnTo('/'), { replace: true });
     } catch (err) {
       errs.fromError(err);
     } finally {
@@ -123,10 +124,7 @@ export function SignInPage({ audience = 'customer' as 'customer' | 'staff' }) {
           </form>
 
           <div className="flex items-center justify-between text-sm">
-            <Link
-              to={isStaff ? '/ops/recovery' : '/recovery'}
-              className="text-primary underline underline-offset-4"
-            >
+            <Link to="/recovery" className="text-primary underline underline-offset-4">
               Forgot your password?
             </Link>
             {!isStaff ? (

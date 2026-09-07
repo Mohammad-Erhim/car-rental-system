@@ -31,15 +31,19 @@ export default defineConfig({
       '@carrental/ui': r('../../packages/ui/src/index.ts'),
     },
   },
+  // The dashboard serves under `/ops`. In every environment the *origin* is the public site
+  // (apps/site, :3000) — the edge proxy (prod) / Next dev rewrite (dev) forwards `/ops` here on
+  // :3100, so the browser only ever sees one origin and the refresh cookie stays first-party
+  // (DEC-021). `/api` + `/health` are proxied straight to the API for standalone runs.
   server: {
-    port: 3000,
+    port: 3100,
     strictPort: true,
     host: true,
     proxy,
     watch: usePolling ? { usePolling: true, interval: 300 } : undefined,
   },
   preview: {
-    port: 3000,
+    port: 3100,
     strictPort: true,
     host: true,
     proxy,

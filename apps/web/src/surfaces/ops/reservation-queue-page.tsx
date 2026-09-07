@@ -1,3 +1,4 @@
+import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
   Badge,
@@ -7,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
   Input,
+  PageHeader,
 } from '@carrental/ui';
 import { useState } from 'react';
 
@@ -16,9 +18,10 @@ import { useOpsReservations } from '../../lib/reservation-hooks.js';
 
 /**
  * SCREEN-OPS-004 — reservation queue. Filter by state / pickup location; read-only list for the
- * agent. Detail / modify / cancel-with-override land with the rest of STAGE-004's ops surfaces.
+ * agent, with an inline "assign vehicle" action on confirmed rows.
  */
 export function ReservationQueuePage() {
+  const { t } = useI18n();
   const [state, setState] = useState('');
   const [locationCode, setLocationCode] = useState('');
   const rows = useOpsReservations({
@@ -28,24 +31,23 @@ export function ReservationQueuePage() {
   const assign = useAssignVehicle();
   const [assignMsg, setAssignMsg] = useState<string | null>(null);
 
+  const TH = ['reference', 'state', 'channel', 'category', 'pickup', 'total', 'paid'] as const;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Reservations</h1>
-        <p className="text-sm text-muted-foreground">Upcoming and recent reservations by pickup.</p>
-      </div>
+      <PageHeader title={t('ops.queue.title')} description={t('ops.queue.subtitle')} />
 
       <Card>
         <CardHeader className="gap-3">
-          <CardTitle className="text-base">Queue</CardTitle>
+          <CardTitle className="text-base">{t('ops.queue.card')}</CardTitle>
           <div className="flex flex-wrap gap-2">
             <select
-              aria-label="Filter by state"
+              aria-label={t('ops.queue.filterState')}
               className="flex h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               value={state}
               onChange={(e) => setState(e.target.value)}
             >
-              <option value="">All states</option>
+              <option value="">{t('ops.queue.allStates')}</option>
               {['pending', 'confirmed', 'cancelled', 'no_show', 'fulfilled'].map((s) => (
                 <option key={s} value={s}>
                   {s}
@@ -53,8 +55,8 @@ export function ReservationQueuePage() {
               ))}
             </select>
             <Input
-              placeholder="Pickup location code"
-              aria-label="Filter by pickup location code"
+              placeholder={t('ops.queue.locPlaceholder')}
+              aria-label={t('ops.queue.filterLoc')}
               value={locationCode}
               onChange={(e) => setLocationCode(e.target.value.toUpperCase())}
               className="max-w-[14rem]"
@@ -63,28 +65,26 @@ export function ReservationQueuePage() {
         </CardHeader>
         <CardContent>
           {rows.isLoading ? (
-            <AppStateView kind="loading" inline title="Loading…" />
+            <AppStateView kind="loading" inline title={t('ops.st.loading')} />
           ) : rows.isError ? (
             <AppStateView
               kind="failure"
               inline
-              title="Couldn't load reservations"
-              primaryAction={{ label: 'Retry', onClick: () => rows.refetch() }}
+              title={t('ops.queue.loadFail')}
+              primaryAction={{ label: t('ops.st.retry'), onClick: () => rows.refetch() }}
             />
           ) : !rows.data?.length ? (
-            <AppStateView kind="no-results" inline title="No reservations match those filters" />
+            <AppStateView kind="no-results" inline title={t('ops.queue.empty')} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[44rem] text-sm" data-testid="ops-res-table">
                 <thead className="text-start text-xs uppercase text-muted-foreground">
                   <tr>
-                    <th className="py-1 text-start font-medium">Reference</th>
-                    <th className="py-1 text-start font-medium">State</th>
-                    <th className="py-1 text-start font-medium">Channel</th>
-                    <th className="py-1 text-start font-medium">Category</th>
-                    <th className="py-1 text-start font-medium">Pickup</th>
-                    <th className="py-1 text-start font-medium">Total</th>
-                    <th className="py-1 text-start font-medium">Paid</th>
+                    {TH.map((k) => (
+                      <th key={k} className="py-1 text-start font-medium">
+                        {t(`ops.tbl.${k}`)}
+                      </th>
+                    ))}
                     <th className="py-1"></th>
                   </tr>
                 </thead>
@@ -121,13 +121,13 @@ export function ReservationQueuePage() {
                               setAssignMsg(null);
                               try {
                                 await assign.mutateAsync(r.reference);
-                                setAssignMsg(`Vehicle assigned for ${r.reference}.`);
+                                setAssignMsg(t('ops.queue.assigned', { ref: r.reference }));
                               } catch {
-                                setAssignMsg(`Could not assign a vehicle for ${r.reference}.`);
+                                setAssignMsg(t('ops.queue.assignFail', { ref: r.reference }));
                               }
                             }}
                           >
-                            Assign vehicle
+                            {t('ops.queue.assign')}
                           </Button>
                         ) : null}
                       </td>

@@ -72,7 +72,8 @@ export function ThemeProvider({
   brand?: BrandConfig | null;
 }) {
   // First render (SSR + first client paint) is deterministic: always `defaultTheme`. The stored
-  // preference is applied in the effect below, after hydration — no #418/#423 mismatch.
+  // preference is applied in the effect below, after hydration — no React hydration-error
+  // (418 / 423) mismatch.
   const [theme, setThemeState] = useState<Theme>(defaultTheme);
   const [mounted, setMounted] = useState(false);
   const [systemDark, setSystemDark] = useState(false);

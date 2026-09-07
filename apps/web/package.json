@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview --port 3000 --strictPort",
-    "serve": "vite preview --port 3000 --strictPort --host",
+    "preview": "vite preview --port 3100 --strictPort",
+    "serve": "vite preview --port 3100 --strictPort --host",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run"

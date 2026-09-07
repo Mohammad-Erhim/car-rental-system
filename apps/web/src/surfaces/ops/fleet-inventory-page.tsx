@@ -1,3 +1,4 @@
+import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
   Badge,
@@ -6,6 +7,7 @@ import {
   CardHeader,
   CardTitle,
   Input,
+  PageHeader,
 } from '@carrental/ui';
 import { useState } from 'react';
 
@@ -13,9 +15,10 @@ import { useOpsUnits } from '../../lib/ops-discovery-hooks.js';
 
 /**
  * SCREEN-OPS-013 — Fleet inventory (read this stage). Units by location + category + state; VIN
- * and plate are bidi-isolated. Transfers / maintenance / inspections are delivered in STAGE-005.
+ * and plate are bidi-isolated.
  */
 export function FleetInventoryPage() {
+  const { t } = useI18n();
   const [locationCode, setLocationCode] = useState('');
   const [categoryCode, setCategoryCode] = useState('');
   const units = useOpsUnits({
@@ -30,29 +33,26 @@ export function FleetInventoryPage() {
         ? 'warning'
         : 'neutral';
 
+  const TH = ['plate', 'vin', 'vehicle', 'category', 'location', 'state'] as const;
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Fleet inventory</h1>
-        <p className="text-sm text-muted-foreground">
-          Every vehicle unit, its category, current location and state.
-        </p>
-      </div>
+      <PageHeader title={t('ops.fleet.title')} description={t('ops.fleet.subtitle')} />
 
       <Card>
         <CardHeader className="gap-3">
-          <CardTitle className="text-base">Units</CardTitle>
+          <CardTitle className="text-base">{t('ops.fleet.card')}</CardTitle>
           <div className="flex flex-wrap gap-2">
             <Input
-              placeholder="Filter by location code"
-              aria-label="Filter by location code"
+              placeholder={t('ops.fleet.filterLoc')}
+              aria-label={t('ops.fleet.filterLoc')}
               value={locationCode}
               onChange={(e) => setLocationCode(e.target.value.toUpperCase())}
               className="max-w-[14rem]"
             />
             <Input
-              placeholder="Filter by category code"
-              aria-label="Filter by category code"
+              placeholder={t('ops.fleet.filterCat')}
+              aria-label={t('ops.fleet.filterCat')}
               value={categoryCode}
               onChange={(e) => setCategoryCode(e.target.value.toLowerCase())}
               className="max-w-[14rem]"
@@ -61,27 +61,26 @@ export function FleetInventoryPage() {
         </CardHeader>
         <CardContent>
           {units.isLoading ? (
-            <AppStateView kind="loading" inline title="Loading…" />
+            <AppStateView kind="loading" inline title={t('ops.st.loading')} />
           ) : units.isError ? (
             <AppStateView
               kind="failure"
               inline
-              title="Couldn't load the fleet"
-              primaryAction={{ label: 'Retry', onClick: () => units.refetch() }}
+              title={t('ops.fleet.loadFail')}
+              primaryAction={{ label: t('ops.st.retry'), onClick: () => units.refetch() }}
             />
           ) : !units.data?.length ? (
-            <AppStateView kind="no-results" inline title="No units match those filters" />
+            <AppStateView kind="no-results" inline title={t('ops.fleet.empty')} />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[40rem] text-sm" data-testid="fleet-table">
                 <thead className="text-start text-xs uppercase text-muted-foreground">
                   <tr>
-                    <th className="py-1 text-start font-medium">Plate</th>
-                    <th className="py-1 text-start font-medium">VIN</th>
-                    <th className="py-1 text-start font-medium">Vehicle</th>
-                    <th className="py-1 text-start font-medium">Category</th>
-                    <th className="py-1 text-start font-medium">Location</th>
-                    <th className="py-1 text-start font-medium">State</th>
+                    {TH.map((k) => (
+                      <th key={k} className="py-1 text-start font-medium">
+                        {t(`ops.tbl.${k}`)}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody data-testid="fleet-rows">

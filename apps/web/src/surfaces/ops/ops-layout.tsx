@@ -5,6 +5,7 @@ import {
   CarFront,
   ClipboardList,
   Database,
+  ExternalLink,
   KeyRound,
   Languages,
   LayoutDashboard,
@@ -26,6 +27,10 @@ import { useAuth } from '../../lib/auth.js';
  * APP-OPS shell (design §4.2 / §7.3). Left navigation on desktop, collapses to a top bar on
  * narrow screens. Nav items are filtered by permission — a section a user cannot open does not
  * appear (design §3.1).
+ *
+ * Routing note (DEC-023): this router runs with `basename: '/ops'`, so every `to` here is
+ * written WITHOUT the `/ops` prefix — React Router adds it. The public site is a separate origin
+ * ({@link SITE_URL}); the "view site" link is a real navigation out of this SPA.
  */
 interface NavItem {
   to: string;
@@ -35,66 +40,69 @@ interface NavItem {
   anyOf?: string[];
 }
 
+const SITE_URL = (import.meta.env.VITE_SITE_URL as string | undefined) || '/';
+
 const NAV: NavItem[] = [
-  { to: '/ops', label: 'ops.nav.dashboard', Icon: LayoutDashboard, end: true },
+  { to: '/', label: 'ops.nav.dashboard', Icon: LayoutDashboard, end: true },
   {
-    to: '/ops/work',
+    to: '/work',
     label: 'ops.nav.reservations',
     Icon: ClipboardList,
     anyOf: ['reservation.read', 'reservation.modify'],
   },
   {
-    to: '/ops/rentals',
+    to: '/rentals',
     label: 'ops.nav.rentals',
     Icon: KeyRound,
     anyOf: ['rental.read', 'rental.pickup', 'rental.return'],
   },
   {
-    to: '/ops/fleet',
+    to: '/fleet',
     label: 'ops.nav.fleet',
     Icon: CarFront,
     anyOf: ['fleet.read', 'fleet.manage'],
   },
-  { to: '/ops/finance', label: 'ops.nav.finance', Icon: Wallet, anyOf: ['payment.read'] },
+  { to: '/finance', label: 'ops.nav.finance', Icon: Wallet, anyOf: ['payment.read'] },
   {
-    to: '/ops/config/reference-data',
+    to: '/config/reference-data',
     label: 'ops.nav.referenceData',
     Icon: Database,
     anyOf: ['config.read', 'lookup.manage'],
   },
   {
-    to: '/ops/config/rate-plans',
+    to: '/config/rate-plans',
     label: 'ops.nav.ratePlans',
     Icon: Tag,
     anyOf: ['config.read', 'config.publish'],
   },
   {
-    to: '/ops/config',
+    to: '/config',
     label: 'ops.nav.configuration',
     Icon: Settings2,
+    end: true,
     anyOf: ['config.read', 'config.publish'],
   },
   {
-    to: '/ops/config/languages',
+    to: '/config/languages',
     label: 'ops.nav.languages',
     Icon: Languages,
     anyOf: ['config.read', 'config.publish'],
   },
   {
-    to: '/ops/config/translations',
+    to: '/config/translations',
     label: 'ops.nav.translations',
     Icon: Languages,
     anyOf: ['config.read', 'config.publish'],
   },
   {
-    to: '/ops/config/branding',
+    to: '/config/branding',
     label: 'ops.nav.branding',
     Icon: Palette,
     anyOf: ['config.read', 'config.publish'],
   },
-  { to: '/ops/admin/staff', label: 'ops.nav.staff', Icon: Users, anyOf: ['staff.manage'] },
-  { to: '/ops/insights', label: 'ops.nav.reports', Icon: BarChart3, anyOf: ['report.read'] },
-  { to: '/ops/audit', label: 'ops.nav.audit', Icon: ScrollText, anyOf: ['audit.read'] },
+  { to: '/admin/staff', label: 'ops.nav.staff', Icon: Users, anyOf: ['staff.manage'] },
+  { to: '/insights', label: 'ops.nav.reports', Icon: BarChart3, anyOf: ['report.read'] },
+  { to: '/audit', label: 'ops.nav.audit', Icon: ScrollText, anyOf: ['audit.read'] },
 ];
 
 export function OpsLayout() {
@@ -117,20 +125,36 @@ export function OpsLayout() {
         {t('common.skipToContent')}
       </a>
 
-      <aside className="hidden w-60 shrink-0 border-e bg-background lg:flex lg:flex-col">
-        <div className="flex h-16 items-center gap-2 border-b px-4 font-semibold">
-          <LayoutDashboard className="size-5 text-primary" aria-hidden="true" />
-          {t('app.ops.name')}
-        </div>
-        <nav aria-label={t('ops.nav.sections')} className="flex-1 space-y-1 p-2">
-          {(authed ? visible : []).map(({ to, label, Icon, end }) => (
-            <NavLink key={to} to={to} end={end} className={({ isActive }) => navClass(isActive)}>
-              <Icon className="size-4" aria-hidden="true" />
-              {t(label)}
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
+      {/* Desktop sidebar — only for an authenticated staff session (the sign-in / recovery
+          screens render a bare centred card). Pinned to the viewport; the nav list scrolls. */}
+      {authed ? (
+        <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-e bg-background lg:flex">
+          <NavLink
+            to="/"
+            className="flex h-16 shrink-0 items-center gap-2 border-b px-4 font-semibold"
+          >
+            <LayoutDashboard className="size-5 text-primary" aria-hidden="true" />
+            {t('app.ops.name')}
+          </NavLink>
+          <nav aria-label={t('ops.nav.sections')} className="flex-1 space-y-1 overflow-y-auto p-2">
+            {visible.map(({ to, label, Icon, end }) => (
+              <NavLink key={to} to={to} end={end} className={({ isActive }) => navClass(isActive)}>
+                <Icon className="size-4" aria-hidden="true" />
+                {t(label)}
+              </NavLink>
+            ))}
+          </nav>
+          <div className="shrink-0 border-t p-2">
+            <a
+              href={SITE_URL}
+              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <ExternalLink className="size-4" aria-hidden="true" />
+              {t('ops.nav.viewSite')}
+            </a>
+          </div>
+        </aside>
+      ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-2 border-b bg-background px-3 sm:px-4">
@@ -149,6 +173,13 @@ export function OpsLayout() {
             ) : null}
           </div>
           <div className="flex shrink items-center gap-1 sm:gap-2">
+            <a
+              href={SITE_URL}
+              className="hidden items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground sm:inline-flex"
+            >
+              <ExternalLink className="size-4" aria-hidden="true" />
+              <span className="hidden md:inline">{t('ops.nav.viewSite')}</span>
+            </a>
             <SystemStatus />
             <ThemeToggle
               labels={{
@@ -201,6 +232,13 @@ export function OpsLayout() {
                 {t(label)}
               </NavLink>
             ))}
+            <a
+              href={SITE_URL}
+              className="inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground"
+            >
+              <ExternalLink className="size-4" aria-hidden="true" />
+              {t('ops.nav.viewSite')}
+            </a>
           </nav>
         ) : null}
 

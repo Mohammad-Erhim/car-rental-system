@@ -49,3 +49,4 @@ export {
   type Theme,
 } from './providers/theme-provider.js';
 export { ThemeToggle, type ThemeToggleProps } from './components/theme-toggle.js';
+export { PageHeader, type PageHeaderProps } from './components/page-header.js';
