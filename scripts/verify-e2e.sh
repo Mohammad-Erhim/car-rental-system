@@ -23,6 +23,10 @@ SITE_PORT=3000
 api_pid="" web_pid="" site_pid=""
 cleanup() {
   for p in "$site_pid" "$web_pid" "$api_pid"; do [[ -n "$p" ]] && kill "$p" 2>/dev/null || true; done
+  # `serve-standalone.mjs` spawns a `next-server` child that can outlive its parent — free the
+  # ports so the next gate (verify:a11y) can bind them.
+  sleep 1
+  fuser -k "${API_PORT}/tcp" "${WEB_PORT}/tcp" "${SITE_PORT}/tcp" 2>/dev/null || true
 }
 trap cleanup EXIT
 

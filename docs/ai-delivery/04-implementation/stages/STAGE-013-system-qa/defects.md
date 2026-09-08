@@ -166,3 +166,17 @@ to break their unstated timing assumptions. Neither is a product defect.
 - **Fix:** `aria-label={authed ? t('nav.account') : t('action.signIn')}` on the `<Link>` — a
   name that survives the hidden text span. `apps/site` typecheck green; QA matrix phone site
   cells green after the fix.
+
+## D-013-12 — `verify:a11y` port conflict in the chained `verify:all`, FIXED (2026-09-08)
+
+- **Where:** `verify:all` → `verify:a11y`, only when it runs straight after `verify:e2e`
+  (in isolation it is fine).
+- **Symptom:** `Error: http://localhost:3000/en is already used`. `verify:e2e`'s
+  `serve-standalone.mjs` spawns a `next-server` child that can outlive the `kill $site_pid` in
+  the script's `cleanup()`, leaving `:3000` bound; `verify:a11y`'s Playwright `webServer`
+  (`reuseExistingServer: false`) then can't start `apps/site`. Not an a11y violation — the two
+  `a11y.spec.ts` tests pass 0 serious/critical whenever the servers come up.
+- **Fix:** `scripts/verify-e2e.sh` `cleanup()` now also `fuser -k`s the three ports on exit.
+  `verify:a11y` is now `scripts/verify-a11y.sh` (mirrors `verify-e2e.sh`: free the ports →
+  start API → build `apps/web` + `apps/site` API-up → serve → `E2E_REUSE_SERVER=1 playwright
+test a11y.spec.ts`). Re-run: 2 passed, 0 serious/critical.

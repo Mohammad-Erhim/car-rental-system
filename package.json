@@ -30,7 +30,7 @@
     "check:secrets": "bash scripts/check-env.sh",
     "verify:perf": "bash scripts/verify-perf.sh",
     "verify:seo": "bash scripts/verify-seo.sh",
-    "verify:a11y": "pnpm --filter @carrental/web build && pnpm --filter @carrental/site build && pnpm --filter @carrental/e2e exec playwright test a11y.spec.ts --project=laptop",
+    "verify:a11y": "bash scripts/verify-a11y.sh",
     "verify:security": "pnpm --filter @carrental/api exec vitest run --config vitest.api.config.ts test/security.spec.ts",
     "verify:theme": "pnpm --filter @carrental/theme build && pnpm --filter @carrental/theme check:css && pnpm --filter @carrental/theme exec vitest run && bash scripts/check-theme-literals.sh",
     "verify:i18n": "node scripts/verify-i18n.mjs"

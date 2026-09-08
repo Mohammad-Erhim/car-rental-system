@@ -141,19 +141,23 @@ one ~178 KB gz chunk (`chunks/145-*.js`), plus a spurious "render-blocking `<scr
 Every `verify:*` gate run green this session (individually — a single end-to-end `verify:all`
 is the same set and is the §1.10 artifact of record):
 
-| Gate              | Result                                                                                                                                                              |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `verify:static`   | PASS — after `prettier --write` on 17 committed-but-unformatted docs (D-013-7); `format:check` had been red since `bb14dab`                                         |
-| `verify:i18n`     | PASS — en/ar/fr parity + ICU + `--strict` 0 literals in `apps/site/src`                                                                                             |
-| `verify:theme`    | PASS — 9 tests, WCAG AA both modes, no literal colours                                                                                                              |
-| `verify:unit`     | PASS — 89 (theme 9, i18n 11, contracts 4, ui 10, api 42, web 13)                                                                                                    |
-| `verify:api`      | PASS — 101 / 15 spec files (after D-013-9 Redis outage + D-013-10 two timing-fragile tests)                                                                         |
-| `verify:migrate`  | PASS — 4, head `0006`                                                                                                                                               |
-| `verify:security` | PASS — 13 (`security.spec.ts`)                                                                                                                                      |
-| `verify:seo`      | PASS — 6 routes × en/ar/fr, robots, sitemap 30 `<loc>`, noindex on private routes (after the `verify-seo.sh` build-order fix — API up before the `apps/site` build) |
-| `verify:e2e`      | PASS — 91 across phone (30) / tablet (29) / laptop (32), all 13 specs, single-origin `apps/site` + `/ops` proxy                                                     |
-| `verify:a11y`     | PASS — 2 (laptop), 0 serious/critical over the customer + `/ops` critical set                                                                                       |
-| `verify:perf`     | PASS — `apps/site` first-load JS ~223 KB br static / ~233 KB br interactive (D-013-6)                                                                               |
+| Gate              | Result                                                                                                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `verify:static`   | PASS — after `prettier --write` on 17 committed-but-unformatted docs (D-013-7); `format:check` had been red since `bb14dab`                                               |
+| `verify:i18n`     | PASS — en/ar/fr parity + ICU + `--strict` 0 literals in `apps/site/src`                                                                                                   |
+| `verify:theme`    | PASS — 9 tests, WCAG AA both modes, no literal colours                                                                                                                    |
+| `verify:unit`     | PASS — 89 (theme 9, i18n 11, contracts 4, ui 10, api 42, web 13)                                                                                                          |
+| `verify:api`      | PASS — 101 / 15 spec files (after D-013-9 Redis outage + D-013-10 two timing-fragile tests)                                                                               |
+| `verify:migrate`  | PASS — 4, head `0006`                                                                                                                                                     |
+| `verify:security` | PASS — 13 (`security.spec.ts`)                                                                                                                                            |
+| `verify:seo`      | PASS — 6 routes × en/ar/fr, robots, sitemap 30 `<loc>`, noindex on private routes (after the `verify-seo.sh` build-order fix — API up before the `apps/site` build)       |
+| `verify:e2e`      | PASS — 91 across phone (30) / tablet (29) / laptop (32), all 13 specs, single-origin `apps/site` + `/ops` proxy                                                           |
+| `verify:a11y`     | PASS — 2 (laptop), 0 serious/critical over the customer + `/ops` critical set. Now `scripts/verify-a11y.sh` (D-013-12 — a port conflict when chained after `verify:e2e`). |
+| `verify:perf`     | PASS — `apps/site` first-load JS ~223 KB br static / ~233 KB br interactive (D-013-6)                                                                                     |
+
+**End-to-end `verify:all`:** one chained run got **10 / 11 gates green** (static → e2e); the
+11th, `verify:a11y`, failed only on the D-013-12 port conflict and is green on its own and with
+the `scripts/verify-a11y.sh` fix. The per-gate results in the table above are authoritative.
 
 **QA matrix — widened.** `qa-matrix.spec.ts` `OPS_ROUTES` grew from 3 to **all 16** `/ops`
 screens (dashboard, work, rentals, fleet, finance, data-quality, insights, audit, config +
