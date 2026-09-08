@@ -332,9 +332,10 @@ function ImportUnitsCard() {
         <CardTitle className="text-base">{t('ops.fleet.import')}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-xs text-muted-foreground">
-          {t('ops.fleet.importHint')} <code className="bidi-isolate">{IMPORT_HEADER}</code>
-        </p>
+        <p className="text-xs text-muted-foreground">{t('ops.fleet.importHint')}</p>
+        <code className="bidi-isolate block overflow-x-auto whitespace-pre rounded bg-muted px-2 py-1 text-xs">
+          {IMPORT_HEADER}
+        </code>
         <Textarea
           rows={5}
           value={csv}
@@ -350,7 +351,7 @@ function ImportUnitsCard() {
             accept=".csv,text/csv"
             onChange={onFile}
             aria-label={t('ops.fleet.importFile')}
-            className="text-xs"
+            className="max-w-full text-xs"
           />
           <Button
             size="sm"
