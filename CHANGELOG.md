@@ -108,6 +108,21 @@ built the FR-ADM surfaces the enhancement program had left unbuilt.
 - Deferred to a follow-up CR (documented): automated duplicate _detection_; rental-pickup
   enforcement of restrictions; the customer-facing restriction explanation.
 
+**Accepted / closed**
+
+- **`CR-20260907-001`** (FR / UI-UX / SRS v1.1 amendments) and **`CR-20260908-001`** (the FR-ADM
+  build above) — both `ACCEPTED` → `CLOSED` on 2026-09-08 (owner-delegated: "you decide
+  acceptance decision based on best professional practices"). Independence caveat recorded for
+  `CR-20260908-001` (builder = acceptor) — `00-control/changes/CR-20260908-001/acceptance.md`.
+- **Stage 7 `COMPLETED` (2026-09-08).** All 11 host-runnable `verify:*` gates green;
+  `verify:api` 146/146; `verify:e2e` on 3 viewports (laptop 40 / tablet 37 / phone 42).
+  `05-system-validation/final-report.md` — system **`END-USER RELEASE-READY`** for the verified
+  environments (native PostgreSQL 16 + Redis 7; Chromium at 390 / 834 / 1440 px; en / ar / fr).
+- **Carried to pre-prod CI** (`CR-20260908-008`, `PROPOSED`; `BLOCKED`, not downgraded, each with
+  a green internal-evidence substitute): Firefox/WebKit engine e2e, k6 write-path load,
+  OWASP ZAP + SAST, Lighthouse LCP/INP field run.
+- **Deferred FR-ADM depth** registered as `CR-20260908-002..007` (`PROPOSED`).
+
 ### SCREEN-OPS-002 — operational dashboard (2026-09-08)
 
 The `/ops` landing dashboard was a foundation slice (system-health only, KPI cards stubbed

@@ -1,14 +1,25 @@
 # Stage 7 — Final Report
 
-**Status: `IN_PROGRESS` (not `COMPLETED`).** The audit + repair pass is done and verified;
-**every `CR-20260908-001` build item was built, tested, and doc-propagated** and committed
-(`56e3b64`). **Update 2026-09-08:** the owner delegated the acceptance calls ("you decide … based
-on best professional practices"); **`CR-20260907-001` and `CR-20260908-001` are both `ACCEPTED`**
-(caveat recorded for `-908`: builder = acceptor — `changes/CR-2026090{7,8}-001/acceptance.md`).
-`verify:e2e` now covers **three viewports** (laptop 40 · tablet 37 · phone 42). What remains for
-`COMPLETED`: the owner's risk call on **4 external-tool gates still `BLOCKED`** (Firefox/WebKit
-e2e, k6, ZAP/SAST, Lighthouse — each with a green internal-evidence substitute), then the
-~15-minute mechanical close (status flips, matrix backfill, session-folder move).
+**Status: `COMPLETED` (2026-09-08).** The audit / test / fix / harden pass is complete and
+verified. `S7-DEF-001..007` resolved, `S7-OPT-001/002` implemented, and — under the owner's full
+authorization — the entire deferred FR-ADM scope (`CR-20260908-001`) was built, tested, and
+doc-propagated (commit `56e3b64`). The owner delegated the acceptance calls ("you decide … based
+on best professional practices"): **`CR-20260907-001` and `CR-20260908-001` are both `ACCEPTED`**
+(independence caveat recorded for `-908` — builder = acceptor —
+`changes/CR-2026090{7,8}-001/acceptance.md`). `verify:e2e` covers **three viewports** (laptop 40
+· tablet 37 · phone 42); all 11 host-runnable `verify:*` gates are green. The owner accepted
+(2026-09-08) the 4 external-tool gates (Firefox/WebKit engine e2e, k6, ZAP/SAST, Lighthouse
+field run) as **documented pre-prod CI follow-ups** — each has a green internal-evidence
+substitute (§7); they are `BLOCKED`, not downgraded, and are the only items carried forward.
+
+> **Stage 7 completion statement.** All inventoried in-scope objects and applicable scenarios and
+> edge-case classes passed; the system is end-user release-ready within the verified environments
+> (native PostgreSQL 16 + Redis 7; Chromium at phone/tablet/laptop; en/ar/fr), with no known
+> reproducible in-scope functional, business, UI/UX, validation, persistence, security,
+> accessibility, responsive, or operational defect remaining. Cross-engine rendering parity and
+> dedicated load / DAST / Lighthouse-field tooling are explicitly carried as pre-prod CI
+> follow-ups (§7), with green internal-evidence substitutes. Deferred FR-ADM depth is captured as
+> `CR-20260908-002..007` (`PROPOSED`) — none is a silent gap.
 
 ---
 
@@ -124,35 +135,40 @@ External tools absent on the authoring host; **each has a green internal-evidenc
 | OWASP ZAP (DAST) + SAST      | `verify:security` adversarial suite (13) + `check:secrets` + helmet/CORS/CSRF/rate-limit gates |
 | Lighthouse LCP/INP field run | `verify:perf` + `verify:a11y` (axe, 0 serious/critical) + `verify:seo`                         |
 
-Whether to accept these 4 as documented pre-prod follow-ups so Stage 7 can close is a **risk call
-for the owner**. Stage 7 agent's recommendation: **accept** — the substitutes cover the
-substance; the true gaps are cross-engine render parity and dedicated load/DAST tooling, both
-standard pre-prod CI work, not in-scope functional defects.
+The owner **accepted** these 4 as documented pre-prod CI follow-ups on 2026-09-08 ("accept
+them"). They remain `BLOCKED` on the record (not downgraded), tracked for the pre-prod CI phase.
+Rationale: the substitutes cover the substance; the true gaps are cross-engine render parity and
+dedicated load / DAST / Lighthouse-field tooling, all standard pre-prod CI work, not in-scope
+functional defects.
 
-## 8. What full sign-off requires
+## 8. Sign-off checklist — all cleared
 
 1. ✅ **`D-7`** — `CR-20260907-001` v1.1 amendments `ACCEPTED` (2026-09-08, owner-delegated).
 2. ✅ **`CR-20260908-001` acceptance** — `ACCEPTED` (2026-09-08, independence caveat recorded);
    deferred depth registered as `CR-20260908-002..007` (`PROPOSED`).
-3. ✅ **Phase 4** — deep per-branch audit (§5a: 3 latent/defensive fixes + coverage); e2e now on
+3. ✅ **Phase 4** — deep per-branch audit (§5a: 3 latent/defensive fixes + coverage); e2e on
    3 viewports; numeric traceability roll-up refreshed; screenshot bundle regenerated this
-   session (not committed — regenerable, `S7-OPT-003`).
-4. ⏳ **Owner's risk call** on the 4 `BLOCKED` gates (§7) — the one remaining decision.
-5. ⏳ **Mechanical close** (~15 min, gated on #4): `pipeline-state.md` Stage 07 → `COMPLETED`;
-   `change-register.md` CRs → `VERIFIED`/`CLOSED`; `manifest.md` `latest_system_validation`;
-   session → `sessions/completed/`; matrix v1.1 ID-backfill merged.
+   session (240 images; not committed — regenerable, `S7-OPT-003`).
+4. ✅ **Owner's risk call** on the 4 `BLOCKED` gates (§7) — accepted as pre-prod CI follow-ups
+   (2026-09-08).
+5. ✅ **Mechanical close** (2026-09-08): `pipeline-state.md` Stage 07 → `COMPLETED`;
+   `change-register.md` CRs → `CLOSED`; `baseline-alignment.md` all rows `ALIGNED`; `manifest.md`
+   `latest_system_validation` set; session → `sessions/completed/`; matrix v1.1 ID-backfill +
+   roll-up merged; `CHANGELOG.md` finalised.
 
-## 9. Release-readiness statement (interim)
+## 9. Release-readiness statement
 
 For the **verified scope** — the original SRS roadmap (STAGE-000..008), the Enhancement Program
 (STAGE-009..013), the Stage 7 repairs (`S7-DEF-001..007`, `S7-OPT-001/002`), and the full
-`CR-20260908-001` FR-ADM build (D-1..D-6 + write-side halves) — no known reproducible in-scope
+`CR-20260908-001` FR-ADM build (D-1..D-6 + write-side halves) — **no known reproducible in-scope
 functional, business, auth, validation, persistence, security, accessibility, responsive, or
-operational defect remains. `verify:static` / `i18n` / `unit` / `migrate` / `security` / `seo` /
-`theme` / `a11y` / `perf` pass; `verify:api` passes **146/146** in one clean run;
-`verify:e2e` passes on **three viewports** (laptop 40 · tablet 37 · phone 42). Both CRs are
-`ACCEPTED` (2026-09-08). The system is **not yet signed off** for one reason only: the owner's
-risk call on the 4 `BLOCKED` external-tool gates (§7), then the ~15-minute mechanical close. The
+operational defect remains.** `verify:static` / `i18n` / `unit` / `migrate` / `security` / `seo` /
+`theme` / `a11y` / `perf` pass; `verify:api` passes **146/146** in one clean run; `verify:e2e`
+passes on **three viewports** (laptop 40 · tablet 37 · phone 42). Both CRs are `ACCEPTED` and
+`CLOSED` (2026-09-08). **The system is `END-USER RELEASE-READY`** for the verified environments
+(native PostgreSQL 16 + Redis 7; Chromium at 390 / 834 / 1440 px; en / ar / fr). Carried to
+pre-prod CI, not blocking: cross-engine (Firefox/WebKit) e2e, k6 write-path load, OWASP ZAP +
+SAST, Lighthouse LCP/INP field run — each with a green internal-evidence substitute (§7). The
 deferred depth of each FR-ADM item is captured, per item, as a named follow-up CR
 (`CR-20260908-002..007`) — none is a silent gap. External-dependency items (§7) are `BLOCKED`
 with green internal-evidence substitutes, not failed.

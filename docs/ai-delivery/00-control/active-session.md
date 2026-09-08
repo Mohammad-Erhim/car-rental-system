@@ -1,30 +1,20 @@
-ACTIVE_SESSION: SESSION-20260907-185500-STAGE-07
+ACTIVE_SESSION: none
 
-- **Stage/prompt:** 07 — `docs/ai-delivery/prompt-library/current/07_AUDIT_TEST_FIX_AND_HARDEN_SYSTEM.md`
-- **Status:** session `ACTIVE`, stage `IN_PROGRESS`. Phases 0/1/2 done; Phase 3 done —
-  `S7-DEF-001..007` resolved and, under the user's full authorization (2026-09-08), **every
-  `CR-20260908-001` build item delivered + verified** (D-1..D-6 + write-side halves; migrations
-  `0007`–`0011`). `S7-Q-014` CR-20260907-001 reconciliation docs complete. Phase 4 (deep audit +
-  fresh screenshots + a clean full 3-viewport `verify:e2e` on CI) + the user's `D-7` / CR
-  acceptance remain.
-- **Folder:** `sessions/active/SESSION-20260907-185500-STAGE-07/`
-- **Updated:** 2026-09-08 — CHECKPOINT-0008.
-- **Input baseline:** FR/UI-UX/SRS v1.0 (hashes in `05-system-validation/audit-source-manifest.md`).
-  Repo HEAD `1efea67` (5 in-scope commits added by the user before Stage 7 start).
-- **Current checkpoint:** `05-system-validation/checkpoints/CHECKPOINT-0008.md`.
-- **Gates (host-runnable, after the full change set):** `static` / `i18n` 966 / `theme` /
-  `unit` (API 89 + web 13) / **`api` 146 (24 files, one clean run)** / `migrate` 4 / `security`
-  13 / `seo` / `a11y` 2 — all PASS. `e2e` targeted green (`report` 9 · `booking` 3 ·
-  `auth-and-reference` 5); full laptop-viewport suite running; full 3-viewport = CI. `perf`
-  baseline PASS.
-- **Defects:** S7-DEF-001 FIXED · S7-DEF-002 **FIXED+VERIFIED** · S7-DEF-003 VERIFIED ·
-  **S7-DEF-004 FULLY RESOLVED** · S7-DEF-005 VERIFIED · **S7-DEF-006 FIXED** · S7-DEF-007
-  ADDRESSED (matrix re-stated + `SCREEN-CUS-*` path map).
-- **Uncommitted:** ~45 tracked files + ~30 new + `05-system-validation/` + `CR-20260908-001/`.
-  No commits (pipeline rule); `git diff` + `sessions/active/.../recovery-snapshot.md` are the
-  recovery source.
-- **Next action:** Phase 4 close — deep per-branch audit, full 3-viewport `verify:e2e` + `perf`
-  re-run on CI, fresh screenshot bundle, refresh the numeric traceability roll-up, then
-  `pipeline-state.md` Stage 07 → `COMPLETED` + `manifest.md` + move session to `completed/`.
-  User: `D-7` acceptance of the `CR-20260907-001` v1.1 docs + the `CR-20260908-001` acceptance
-  stage-gate.
+The last session, `SESSION-20260907-185500-STAGE-07` (Stage 07 — Audit, Test, Fix, and Harden),
+**completed 2026-09-08** and was moved to `sessions/completed/`.
+
+- **Outcome:** `S7-DEF-001..007` resolved · `S7-OPT-001/002` implemented · the full
+  `CR-20260908-001` FR-ADM scope built, tested, and doc-propagated (commit `56e3b64`) ·
+  `CR-20260907-001` + `CR-20260908-001` both `ACCEPTED` and `CLOSED` (owner-delegated).
+- **Gates:** all 11 host-runnable `verify:*` green; `verify:api` 146/146; `verify:e2e` on 3
+  viewports (laptop 40 / tablet 37 / phone 42). 4 external-tool gates (Firefox/WebKit e2e, k6,
+  ZAP/SAST, Lighthouse field run) accepted by the owner as pre-prod CI follow-ups
+  (`CR-20260908-008`, `PROPOSED`) — recorded `BLOCKED`, not downgraded, each with a green
+  internal-evidence substitute.
+- **Final report:** `05-system-validation/final-report.md` — `COMPLETED`; system
+  `END-USER RELEASE-READY` for the verified environments.
+- **Pipeline:** `pipeline-state.md` Stage 07 → `COMPLETED`. No stage is currently in progress.
+- **Open follow-ups (`PROPOSED`, not started):** `CR-20260908-002..008` in `change-register.md`.
+
+To start a new session, follow the session-bootstrap protocol in
+`prompt-library/current/` and the pipeline README.

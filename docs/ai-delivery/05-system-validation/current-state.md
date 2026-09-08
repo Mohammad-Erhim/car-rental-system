@@ -2,21 +2,22 @@
 
 _Concise, authoritative. Verified facts only._
 
-- **Stage:** 7 — Audit, Test, Fix, Harden. Session `SESSION-20260907-185500-STAGE-07` (ACTIVE).
-- **Env:** branch `implementation` @ `1efea67` base. Native PG16 + Redis7. Node 24.20 / pnpm 9.15.
-- **Source baseline:** FR/UI-UX/SRS v1.0. `CR-20260907-001` v1.1 drafts (Stage 7 reconciles).
-- **Phase:** 0 ✓ · 1 ✓ · 2 ✓ · **3 ✓** — `S7-DEF-001..007` resolved; **all `CR-20260908-001`
-  build items delivered + verified**. **4 IN PROGRESS** — **all 11 host-runnable `verify:*`
-  gates clean** (`api` 146, `e2e` full-suite 40/40 on laptop, `a11y` 2/2, `perf`, `security` 13,
-  `migrate` 4, `seo`, `theme`, `unit`, `static`, `i18n` 966); remaining Phase-4 = deep
-  per-branch audit + fresh screenshot bundle + phone/tablet e2e replication (CI) + numeric
-  traceability roll-up.
-- **Last checkpoint:** `checkpoints/CHECKPOINT-0008.md`.
-- **User authorization (2026-09-08):** full permission to build the deferred `CR-20260908-001`
-  scope autonomously. Delivered: D-1 → S7-DEF-006 → D-6 → D-3 → D-2 write side (restrictions +
-  merge) → D-4 event-rules. `S7-Q-014` CR-20260907-001 reconciliation docs complete. Remaining:
-  the user's `D-7` acceptance + the `CR-20260908-001` acceptance stage-gate + the Phase-4 close
-  (deep audit, fresh screenshots, phone/tablet e2e on CI, numeric roll-up).
+- **Stage:** 7 — Audit, Test, Fix, Harden. Session `SESSION-20260907-185500-STAGE-07`
+  (**`COMPLETED` 2026-09-08**, moved to `sessions/completed/`).
+- **Env:** branch `implementation` @ `1efea67` base; Stage 7 delta `56e3b64` + close commits.
+  Native PG16 + Redis7. Node 24.20 / pnpm 9.15.
+- **Source baseline:** FR/UI-UX/SRS v1.0 + **v1.1 amendments `ACCEPTED`** (`CR-20260907-001`).
+- **Phase:** 0 ✓ · 1 ✓ · 2 ✓ · 3 ✓ · **4 ✓** — `S7-DEF-001..007` resolved; `S7-OPT-001/002`
+  implemented; **all `CR-20260908-001` build items delivered + `ACCEPTED`**. All 11
+  host-runnable `verify:*` gates clean (`api` 146/146, **`e2e` 3 viewports** laptop 40 / tablet
+  37 / phone 42, `a11y` 2/2, `perf`, `security` 13, `migrate` 4, `seo`, `theme`, `unit`,
+  `static`, `i18n` 968). 4 external-tool gates accepted by the owner as pre-prod CI follow-ups
+  (`CR-20260908-008`) — `BLOCKED`, not downgraded, each with a green internal-evidence
+  substitute.
+- **Last checkpoint:** `checkpoints/CHECKPOINT-0009.md`. **Final report:** `final-report.md` =
+  `COMPLETED`; system `END-USER RELEASE-READY`.
+- **CRs:** `CR-20260907-001` + `CR-20260908-001` both `ACCEPTED` (owner-delegated 2026-09-08) →
+  `CLOSED`. Deferred depth + accepted gates → `CR-20260908-002..008` (`PROPOSED`).
 
 ## Gate status (host-runnable)
 
@@ -62,7 +63,9 @@ _Concise, authoritative. Verified facts only._
 | **`S7-DEF-006`** reference-data usage counts (FR-ADM-008)    | —         | real `usage()` + `tracked` + in-use deactivation guard. `config-lookup.spec` TEST-LKP-014 · e2e                                                                                                                                                                                       |
 
 Each item's deferred depth is listed in `decision-list.md` + `CR-20260908-001/verification.md`
-(follow-up CR). **`D-7`** (accept `CR-20260907-001` v1.1 docs) remains a user action.
+and registered as `CR-20260908-002..007` (`PROPOSED`). **`D-7`** — `CR-20260907-001` v1.1 docs
+**`ACCEPTED`** (owner-delegated 2026-09-08). `CR-20260908-001` **`ACCEPTED`** (independence
+caveat recorded). Both `CLOSED`.
 
 ## New API surface (Stage 7) — openapi 134 paths
 
@@ -76,15 +79,21 @@ Each item's deferred depth is listed in `decision-list.md` + `CR-20260908-001/ve
 `GET|POST /ops/locations` + `:code/{impact,archive,restore,hours-exceptions,…}` ·
 `POST /reference-data/types/:code/values/:id/deactivate?force=true`; `…/usage` real counts + `tracked`.
 
-## Exact next action
+## Stage 7 — closed 2026-09-08
 
-1. **CR-20260907-001 reconciliation** — re-verify the v1.1 amendment docs still match the
-   implementation after the D-item builds; finish `S7-Q-014` (refresh the stale `SCREEN-CUS` code
-   paths in `traceability-matrix.md`); update the `baseline-alignment.md` note.
-2. **Phase 4** — deep per-branch audit over the full surface set; a clean full `verify:all` on a
-   host with headroom / in CI; fresh screenshot bundle; `final-report.md` non-DRAFT;
-   `pipeline-state.md` / `manifest.md`; move the session to `sessions/completed/`.
-3. `D-7` + the `CR-20260908-001` acceptance stage-gate are the user's.
+Nothing outstanding in Stage 7. All phases done; `S7-DEF-001..007` VERIFIED/ADDRESSED;
+`S7-OPT-001/002` implemented; `CR-20260907-001` + `CR-20260908-001` `ACCEPTED` → `CLOSED`
+(owner-delegated); `final-report.md` = `COMPLETED`; system `END-USER RELEASE-READY`;
+`pipeline-state.md` Stage 07 → `COMPLETED`; `manifest.md` `latest_system_validation` set;
+session moved to `sessions/completed/`.
+
+**Carried forward (not Stage 7 scope), all `PROPOSED`:**
+
+- `CR-20260908-002..007` — deferred FR-ADM depth (product governance, one-way pricing, saved
+  search views, rental-pickup restriction enforcement, duplicate detection, notification
+  scheduler).
+- `CR-20260908-008` — the 4 pre-prod CI gates the owner accepted (Firefox/WebKit e2e, k6,
+  ZAP/SAST, Lighthouse field run), each with a green internal-evidence substitute.
 
 ## Working tree (uncommitted)
 

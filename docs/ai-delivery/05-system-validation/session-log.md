@@ -422,3 +422,38 @@ remain).
 - **Docs:** migration refs `0007`–`0010` → `0007`–`0011` across the control plane; gate tables
   updated to "all 11 pass" + laptop/tablet full e2e; `optimization-register.md` S7-OPT-002 →
   IMPLEMENTED; this log + `CHECKPOINT-0008` + `current-state.md` + `final-report.md`.
+
+---
+
+## 2026-09-08 — Stage 7 close (CR acceptance + mechanical close)
+
+- **CI reality:** repo has no CI (`.github/workflows/` absent) and is private; no paid Actions
+  stood up. The 3-viewport `verify:e2e` was completed here by running the per-project suites
+  separately (the chained single invocation OOMs cold on the 1.9 GB host).
+- **Phone-viewport e2e:** ran the full phone set — **42 green** (discovery, booking,
+  reservation-ops, rentals, report, account/i18n, auth, full-sweep, rtl, smoke; +2 a11y
+  project-skips). Combined with laptop 40 + tablet 37, `verify:e2e` now covers all 3 viewports.
+- **Acceptance (owner-delegated — "you decide … based on best professional practices"):**
+  - `CR-20260907-001` → **ACCEPTED**. Additive v1.1 documentation of shipped, tested capability;
+    no v1.0 stable ID disturbed; the independent Stage-7 reconciliation it awaited has run.
+    `00-control/changes/CR-20260907-001/acceptance.md`.
+  - `CR-20260908-001` → **ACCEPTED**, independence caveat recorded (builder = acceptor). Mitigated
+    by `verify:api` 146/146 + e2e on 3 viewports + 11/11 host gates + a transparent follow-up-CR
+    list. `00-control/changes/CR-20260908-001/acceptance.md`.
+  - Both → **CLOSED** at the mechanical close.
+- **4 external-tool gates** (Firefox/WebKit e2e, k6, ZAP/SAST, Lighthouse field run) — the owner
+  accepted them as documented pre-prod CI follow-ups ("accept them"). Registered as
+  `CR-20260908-008` (`PROPOSED`). `BLOCKED`, not downgraded; each has a green internal-evidence
+  substitute (`final-report.md` §7).
+- **Follow-up CRs created (`PROPOSED`, stub `request.md` each):** `CR-20260908-002..007` (deferred
+  FR-ADM depth) + `CR-20260908-008` (pre-prod CI gates).
+- **Mechanical close:** `final-report.md` → `COMPLETED` + release-readiness statement;
+  `pipeline-state.md` Stage 07 → `COMPLETED`; `change-register.md` CRs → `CLOSED`;
+  `baseline-alignment.md` all rows `ALIGNED` (updates 4–5); `manifest.md` v1.1 rows +
+  `latest_system_validation`; `current-state.md` / `work-queue.md` closed; `CHECKPOINT-0009`
+  written; session folder → `sessions/completed/`; `active-session.md` pointer cleared;
+  `CHANGELOG.md` finalised.
+- **Commits:** `56e3b64` (Stage 7 code delta, 126 files) + `59f38cb` / `f4f398b` / `b6c3c22` /
+  the close commit — all on `origin/implementation`. Screenshot PNGs (240) deliberately
+  uncommitted (regenerable, `S7-OPT-003`); a full bundle was delivered to the owner out-of-band.
+- **Result:** Stage 7 `COMPLETED`; system `END-USER RELEASE-READY` for the verified environments.
