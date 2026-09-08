@@ -9,4 +9,7 @@ export { Testimonials } from './testimonials';
 export { LocationsStrip, type LocationItem } from './locations-strip';
 export { Faq } from './faq';
 export { CtaBand } from './cta-band';
+export { RichText } from './rich-text';
+export { ImageBlock } from './image-block';
+export { BlockRenderer, type RenderCtx } from './block-renderer';
 export { Section, SectionHeading, type Translate } from './section';

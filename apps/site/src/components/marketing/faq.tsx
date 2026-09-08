@@ -6,10 +6,24 @@ import { Section, SectionHeading, type Translate } from './section';
 const KEYS = ['booking', 'changes', 'payment', 'pickup'] as const;
 
 /** FAQ built on native <details> — keyboard-operable and open-by-default-friendly, no JS. */
-export function Faq({ t, locale }: { t: Translate; locale: string }) {
+export function Faq({
+  t,
+  locale,
+  tone = 'muted',
+  headingAs = 'h2',
+}: {
+  t: Translate;
+  locale: string;
+  tone?: 'default' | 'muted' | 'brand';
+  headingAs?: 'h1' | 'h2';
+}) {
   return (
-    <Section tone="muted" className="mkt-section">
-      <SectionHeading eyebrow={t('site.home.faq.eyebrow')} title={t('site.home.faq.title')} />
+    <Section tone={tone} className="mkt-section">
+      <SectionHeading
+        as={headingAs}
+        eyebrow={t('site.home.faq.eyebrow')}
+        title={t('site.home.faq.title')}
+      />
 
       <div className="mx-auto mt-10 max-w-3xl divide-y divide-hairline overflow-hidden surface-card">
         {KEYS.map((k) => (

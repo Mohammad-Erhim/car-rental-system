@@ -13,16 +13,27 @@ function initials(name: string): string {
     .join('');
 }
 
-/** Three customer quotes with a rating row and an initials avatar. */
-export function Testimonials({ t }: { t: Translate }) {
+/** Customer quotes with a rating row and an initials avatar. */
+export function Testimonials({
+  t,
+  tone = 'muted',
+  headingAs = 'h2',
+  count = 3,
+}: {
+  t: Translate;
+  tone?: 'default' | 'muted' | 'brand';
+  headingAs?: 'h1' | 'h2';
+  count?: number;
+}) {
   return (
-    <Section tone="muted" className="mkt-section">
+    <Section tone={tone} className="mkt-section">
       <SectionHeading
+        as={headingAs}
         eyebrow={t('site.home.reviews.eyebrow')}
         title={t('site.home.reviews.title')}
       />
       <ul className="mt-10 grid gap-6 md:grid-cols-3">
-        {REVIEWS.map(({ key }) => {
+        {REVIEWS.slice(0, Math.max(1, Math.min(count, 3))).map(({ key }) => {
           const name = t(`site.home.reviews.${key}.name`);
           return (
             <li

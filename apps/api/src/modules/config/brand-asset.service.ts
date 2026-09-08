@@ -22,6 +22,9 @@ const LIMITS: Record<
   logoDark: { maxBytes: 512 * 1024, minPx: 16, maxPx: 2000 },
   favicon: { maxBytes: 128 * 1024, minPx: 16, maxPx: 512 },
   ogImage: { maxBytes: 2 * 1024 * 1024, minPx: 200, maxPx: 2400 },
+  // page-builder images (raster-only, enforced below like ogImage)
+  heroImage: { maxBytes: 3 * 1024 * 1024, minPx: 640, maxPx: 3840 },
+  pageImage: { maxBytes: 1.5 * 1024 * 1024, minPx: 120, maxPx: 2600 },
 };
 
 @Injectable()
@@ -66,9 +69,12 @@ export class BrandAssetService {
         title: 'A favicon must be a .ico or .png',
       });
     }
-    if (input.purpose === 'ogImage' && sniffed === 'image/svg+xml') {
+    if (
+      ['ogImage', 'heroImage', 'pageImage'].includes(input.purpose) &&
+      sniffed === 'image/svg+xml'
+    ) {
       throw new AppError(ERROR_CODE.VALIDATION_FAILED, {
-        title: 'An OG image must be a raster format',
+        title: `A ${input.purpose} must be a raster format (PNG / JPEG / WebP)`,
       });
     }
 

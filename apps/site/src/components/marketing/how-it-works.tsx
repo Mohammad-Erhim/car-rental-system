@@ -10,10 +10,22 @@ const STEPS = [
 ] as const;
 
 /** Three-step explainer with a dotted route connecting the milestones. */
-export function HowItWorks({ t }: { t: Translate }) {
+export function HowItWorks({
+  t,
+  tone = 'default',
+  headingAs = 'h2',
+}: {
+  t: Translate;
+  tone?: 'default' | 'muted' | 'brand';
+  headingAs?: 'h1' | 'h2';
+}) {
   return (
-    <Section className="mkt-section">
-      <SectionHeading eyebrow={t('site.home.steps.eyebrow')} title={t('site.home.steps.title')} />
+    <Section tone={tone} className="mkt-section">
+      <SectionHeading
+        as={headingAs}
+        eyebrow={t('site.home.steps.eyebrow')}
+        title={t('site.home.steps.title')}
+      />
       <div className="relative mt-12">
         <RouteDots className="absolute inset-x-8 top-6 hidden h-3 text-hairline lg:block" />
         <ol className="relative grid gap-8 lg:grid-cols-3">

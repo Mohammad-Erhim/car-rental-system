@@ -63,7 +63,15 @@ export type BrandingResponse = z.infer<typeof zBrandingResponse>;
  * multipart) so it validates like any other DTO; the server sniffs the real media type, caps
  * the size, checks raster dimensions, and sanitises SVG (STAGE-009, DEC-025).
  */
-export const BRAND_ASSET_PURPOSES = ['logo', 'logoDark', 'favicon', 'ogImage'] as const;
+export const BRAND_ASSET_PURPOSES = [
+  'logo',
+  'logoDark',
+  'favicon',
+  'ogImage',
+  // page-builder image purposes (STAGE — page builder): larger caps, raster-only
+  'heroImage',
+  'pageImage',
+] as const;
 export type BrandAssetPurpose = (typeof BRAND_ASSET_PURPOSES)[number];
 
 export const zBrandAssetUploadRequest = z.object({

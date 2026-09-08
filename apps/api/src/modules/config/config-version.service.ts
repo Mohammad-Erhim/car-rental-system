@@ -1,4 +1,4 @@
-import { seoConfigSchema } from '@carrental/contracts';
+import { seoConfigSchema, zPagesConfig, H1_CAPABLE_BLOCKS } from '@carrental/contracts';
 import { brandConfigSchema, validateBrandConfig } from '@carrental/theme';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
@@ -263,6 +263,40 @@ export class ConfigVersionService {
         ],
       };
     }
+    if (kind === 'pages') {
+      const parsed = zPagesConfig.parse(payload);
+      const out: string[] = [];
+      for (const [pageKey, page] of Object.entries(parsed.pages)) {
+        const visible = page.blocks.filter((bl) => !bl.hidden);
+        const kinds = visible.map((bl) => bl.type);
+        const hasH1 = visible.some((bl) => H1_CAPABLE_BLOCKS.includes(bl.type));
+        const localeCoverage = (loc: 'fr' | 'ar') => {
+          let total = 0;
+          let filled = 0;
+          const walk = (v: unknown) => {
+            if (v && typeof v === 'object') {
+              if ('en' in (v as Record<string, unknown>)) {
+                total++;
+                if ((v as Record<string, unknown>)[loc]) filled++;
+                return;
+              }
+              for (const val of Object.values(v as Record<string, unknown>)) walk(val);
+            }
+          };
+          walk(page.blocks);
+          return total === 0 ? 100 : Math.round((filled / total) * 100);
+        };
+        out.push(
+          `${pageKey}: ${visible.length}/${page.blocks.length} blocks visible — ${kinds.join(', ')}`,
+        );
+        out.push(`${pageKey}: translated fr ${localeCoverage('fr')}% · ar ${localeCoverage('ar')}%`);
+        if (!hasH1) out.push(`${pageKey}: no heading block visible — the page will have no <h1>.`);
+        if (pageKey === 'home' && !kinds.includes('search-card')) {
+          out.push(`${pageKey}: the search block is hidden — customers can't start a booking here.`);
+        }
+      }
+      return { examples: out };
+    }
     return { examples: ['No preview available for this kind yet.'] };
   }
 
@@ -309,6 +343,50 @@ export class ConfigVersionService {
       if (!parsed.success) {
         for (const iss of parsed.error.issues) {
           issues.push({ path: iss.path.join('.') || '(root)', code: iss.code });
+        }
+      }
+    }
+    if (kind === 'pages') {
+      const parsed = zPagesConfig.safeParse(payload);
+      if (!parsed.success) {
+        for (const iss of parsed.error.issues) {
+          issues.push({ path: iss.path.join('.') || '(root)', code: iss.code });
+        }
+      } else {
+        if (JSON.stringify(payload).length > 262_144) {
+          issues.push({ path: '(root)', code: 'payload_too_large' });
+        }
+        for (const [pageKey, page] of Object.entries(parsed.data.pages)) {
+          const ids = new Set<string>();
+          for (const bl of page.blocks) {
+            if (ids.has(bl.id)) issues.push({ path: `${pageKey}.${bl.id}`, code: 'duplicate_block_id' });
+            ids.add(bl.id);
+            if (bl.type === 'image' && !bl.hidden) {
+              const p = bl.props as { src?: string; alt?: { en?: string }; decorative?: boolean };
+              if (!p.src || p.src === 'obj:placeholder') {
+                issues.push({ path: `${pageKey}.${bl.id}.props.src`, code: 'image_not_uploaded' });
+              }
+              if (!p.decorative && !p.alt?.en?.trim()) {
+                issues.push({ path: `${pageKey}.${bl.id}.props.alt`, code: 'alt_text_required' });
+              }
+            }
+          }
+          if (pageKey === 'home') {
+            const search = page.blocks.find((bl) => bl.type === 'search-card');
+            if (!search || search.hidden) {
+              issues.push({ path: `${pageKey}.search-card`, code: 'search_block_required' });
+            }
+            const wantsFleet = page.blocks.some(
+              (bl) =>
+                !bl.hidden &&
+                JSON.stringify(bl.props).includes('#fleet') &&
+                bl.type !== 'fleet',
+            );
+            const hasFleet = page.blocks.some((bl) => bl.type === 'fleet' && !bl.hidden);
+            if (wantsFleet && !hasFleet) {
+              issues.push({ path: `${pageKey}.fleet`, code: 'fleet_anchor_target_missing' });
+            }
+          }
         }
       }
     }

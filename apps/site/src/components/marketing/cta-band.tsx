@@ -5,14 +5,25 @@ import { CarArt } from './art';
 import { Section, type Translate } from './section';
 
 /** Closing call to action — brand band, one strong primary and a quiet secondary. */
-export function CtaBand({ t, locale }: { t: Translate; locale: string }) {
+export function CtaBand({
+  t,
+  locale,
+  tone = 'brand',
+  headingAs = 'h2',
+}: {
+  t: Translate;
+  locale: string;
+  tone?: 'default' | 'muted' | 'brand';
+  headingAs?: 'h1' | 'h2';
+}) {
+  const Heading = headingAs;
   return (
-    <Section tone="brand" className="mkt-section">
+    <Section tone={tone} className="mkt-section">
       <div className="relative grid items-center gap-8 lg:grid-cols-[1.4fr_1fr]">
         <div className="text-center lg:text-start">
-          <h2 className="text-2xl font-bold tracking-tight text-brand-foreground sm:text-3xl md:text-4xl">
+          <Heading className="text-2xl font-bold tracking-tight text-brand-foreground sm:text-3xl md:text-4xl">
             {t('site.home.cta.title')}
-          </h2>
+          </Heading>
           <p className="mx-auto mt-3 max-w-xl text-brand-foreground/85 lg:mx-0">
             {t('site.home.cta.subtitle')}
           </p>

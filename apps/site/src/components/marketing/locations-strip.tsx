@@ -20,19 +20,26 @@ export function LocationsStrip({
   t,
   locale,
   locations,
+  tone = 'default',
+  headingAs = 'h2',
+  limit = 8,
 }: {
   t: Translate;
   locale: string;
   locations: LocationItem[];
+  tone?: 'default' | 'muted' | 'brand';
+  headingAs?: 'h1' | 'h2';
+  limit?: number;
 }) {
   if (!locations.length) return null;
-  const shown = locations.slice(0, 8);
+  const shown = locations.slice(0, Math.max(1, limit));
   const lgCols = LG_COLS[Math.min(shown.length, 4)] ?? 'lg:grid-cols-4';
 
   return (
-    <Section className="mkt-section-tight">
+    <Section tone={tone} className="mkt-section-tight">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <SectionHeading
+          as={headingAs}
           align="start"
           eyebrow={t('site.home.locations.eyebrow')}
           title={t('site.home.locations.title')}

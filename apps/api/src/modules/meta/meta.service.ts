@@ -1,9 +1,12 @@
 import {
+  DEFAULT_PAGES_CONFIG,
   DEFAULT_SEO_CONFIG,
   seoConfigSchema,
+  zPagesConfig,
   type BrandingResponse,
   type HealthSummary,
   type LocalesResponse,
+  type PagesResponse,
   type SeoResponse,
 } from '@carrental/contracts';
 import { DEFAULT_BRAND_CONFIG, brandConfigSchema } from '@carrental/theme';
@@ -25,6 +28,10 @@ export const BRANDING_KEY = 'default';
 /** kind/key the SEO config lives under in `config_version` (SRS-ADM-006). */
 export const SEO_KIND = 'seo';
 export const SEO_KEY = 'default';
+
+/** kind/key the page-builder config lives under in `config_version`. */
+export const PAGES_KIND = 'pages';
+export const PAGES_KEY = 'default';
 
 @Injectable()
 export class MetaService {
@@ -116,6 +123,45 @@ export class MetaService {
       revision: parsed.success ? published.revision : 0,
       updatedAt: published.effectiveFrom ?? published.createdAt,
     };
+  }
+
+  /**
+   * The published page-builder config. Falls back to the built-in default (which mirrors the
+   * hand-coded homepage) when nothing is published. Public + cacheable — `apps/site` renders
+   * each page's blocks from it. `obj:` image refs are resolved to signed URLs.
+   */
+  async pages(): Promise<PagesResponse> {
+    const rows = await this.configVersions.list(PAGES_KIND, PAGES_KEY);
+    const published = rows.find((r) => r.state === 'published');
+    if (!published) {
+      return { config: DEFAULT_PAGES_CONFIG, revision: 0, updatedAt: null };
+    }
+    const parsed = zPagesConfig.safeParse(published.payload);
+    if (!parsed.success) {
+      return { config: DEFAULT_PAGES_CONFIG, revision: 0, updatedAt: null };
+    }
+    return {
+      config: this.signPageAssets(parsed.data),
+      revision: published.revision,
+      updatedAt: published.effectiveFrom ?? published.createdAt,
+    };
+  }
+
+  /** Deep-walk the config and swap any `obj:<key>` string for a signed, time-limited URL. */
+  private signPageAssets<T>(config: T): T {
+    const walk = (v: unknown): unknown => {
+      if (typeof v === 'string') {
+        return v.startsWith('obj:') ? this.storage.signRef(v, 7 * 24 * 3600) : v;
+      }
+      if (Array.isArray(v)) return v.map(walk);
+      if (v && typeof v === 'object') {
+        const out: Record<string, unknown> = {};
+        for (const [k, val] of Object.entries(v as Record<string, unknown>)) out[k] = walk(val);
+        return out;
+      }
+      return v;
+    };
+    return walk(config) as T;
   }
 
   /** Coarse, safe status for the UI status bar (FR-GBL-005). */

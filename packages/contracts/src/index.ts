@@ -2,6 +2,7 @@ export * from './primitives';
 export * from './errors';
 export * from './problem';
 export * from './meta';
+export * from './pages';
 export * from './auth';
 export * from './account';
 export * from './lookup';

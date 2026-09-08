@@ -5,6 +5,7 @@ import {
   zBuildInfo,
   zHealthSummary,
   zLocalesResponse,
+  zPagesResponse,
   zSeoResponse,
 } from '@carrental/contracts';
 import { Controller, Get, Header, Query, Res } from '@nestjs/common';
@@ -21,6 +22,7 @@ class BuildInfoDto extends createZodDto(zBuildInfo) {}
 class HealthSummaryDto extends createZodDto(zHealthSummary) {}
 class BrandingResponseDto extends createZodDto(zBrandingResponse) {}
 class SeoResponseDto extends createZodDto(zSeoResponse) {}
+class PagesResponseDto extends createZodDto(zPagesResponse) {}
 
 @ApiTags('meta')
 @Public()
@@ -72,6 +74,23 @@ export class MetaController {
   async getSeo(@Res({ passthrough: true }) res: Response) {
     const body = await this.meta.seo();
     const etag = `"seo-${body.revision}-${createHash('sha1')
+      .update(JSON.stringify(body.config))
+      .digest('hex')
+      .slice(0, 16)}"`;
+    res.setHeader('ETag', etag);
+    return body;
+  }
+
+  @Get('pages')
+  @Header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
+  @ApiOperation({
+    operationId: 'meta_getPages',
+    summary: 'Published page-builder config for the public site',
+  })
+  @ApiOkResponse({ type: PagesResponseDto })
+  async getPages(@Res({ passthrough: true }) res: Response) {
+    const body = await this.meta.pages();
+    const etag = `"pages-${body.revision}-${createHash('sha1')
       .update(JSON.stringify(body.config))
       .digest('hex')
       .slice(0, 16)}"`;

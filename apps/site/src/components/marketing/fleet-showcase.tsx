@@ -18,14 +18,19 @@ export function FleetShowcase({
   t,
   locale,
   categories,
+  tone = 'default',
+  headingAs = 'h2',
 }: {
   t: Translate;
   locale: string;
   categories: FleetCategory[];
+  tone?: 'default' | 'muted' | 'brand';
+  headingAs?: 'h1' | 'h2';
 }) {
   return (
-    <Section id="fleet" className="mkt-section scroll-anchor">
+    <Section id="fleet" tone={tone} className="mkt-section scroll-anchor">
       <SectionHeading
+        as={headingAs}
         eyebrow={t('site.home.fleet.eyebrow')}
         title={t('site.home.fleet.title')}
         lead={t('site.home.fleet.subtitle')}

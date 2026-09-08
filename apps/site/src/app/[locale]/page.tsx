@@ -1,22 +1,9 @@
 import type { Metadata } from 'next';
 
-import {
-  CtaBand,
-  Faq,
-  FleetShowcase,
-  Hero,
-  HowItWorks,
-  LocationsStrip,
-  SearchCard,
-  StatsBand,
-  Testimonials,
-  TrustBar,
-  WhyUs,
-  type FleetCategory,
-  type LocationItem,
-} from '../../components/marketing';
+import { BlockRenderer, type FleetCategory, type LocationItem } from '../../components/marketing';
 import { apiGet } from '../../lib/api';
 import { getT } from '../../lib/i18n';
+import { getPagesConfig, pageBlocks } from '../../lib/pages-config';
 import { buildMetadata, jsonLd, seoOrigin } from '../../lib/seo';
 import { getSeoConfig } from '../../lib/seo-config';
 
@@ -37,7 +24,7 @@ export async function generateMetadata({
 export default async function HomePage({ params }: { params: { locale: string } }) {
   const { locale } = params;
   const t = await getT(locale);
-  const [categories, locations, origin, seo] = await Promise.all([
+  const [categories, locations, origin, seo, pages] = await Promise.all([
     apiGet<FleetCategory[]>('/catalogue/categories', { revalidate: 300 }).catch(
       () => [] as FleetCategory[],
     ),
@@ -46,6 +33,7 @@ export default async function HomePage({ params }: { params: { locale: string } 
       .catch(() => [] as LocationItem[]),
     seoOrigin(),
     getSeoConfig(),
+    getPagesConfig(),
   ]);
 
   const ld = {
@@ -58,20 +46,18 @@ export default async function HomePage({ params }: { params: { locale: string } 
   };
 
   return (
-    <div className="flex flex-col">
+    <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(ld) }} />
-
-      <Hero t={t.t} />
-      <SearchCard t={t.t} locale={locale} locations={locations} />
-      <TrustBar t={t.t} />
-      <FleetShowcase t={t.t} locale={locale} categories={categories} />
-      <WhyUs t={t.t} />
-      <HowItWorks t={t.t} />
-      <StatsBand t={t.t} locationsCount={locations.length} />
-      <Testimonials t={t.t} />
-      <LocationsStrip t={t.t} locale={locale} locations={locations} />
-      <Faq t={t.t} locale={locale} />
-      <CtaBand t={t.t} locale={locale} />
-    </div>
+      <BlockRenderer
+        blocks={pageBlocks(pages, 'home')}
+        ctx={{
+          t: t.t,
+          locale,
+          categories,
+          locations,
+          locationsCount: locations.length,
+        }}
+      />
+    </>
   );
 }
