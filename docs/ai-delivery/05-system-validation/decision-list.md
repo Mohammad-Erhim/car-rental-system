@@ -166,19 +166,20 @@ reservation queue). `CR-20260907-001` does **not** re-scope these away.
   channel / vehicle-category facets; a combined detail drawer (the screen links out to the
   existing `/ops/work` + `/ops/rentals` surfaces).
 
-## D-7 — `CR-20260907-001` acceptance
+## D-7 — `CR-20260907-001` acceptance — ✅ ACCEPTED (2026-09-08)
 
-- v1.1 amendment **drafts** exist for FR / UI-UX / SRS (documenting the Enhancement Program).
-  Stage 7 will verify they match the shipped code, correct them, and fold in the decisions above,
-  then this CR can be accepted and `baseline-alignment.md` moved to `ALIGNED`.
-- **Recommendation:** let Stage 7 finish `S7-Q-014` (reconcile + correct the drafts), then you
-  do a single acceptance pass over the three v1.1 docs.
+- v1.1 amendment docs for FR / UI-UX / SRS were reconciled against the shipped code in `S7-Q-014`
+  and found sound. The owner delegated the acceptance call to the Stage 7 agent on 2026-09-08.
+- **`CR-20260907-001` → `ACCEPTED`.** `baseline-alignment.md` FR / UI-UX / SRS rows → `ALIGNED`.
+  Full assessment: `00-control/changes/CR-20260907-001/acceptance.md`.
 
 ---
 
-## Suggested answer if you want the shortest path to "done"
+## Resolution (2026-09-08)
 
-Approve **D-1 minimal slice**, **D-2 read-side**, **D-4 build it**, **D-5 option (a)**; defer
-**D-3** and **D-6** to a named follow-up CR; then Stage 7 completes `D-7`. That closes every
-FR-ADM acceptance test with bounded, source-consistent work and leaves only explicitly-deferred
-depth.
+The owner authorized building **all** items (not the minimal slice) and later delegated
+acceptance. Outcome: **D-1, D-2 (read + write), D-3, D-4 (content + event-rules), D-5, D-6, and
+`S7-DEF-006` all built, tested, and `ACCEPTED` under `CR-20260908-001`** (2026-09-08). The
+deferred depth of each is a named follow-up CR (`CR-20260908-002..007`, `PROPOSED`). **D-7**
+(`CR-20260907-001`) also `ACCEPTED`. Every FR-ADM acceptance test closes; only explicitly-deferred
+depth and 4 external-tool gates (`BLOCKED`, with internal-evidence substitutes) remain.

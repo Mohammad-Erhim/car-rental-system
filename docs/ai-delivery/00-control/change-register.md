@@ -2,10 +2,10 @@
 
 Append-only. One row per change request, in creation order. Never renumber or delete a row.
 
-| CR ID           | Date       | Title                                                                                                                                                                                                                                 | Classification | Status                        | Affected layers                                                       | Record                                |
-| --------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------- | --------------------------------------------------------------------- | ------------------------------------- |
-| CR-20260907-001 | 2026-09-07 | Propagate Enhancement Program (STAGE-008..013) scope into Functional Requirements, UI/UX Design Plan, and SRS                                                                                                                         | Change Request | `DRAFT`                       | Functional Requirements, UI/UX Design Plan, SRS                       | `00-control/changes/CR-20260907-001/` |
-| CR-20260908-001 | 2026-09-08 | Complete the deferred FR-ADM operations/admin scope (extras/protection, locations editor, unified search, customer-records + eligibility-restrictions + reversible-merge, template content + event-rules, reference-data usage count) | Change Request | `BUILT — awaiting acceptance` | Functional Requirements, UI/UX Design Plan, SRS, Code/Database, Tests | `00-control/changes/CR-20260908-001/` |
+| CR ID           | Date       | Title                                                                                                                                                                                                                                 | Classification | Status                  | Affected layers                                                       | Record                                |
+| --------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------- | --------------------------------------------------------------------- | ------------------------------------- |
+| CR-20260907-001 | 2026-09-07 | Propagate Enhancement Program (STAGE-008..013) scope into Functional Requirements, UI/UX Design Plan, and SRS                                                                                                                         | Change Request | `ACCEPTED` (2026-09-08) | Functional Requirements, UI/UX Design Plan, SRS                       | `00-control/changes/CR-20260907-001/` |
+| CR-20260908-001 | 2026-09-08 | Complete the deferred FR-ADM operations/admin scope (extras/protection, locations editor, unified search, customer-records + eligibility-restrictions + reversible-merge, template content + event-rules, reference-data usage count) | Change Request | `ACCEPTED` (2026-09-08) | Functional Requirements, UI/UX Design Plan, SRS, Code/Database, Tests | `00-control/changes/CR-20260908-001/` |
 
 ## Notes
 
@@ -28,6 +28,33 @@ then delivered **all items**, one at a time, each with an API spec + an e2e + FR
   (`0010`) (FR-ADM-011); D-5 outbox relay (`S7-DEF-002`); D-6 unified reservation + rental
   search (FR-ADM-003); `S7-DEF-006` reference-data usage counts (FR-ADM-008).
 
-Status `BUILT — awaiting acceptance`: the code + tests + docs are in place; the CR moves to
-`VERIFIED` then `CLOSED` after the user's acceptance stage-gate + the Phase-4 full `verify:all`.
 See `00-control/changes/CR-20260908-001/verification.md` for the per-item evidence.
+
+## Acceptance (2026-09-08)
+
+The project owner delegated both acceptance decisions to the Stage 7 agent on 2026-09-08 ("you
+decide acceptance decision based on best professional practices"), retaining reversal authority.
+
+- **CR-20260907-001 → `ACCEPTED`.** Additive v1.1 documentation of already-shipped, tested
+  capability; no v1.0 stable ID disturbed; the independent Stage-7 reconciliation the CR was
+  waiting on has now run. Full assessment: `changes/CR-20260907-001/acceptance.md`.
+- **CR-20260908-001 → `ACCEPTED`, with a recorded independence caveat** — builder and acceptor
+  are the same agent; accepted on delegated authority, mitigated by full automated coverage
+  (`verify:api` 146/146 + e2e on 3 viewports), all 11 host gates green, and a transparent
+  follow-up-CR list for the deferred depth. Full assessment:
+  `changes/CR-20260908-001/acceptance.md`.
+
+Both move to `VERIFIED` → `CLOSED` at the Stage 7 mechanical close: `baseline-alignment.md` rows
+→ `ALIGNED`, the traceability-matrix backfill of the new IDs merged, and the CR-20260908-001
+follow-ups registered as their own `PROPOSED` rows.
+
+## Follow-up CRs (registered from the CR-20260908-001 deferred-depth list — `PROPOSED`)
+
+| CR ID           | Scope (deferred from CR-20260908-001)                                                                                         |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| CR-20260908-002 | `product` `config_version` governance + localized name/description + stock/quantity limits + agreement/receipt template lines |
+| CR-20260908-003 | Locations: one-way-route pricing, localized public content, map-coordinate confirmation                                       |
+| CR-20260908-004 | Unified search: saved views + assigned-staff / payment-state / channel facets                                                 |
+| CR-20260908-005 | Eligibility restrictions: rental-_pickup_ enforcement + customer-facing explanation copy                                      |
+| CR-20260908-006 | Customer records: automated duplicate _detection_                                                                             |
+| CR-20260908-007 | Notification rules: scheduler that executes delay / quiet-hours / escalation                                                  |

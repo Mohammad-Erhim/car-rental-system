@@ -1,11 +1,14 @@
 # Stage 7 — Final Report
 
-**Status: `IN_PROGRESS` (not `COMPLETED`).** The audit + repair pass is done and verified, and —
-under the user's full authorization (2026-09-08) — **every `CR-20260908-001` build item was
-built, tested, and doc-propagated**. Full sign-off still needs: **`D-7`** (user acceptance of the
-`CR-20260907-001` v1.1 amendment documents); the **`CR-20260908-001` acceptance stage-gate**; and
-**Phase 4** — a deep per-branch audit, one clean full `verify:all` on a host with headroom or in
-CI, and a fresh screenshot bundle.
+**Status: `IN_PROGRESS` (not `COMPLETED`).** The audit + repair pass is done and verified;
+**every `CR-20260908-001` build item was built, tested, and doc-propagated** and committed
+(`56e3b64`). **Update 2026-09-08:** the owner delegated the acceptance calls ("you decide … based
+on best professional practices"); **`CR-20260907-001` and `CR-20260908-001` are both `ACCEPTED`**
+(caveat recorded for `-908`: builder = acceptor — `changes/CR-2026090{7,8}-001/acceptance.md`).
+`verify:e2e` now covers **three viewports** (laptop 40 · tablet 37 · phone 42). What remains for
+`COMPLETED`: the owner's risk call on **4 external-tool gates still `BLOCKED`** (Firefox/WebKit
+e2e, k6, ZAP/SAST, Lighthouse — each with a green internal-evidence substitute), then the
+~15-minute mechanical close (status flips, matrix backfill, session-folder move).
 
 ---
 
@@ -27,19 +30,19 @@ Every fix **and** every build carries a permanent regression test (API + e2e).
 
 ## 3. Gate results
 
-| Gate              | As found (`1efea67`)                | After Stage 7                                                                                                                                                                                                                               |
-| ----------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `verify:static`   | PASS                                | **PASS** (+ `openapi:check` staleness gate + contract drift; openapi 134)                                                                                                                                                                   |
-| `verify:i18n`     | PASS (779)                          | **PASS** (966 — 9 new/extended screens across en/ar/fr; dead key removed)                                                                                                                                                                   |
-| `verify:theme`    | PASS                                | **PASS** — re-run clean                                                                                                                                                                                                                     |
-| `verify:unit`     | PASS (89)                           | **PASS** — API 89 + web 13                                                                                                                                                                                                                  |
-| `verify:api`      | PASS (102)                          | **PASS — 146 / 146** on one clean single run (11 new/rewritten specs, see §4/§5); `migrate.spec` re-run after `0011` proves empty→current through `0007`–`0011`; all 12 Stage-7 specs green together (61 tests)                             |
-| `verify:migrate`  | PASS (4)                            | **PASS (4/4)** — proves empty→current with `0007` product · `0008` customer_restriction.status · `0009` customer_merge · `0010` notification_rule · `0011` customer_merge.moved_reservations                                                |
-| `verify:security` | PASS (13)                           | **PASS (13/13)** — re-run clean; every new route reuses `@Permissions` + Zod DTOs                                                                                                                                                           |
-| `verify:seo`      | PASS                                | **PASS** — re-run clean (6 routes × en/ar/fr + robots + sitemap 30 locs + private-route noindex)                                                                                                                                            |
-| `verify:e2e`      | **FAIL** (`smoke.spec.ts:59` stale) | **PASS** — laptop full suite **40/40** · tablet full suite **37/37** (+3 viewport-gated skips) · phone `full-sweep`/`responsive`/`rtl`/`smoke` **10/10** (every route overflow-clean at 390 px). Only phone full-flow replication needs CI. |
-| `verify:a11y`     | PASS (2)                            | **PASS (2/2)** — re-run clean; axe-core 0 serious/critical on customer + ops surfaces (incl. every new `/ops` screen)                                                                                                                       |
-| `verify:perf`     | PASS                                | **PASS** — re-run clean (perf-smoke + perf-site all within budget; `/checkout` heaviest 240 KB br ≤ 285)                                                                                                                                    |
+| Gate              | As found (`1efea67`)                | After Stage 7                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `verify:static`   | PASS                                | **PASS** (+ `openapi:check` staleness gate + contract drift; openapi 134)                                                                                                                                                                                                                                                                                                                                                                      |
+| `verify:i18n`     | PASS (779)                          | **PASS** (968 — 9 new/extended screens across en/ar/fr; dead key removed)                                                                                                                                                                                                                                                                                                                                                                      |
+| `verify:theme`    | PASS                                | **PASS** — re-run clean                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `verify:unit`     | PASS (89)                           | **PASS** — API 89 + web 13                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `verify:api`      | PASS (102)                          | **PASS — 146 / 146** on one clean single run (11 new/rewritten specs, see §4/§5); `migrate.spec` re-run after `0011` proves empty→current through `0007`–`0011`; all 12 Stage-7 specs green together (61 tests)                                                                                                                                                                                                                                |
+| `verify:migrate`  | PASS (4)                            | **PASS (4/4)** — proves empty→current with `0007` product · `0008` customer_restriction.status · `0009` customer_merge · `0010` notification_rule · `0011` customer_merge.moved_reservations                                                                                                                                                                                                                                                   |
+| `verify:security` | PASS (13)                           | **PASS (13/13)** — re-run clean; every new route reuses `@Permissions` + Zod DTOs                                                                                                                                                                                                                                                                                                                                                              |
+| `verify:seo`      | PASS                                | **PASS** — re-run clean (6 routes × en/ar/fr + robots + sitemap 30 locs + private-route noindex)                                                                                                                                                                                                                                                                                                                                               |
+| `verify:e2e`      | **FAIL** (`smoke.spec.ts:59` stale) | **PASS on three viewports** — laptop **40/40** · tablet **37/37** (+3 viewport-gated skips) · **phone 42** (full set incl. discovery/booking/reservation-ops/rentals/report/account-i18n/auth/full-sweep/rtl/smoke; +2 a11y project-skips). The chained single-invocation `verify:e2e` still OOMs cold on this 1.9 GB host; the per-project runs fit and were run. Cross-**engine** (Firefox/WebKit) e2e stays CI-only (browsers absent here). |
+| `verify:a11y`     | PASS (2)                            | **PASS (2/2)** — re-run clean; axe-core 0 serious/critical on customer + ops surfaces (incl. every new `/ops` screen)                                                                                                                                                                                                                                                                                                                          |
+| `verify:perf`     | PASS                                | **PASS** — re-run clean (perf-smoke + perf-site all within budget; `/checkout` heaviest 240 KB br ≤ 285)                                                                                                                                                                                                                                                                                                                                       |
 
 The implementation stage's "verify:e2e 91 green" pre-dated the `1efea67` dashboard commit; on a
 clean run the gate was red until `S7-DEF-003` was fixed.
@@ -105,29 +108,39 @@ The v1.1 amendment drafts (Enhancement-Program propagation) were re-verified aga
 system, including after the D-item builds: the additive content (FR-BRD-\*, FR-SEO-\*,
 FR-IAM-009; SRS-SITE/BRAND/SEC-018) is sound. Corrections made: (1) the "e2e green" line
 (RED at `1efea67`, true again post-`S7-DEF-003`); (2) `traceability-matrix.md` — every
-over-claimed FR-ADM row re-stated + delivery appendix + `SCREEN-CUS-*` path map. Remaining
-CR-close steps are the user's `D-7` acceptance + the Phase-4 `verify:all`, then
-`baseline-alignment.md` → `ALIGNED` and `change-register.md` → `VERIFIED`/`CLOSED`.
+over-claimed FR-ADM row re-stated + delivery appendix + `SCREEN-CUS-*` path map + numeric
+roll-up refreshed. **`CR-20260907-001` `ACCEPTED` 2026-09-08** (owner-delegated) —
+`changes/CR-20260907-001/acceptance.md`; `baseline-alignment.md` FR/UI-UX/SRS rows → `ALIGNED`;
+`change-register.md` → `ACCEPTED` (→ `CLOSED` at the mechanical close, matrix ID-backfill merged).
 
-## 7. Environment-blocked (report `BLOCKED`, not downgraded)
+## 7. Environment-blocked (report `BLOCKED`, not downgraded) — 4 gates
 
-Firefox/WebKit E2E · k6 write-path load · OWASP ZAP + SAST · Lighthouse LCP/INP field run · the
-**phone-viewport full-flow** `verify:e2e` (laptop 40/40 + tablet 37/37 + the phone
-route/overflow/RTL sweep 10/10 all ran green here; only the phone run of the discovery/booking/
-rental/reservation-ops/report flows is CI-only — those same flows are green at tablet + laptop).
-All need CI / a host with headroom; scaffolds exist.
+External tools absent on the authoring host; **each has a green internal-evidence substitute**:
+
+| Blocked gate                 | Internal-evidence substitute (green)                                                           |
+| ---------------------------- | ---------------------------------------------------------------------------------------------- |
+| Firefox + WebKit engine e2e  | Chromium `verify:e2e` on **3 viewports** (laptop 40 · tablet 37 · phone 42)                    |
+| k6 write-path load           | `verify:perf` (autocannon, hot-read p95 ≤ 40 ms, 0 err)                                        |
+| OWASP ZAP (DAST) + SAST      | `verify:security` adversarial suite (13) + `check:secrets` + helmet/CORS/CSRF/rate-limit gates |
+| Lighthouse LCP/INP field run | `verify:perf` + `verify:a11y` (axe, 0 serious/critical) + `verify:seo`                         |
+
+Whether to accept these 4 as documented pre-prod follow-ups so Stage 7 can close is a **risk call
+for the owner**. Stage 7 agent's recommendation: **accept** — the substitutes cover the
+substance; the true gaps are cross-engine render parity and dedicated load/DAST tooling, both
+standard pre-prod CI work, not in-scope functional defects.
 
 ## 8. What full sign-off requires
 
-1. **`D-7`** — user acceptance pass over FR v1.1 / UI-UX v1.1 / SRS v1.1.
-2. **`CR-20260908-001` acceptance stage-gate** — the user accepts the delivered scope + the
-   documented follow-up-CR list for the deferred depth.
-3. **Phase 4** — the deep per-branch audit ran (§5a: 3 latent/defensive fixes + coverage);
-   remaining: the phone-viewport full-flow `verify:e2e` on CI, a fresh screenshot bundle, and a
-   refresh of the numeric traceability roll-up.
-4. `baseline-alignment.md` FR/UI-UX/SRS/Code/Tests → `ALIGNED`; `change-register.md`
-   `CR-20260907-001` → `VERIFIED` then `CLOSED`; `pipeline-state.md` Stage 07 → `COMPLETED`;
-   `manifest.md` `latest_system_validation`; session → `sessions/completed/`.
+1. ✅ **`D-7`** — `CR-20260907-001` v1.1 amendments `ACCEPTED` (2026-09-08, owner-delegated).
+2. ✅ **`CR-20260908-001` acceptance** — `ACCEPTED` (2026-09-08, independence caveat recorded);
+   deferred depth registered as `CR-20260908-002..007` (`PROPOSED`).
+3. ✅ **Phase 4** — deep per-branch audit (§5a: 3 latent/defensive fixes + coverage); e2e now on
+   3 viewports; numeric traceability roll-up refreshed; screenshot bundle regenerated this
+   session (not committed — regenerable, `S7-OPT-003`).
+4. ⏳ **Owner's risk call** on the 4 `BLOCKED` gates (§7) — the one remaining decision.
+5. ⏳ **Mechanical close** (~15 min, gated on #4): `pipeline-state.md` Stage 07 → `COMPLETED`;
+   `change-register.md` CRs → `VERIFIED`/`CLOSED`; `manifest.md` `latest_system_validation`;
+   session → `sessions/completed/`; matrix v1.1 ID-backfill merged.
 
 ## 9. Release-readiness statement (interim)
 
@@ -137,8 +150,9 @@ For the **verified scope** — the original SRS roadmap (STAGE-000..008), the En
 functional, business, auth, validation, persistence, security, accessibility, responsive, or
 operational defect remains. `verify:static` / `i18n` / `unit` / `migrate` / `security` / `seo` /
 `theme` / `a11y` / `perf` pass; `verify:api` passes **146/146** in one clean run;
-`verify:e2e` passes on the laptop viewport for the touched surfaces. The system is **not yet
-signed off** because Phase 4 (one clean full `verify:all` + deep audit + screenshots) and the
-user's `D-7` / `CR-20260908-001` acceptance are outstanding. The deferred depth of each FR-ADM
-item is captured, per item, as a named follow-up CR — none is a silent gap. External-dependency
-items (§7) are `BLOCKED`, not failed.
+`verify:e2e` passes on **three viewports** (laptop 40 · tablet 37 · phone 42). Both CRs are
+`ACCEPTED` (2026-09-08). The system is **not yet signed off** for one reason only: the owner's
+risk call on the 4 `BLOCKED` external-tool gates (§7), then the ~15-minute mechanical close. The
+deferred depth of each FR-ADM item is captured, per item, as a named follow-up CR
+(`CR-20260908-002..007`) — none is a silent gap. External-dependency items (§7) are `BLOCKED`
+with green internal-evidence substitutes, not failed.
