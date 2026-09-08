@@ -6,10 +6,6 @@ import {
   Alert,
   AlertDescription,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   Checkbox,
   ErrorSummary,
   Field,
@@ -122,176 +118,177 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="py-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {step === 'form' ? t('action.register') : t('auth.register.verifyTitle')}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <ErrorSummary title={t('state.validation.title')} errors={errs.summary} />
-          {errs.topLevelMessage ? (
-            <Alert variant="destructive">
-              <AlertDescription>{errs.topLevelMessage}</AlertDescription>
-            </Alert>
-          ) : null}
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-ink">
+          {step === 'form' ? t('action.register') : t('auth.register.verifyTitle')}
+        </h1>
+        <p className="mt-1 text-sm text-ink-muted">
+          {step === 'form' ? t('site.auth.registerSub') : t('auth.register.codeSentTo', { email })}
+        </p>
+      </div>
+      <div className="space-y-4">
+        <ErrorSummary title={t('state.validation.title')} errors={errs.summary} />
+        {errs.topLevelMessage ? (
+          <Alert variant="destructive">
+            <AlertDescription>{errs.topLevelMessage}</AlertDescription>
+          </Alert>
+        ) : null}
 
-          {step === 'form' ? (
-            <form onSubmit={submitForm} className="space-y-4" noValidate>
-              <Field
-                label={t('auth.fullName')}
-                htmlFor="field-fullName"
-                required
-                error={errs.fieldError('fullName')}
-              >
-                {({ id, describedBy, invalid }) => (
-                  <Input
-                    id={id}
-                    aria-describedby={describedBy}
-                    invalid={invalid}
-                    autoComplete="name"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    required
-                  />
-                )}
-              </Field>
-              <Field
-                label={t('auth.email')}
-                htmlFor="field-email"
-                required
-                error={errs.fieldError('email')}
-              >
-                {({ id, describedBy, invalid }) => (
-                  <Input
-                    id={id}
-                    aria-describedby={describedBy}
-                    invalid={invalid}
-                    type="email"
-                    autoComplete="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                )}
-              </Field>
-              <Field
-                label={t('auth.password')}
-                htmlFor="field-password"
-                required
-                hint={t('auth.register.passwordHint')}
-                error={errs.fieldError('password')}
-              >
-                {({ id, describedBy, invalid }) => (
-                  <Input
-                    id={id}
-                    aria-describedby={describedBy}
-                    invalid={invalid}
-                    type="password"
-                    autoComplete="new-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                )}
-              </Field>
-
-              <label className="flex items-start gap-2 text-sm">
-                <Checkbox
-                  id="field-acceptTerms"
-                  checked={accept}
-                  onChange={(e) => setAccept(e.target.checked)}
+        {step === 'form' ? (
+          <form onSubmit={submitForm} className="space-y-4" noValidate>
+            <Field
+              label={t('auth.fullName')}
+              htmlFor="field-fullName"
+              required
+              error={errs.fieldError('fullName')}
+            >
+              {({ id, describedBy, invalid }) => (
+                <Input
+                  id={id}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                  autoComplete="name"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
                 />
-                <span>
-                  {t('auth.register.acceptTerms')}{' '}
-                  <span className="text-destructive" aria-hidden="true">
-                    *
-                  </span>
-                </span>
-              </label>
-              <label className="flex items-start gap-2 text-sm">
-                <Checkbox checked={marketing} onChange={(e) => setMarketing(e.target.checked)} />
-                <span>
-                  {t('auth.register.marketingOptIn')} ({t('field.optional')})
-                </span>
-              </label>
+              )}
+            </Field>
+            <Field
+              label={t('auth.email')}
+              htmlFor="field-email"
+              required
+              error={errs.fieldError('email')}
+            >
+              {({ id, describedBy, invalid }) => (
+                <Input
+                  id={id}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              )}
+            </Field>
+            <Field
+              label={t('auth.password')}
+              htmlFor="field-password"
+              required
+              hint={t('auth.register.passwordHint')}
+              error={errs.fieldError('password')}
+            >
+              {({ id, describedBy, invalid }) => (
+                <Input
+                  id={id}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                  type="password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              )}
+            </Field>
 
-              <Button
-                type="submit"
-                className="w-full"
-                loading={busy}
-                loadingLabel={t('auth.register.creating')}
-              >
-                {t('action.register')}
-              </Button>
-            </form>
-          ) : (
-            <form onSubmit={submitCode} className="space-y-4" noValidate>
-              <p className="text-sm text-muted-foreground">
-                {t('auth.register.codeSentTo', { email })}
-              </p>
-              {pending?.devCode ? (
-                <Alert variant="info">
-                  <AlertDescription>
-                    {t('auth.devCodeLabel')}{' '}
-                    <span className="bidi-isolate font-mono">{pending.devCode}</span>
-                  </AlertDescription>
-                </Alert>
-              ) : null}
-              <Field
-                label={t('auth.register.codeLabel')}
-                htmlFor="field-code"
-                required
-                error={errs.fieldError('code')}
-              >
-                {({ id, describedBy, invalid }) => (
-                  <Input
-                    id={id}
-                    aria-describedby={describedBy}
-                    invalid={invalid}
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    maxLength={6}
-                    value={code}
-                    onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                    required
-                  />
-                )}
-              </Field>
-              <Button
-                type="submit"
-                className="w-full"
-                loading={busy}
-                loadingLabel={t('auth.register.verifying')}
-              >
-                {t('action.confirm')}
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-full"
-                onClick={resend}
-                disabled={busy}
-              >
-                {t('auth.register.resend')}
-              </Button>
-            </form>
-          )}
+            <label className="flex items-start gap-2 text-sm">
+              <Checkbox
+                id="field-acceptTerms"
+                checked={accept}
+                onChange={(e) => setAccept(e.target.checked)}
+              />
+              <span>
+                {t('auth.register.acceptTerms')}{' '}
+                <span className="text-destructive" aria-hidden="true">
+                  *
+                </span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-sm">
+              <Checkbox checked={marketing} onChange={(e) => setMarketing(e.target.checked)} />
+              <span>
+                {t('auth.register.marketingOptIn')} ({t('field.optional')})
+              </span>
+            </label>
 
-          {step === 'form' ? (
-            <p className="text-center text-sm">
-              {t('auth.register.haveAccount')}{' '}
-              <Link
-                href={`/${locale}/sign-in`}
-                className="text-primary underline underline-offset-4"
-              >
-                {t('action.signIn')}
-              </Link>
+            <Button
+              type="submit"
+              className="w-full"
+              loading={busy}
+              loadingLabel={t('auth.register.creating')}
+            >
+              {t('action.register')}
+            </Button>
+          </form>
+        ) : (
+          <form onSubmit={submitCode} className="space-y-4" noValidate>
+            <p className="text-sm text-muted-foreground">
+              {t('auth.register.codeSentTo', { email })}
             </p>
-          ) : null}
-        </CardContent>
-      </Card>
+            {pending?.devCode ? (
+              <Alert variant="info">
+                <AlertDescription>
+                  {t('auth.devCodeLabel')}{' '}
+                  <span className="bidi-isolate font-mono">{pending.devCode}</span>
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            <Field
+              label={t('auth.register.codeLabel')}
+              htmlFor="field-code"
+              required
+              error={errs.fieldError('code')}
+            >
+              {({ id, describedBy, invalid }) => (
+                <Input
+                  id={id}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                  required
+                />
+              )}
+            </Field>
+            <Button
+              type="submit"
+              className="w-full"
+              loading={busy}
+              loadingLabel={t('auth.register.verifying')}
+            >
+              {t('action.confirm')}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={resend}
+              disabled={busy}
+            >
+              {t('auth.register.resend')}
+            </Button>
+          </form>
+        )}
+
+        {step === 'form' ? (
+          <p className="text-center text-sm text-ink-muted">
+            {t('auth.register.haveAccount')}{' '}
+            <Link
+              href={`/${locale}/sign-in`}
+              className="font-medium text-brand hover:underline underline-offset-4"
+            >
+              {t('action.signIn')}
+            </Link>
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

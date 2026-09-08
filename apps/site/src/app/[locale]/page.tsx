@@ -1,20 +1,24 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 
-import { HomeSearch } from '../../components/home-search';
+import {
+  CtaBand,
+  Faq,
+  FleetShowcase,
+  Hero,
+  HowItWorks,
+  LocationsStrip,
+  SearchCard,
+  StatsBand,
+  Testimonials,
+  TrustBar,
+  WhyUs,
+  type FleetCategory,
+  type LocationItem,
+} from '../../components/marketing';
 import { apiGet } from '../../lib/api';
 import { getT } from '../../lib/i18n';
 import { buildMetadata, jsonLd, seoOrigin } from '../../lib/seo';
 import { getSeoConfig } from '../../lib/seo-config';
-
-interface Category {
-  code: string;
-  displayName: string;
-  description: string | null;
-  passengers: number;
-  luggage: number;
-  transmission: string;
-}
 
 export async function generateMetadata({
   params,
@@ -34,10 +38,12 @@ export default async function HomePage({ params }: { params: { locale: string } 
   const { locale } = params;
   const t = await getT(locale);
   const [categories, locations, origin, seo] = await Promise.all([
-    apiGet<Category[]>('/catalogue/categories', { revalidate: 300 }).catch(() => [] as Category[]),
+    apiGet<FleetCategory[]>('/catalogue/categories', { revalidate: 300 }).catch(
+      () => [] as FleetCategory[],
+    ),
     apiGet<Array<{ code: string; name: string }>>('/config/locations', { revalidate: 300 })
-      .then((rows) => rows.map((r) => ({ code: r.code, name: r.name })))
-      .catch(() => [] as Array<{ code: string; name: string }>),
+      .then((rows): LocationItem[] => rows.map((r) => ({ code: r.code, name: r.name })))
+      .catch(() => [] as LocationItem[]),
     seoOrigin(),
     getSeoConfig(),
   ]);
@@ -52,48 +58,20 @@ export default async function HomePage({ params }: { params: { locale: string } 
   };
 
   return (
-    <div className="space-y-12">
+    <div className="flex flex-col">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(ld) }} />
 
-      <section className="space-y-4">
-        <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
-          {t.t('site.home.heroTitle')}
-        </h1>
-        <p className="max-w-2xl text-muted-foreground">{t.t('site.home.heroSubtitle')}</p>
-        <div className="rounded-xl border bg-card p-4 shadow-sm md:p-6">
-          <HomeSearch locale={locale} locations={locations} />
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <h2 className="text-xl font-semibold">{t.t('site.home.browseTitle')}</h2>
-        {categories.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t.t('state.noResults.title')}</p>
-        ) : (
-          <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {categories.map((c) => (
-              <li key={c.code}>
-                <Link
-                  href={`/${locale}/vehicles/${c.code}`}
-                  className="block h-full rounded-lg border bg-card p-4 transition-colors hover:border-primary"
-                >
-                  <h3 className="font-medium">{c.displayName}</h3>
-                  <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                    {c.description ?? ''}
-                  </p>
-                  <p className="mt-3 text-xs text-muted-foreground">
-                    {t.t('site.vehicle.specs', {
-                      passengers: c.passengers,
-                      luggage: c.luggage,
-                      transmission: t.t(`site.vehicle.transmission.${c.transmission}`),
-                    })}
-                  </p>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <Hero t={t.t} />
+      <SearchCard t={t.t} locale={locale} locations={locations} />
+      <TrustBar t={t.t} />
+      <FleetShowcase t={t.t} locale={locale} categories={categories} />
+      <WhyUs t={t.t} />
+      <HowItWorks t={t.t} />
+      <StatsBand t={t.t} locationsCount={locations.length} />
+      <Testimonials t={t.t} />
+      <LocationsStrip t={t.t} locale={locale} locations={locations} />
+      <Faq t={t.t} locale={locale} />
+      <CtaBand t={t.t} locale={locale} />
     </div>
   );
 }

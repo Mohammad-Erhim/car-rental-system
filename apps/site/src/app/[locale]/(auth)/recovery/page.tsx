@@ -1,18 +1,7 @@
 'use client';
 
 import { useI18n } from '@carrental/i18n/react';
-import {
-  Alert,
-  AlertDescription,
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  ErrorSummary,
-  Field,
-  Input,
-} from '@carrental/ui';
+import { Alert, AlertDescription, Button, ErrorSummary, Field, Input } from '@carrental/ui';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
@@ -87,119 +76,121 @@ export default function RecoveryPage() {
   }
 
   return (
-    <div className="py-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>{t('auth.recoverTitle')}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <ErrorSummary title={t('state.validation.title')} errors={errs.summary} />
-          {errs.topLevelMessage ? (
-            <Alert variant="destructive">
-              <AlertDescription>{errs.topLevelMessage}</AlertDescription>
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-ink">{t('auth.recoverTitle')}</h1>
+        <p className="mt-1 text-sm text-ink-muted">{t('site.auth.recoverySub')}</p>
+      </div>
+      <div className="space-y-4">
+        <ErrorSummary title={t('state.validation.title')} errors={errs.summary} />
+        {errs.topLevelMessage ? (
+          <Alert variant="destructive">
+            <AlertDescription>{errs.topLevelMessage}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {step === 'start' ? (
+          <form onSubmit={start} className="space-y-4" noValidate>
+            <Field
+              label={t('auth.accountEmail')}
+              htmlFor="field-email"
+              required
+              error={errs.fieldError('email')}
+            >
+              {({ id, describedBy, invalid }) => (
+                <Input
+                  id={id}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              )}
+            </Field>
+            <Button type="submit" className="w-full" loading={busy}>
+              {t('auth.sendInstructions')}
+            </Button>
+          </form>
+        ) : step === 'complete' ? (
+          <form onSubmit={complete} className="space-y-4" noValidate>
+            <Alert variant="info">
+              <AlertDescription>{started?.message}</AlertDescription>
             </Alert>
-          ) : null}
-
-          {step === 'start' ? (
-            <form onSubmit={start} className="space-y-4" noValidate>
-              <Field
-                label={t('auth.accountEmail')}
-                htmlFor="field-email"
-                required
-                error={errs.fieldError('email')}
-              >
-                {({ id, describedBy, invalid }) => (
-                  <Input
-                    id={id}
-                    aria-describedby={describedBy}
-                    invalid={invalid}
-                    type="email"
-                    autoComplete="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                )}
-              </Field>
-              <Button type="submit" className="w-full" loading={busy}>
-                {t('auth.sendInstructions')}
-              </Button>
-            </form>
-          ) : step === 'complete' ? (
-            <form onSubmit={complete} className="space-y-4" noValidate>
+            {started?.devCode ? (
               <Alert variant="info">
-                <AlertDescription>{started?.message}</AlertDescription>
+                <AlertDescription>
+                  {t('auth.devCodeLabel')}{' '}
+                  <span className="bidi-isolate font-mono">{started.devCode}</span>
+                </AlertDescription>
               </Alert>
-              {started?.devCode ? (
-                <Alert variant="info">
-                  <AlertDescription>
-                    {t('auth.devCodeLabel')}{' '}
-                    <span className="bidi-isolate font-mono">{started.devCode}</span>
-                  </AlertDescription>
-                </Alert>
-              ) : null}
-              <Field
-                label={t('auth.recoveryCode')}
-                htmlFor="field-code"
-                required
-                error={errs.fieldError('code')}
-              >
-                {({ id, describedBy, invalid }) => (
-                  <Input
-                    id={id}
-                    aria-describedby={describedBy}
-                    invalid={invalid}
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    maxLength={6}
-                    value={code}
-                    onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                    required
-                  />
-                )}
-              </Field>
-              <Field
-                label={t('auth.newPassword')}
-                htmlFor="field-newPassword"
-                required
-                hint={t('auth.newPasswordHint')}
-                error={errs.fieldError('newPassword')}
-              >
-                {({ id, describedBy, invalid }) => (
-                  <Input
-                    id={id}
-                    aria-describedby={describedBy}
-                    invalid={invalid}
-                    type="password"
-                    autoComplete="new-password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    required
-                  />
-                )}
-              </Field>
-              <Button type="submit" className="w-full" loading={busy}>
-                {t('action.save')}
-              </Button>
-            </form>
-          ) : (
-            <div className="space-y-4 text-sm">
-              <Alert variant="success">
-                <AlertDescription>{t('auth.resetDone')}</AlertDescription>
-              </Alert>
-              <Button className="w-full" onClick={() => router.push(`/${locale}/sign-in`)}>
-                {t('action.signIn')}
-              </Button>
-            </div>
-          )}
+            ) : null}
+            <Field
+              label={t('auth.recoveryCode')}
+              htmlFor="field-code"
+              required
+              error={errs.fieldError('code')}
+            >
+              {({ id, describedBy, invalid }) => (
+                <Input
+                  id={id}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                  required
+                />
+              )}
+            </Field>
+            <Field
+              label={t('auth.newPassword')}
+              htmlFor="field-newPassword"
+              required
+              hint={t('auth.newPasswordHint')}
+              error={errs.fieldError('newPassword')}
+            >
+              {({ id, describedBy, invalid }) => (
+                <Input
+                  id={id}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                  type="password"
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                />
+              )}
+            </Field>
+            <Button type="submit" className="w-full" loading={busy}>
+              {t('action.save')}
+            </Button>
+          </form>
+        ) : (
+          <div className="space-y-4 text-sm">
+            <Alert variant="success">
+              <AlertDescription>{t('auth.resetDone')}</AlertDescription>
+            </Alert>
+            <Button className="w-full" onClick={() => router.push(`/${locale}/sign-in`)}>
+              {t('action.signIn')}
+            </Button>
+          </div>
+        )}
 
-          <p className="text-center text-sm">
-            <Link href={`/${locale}/sign-in`} className="text-primary underline underline-offset-4">
-              {t('auth.backToSignIn')}
-            </Link>
-          </p>
-        </CardContent>
-      </Card>
+        <p className="text-center text-sm">
+          <Link
+            href={`/${locale}/sign-in`}
+            className="font-medium text-brand hover:underline underline-offset-4"
+          >
+            {t('auth.backToSignIn')}
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

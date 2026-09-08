@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 
 import { AccountShell } from '../../../components/account-shell';
 import { RequireAuth } from '../../../components/require-auth';
+import { SiteContainer } from '../../../components/site-container';
 import { getT } from '../../../lib/i18n';
 
 /** The account area is private — never indexed. */
@@ -21,7 +22,9 @@ export async function generateMetadata({
 export default function AccountLayout({ children }: { children: ReactNode }) {
   return (
     <RequireAuth>
-      <AccountShell>{children}</AccountShell>
+      <SiteContainer size="md">
+        <AccountShell>{children}</AccountShell>
+      </SiteContainer>
     </RequireAuth>
   );
 }

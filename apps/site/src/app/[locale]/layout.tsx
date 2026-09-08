@@ -53,10 +53,9 @@ export default async function LocaleLayout({
             {t.t('common.skipToContent')}
           </a>
           <SiteHeader locale={locale} />
-          <main
-            id="main"
-            className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 pb-24 md:py-12 lg:pb-12"
-          >
+          {/* Edge-to-edge: the marketing homepage runs full-bleed bands; app routes opt back
+              into a centred gutter via <SiteContainer>. `pb-24` clears the mobile bottom nav. */}
+          <main id="main" className="min-w-0 flex-1 pb-24 lg:pb-0">
             {children}
           </main>
           <SiteFooter locale={locale} />

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 
+import { SiteContainer } from '../../../components/site-container';
 import { getT } from '../../../lib/i18n';
 
 /** Checkout carries a held quote and personal details — never indexed. */
@@ -17,5 +18,5 @@ export async function generateMetadata({
 }
 
 export default function CheckoutLayout({ children }: { children: ReactNode }) {
-  return children;
+  return <SiteContainer>{children}</SiteContainer>;
 }

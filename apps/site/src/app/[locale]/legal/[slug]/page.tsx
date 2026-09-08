@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
+import { SiteContainer } from '../../../../components/site-container';
 import { ACTIVE_LOCALES, getT } from '../../../../lib/i18n';
 import { buildMetadata } from '../../../../lib/seo';
 
@@ -38,14 +39,14 @@ export default async function LegalPage({ params }: { params: { locale: string; 
   const t = await getT(params.locale);
   if (!SLUGS.includes(params.slug as Slug)) notFound();
   return (
-    <article className="mx-auto max-w-2xl space-y-4">
-      <h1 className="text-3xl font-bold tracking-tight">
+    <SiteContainer as="article" size="md" className="space-y-4">
+      <h1 className="text-3xl font-bold tracking-tight text-ink">
         {t.t(`site.legal.${params.slug}.title`)}
       </h1>
-      <p className="text-sm text-muted-foreground">{t.t('site.legal.placeholder')}</p>
-      <p className="whitespace-pre-line text-sm leading-relaxed">
+      <p className="text-sm text-ink-muted">{t.t('site.legal.placeholder')}</p>
+      <p className="whitespace-pre-line text-sm leading-relaxed text-ink-muted">
         {t.t(`site.legal.${params.slug}.body`)}
       </p>
-    </article>
+    </SiteContainer>
   );
 }

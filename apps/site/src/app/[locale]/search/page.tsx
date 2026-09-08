@@ -1,7 +1,10 @@
+import { AlertCircle, ArrowRight, CheckCircle2, Info, XCircle } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { HomeSearch, type LocationOption } from '../../../components/home-search';
+import { CarArt, carVariantFor } from '../../../components/marketing/art';
+import { SiteContainer } from '../../../components/site-container';
 import { apiGet, apiPost } from '../../../lib/api';
 import { getT } from '../../../lib/i18n';
 import { buildMetadata } from '../../../lib/seo';
@@ -102,10 +105,16 @@ export default async function SearchPage({
   const showNoResults = searched && !failure && !hasBookable;
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-semibold">{t.t('site.search.title')}</h1>
+    <SiteContainer className="space-y-8">
+      <header className="space-y-2">
+        <span className="eyebrow">{t.t('site.search.heroEyebrow')}</span>
+        <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">
+          {t.t('site.search.title')}
+        </h1>
+        <p className="max-w-2xl text-sm text-ink-muted sm:text-base">{t.t('site.search.lead')}</p>
+      </header>
 
-      <div className="rounded-lg border bg-card p-4">
+      <div className="surface-card rounded-2xl p-4 sm:p-6">
         <HomeSearch
           locale={locale}
           locations={locations}
@@ -116,71 +125,106 @@ export default async function SearchPage({
       </div>
 
       {!searched ? (
-        <p className="text-sm text-muted-foreground">{t.t('site.search.noQuery')}</p>
+        <p className="text-sm text-ink-muted">{t.t('site.search.noQuery')}</p>
       ) : (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm font-medium text-ink-muted">
           {t.t('site.search.summary', { location: pickup })}
         </p>
       )}
 
       {failure === 'badLocation' ? (
-        <p className="text-sm text-destructive">{t.t('site.search.badLocation')}</p>
+        <p className="flex items-center gap-2 rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm font-medium text-destructive">
+          <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+          {t.t('site.search.badLocation')}
+        </p>
       ) : failure === 'generic' ? (
-        <p className="text-sm text-destructive">{t.t('error.generic')}</p>
+        <p className="flex items-center gap-2 rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm font-medium text-destructive">
+          <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+          {t.t('error.generic')}
+        </p>
       ) : null}
 
       {notices.length ? (
-        <ul className="space-y-1 rounded-md border border-amber-300/60 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-400/30 dark:bg-amber-950/40 dark:text-amber-200">
+        <ul className="space-y-1.5 rounded-xl border border-warning/40 bg-warning/10 p-4 text-sm text-ink">
           {notices.map((n) => (
-            <li key={n.code}>{noticeText(t.t, n)}</li>
+            <li key={n.code} className="flex items-start gap-2">
+              <Info className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden="true" />
+              {noticeText(t.t, n)}
+            </li>
           ))}
         </ul>
       ) : null}
 
       {showNoResults ? (
-        <p data-appstate="no-results" className="text-sm text-muted-foreground">
-          {t.t('site.search.noResults')}
-        </p>
+        <div
+          data-appstate="no-results"
+          className="rounded-2xl border border-dashed border-hairline bg-surface-muted p-8 text-center"
+        >
+          <p className="font-semibold text-ink">{t.t('site.search.noResults')}</p>
+        </div>
       ) : null}
 
       {hasOptions ? (
-        <ul className="grid gap-4 sm:grid-cols-2" data-testid="results-list">
-          {options.map((o) => (
-            <li
-              key={o.categoryCode}
-              data-testid={`result-${o.categoryCode}`}
-              data-soldout={o.bookableCount < 1}
-              className="rounded-lg border bg-card p-4"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="font-medium">{o.categoryName}</h2>
-                  <p
-                    className="text-xs text-muted-foreground"
-                    data-testid={`result-${o.categoryCode}-count`}
-                  >
-                    {t.t('site.search.available', { n: o.bookableCount })}
-                  </p>
-                </div>
-                {typeof o.fromTotalMinor === 'number' && o.currency ? (
-                  <p
-                    className="whitespace-nowrap text-sm font-semibold"
-                    data-testid={`result-${o.categoryCode}-price`}
-                  >
-                    {money(o.fromTotalMinor, o.currency, locale)}
-                  </p>
-                ) : null}
-              </div>
-              <Link
-                href={`/${locale}/vehicles/${o.categoryCode}?${new URLSearchParams({ pickup, pickupAt, returnAt }).toString()}`}
-                className="mt-3 inline-block rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90"
-              >
-                {t.t('site.search.viewReserve')}
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <section className="space-y-4">
+          <h2 className="text-lg font-semibold text-ink">{t.t('site.search.resultsTitle')}</h2>
+          <ul className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" data-testid="results-list">
+            {options.map((o) => {
+              const soldOut = o.bookableCount < 1;
+              return (
+                <li
+                  key={o.categoryCode}
+                  data-testid={`result-${o.categoryCode}`}
+                  data-soldout={soldOut}
+                  className="flex h-full flex-col overflow-hidden surface-card hover-lift"
+                >
+                  <div className="relative flex aspect-[16/9] items-end justify-center overflow-hidden bg-brand-gradient">
+                    <span className="dot-grid absolute inset-0 opacity-20" aria-hidden="true" />
+                    <CarArt
+                      variant={carVariantFor(o.categoryCode)}
+                      className="art-shadow w-[76%] text-on-brand"
+                    />
+                  </div>
+                  <div className="flex flex-1 flex-col gap-2 p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className="font-semibold text-ink">{o.categoryName}</h3>
+                      {typeof o.fromTotalMinor === 'number' && o.currency ? (
+                        <p
+                          className="whitespace-nowrap text-end text-sm font-bold text-ink"
+                          data-testid={`result-${o.categoryCode}-price`}
+                        >
+                          {money(o.fromTotalMinor, o.currency, locale)}
+                        </p>
+                      ) : null}
+                    </div>
+                    <p
+                      className={
+                        soldOut
+                          ? 'inline-flex w-fit items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-ink-muted'
+                          : 'inline-flex w-fit items-center gap-1.5 rounded-full bg-success/10 px-2.5 py-0.5 text-xs font-medium text-success'
+                      }
+                      data-testid={`result-${o.categoryCode}-count`}
+                    >
+                      {soldOut ? (
+                        <XCircle className="size-3.5" aria-hidden="true" />
+                      ) : (
+                        <CheckCircle2 className="size-3.5" aria-hidden="true" />
+                      )}
+                      {t.t('site.search.available', { n: o.bookableCount })}
+                    </p>
+                    <Link
+                      href={`/${locale}/vehicles/${o.categoryCode}?${new URLSearchParams({ pickup, pickupAt, returnAt }).toString()}`}
+                      className="mt-auto inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                      {t.t('site.search.viewReserve')}
+                      <ArrowRight className="size-4 rtl:rotate-180" aria-hidden="true" />
+                    </Link>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
       ) : null}
-    </div>
+    </SiteContainer>
   );
 }

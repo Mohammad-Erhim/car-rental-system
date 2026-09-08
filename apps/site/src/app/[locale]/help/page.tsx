@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 
+import { SiteContainer } from '../../../components/site-container';
 import { getT } from '../../../lib/i18n';
 import { buildMetadata } from '../../../lib/seo';
 
@@ -21,17 +22,19 @@ export default async function HelpPage({ params }: { params: { locale: string } 
   const t = await getT(params.locale);
   const faqs = ['booking', 'changes', 'payment', 'pickup'] as const;
   return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-bold tracking-tight">{t.t('site.help.title')}</h1>
-      <p className="text-muted-foreground">{t.t('site.help.intro')}</p>
-      <dl className="space-y-4">
+    <SiteContainer size="md" className="space-y-6">
+      <h1 className="text-3xl font-bold tracking-tight text-ink">{t.t('site.help.title')}</h1>
+      <p className="text-ink-muted">{t.t('site.help.intro')}</p>
+      <dl className="space-y-3">
         {faqs.map((f) => (
-          <div key={f} className="rounded-lg border bg-card p-4">
-            <dt className="font-medium">{t.t(`site.help.faq.${f}.q`)}</dt>
-            <dd className="mt-1 text-sm text-muted-foreground">{t.t(`site.help.faq.${f}.a`)}</dd>
+          <div key={f} className="surface-card p-5">
+            <dt className="font-semibold text-ink">{t.t(`site.help.faq.${f}.q`)}</dt>
+            <dd className="mt-1.5 text-sm leading-relaxed text-ink-muted">
+              {t.t(`site.help.faq.${f}.a`)}
+            </dd>
           </div>
         ))}
       </dl>
-    </div>
+    </SiteContainer>
   );
 }

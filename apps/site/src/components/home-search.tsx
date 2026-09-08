@@ -1,6 +1,7 @@
 'use client';
 
 import { useI18n } from '@carrental/i18n/react';
+import { CalendarClock, MapPin, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -71,16 +72,22 @@ export function HomeSearch({
     router.push(`/${locale}/search?${q.toString()}`);
   }
 
-  const field = 'h-11 w-full rounded-md border border-input bg-background px-3 text-sm';
+  const field =
+    'h-12 w-full rounded-xl border border-hairline bg-surface px-3.5 text-sm text-ink shadow-sm outline-none transition-colors placeholder:text-ink-muted focus:border-brand focus:ring-4 focus:ring-brand/15';
+  const labelText =
+    'flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-muted';
 
   return (
     <form
       onSubmit={submit}
       data-testid="search-form"
-      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 lg:items-end"
+      className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_auto] lg:items-end"
     >
-      <label className="space-y-1 text-sm lg:col-span-1">
-        <span className="font-medium text-muted-foreground">{t('search.location')}</span>
+      <label className="space-y-1.5 text-sm">
+        <span className={labelText}>
+          <MapPin className="size-3.5" aria-hidden="true" />
+          {t('search.location')}
+        </span>
         {locations && locations.length ? (
           <select
             className={field}
@@ -107,8 +114,11 @@ export function HomeSearch({
           />
         )}
       </label>
-      <label className="space-y-1 text-sm">
-        <span className="font-medium text-muted-foreground">{t('search.pickupAt')}</span>
+      <label className="space-y-1.5 text-sm">
+        <span className={labelText}>
+          <CalendarClock className="size-3.5" aria-hidden="true" />
+          {t('search.pickupAt')}
+        </span>
         <input
           type="datetime-local"
           className={field}
@@ -117,8 +127,11 @@ export function HomeSearch({
           data-testid="search-pickup-at"
         />
       </label>
-      <label className="space-y-1 text-sm">
-        <span className="font-medium text-muted-foreground">{t('search.returnAt')}</span>
+      <label className="space-y-1.5 text-sm">
+        <span className={labelText}>
+          <CalendarClock className="size-3.5" aria-hidden="true" />
+          {t('search.returnAt')}
+        </span>
         <input
           type="datetime-local"
           className={field}
@@ -131,12 +144,20 @@ export function HomeSearch({
         <button
           type="submit"
           data-testid="search-submit"
-          className="h-11 w-full rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
+          <Search className="size-4" aria-hidden="true" />
           {t('action.search')}
         </button>
       </div>
-      {err ? <p className="text-sm text-destructive sm:col-span-2 lg:col-span-4">{err}</p> : null}
+      {err ? (
+        <p
+          role="alert"
+          className="text-sm font-medium text-destructive sm:col-span-2 lg:col-span-4"
+        >
+          {err}
+        </p>
+      ) : null}
     </form>
   );
 }

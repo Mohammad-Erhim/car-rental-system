@@ -1,6 +1,10 @@
+import { Briefcase, Check, ChevronRight, Cog, DoorOpen, Users } from 'lucide-react';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import { CarArt, carVariantFor } from '../../../../components/marketing/art';
+import { SiteContainer } from '../../../../components/site-container';
 import { VehicleReserve } from '../../../../components/vehicle-reserve';
 import { apiGet } from '../../../../lib/api';
 import { ACTIVE_LOCALES, getT } from '../../../../lib/i18n';
@@ -82,46 +86,91 @@ export default async function VehicleDetailPage({
     url: `${origin}/${locale}/vehicles/${cat.code}`,
   };
 
+  const specs = [
+    { k: 'site.vehicle.passengers', v: cat.passengers, Icon: Users },
+    { k: 'site.vehicle.luggage', v: cat.luggage, Icon: Briefcase },
+    { k: 'site.vehicle.doors', v: cat.doors, Icon: DoorOpen },
+    {
+      k: 'site.vehicle.transmissionLabel',
+      v: t.t(`site.vehicle.transmission.${cat.transmission}`),
+      Icon: Cog,
+    },
+  ];
+
   return (
-    <article className="space-y-6">
+    <SiteContainer as="article" className="space-y-10">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(ld) }} />
-      <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
-        <a href={`/${locale}`} className="hover:text-foreground">
+
+      <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm text-ink-muted">
+        <Link href={`/${locale}`} className="hover:text-brand">
           {t.t('nav.rentACar')}
-        </a>{' '}
-        / <span className="text-foreground">{cat.displayName}</span>
+        </Link>
+        <ChevronRight className="size-4 rtl:rotate-180" aria-hidden="true" />
+        <Link href={`/${locale}#fleet`} className="hover:text-brand">
+          {t.t('site.vehicle.backToFleet')}
+        </Link>
+        <ChevronRight className="size-4 rtl:rotate-180" aria-hidden="true" />
+        <span className="font-medium text-ink">{cat.displayName}</span>
       </nav>
 
-      <header className="space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">{cat.displayName}</h1>
-        <p className="text-muted-foreground">{cat.description}</p>
-      </header>
-
-      <dl className="grid grid-cols-2 gap-3 rounded-lg border bg-card p-4 sm:grid-cols-4">
-        {[
-          ['site.vehicle.passengers', cat.passengers],
-          ['site.vehicle.luggage', cat.luggage],
-          ['site.vehicle.doors', cat.doors],
-        ].map(([k, v]) => (
-          <div key={k as string}>
-            <dt className="text-xs text-muted-foreground">{t.t(k as string)}</dt>
-            <dd className="text-lg font-semibold">{v as number}</dd>
-          </div>
-        ))}
-        <div>
-          <dt className="text-xs text-muted-foreground">{t.t('site.vehicle.transmissionLabel')}</dt>
-          <dd className="text-lg font-semibold">
-            {t.t(`site.vehicle.transmission.${cat.transmission}`)}
-          </dd>
+      <div className="grid gap-8 lg:grid-cols-2 lg:items-center">
+        <div className="relative flex aspect-[4/3] items-end justify-center overflow-hidden rounded-3xl bg-brand-gradient shadow-lift">
+          <span className="aurora" aria-hidden="true" />
+          <span className="absolute end-4 top-4 rounded-full bg-on-brand/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-on-brand backdrop-blur">
+            {cat.class}
+          </span>
+          <CarArt
+            variant={carVariantFor(cat.code)}
+            className="art-shadow relative mb-2 w-[82%] text-on-brand"
+          />
         </div>
-      </dl>
+
+        <header className="space-y-4">
+          <span className="eyebrow">{t.t('site.vehicle.eyebrow')}</span>
+          <h1 className="text-3xl font-extrabold tracking-tight text-ink md:text-4xl">
+            {cat.displayName}
+          </h1>
+          {cat.description ? <p className="text-ink-muted">{cat.description}</p> : null}
+          <dl className="flex flex-wrap gap-2 pt-1">
+            {specs.map(({ k, v, Icon }) => (
+              <div
+                key={k}
+                className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-surface px-3 py-1.5 text-xs font-medium text-ink"
+              >
+                <Icon className="size-3.5 text-brand" aria-hidden="true" />
+                <dt className="text-ink-muted">{t.t(k)}</dt>
+                <dd className="font-semibold">{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </header>
+      </div>
+
+      <section>
+        <h2 className="text-lg font-semibold text-ink">{t.t('site.vehicle.specsTitle')}</h2>
+        <dl className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {specs.map(({ k, v, Icon }) => (
+            <div key={k} className="surface-card p-4">
+              <span className="icon-chip size-9 rounded-lg" aria-hidden="true">
+                <Icon className="size-4" />
+              </span>
+              <dt className="mt-3 text-xs text-ink-muted">{t.t(k)}</dt>
+              <dd className="text-lg font-bold text-ink">{v}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
 
       {cat.features.length ? (
         <section>
-          <h2 className="mb-2 text-lg font-semibold">{t.t('site.vehicle.features')}</h2>
+          <h2 className="mb-3 text-lg font-semibold text-ink">{t.t('site.vehicle.features')}</h2>
           <ul className="flex flex-wrap gap-2" data-testid="vehicle-features">
             {cat.features.map((f) => (
-              <li key={f.code} className="rounded-full bg-muted px-3 py-1 text-xs">
+              <li
+                key={f.code}
+                className="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-surface px-3 py-1.5 text-xs font-medium text-ink"
+              >
+                <Check className="size-3.5 text-brand" aria-hidden="true" />
                 {f.label}
               </li>
             ))}
@@ -129,7 +178,9 @@ export default async function VehicleDetailPage({
         </section>
       ) : null}
 
-      <VehicleReserve categoryCode={cat.code} />
-    </article>
+      <section className="surface-card p-5 sm:p-6">
+        <VehicleReserve categoryCode={cat.code} />
+      </section>
+    </SiteContainer>
   );
 }

@@ -9,7 +9,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [origin, seo] = await Promise.all([seoOrigin(), getSeoConfig()]);
   if (!seo.indexable) return []; // master switch off (SRS-ADM-006)
 
-  const staticPaths = ['', '/search', '/help', '/legal/terms', '/legal/privacy'];
+  const staticPaths = ['', '/search', '/locations', '/help', '/legal/terms', '/legal/privacy'];
   let categoryCodes: string[] = [];
   try {
     const cats = await apiGet<Array<{ code: string }>>('/catalogue/categories', {
