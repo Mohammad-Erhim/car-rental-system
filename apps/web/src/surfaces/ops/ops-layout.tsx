@@ -9,6 +9,7 @@ import {
   KeyRound,
   Languages,
   LayoutDashboard,
+  LayoutTemplate,
   LogOut,
   Mail,
   MapPin,
@@ -157,6 +158,12 @@ const NAV_GROUPS: NavGroup[] = [
         to: '/config/templates',
         label: 'ops.nav.templates',
         Icon: Mail,
+        anyOf: ['config.read', 'config.publish'],
+      },
+      {
+        to: '/config/pages',
+        label: 'ops.nav.pages',
+        Icon: LayoutTemplate,
         anyOf: ['config.read', 'config.publish'],
       },
       {

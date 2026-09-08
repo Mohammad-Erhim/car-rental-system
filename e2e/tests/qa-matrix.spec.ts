@@ -45,6 +45,7 @@ const OPS_ROUTES: Array<[path: string, name: string]> = [
   ['/ops/config/translations', 'ops-translations'],
   ['/ops/config/branding', 'ops-branding'],
   ['/ops/config/seo', 'ops-seo'],
+  ['/ops/config/pages', 'ops-pages'],
   ['/ops/config/languages', 'ops-languages'],
   ['/ops/admin/staff', 'ops-staff'],
 ];

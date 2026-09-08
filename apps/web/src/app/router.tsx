@@ -17,6 +17,7 @@ import { LanguagesPage } from '../surfaces/ops/languages-page.js';
 import { LocationsPage } from '../surfaces/ops/locations-page.js';
 import { OpsDashboard } from '../surfaces/ops/ops-dashboard.js';
 import { OpsLayout } from '../surfaces/ops/ops-layout.js';
+import { PagesPage } from '../surfaces/ops/pages-builder/pages-page.js';
 import { ProductsPage } from '../surfaces/ops/products-page.js';
 import { RatePlansPage } from '../surfaces/ops/rate-plans-page.js';
 import { ReferenceDataPage } from '../surfaces/ops/reference-data-page.js';
@@ -111,6 +112,10 @@ export const router = createBrowserRouter(
         {
           path: 'config/seo',
           element: perm(['config.read', 'config.publish'], <SeoPage />),
+        },
+        {
+          path: 'config/pages',
+          element: perm(['config.read', 'config.publish'], <PagesPage />),
         },
         {
           path: 'config/languages',
