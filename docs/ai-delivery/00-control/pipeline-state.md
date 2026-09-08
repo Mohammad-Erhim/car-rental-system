@@ -76,6 +76,12 @@ e2e tests + doc propagation, one item at a time. All build items are delivered:*
 Each item's deferred depth (governance/scheduler/detection layers) is recorded as a follow-up CR
 in `decision-list.md` + `CR-20260908-001/verification.md`. openapi 134 paths, i18n 968 keys.
 
+**Committed 2026-09-08 (user request):** the whole Stage 7 delta is `56e3b64`
+(`feat(STAGE-07): audit/test/fix/harden pass — CR-20260908-001 FR-ADM build + 6 defect fixes`,
+126 files), pushed to `origin/implementation`. Screenshot evidence PNGs were not committed
+(regenerable; `S7-OPT-003`). Committing does not change the stage status — it stays `IN_PROGRESS`
+until sign-off.
+
 **Blocking sign-off:** `D-7` (accept the `CR-20260907-001` FR/UI-UX/SRS v1.1 amendment
 documents), the `CR-20260908-001` acceptance stage-gate, and Phase 4 completion (deep audit +
 clean full `verify:all` + `final-report.md` non-DRAFT). Environment-blocked items (Firefox/WebKit
