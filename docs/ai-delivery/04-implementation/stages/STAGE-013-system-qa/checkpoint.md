@@ -1,7 +1,7 @@
 # STAGE-013 — checkpoint
 
 - **Status:** IN PROGRESS — the matrix is green; the residual list below (legacy e2e port,
-  wider ops-route coverage) closes the stage.
+  wider ops-route coverage) closes the stage. See the **2026-09-08 update** at the end.
 
 ## The QA matrix — `e2e/tests/qa-matrix.spec.ts` (+ `playwright.qa.config.ts`)
 
@@ -54,3 +54,63 @@ playwright.qa.config.ts` (with the three servers up + `QA_REUSE_SERVER=1`).
 
 `qa-matrix` 30/30 · `verify:static` PASS · `verify:unit` 72 · `verify:theme` 9 · `verify:i18n`
 OK · `apps/web` + `apps/site` builds OK.
+
+---
+
+## 2026-09-08 update — full E2E green, deferred features + docs
+
+### `verify:e2e` — ported and green (supersedes the "legacy specs" residual)
+
+STAGE-011 increment 3d ported all 13 specs to the single-origin `apps/site` stack; this session
+re-verified them and extended the ops coverage as STAGE-012 reworked the screens.
+
+- The customer + ops flows (`booking`, `discovery`, `account-and-i18n`, `auth-and-reference`,
+  `report`, `rental`, `reservation-ops`, `full-sweep`, `rtl`, `responsive`, `a11y`, `smoke`)
+  pass on phone / tablet / laptop against a stack of one API + `apps/web` (`vite preview`
+  :3100) + `apps/site` (`start:standalone` :3000, proxying `/ops` and `/api`).
+- **Operational fix:** `apps/site`'s `next build` must run with the API reachable —
+  `generateStaticParams` and every data-backed route's server `load()` fetch `/api/v1/...` at
+  build time. A build made API-down bakes localised soft-404s for `/[locale]/vehicles/*`, and
+  every customer spec then fails on console 404s. `scripts/verify-e2e.sh` now owns the
+  `apps/site` build and runs it after the API readiness check (`API_UPSTREAM` set);
+  `package.json`'s `verify:e2e` no longer pre-builds the site. `E2E_SKIP_SITE_BUILD=1` opts out.
+- **Regression found + fixed** while re-running against a correct build: `/ops/fleet` overflowed
+  a 390px viewport by ~69px — the STAGE-005/006 fleet CSV-import card put the 55-char
+  `plate,vin,categoryCode,…` header in a non-wrapping `<code>`. Now a `block overflow-x-auto`
+  code box. `full-sweep` "operations route … no horizontal overflow" green on phone.
+
+### `/ops` route coverage — widened
+
+STAGE-012 put every tabular `/ops` screen on the shared `DataTable`, added the command palette
+and breadcrumb, and `verify:a11y` (axe, light + the a11y spec's runs) reports **0
+serious/critical** across `/ops`, `/ops/work`, `/ops/rentals`, `/ops/fleet`, `/ops/config`,
+`/ops/insights`, `/ops/audit`, `/ops/config/reference-data`. New screens `/ops/finance`
+(recovery & reconciliation) and `/ops/data-quality` are nav-listed and swept by
+`responsive` / `rtl` / `a11y`.
+
+### STAGE-005/006 deferred features — all landed
+
+recovery-case retry, fleet maintenance blocks (state-aware) + transfers, rental
+incident/replacement swap, the data-quality panel, fleet CSV import, scheduled-report
+send-time re-authorisation, and step-up authentication — each API + schema-free + UI + tests,
+`test:api` 15 files / 101 tests green. `pricing`/`product`/`location` config kinds
+intentionally not built (no consumer; `rate_plan` / locations / catalogue keep their impls).
+See the root `CHANGELOG.md` `[Unreleased]`.
+
+### Documentation
+
+FR / UI-UX / SRS **v1.1 amendment documents** drafted (`CR-20260907-001` path 1) —
+`functional-requirements-v1.1.md`, `ui-ux-design-plan-v1.1.md`, `srs-v1.1.md`.
+`baseline-alignment.md` FR / UI-UX / SRS rows `UPDATE_REQUIRED` → `IN_PROGRESS`. Formal
+acceptance, the `ALIGNED` transition, and an independent Stage-7 four-way audit remain a
+stage-gate decision.
+
+## Still open (STAGE-013 / pre-production)
+
+- `verify:perf` for `apps/site` — `perf-site.mjs` exists; a recorded evidence run (with a
+  fresh API-up site build) is pending.
+- A refreshed full light/dark × en/ar/fr × phone/tablet/laptop screenshot bundle for the
+  reworked `/ops` screens + the new customer surface.
+- **Environment-blocked** (need a staged multi-instance deploy / CI, cannot run on this host):
+  Firefox + WebKit in the E2E matrix, k6 write-path load, ZAP baseline, SAST. Configs can be
+  scaffolded only.
