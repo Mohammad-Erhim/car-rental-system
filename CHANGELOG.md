@@ -6,6 +6,36 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### STAGE-006 deferred — scheduled-report send-time re-authorization (2026-09-08)
+
+The `report_schedule` table has carried `last_skip_reason` since STAGE-006 for exactly this;
+there is no scheduler process in this environment, so the check runs on a manual "send now".
+
+**Added (API)**
+
+- `POST /api/v1/ops/reports/schedules/:id/send` (`report.export`) — re-resolves the account
+  that created the schedule at send time (SRS-SEC-014): still an `active` staff member holding
+  `report.export`? If not, the delivery is **skipped**, the schedule is paused
+  (`is_active = false`) and `last_skip_reason = 'owner_not_authorized'` is recorded (a
+  scheduler tick would do the same); audit `report.schedule.skipped`. Otherwise the report runs
+  under the **owner's** location scope and is handed to the outbox as `report.delivery.v1`;
+  audit `report.schedule.sent`. 404 for an unknown schedule. `ReportService` gains
+  `RbacService` + `OutboxService`.
+
+**Added (web)**
+
+- `/ops/insights` schedules list: a **Send now** button per row and a paused badge showing
+  `last_skip_reason`. Keys `ops.rpt.{sendNow,sentNow,sendFail,paused,skip.owner_not_authorized}`
+  en/fr/ar.
+
+Also: `TEST-ADM-005` (data-quality) relaxed to assert structure + the referential-integrity
+checks (which no test dirties) rather than a fully pristine seed — the config-workflow tests
+that run before it legitimately leave draft/in-review rows.
+
+Verified: `report.spec.ts` +1 (`TEST-ADM-006`: sent while owner authorized → skipped + paused
+after the owner is suspended via `/admin/staff/:id/access`; 404; agent → 403) — 9/9 isolated;
+web typecheck / lint / build / `verify:i18n` 763 + `--strict` green.
+
 ### STAGE-005 deferred — fleet CSV bulk import (2026-09-08)
 
 **Added (API)**

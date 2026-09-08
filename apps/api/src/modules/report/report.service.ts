@@ -3,11 +3,14 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
+import { RbacService } from '../../common/auth/rbac.service';
 import type { Actor } from '../../common/auth/types';
+import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { reportDefinition, reportRun, reportSchedule } from '../../database/schema/admin';
 import { vehicleUnit } from '../../database/schema/fleet';
+import { account, staffProfile } from '../../database/schema/iam';
 import { organization } from '../../database/schema/org';
 import { paymentIntent, recoveryCase } from '../../database/schema/payment';
 import { reservation, reconciliationException } from '../../database/schema/reservation';
@@ -17,6 +20,8 @@ export class ReportService {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
+    private readonly rbac: RbacService,
+    private readonly outbox: OutboxService,
   ) {}
 
   private async orgId(): Promise<string> {
@@ -208,6 +213,98 @@ export class ReportService {
 
   async listSchedules() {
     return this.db.select().from(reportSchedule).orderBy(desc(reportSchedule.createdAt)).limit(100);
+  }
+
+  /**
+   * FR-RPT-006 — dispatch a scheduled report **now**, re-checking the owner's authority at send
+   * time (SRS-SEC-014). If the account that created the schedule is no longer an active staff
+   * member holding `report.export`, the delivery is skipped, the schedule is paused and the
+   * reason recorded on `last_skip_reason` — a scheduler tick would do exactly this. Otherwise
+   * the report is run under the owner's location scope and handed to the outbox for delivery.
+   */
+  async sendScheduleNow(actor: Actor, id: string) {
+    const orgId = await this.orgId();
+    const [sch] = await this.db
+      .select()
+      .from(reportSchedule)
+      .where(and(eq(reportSchedule.id, id), eq(reportSchedule.organizationId, orgId)))
+      .limit(1);
+    if (!sch) throw AppError.notFound('report schedule');
+
+    const owner = await this.resolveScheduleOwner(sch.createdBy);
+    if (!owner) {
+      await this.db
+        .update(reportSchedule)
+        .set({
+          isActive: 'false',
+          lastSkipReason: 'owner_not_authorized',
+          lastRunAt: sql`now()`,
+          updatedAt: sql`now()`,
+        })
+        .where(eq(reportSchedule.id, id));
+      await this.audit.record({
+        action: 'report.schedule.skipped',
+        targetType: 'report_schedule',
+        targetId: id,
+        actor,
+        after: { reason: 'owner_not_authorized', owner: sch.createdBy },
+      });
+      return { sent: false, reason: 'owner_not_authorized' as const };
+    }
+
+    const run = await this.run(owner, sch.definitionCode, sch.params);
+    await this.outbox.emit({
+      type: 'report.delivery.v1',
+      aggregateType: 'report_schedule',
+      aggregateId: id,
+      payload: {
+        runId: run.runId,
+        definitionCode: sch.definitionCode,
+        recipients: sch.recipients,
+        rowCount: run.rowCount,
+      },
+    });
+    await this.db
+      .update(reportSchedule)
+      .set({ lastRunAt: sql`now()`, lastSkipReason: null, updatedAt: sql`now()` })
+      .where(eq(reportSchedule.id, id));
+    await this.audit.record({
+      action: 'report.schedule.sent',
+      targetType: 'report_schedule',
+      targetId: id,
+      actor,
+      after: { runId: run.runId, recipients: sch.recipients.length },
+    });
+    return { sent: true as const, runId: run.runId, recipients: sch.recipients };
+  }
+
+  /** The Actor the schedule runs as, or `null` if that account may no longer receive it. */
+  private async resolveScheduleOwner(accountId: string | null): Promise<Actor | null> {
+    if (!accountId) return null;
+    const [acc] = await this.db.select().from(account).where(eq(account.id, accountId)).limit(1);
+    if (!acc || acc.status !== 'active' || acc.kind !== 'staff') return null;
+    const [profile] = await this.db
+      .select()
+      .from(staffProfile)
+      .where(eq(staffProfile.accountId, accountId))
+      .limit(1);
+    if (!profile || profile.status !== 'active') return null;
+    const permissions = await this.rbac.resolvePermissions(profile.roleCodes);
+    if (!permissions.includes('report.export')) return null;
+    return {
+      accountId: acc.id,
+      kind: 'staff',
+      audience: 'staff',
+      displayName: acc.displayName,
+      localeCode: acc.localeCode,
+      staffProfileId: profile.id,
+      organizationId: profile.organizationId,
+      permissions,
+      roleCodes: profile.roleCodes,
+      locationScope: profile.locationScope,
+      approvalLimitMinor: profile.approvalLimitMinor,
+      tokenId: 'schedule-dispatch',
+    };
   }
 
   async listRuns(code?: string) {

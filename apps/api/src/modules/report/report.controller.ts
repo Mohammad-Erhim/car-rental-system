@@ -92,6 +92,12 @@ export class ReportController {
     return this.reports.schedule(actor, body);
   }
 
+  @Post('reports/schedules/:id/send')
+  @Permissions('report.export')
+  sendSchedule(@Param('id') id: string, @CurrentActor() actor: Actor) {
+    return this.reports.sendScheduleNow(actor, id);
+  }
+
   // ---- config versioning ----
 
   @Get('config/versions')

@@ -157,6 +157,20 @@ export function useScheduleReport() {
   });
 }
 
+export function useSendReportSchedule() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<
+        { sent: true; runId: string; recipients: string[] } | { sent: false; reason: string }
+      >(`/ops/reports/schedules/${id}/send`, { method: 'POST' }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['ops', 'report-schedules'] });
+      void qc.invalidateQueries({ queryKey: ['ops', 'report-runs'] });
+    },
+  });
+}
+
 /** Fetch a completed run as CSV text (the endpoint returns text/csv, not JSON). */
 export async function fetchReportCsv(runId: string): Promise<string> {
   const token = getAccessToken();

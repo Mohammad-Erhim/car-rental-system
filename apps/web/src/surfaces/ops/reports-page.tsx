@@ -22,6 +22,7 @@ import {
   useReportSchedules,
   useRunReport,
   useScheduleReport,
+  useSendReportSchedule,
   type ReportRunResult,
 } from '../../lib/admin-hooks.js';
 import { ApiError } from '../../lib/api.js';
@@ -42,6 +43,20 @@ export function ReportsPage() {
   const schedules = useReportSchedules();
   const run = useRunReport();
   const schedule = useScheduleReport();
+  const sendSchedule = useSendReportSchedule();
+  const [scheduleMsg, setScheduleMsg] = useState<string | null>(null);
+
+  async function doSendSchedule(id: string) {
+    setScheduleMsg(null);
+    try {
+      const r = await sendSchedule.mutateAsync(id);
+      setScheduleMsg(
+        r.sent ? t('ops.rpt.sentNow', { n: r.recipients.length }) : t(`ops.rpt.skip.${r.reason}`),
+      );
+    } catch (e) {
+      setScheduleMsg(e instanceof ApiError ? e.message : t('ops.rpt.sendFail'));
+    }
+  }
 
   const [selected, setSelected] = useState<string>('');
   const [result, setResult] = useState<ReportRunResult | null>(null);
@@ -281,18 +296,46 @@ export function ReportsPage() {
             ) : (
               <ul className="space-y-2 text-sm" data-testid="report-schedule-rows">
                 {schedules.data.map((s) => (
-                  <li key={s.id} className="flex items-center justify-between gap-2 border-b pb-2">
+                  <li
+                    key={s.id}
+                    className="flex flex-wrap items-center justify-between gap-2 border-b pb-2"
+                    data-schedule={s.id}
+                    data-active={s.isActive}
+                  >
                     <span>
                       <span className="font-medium">{s.definitionCode}</span>{' '}
                       <span className="font-mono text-xs text-muted-foreground">{s.cron}</span>
+                      {s.isActive !== 'true' ? (
+                        <Badge variant="warning" className="ms-2">
+                          {s.lastSkipReason
+                            ? t(`ops.rpt.skip.${s.lastSkipReason}`)
+                            : t('ops.rpt.paused')}
+                        </Badge>
+                      ) : null}
                     </span>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="flex items-center gap-2 text-xs text-muted-foreground">
                       {t('ops.rpt.recipientCount', { n: s.recipients.length })}
+                      {canSchedule ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          loading={sendSchedule.isPending}
+                          onClick={() => doSendSchedule(s.id)}
+                          data-testid={`schedule-send-${s.id}`}
+                        >
+                          {t('ops.rpt.sendNow')}
+                        </Button>
+                      ) : null}
                     </span>
                   </li>
                 ))}
               </ul>
             )}
+            {scheduleMsg ? (
+              <p className="text-sm text-muted-foreground" data-testid="schedule-msg">
+                {scheduleMsg}
+              </p>
+            ) : null}
 
             {canSchedule ? (
               <form onSubmit={submitSchedule} className="space-y-3" noValidate>

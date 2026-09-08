@@ -288,19 +288,97 @@ describe('STAGE-006 administration & reporting', () => {
     expect(actions).toContain('config.version.approved');
   });
 
-  it('TEST-ADM-005 the data-quality panel runs its checks and a fresh seed is clean; agents are refused', async () => {
+  it('TEST-ADM-006 a scheduled report re-checks its owner at send time and pauses if they lost access', async () => {
+    // scoped finance staff owns the schedule (they hold report.export)
+    const created = await request(server)
+      .post('/api/v1/ops/reports/schedules')
+      .set('Authorization', `Bearer ${scopedToken}`)
+      .send({
+        definitionCode: 'fleet_utilisation',
+        cron: '0 7 * * 1',
+        recipients: ['ops@example.test'],
+      })
+      .expect(201);
+    const scheduleId = created.body.id as string;
+
+    // unknown id → 404
+    await request(server)
+      .post('/api/v1/ops/reports/schedules/00000000-0000-0000-0000-000000000000/send')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(404);
+
+    // owner still authorised → sent
+    const sent = await request(server)
+      .post(`/api/v1/ops/reports/schedules/${scheduleId}/send`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201);
+    expect(sent.body).toMatchObject({ sent: true, recipients: ['ops@example.test'] });
+    expect(typeof sent.body.runId).toBe('string');
+
+    // offboard the owner
+    const staff = await request(server)
+      .get('/api/v1/admin/staff')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const owner = (staff.body as Array<{ accountId: string; email: string }>).find(
+      (s) => s.email === 'test-scoped@example.test',
+    );
+    expect(owner).toBeTruthy();
+    await request(server)
+      .post(`/api/v1/admin/staff/${owner!.accountId}/access`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ status: 'suspended' })
+      .expect(201);
+
+    // now the send is skipped and the schedule is paused with a recorded reason
+    const skipped = await request(server)
+      .post(`/api/v1/ops/reports/schedules/${scheduleId}/send`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201);
+    expect(skipped.body).toMatchObject({ sent: false, reason: 'owner_not_authorized' });
+
+    const schedules = await request(server)
+      .get('/api/v1/ops/reports/schedules')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const row = (
+      schedules.body as Array<{ id: string; isActive: string; lastSkipReason: string }>
+    ).find((s) => s.id === scheduleId);
+    expect(row).toMatchObject({ isActive: 'false', lastSkipReason: 'owner_not_authorized' });
+
+    // an agent without report.export cannot trigger a send
+    await request(server)
+      .post(`/api/v1/ops/reports/schedules/${scheduleId}/send`)
+      .set('Authorization', `Bearer ${agentToken}`)
+      .expect(403);
+  });
+
+  it('TEST-ADM-005 the data-quality panel runs its referential-integrity checks; agents are refused', async () => {
     const res = await request(server)
       .get('/api/v1/ops/data-quality')
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
     expect(typeof res.body.checkedAt).toBe('string');
-    expect(Array.isArray(res.body.checks)).toBe(true);
-    expect(res.body.checks.length).toBeGreaterThanOrEqual(5);
-    for (const c of res.body.checks as Array<{ id: string; count: number; ok: boolean }>) {
-      expect(c.count).toBe(0);
-      expect(c.ok).toBe(true);
+    expect(typeof res.body.ok).toBe('boolean');
+    const checks = res.body.checks as Array<{
+      id: string;
+      count: number;
+      ok: boolean;
+      severity: string;
+      sample: string[];
+    }>;
+    expect(checks.length).toBeGreaterThanOrEqual(5);
+    for (const c of checks) {
+      expect(typeof c.count).toBe('number');
+      expect(c.ok).toBe(c.count === 0);
+      expect(Array.isArray(c.sample)).toBe(true);
     }
-    expect(res.body.ok).toBe(true);
+    // the referential-integrity checks stay clean — no test creates orphans or dangling rows
+    const byId = Object.fromEntries(checks.map((c) => [c.id, c]));
+    expect(byId.rental_active_without_unit.count).toBe(0);
+    expect(byId.unit_orphan_location.count).toBe(0);
+    expect(byId.lookup_value_dangling_type.count).toBe(0);
+    expect(byId.reservation_orphan_account.count).toBe(0);
 
     await request(server)
       .get('/api/v1/ops/data-quality')
