@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { ConfigModule as DomainConfigModule } from '../config/config.module';
+import { CustomerModule } from '../customer/customer.module';
 import { DiscoveryModule } from '../discovery/discovery.module';
 import { NotifyModule } from '../notify/notify.module';
 import { PaymentModule } from '../payment/payment.module';
@@ -17,7 +18,7 @@ import { ReservationController } from './reservation.controller';
  * hold, and sends a confirmation. A failure after a successful capture opens a recovery case.
  */
 @Module({
-  imports: [DiscoveryModule, PaymentModule, NotifyModule, DomainConfigModule],
+  imports: [DiscoveryModule, PaymentModule, NotifyModule, DomainConfigModule, CustomerModule],
   controllers: [BookingController, ReservationController],
   providers: [BookingService, ReservationOpsService],
   exports: [BookingService, ReservationOpsService],

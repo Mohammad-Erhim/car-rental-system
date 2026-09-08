@@ -33,6 +33,8 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+// MUST be localStorage, not sessionStorage — the refresh cookie is persistent + cross-tab, so a
+// browser restart or a second tab would otherwise look signed-out despite a valid cookie (S7-DEF-005).
 const SESSION_HINT_KEY = 'carrental.session.hint';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -57,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setActor(session.actor);
       setStatus('authenticated');
       try {
-        sessionStorage.setItem(SESSION_HINT_KEY, '1');
+        localStorage.setItem(SESSION_HINT_KEY, '1');
       } catch {
         /* ignore */
       }
@@ -72,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('anonymous');
     if (refreshTimer.current) clearTimeout(refreshTimer.current);
     try {
-      sessionStorage.removeItem(SESSION_HINT_KEY);
+      localStorage.removeItem(SESSION_HINT_KEY);
     } catch {
       /* ignore */
     }
@@ -97,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     registerRefreshHandler(doRefresh);
     let hadHint = false;
     try {
-      hadHint = sessionStorage.getItem(SESSION_HINT_KEY) === '1';
+      hadHint = localStorage.getItem(SESSION_HINT_KEY) === '1';
     } catch {
       /* ignore */
     }
@@ -108,8 +110,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       setStatus('anonymous');
     }
-    return () => registerRefreshHandler(null);
-  }, [doRefresh]);
+
+    // S7-OPT-002 — cross-tab sync: a sign-out elsewhere clears this tab; a sign-in prompts a
+    // silent refresh so a second tab adopts the session without a reload.
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== SESSION_HINT_KEY) return;
+      if (e.newValue === '1') void doRefresh();
+      else clearSession();
+    };
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      registerRefreshHandler(null);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [doRefresh, clearSession]);
 
   useEffect(() => {
     const next = actor && 'localeCode' in actor ? actor.localeCode : undefined;

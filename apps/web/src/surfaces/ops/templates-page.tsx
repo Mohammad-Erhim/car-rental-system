@@ -1,0 +1,577 @@
+import { useI18n } from '@carrental/i18n/react';
+import {
+  AppStateView,
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Checkbox,
+  Field,
+  Input,
+  PageHeader,
+  Textarea,
+} from '@carrental/ui';
+import { useEffect, useMemo, useRef, useState } from 'react';
+
+import {
+  useNotificationRule,
+  useSaveTemplateDraft,
+  useTemplateDetail,
+  useTemplateGroups,
+  useTemplatePreview,
+  useTemplateTransition,
+  useUpsertNotificationRule,
+  type TemplateVar,
+} from '../../lib/admin-hooks.js';
+import { useAuth } from '../../lib/auth.js';
+
+/**
+ * SCREEN-OPS-033 / FR-ADM-011 — notification template administration (content half). Edit the
+ * localized subject / body / declared variables of a transactional template, preview with sample
+ * values, and move it draft → in&nbsp;review → published with a validation gate (declared
+ * variables, required legal content). The event-rules half (trigger / audience / timing / retry /
+ * escalation / sender identity) is a documented follow-up.
+ */
+export function TemplatesPage() {
+  const { t } = useI18n();
+  const { hasPermission } = useAuth();
+  const canPublish = hasPermission('config.publish');
+
+  const groups = useTemplateGroups();
+  const [sel, setSel] = useState<{ key: string; channel: string; locale: string } | null>(null);
+
+  useEffect(() => {
+    if (!sel && groups.data && groups.data.length > 0) {
+      const g = groups.data[0]!;
+      setSel({ key: g.key, channel: g.channel, locale: g.locales[0]?.localeCode ?? 'en' });
+    }
+  }, [groups.data, sel]);
+
+  const detail = useTemplateDetail(sel?.key ?? null, sel?.channel ?? null, sel?.locale ?? null);
+  const saveDraft = useSaveTemplateDraft();
+  const preview = useTemplatePreview();
+  const transition = useTemplateTransition();
+
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
+  const [vars, setVars] = useState<TemplateVar[]>([]);
+  const [dirty, setDirty] = useState(false);
+  // Re-sync the form from the server only when the *selection* changes — not when a save creates
+  // a fresh draft row for the same (key, channel, locale), which would otherwise wipe an
+  // in-flight preview and re-render the editor mid-interaction.
+  const syncedFor = useRef<string | null>(null);
+
+  useEffect(() => {
+    const selKey = sel ? `${sel.key}:${sel.channel}:${sel.locale}` : null;
+    if (detail.data && selKey && syncedFor.current !== selKey) {
+      syncedFor.current = selKey;
+      setSubject(detail.data.subject ?? '');
+      setBody(detail.data.bodyTemplate);
+      setVars(detail.data.variables ?? []);
+      setDirty(false);
+    }
+  }, [detail.data, sel]);
+
+  const referenced = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of `${subject}\n${body}`.matchAll(/\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g)) {
+      set.add(m[1]!.split('.')[0]!);
+    }
+    return set;
+  }, [subject, body]);
+  const undeclared = [...referenced].filter((v) => !vars.some((x) => x.name === v));
+
+  function update<T>(setter: (v: T) => void, v: T) {
+    setter(v);
+    setDirty(true);
+  }
+
+  async function onSave() {
+    if (!sel) return;
+    await saveDraft.mutateAsync({
+      key: sel.key,
+      channel: sel.channel,
+      localeCode: sel.locale,
+      subject: subject || null,
+      bodyTemplate: body,
+      variables: vars,
+    });
+    setDirty(false);
+  }
+
+  if (groups.isLoading) return <AppStateView kind="loading" title={t('state.loading.title')} />;
+  if (groups.isError || !groups.data)
+    return (
+      <AppStateView
+        kind="failure"
+        title={t('state.failure.title')}
+        description={t('ops.tpl.loadError')}
+        primaryAction={{ label: t('action.retry'), onClick: () => groups.refetch() }}
+      />
+    );
+
+  const d = detail.data;
+
+  return (
+    <div className="space-y-6">
+      <PageHeader title={t('ops.tpl.title')} description={t('ops.tpl.subtitle')} />
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,18rem)_1fr]">
+        {/* template list */}
+        <Card className="h-max">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">{t('ops.tpl.list')}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {groups.data.map((g) => (
+              <div key={`${g.key}:${g.channel}`} className="rounded-md border p-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">{g.key}</span>
+                  <Badge variant="neutral">{g.channel}</Badge>
+                </div>
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {g.locales.map((l) => {
+                    const active =
+                      sel?.key === g.key &&
+                      sel?.channel === g.channel &&
+                      sel?.locale === l.localeCode;
+                    return (
+                      <button
+                        key={l.localeCode}
+                        type="button"
+                        onClick={() => {
+                          preview.reset();
+                          setSel({ key: g.key, channel: g.channel, locale: l.localeCode });
+                        }}
+                        className={`rounded px-1.5 py-0.5 text-xs ${
+                          active ? 'bg-primary text-primary-foreground' : 'bg-muted'
+                        }`}
+                        data-testid={`tpl-loc-${g.key}-${l.localeCode}`}
+                      >
+                        {l.localeCode}
+                        {l.hasDraft ? ' •' : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+                {g.missingLocales.length > 0 ? (
+                  <p className="mt-1 text-xs text-warning">
+                    {t('ops.tpl.missingLocales', { list: g.missingLocales.join(', ') })}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+
+        {/* editor */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">
+              {sel ? `${sel.key} · ${sel.channel} · ${sel.locale}` : t('ops.tpl.selectOne')}
+            </CardTitle>
+            {d ? (
+              <p className="text-xs text-muted-foreground">
+                {t('ops.tpl.statusLine', { status: d.status, version: d.version })}
+              </p>
+            ) : null}
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {detail.isLoading || !d ? (
+              <AppStateView kind="loading" title={t('state.loading.title')} inline />
+            ) : (
+              <>
+                <Field label={t('ops.tpl.subject')}>
+                  {({ id }) => (
+                    <Input
+                      id={id}
+                      value={subject}
+                      onChange={(e) => update(setSubject, e.target.value)}
+                      disabled={!canPublish}
+                    />
+                  )}
+                </Field>
+                <Field label={t('ops.tpl.body')} hint={t('ops.tpl.bodyHint')}>
+                  {({ id }) => (
+                    <Textarea
+                      id={id}
+                      rows={10}
+                      value={body}
+                      onChange={(e) => update(setBody, e.target.value)}
+                      disabled={!canPublish}
+                      data-testid="tpl-body"
+                    />
+                  )}
+                </Field>
+
+                <div>
+                  <p className="mb-1 text-sm font-medium">{t('ops.tpl.variables')}</p>
+                  <div className="space-y-1">
+                    {vars.map((v, i) => (
+                      <div key={i} className="flex items-center gap-2 text-sm">
+                        <Input
+                          className="max-w-[12rem]"
+                          data-testid="tpl-var-name"
+                          aria-label={t('ops.tpl.variables')}
+                          value={v.name}
+                          onChange={(e) =>
+                            update(
+                              setVars,
+                              vars.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)),
+                            )
+                          }
+                          disabled={!canPublish}
+                        />
+                        <label className="flex items-center gap-1">
+                          <Checkbox
+                            checked={!!v.required}
+                            onChange={(e) =>
+                              update(
+                                setVars,
+                                vars.map((x, j) =>
+                                  j === i ? { ...x, required: e.target.checked } : x,
+                                ),
+                              )
+                            }
+                            disabled={!canPublish}
+                          />
+                          {t('ops.tpl.required')}
+                        </label>
+                        <label className="flex items-center gap-1">
+                          <Checkbox
+                            checked={!!v.legal}
+                            onChange={(e) =>
+                              update(
+                                setVars,
+                                vars.map((x, j) =>
+                                  j === i ? { ...x, legal: e.target.checked } : x,
+                                ),
+                              )
+                            }
+                            disabled={!canPublish}
+                          />
+                          {t('ops.tpl.legal')}
+                        </label>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={!canPublish}
+                          onClick={() =>
+                            update(
+                              setVars,
+                              vars.filter((_, j) => j !== i),
+                            )
+                          }
+                        >
+                          {t('action.remove')}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-1"
+                    disabled={!canPublish}
+                    onClick={() => update(setVars, [...vars, { name: '' }])}
+                  >
+                    {t('ops.tpl.addVariable')}
+                  </Button>
+                  {undeclared.length > 0 ? (
+                    <p className="mt-1 text-xs text-destructive" data-testid="tpl-undeclared">
+                      {t('ops.tpl.undeclared', { list: undeclared.join(', ') })}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={onSave}
+                    disabled={!canPublish || !dirty || undeclared.length > 0 || saveDraft.isPending}
+                  >
+                    {t('ops.tpl.saveDraft')}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      preview.mutate({
+                        subject: subject || null,
+                        bodyTemplate: body,
+                        variables: vars,
+                      })
+                    }
+                    disabled={preview.isPending}
+                  >
+                    {t('ops.tpl.preview')}
+                  </Button>
+                  {d.hasOpenDraft && d.status === 'draft' ? (
+                    <Button
+                      variant="outline"
+                      disabled={!canPublish || dirty || transition.isPending}
+                      onClick={() => transition.mutate({ id: d.id, action: 'submit' })}
+                    >
+                      {t('ops.tpl.submit')}
+                    </Button>
+                  ) : null}
+                  {d.hasOpenDraft && (d.status === 'draft' || d.status === 'in_review') ? (
+                    <Button
+                      disabled={!canPublish || dirty || transition.isPending}
+                      onClick={() => transition.mutate({ id: d.id, action: 'publish' })}
+                      data-testid="tpl-publish"
+                    >
+                      {t('ops.tpl.publish')}
+                    </Button>
+                  ) : null}
+                </div>
+                {transition.isError ? (
+                  <p className="text-sm text-destructive">{(transition.error as Error).message}</p>
+                ) : null}
+
+                {preview.data ? (
+                  <Card className="bg-muted/40" data-testid="tpl-preview">
+                    <CardHeader className="pb-1">
+                      <CardTitle className="text-sm">{t('ops.tpl.previewTitle')}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <p className="font-medium">{preview.data.subject}</p>
+                      <pre className="whitespace-pre-wrap font-sans">{preview.data.body}</pre>
+                      {preview.data.missingVars.length > 0 ? (
+                        <p className="text-xs text-warning">
+                          {t('ops.tpl.missingVars', { list: preview.data.missingVars.join(', ') })}
+                        </p>
+                      ) : null}
+                      {preview.data.contentIssues.length > 0 ? (
+                        <ul className="list-disc pl-4 text-xs text-destructive">
+                          {preview.data.contentIssues.map((c, i) => (
+                            <li key={i}>{c}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </CardContent>
+                  </Card>
+                ) : null}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {sel ? <RuleCard event={sel.key} channel={sel.channel} canPublish={canPublish} /> : null}
+    </div>
+  );
+}
+
+/**
+ * FR-ADM-011 event-rules half — the delivery policy for this (event, channel): trigger toggle,
+ * audience, send delay + quiet hours, retry + escalation, sender identity. Content stays in the
+ * editor above. Timing / escalation are stored + surfaced; a scheduler enforcing them is a
+ * documented follow-up — the enable gate + sender identity apply on send today.
+ */
+function RuleCard({
+  event,
+  channel,
+  canPublish,
+}: {
+  event: string;
+  channel: string;
+  canPublish: boolean;
+}) {
+  const { t } = useI18n();
+  const rule = useNotificationRule(event, channel);
+  const save = useUpsertNotificationRule();
+  const [form, setForm] = useState<{
+    enabled: boolean;
+    audience: string;
+    delayMinutes: string;
+    quietStart: string;
+    quietEnd: string;
+    maxAttempts: string;
+    retryBackoffMinutes: string;
+    escalateAfterAttempts: string;
+    senderIdentity: string;
+  } | null>(null);
+  const syncedFor = useRef<string | null>(null);
+
+  useEffect(() => {
+    const key = `${event}:${channel}`;
+    if (rule.data && syncedFor.current !== key) {
+      syncedFor.current = key;
+      const d = rule.data;
+      setForm({
+        enabled: d.enabled,
+        audience: d.audience,
+        delayMinutes: String(d.delayMinutes),
+        quietStart: d.quietHours?.start ?? '',
+        quietEnd: d.quietHours?.end ?? '',
+        maxAttempts: String(d.maxAttempts),
+        retryBackoffMinutes: String(d.retryBackoffMinutes),
+        escalateAfterAttempts:
+          d.escalateAfterAttempts == null ? '' : String(d.escalateAfterAttempts),
+        senderIdentity: d.senderIdentity ?? '',
+      });
+    }
+  }, [rule.data, event, channel]);
+
+  if (!form || !rule.data) return null;
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const quietHours =
+      form.quietStart && form.quietEnd ? { start: form.quietStart, end: form.quietEnd } : null;
+    save.mutate({
+      event,
+      channel,
+      enabled: form.enabled,
+      audience: form.audience as 'primary_renter' | 'account_holder' | 'all_drivers' | 'ops',
+      delayMinutes: Math.max(0, Number(form.delayMinutes) || 0),
+      quietHours,
+      maxAttempts: Math.max(1, Number(form.maxAttempts) || 1),
+      retryBackoffMinutes: Math.max(0, Number(form.retryBackoffMinutes) || 0),
+      escalateAfterAttempts: form.escalateAfterAttempts
+        ? Math.max(1, Number(form.escalateAfterAttempts))
+        : null,
+      senderIdentity: form.senderIdentity.trim() || null,
+    });
+  };
+
+  return (
+    <Card data-testid="rule-card">
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-2 text-base">
+          {t('ops.rule.title')}
+          {rule.data.isDefault ? <Badge variant="neutral">{t('ops.rule.default')}</Badge> : null}
+          <Badge variant={form.enabled ? 'success' : 'destructive'} data-testid="rule-enabled">
+            {form.enabled ? t('ops.rule.on') : t('ops.rule.off')}
+          </Badge>
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          {event} · {channel}
+        </p>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={form.enabled}
+              onChange={(e) => setForm((f) => f && { ...f, enabled: e.target.checked })}
+              disabled={!canPublish}
+              data-testid="rule-toggle"
+            />
+            {t('ops.rule.enabled')}
+          </label>
+          <Field label={t('ops.rule.audience')}>
+            {({ id }) => (
+              <select
+                id={id}
+                className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={form.audience}
+                onChange={(e) => setForm((f) => f && { ...f, audience: e.target.value })}
+                disabled={!canPublish}
+                data-testid="rule-audience"
+              >
+                <option value="primary_renter">{t('ops.rule.aud.primary_renter')}</option>
+                <option value="account_holder">{t('ops.rule.aud.account_holder')}</option>
+                <option value="all_drivers">{t('ops.rule.aud.all_drivers')}</option>
+                <option value="ops">{t('ops.rule.aud.ops')}</option>
+              </select>
+            )}
+          </Field>
+          <Field label={t('ops.rule.sender')} hint={t('ops.rule.senderHint')}>
+            {({ id }) => (
+              <Input
+                id={id}
+                value={form.senderIdentity}
+                onChange={(e) => setForm((f) => f && { ...f, senderIdentity: e.target.value })}
+                disabled={!canPublish}
+                data-testid="rule-sender"
+              />
+            )}
+          </Field>
+          <Field label={t('ops.rule.delay')}>
+            {({ id }) => (
+              <Input
+                id={id}
+                inputMode="numeric"
+                value={form.delayMinutes}
+                onChange={(e) => setForm((f) => f && { ...f, delayMinutes: e.target.value })}
+                disabled={!canPublish}
+              />
+            )}
+          </Field>
+          <Field label={t('ops.rule.quietStart')}>
+            {({ id }) => (
+              <Input
+                id={id}
+                type="time"
+                value={form.quietStart}
+                onChange={(e) => setForm((f) => f && { ...f, quietStart: e.target.value })}
+                disabled={!canPublish}
+              />
+            )}
+          </Field>
+          <Field label={t('ops.rule.quietEnd')}>
+            {({ id }) => (
+              <Input
+                id={id}
+                type="time"
+                value={form.quietEnd}
+                onChange={(e) => setForm((f) => f && { ...f, quietEnd: e.target.value })}
+                disabled={!canPublish}
+              />
+            )}
+          </Field>
+          <Field label={t('ops.rule.maxAttempts')}>
+            {({ id }) => (
+              <Input
+                id={id}
+                inputMode="numeric"
+                value={form.maxAttempts}
+                onChange={(e) => setForm((f) => f && { ...f, maxAttempts: e.target.value })}
+                disabled={!canPublish}
+              />
+            )}
+          </Field>
+          <Field label={t('ops.rule.backoff')}>
+            {({ id }) => (
+              <Input
+                id={id}
+                inputMode="numeric"
+                value={form.retryBackoffMinutes}
+                onChange={(e) => setForm((f) => f && { ...f, retryBackoffMinutes: e.target.value })}
+                disabled={!canPublish}
+              />
+            )}
+          </Field>
+          <Field label={t('ops.rule.escalate')} hint={t('ops.rule.escalateHint')}>
+            {({ id }) => (
+              <Input
+                id={id}
+                inputMode="numeric"
+                value={form.escalateAfterAttempts}
+                onChange={(e) =>
+                  setForm((f) => f && { ...f, escalateAfterAttempts: e.target.value })
+                }
+                disabled={!canPublish}
+              />
+            )}
+          </Field>
+          <div className="sm:col-span-2 lg:col-span-3 flex items-center gap-3">
+            <Button type="submit" disabled={!canPublish || save.isPending} data-testid="rule-save">
+              {t('ops.rule.save')}
+            </Button>
+            {save.isError ? (
+              <span className="text-sm text-destructive" data-testid="rule-error">
+                {save.error instanceof Error ? save.error.message : t('ops.rule.saveFail')}
+              </span>
+            ) : null}
+            {save.isSuccess ? (
+              <span className="text-sm text-muted-foreground">{t('ops.rule.saved')}</span>
+            ) : null}
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+  );
+}

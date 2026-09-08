@@ -92,6 +92,54 @@ test.describe('customer booking (APP-CWEB)', () => {
     guards.assertClean();
   });
 
+  test('SCREEN-CUS-005: add extras at checkout → priced into the confirmation total', async ({
+    page,
+  }, testInfo) => {
+    const guards = attachConsoleGuards(page);
+    await signIn(page);
+    await toCheckout(page, 'economy');
+
+    const baseTotal = Math.round(
+      parseFloat((await page.getByTestId('quote-total').innerText()).replace(/[^0-9.]/g, '')) * 100,
+    );
+
+    // the extras step is offered for this category + location
+    await expect(page.getByTestId('checkout-extras')).toBeVisible();
+    // a child seat (stepper, max 3) + full protection (single toggle)
+    await page.getByTestId('extra-child_seat').getByRole('button', { name: 'Add one' }).click();
+    await expect(page.getByTestId('extra-qty-child_seat')).toHaveText('1');
+    await page.getByTestId('extra-toggle-protection_full').check();
+    await expect(page.getByTestId('extras-estimate')).toBeVisible();
+    await shot(page, testInfo, 'cweb-checkout-extras');
+
+    await page.getByLabel('Primary driver name', { exact: false }).fill('Xena Extra');
+    await page.getByTestId('co-card').selectOption('tok_visa_ok');
+    await page.getByTestId('co-terms').check();
+    await page.getByTestId('co-pay').click();
+
+    await expect(page.getByTestId('confirm-state')).toContainText('confirmed');
+    const lines = page.getByTestId('confirm-lines');
+    await expect(lines).toContainText('Child seat');
+    await expect(lines).toContainText(/protection/i);
+
+    // the confirmed total exceeds the bare quote, and the lines still sum to it
+    const confirmedTotal = Math.round(
+      parseFloat((await page.getByTestId('confirm-total').innerText()).replace(/[^0-9.]/g, '')) *
+        100,
+    );
+    expect(confirmedTotal).toBeGreaterThan(baseTotal);
+    const cells = await page
+      .locator('[data-testid="confirm-lines"] tbody tr:not(:last-child) td:last-child')
+      .allInnerTexts();
+    const sum = cells.reduce(
+      (a, s) => a + Math.round(parseFloat(s.replace(/[^0-9.]/g, '')) * 100),
+      0,
+    );
+    expect(sum).toBe(confirmedTotal);
+
+    guards.assertClean();
+  });
+
   test('a declined card shows an error and no confirmation; retry with a good card works', async ({
     page,
   }) => {

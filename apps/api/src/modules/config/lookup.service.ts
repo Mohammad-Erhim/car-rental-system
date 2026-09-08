@@ -1,6 +1,7 @@
 import { fallbackChain } from '@carrental/i18n';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
+import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
@@ -9,10 +10,67 @@ import { CacheBus } from '../../common/cache/cache-bus';
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
+import { vehicleCategoryFeature, vehicleFeature } from '../../database/schema/catalogue';
+import { driver, driverDocument } from '../../database/schema/customer';
+import { vehicleBlock } from '../../database/schema/fleet';
 import { translation } from '../../database/schema/i18n';
 import { lookupType, lookupValue } from '../../database/schema/lookup';
+import { reservation } from '../../database/schema/reservation';
 
 const NS = 'lookup';
+
+/**
+ * FR-ADM-008 "usage count" — where a reference value is actually consumed. Deliberately narrow:
+ * only columns with an unambiguous 1:1 mapping to a lookup type (verified against the schema) are
+ * listed. A type absent from this map reports `tracked: false` rather than a misleading `0`.
+ * Generic `*_event.reason_code` columns are excluded — their code space spans several lookup types
+ * by `type`, so a naive count would over-report.
+ */
+interface UsageRef {
+  surface: string;
+  table: PgTable;
+  column: AnyPgColumn;
+  extra?: SQL;
+}
+
+const LOOKUP_CONSUMERS: Record<string, UsageRef[]> = {
+  cancel_reason: [
+    {
+      surface: 'reservation.cancellation',
+      table: reservation,
+      column: reservation.cancelReasonCode,
+    },
+  ],
+  block_reason: [
+    {
+      surface: 'fleet.vehicle_block',
+      table: vehicleBlock,
+      column: vehicleBlock.reasonCode,
+      extra: ne(vehicleBlock.kind, 'transfer'),
+    },
+  ],
+  transfer_reason: [
+    {
+      surface: 'fleet.vehicle_transfer',
+      table: vehicleBlock,
+      column: vehicleBlock.reasonCode,
+      extra: eq(vehicleBlock.kind, 'transfer'),
+    },
+  ],
+  document_type: [
+    { surface: 'customer.driver_document', table: driverDocument, column: driverDocument.docType },
+  ],
+  licence_type: [{ surface: 'customer.driver', table: driver, column: driver.licenceType }],
+  country: [{ surface: 'customer.driver_licence', table: driver, column: driver.licenceCountry }],
+  vehicle_feature: [
+    { surface: 'catalogue.vehicle_feature', table: vehicleFeature, column: vehicleFeature.code },
+    {
+      surface: 'catalogue.category_feature',
+      table: vehicleCategoryFeature,
+      column: vehicleCategoryFeature.featureCode,
+    },
+  ],
+};
 
 export interface LookupQuery {
   scopeKey?: string;
@@ -310,7 +368,13 @@ export class LookupService {
     )!;
   }
 
-  async setActive(actor: Actor, typeCode: string, valueId: string, active: boolean) {
+  async setActive(
+    actor: Actor,
+    typeCode: string,
+    valueId: string,
+    active: boolean,
+    opts: { force?: boolean } = {},
+  ) {
     const type = await this.getType(typeCode);
     this.assertEditable(type);
     const [row] = await this.db
@@ -321,6 +385,16 @@ export class LookupService {
     if (!row) throw AppError.notFound('lookup value');
     if (row.systemManaged) {
       throw new AppError('forbidden', { title: 'System-managed value cannot be deactivated' });
+    }
+    // FR-ADM-008: deactivating an in-use value needs an explicit confirmation (`force`).
+    if (!active && !opts.force) {
+      const { totalReferences } = await this.usage(typeCode, row.code);
+      if (totalReferences > 0) {
+        throw AppError.businessRule('This value is in use — confirm to deactivate it', {
+          reason: 'lookup_value_in_use',
+          references: totalReferences,
+        });
+      }
     }
     await this.db
       .update(lookupValue)
@@ -424,18 +498,30 @@ export class LookupService {
     return issues;
   }
 
-  /** minimal usage placeholder — real consumer counts land as modules reference lookups */
+  private async countRefs(ref: UsageRef, valueCode: string): Promise<number> {
+    const where = ref.extra ? and(eq(ref.column, valueCode), ref.extra) : eq(ref.column, valueCode);
+    const [row] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(ref.table)
+      .where(where);
+    return row?.n ?? 0;
+  }
+
+  /**
+   * FR-ADM-008 — real reference count for a value across its known consumer columns. `tracked` is
+   * false when this type has no mapped consumer yet (so a `0` is not read as "safe to delete").
+   */
   async usage(typeCode: string, valueCode: string) {
-    const [type] = await this.db
-      .select({ consumers: lookupType.consumerSurfaces })
-      .from(lookupType)
-      .where(eq(lookupType.code, typeCode))
-      .limit(1);
+    const refs = LOOKUP_CONSUMERS[typeCode] ?? [];
+    const consumers = await Promise.all(
+      refs.map(async (r) => ({ surface: r.surface, count: await this.countRefs(r, valueCode) })),
+    );
     return {
       typeCode,
       valueCode,
-      consumers: (type?.consumers ?? []).map((s) => ({ surface: s, count: 0 })),
-      totalReferences: 0,
+      consumers,
+      totalReferences: consumers.reduce((a, c) => a + c.count, 0),
+      tracked: refs.length > 0,
     };
   }
 

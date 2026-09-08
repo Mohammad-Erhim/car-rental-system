@@ -91,7 +91,9 @@ export class LookupController {
   @Post('types/:code/values/:valueId/deactivate')
   @Permissions('lookup.manage')
   deactivate(@Req() req: Request, @CurrentActor() actor: Actor) {
-    return this.lookups.setActive(actor, req.params.code!, req.params.valueId!, false);
+    return this.lookups.setActive(actor, req.params.code!, req.params.valueId!, false, {
+      force: req.query.force === 'true',
+    });
   }
 
   @Post('types/:code/values/:valueId/restore')

@@ -10,6 +10,7 @@ import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { hold } from '../../database/schema/booking';
+import { customer } from '../../database/schema/customer';
 import { organization } from '../../database/schema/org';
 import {
   consentSnapshot,
@@ -17,6 +18,8 @@ import {
   reservationDriver,
   reservationLine,
 } from '../../database/schema/reservation';
+import { ProductService } from '../catalogue/product.service';
+import { CustomerRestrictionService } from '../customer/customer-restriction.service';
 import { NotifyService } from '../notify/notify.service';
 import { PaymentService } from '../payment/payment.service';
 import { PricingService } from '../pricing/pricing.service';
@@ -40,7 +43,8 @@ export interface ConfirmInput {
   actor: Actor | null;
   holderKey?: string;
   drivers: DriverInput[];
-  extras?: Array<{ code: string; label: string; amountMinor: number }>;
+  /** Selected extras by catalogue code only — priced server-side (S7-DEF-004). */
+  extraCodes?: string[];
   acceptTerms: boolean;
   paymentToken: string;
   /** test-only fault injection: throw after a successful capture to exercise TEST-ERR-004 */
@@ -55,6 +59,8 @@ export class BookingService {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly pricing: PricingService,
+    private readonly products: ProductService,
+    private readonly restrictions: CustomerRestrictionService,
     private readonly payments: PaymentService,
     private readonly notify: NotifyService,
     private readonly audit: AuditService,
@@ -119,6 +125,25 @@ export class BookingService {
       throw AppError.businessRule('That quote can no longer be booked', { reason: quote.status });
     }
 
+    // ---- eligibility restriction (FR-ADM-002) ----
+    // An active `block` restriction on the booking customer denies the booking. Applies to a
+    // customer booking for themselves; a staff-assisted booking surfaces the badge in the ops
+    // record instead (the driver's identity is not asserted here).
+    if (input.actor?.kind === 'customer') {
+      const [cust] = await this.db
+        .select({ id: customer.id })
+        .from(customer)
+        .where(eq(customer.accountId, input.actor.accountId))
+        .limit(1);
+      if (cust) {
+        await this.restrictions.assertCanTransact(cust.id, {
+          categoryCode: quote.categoryCode,
+          locationCode: quote.pickupLocationCode,
+          at: new Date(quote.pickupAt),
+        });
+      }
+    }
+
     // ---- hold must still be live ----
     let heldUnitPinned = false;
     if (quote.holdId) {
@@ -132,17 +157,30 @@ export class BookingService {
       heldUnitPinned = true;
     }
 
-    // ---- price extras into the line set (verbatim quote snapshot + extras) ----
-    const extras = input.extras ?? [];
+    // ---- extras / protection (FR-ADM-006, S7-DEF-004) ----
+    // The client only names catalogue codes; `ProductService` resolves each to an active,
+    // in-scope `product` and prices it — the request body never carries a price or label. Each
+    // priced line is snapshotted into the reservation so a later catalogue change never rewrites
+    // a past agreement. Extras are taxed at the same effective rate as the quote's taxable base.
+    const extras = await this.products.resolveForBooking({
+      extraCodes: input.extraCodes ?? [],
+      categoryCode: quote.categoryCode,
+      pickupLocationCode: quote.pickupLocationCode,
+      currency: quote.currency,
+    });
+    const extrasTaxableMinor = extras
+      .filter((e) => e.taxable)
+      .reduce((a, e) => a + e.amountMinor, 0);
     const extrasMinor = extras.reduce((a, e) => a + e.amountMinor, 0);
-    const subtotalMinor = quote.subtotalMinor + extrasMinor;
-    // extras taxed at the same effective rate as the quote (tax / taxable-subtotal)
-    const quoteTaxable = quote.lines
+    const quoteTaxableMinor = quote.lines
       .filter((l) => l.kind !== 'tax')
       .reduce((a, l) => a + l.amountMinor, 0);
-    const effRateBps = quoteTaxable > 0 ? Math.round((quote.taxMinor / quoteTaxable) * 10_000) : 0;
-    const extrasTax = Math.round((extrasMinor * effRateBps) / 10_000);
-    const taxMinor = quote.taxMinor + extrasTax;
+    const effRateBps =
+      quoteTaxableMinor > 0 ? Math.round((quote.taxMinor / quoteTaxableMinor) * 10_000) : 0;
+    const extrasTaxMinor = Math.round((extrasTaxableMinor * effRateBps) / 10_000);
+
+    const subtotalMinor = quote.subtotalMinor + extrasMinor;
+    const taxMinor = quote.taxMinor + extrasTaxMinor;
     const totalMinor = subtotalMinor + taxMinor;
 
     // ---- authorize + capture (idempotent on the reservation reference) ----
@@ -207,7 +245,7 @@ export class BookingService {
           .returning();
         const reservationId = row!.id;
 
-        // lines: quote snapshot (non-tax) + extras + tax last
+        // lines: quote snapshot (non-tax) + priced extras + tax last
         let sort = 0;
         const lineRows = [
           ...quote.lines
@@ -227,8 +265,8 @@ export class BookingService {
             kind: 'extra' as const,
             code: e.code,
             label: e.label,
-            quantity: 1,
-            unitMinor: e.amountMinor,
+            quantity: e.quantity,
+            unitMinor: e.unitMinor,
             amountMinor: e.amountMinor,
             sortOrder: sort++,
           })),

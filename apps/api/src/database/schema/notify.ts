@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -10,7 +11,7 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 
-import { auditColumns } from './_helpers';
+import { actorColumns, auditColumns } from './_helpers';
 
 /**
  * DAT-NOTIFICATION (SRS §9.2) — message intent + attempt. Delivery is separate from the domain
@@ -40,6 +41,8 @@ export const notification = pgTable(
     attempts: integer('attempts').notNull().default(0),
     lastError: text('last_error'),
     sentAt: timestamp('sent_at', { withTimezone: true, mode: 'string' }),
+    /** sender identity applied from the event rule (FR-ADM-011), e.g. 'bookings' */
+    sender: text('sender'),
     /** correlation to the domain event that triggered it */
     sourceType: text('source_type'),
     sourceId: text('source_id'),
@@ -49,6 +52,38 @@ export const notification = pgTable(
     eventIdx: index('notification_event_idx').on(t.event, t.deliveryState),
     recipientIdx: index('notification_recipient_idx').on(t.recipientRef),
     stateIdx: index('notification_state_idx').on(t.deliveryState, t.createdAt),
+  }),
+);
+
+/**
+ * FR-ADM-011 event-rules half — per (event, channel) delivery policy: trigger toggle, audience,
+ * timing (send delay + quiet hours), retry + escalation, sender identity. The template table
+ * owns the *content*; this owns *when / to whom / how* a message goes out. One row per
+ * (event, channel); absence means "use the built-in default".
+ */
+export const notificationRule = pgTable(
+  'notification_rule',
+  {
+    ...auditColumns,
+    ...actorColumns,
+    event: text('event').notNull(),
+    channel: text('channel').notNull().default('email'),
+    enabled: boolean('enabled').notNull().default(true),
+    /** primary_renter | account_holder | all_drivers | ops */
+    audience: text('audience').notNull().default('primary_renter'),
+    /** minutes to wait after the trigger before sending (0 = immediate) */
+    delayMinutes: integer('delay_minutes').notNull().default(0),
+    /** defer into a window: { start:'HH:MM', end:'HH:MM' } in the recipient's zone, or null */
+    quietHours: jsonb('quiet_hours').$type<{ start: string; end: string } | null>(),
+    maxAttempts: integer('max_attempts').notNull().default(3),
+    retryBackoffMinutes: integer('retry_backoff_minutes').notNull().default(15),
+    /** open an ops task after this many failed attempts (null = never) */
+    escalateAfterAttempts: integer('escalate_after_attempts'),
+    /** local-part of the From identity, e.g. 'bookings' | 'support' */
+    senderIdentity: text('sender_identity'),
+  },
+  (t) => ({
+    eventChannelUnq: uniqueIndex('notification_rule_event_channel_unq').on(t.event, t.channel),
   }),
 );
 

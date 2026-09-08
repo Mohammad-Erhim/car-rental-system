@@ -6,6 +6,108 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### Stage 7 — audit, repair & scope completion (2026-09-08)
+
+Independent Stage 7 audit (`docs/ai-delivery/05-system-validation/`). Fixed defects it found and
+built the FR-ADM surfaces the enhancement program had left unbuilt.
+
+**Fixed**
+
+- `S7-DEF-003` — `verify:e2e` was RED on a clean checkout (`smoke.spec.ts` still asserted the
+  pre-SCREEN-OPS-002 "unavailable metrics" placeholder). Test rewritten; dead `ops.dash.metricPending`
+  key removed. Full `verify:e2e` green again.
+- `S7-DEF-004` — `POST /bookings/confirm` trusted client-supplied extra **price + label**. The
+  request now carries `extraCodes: string[]` only; the server resolves each against the `product`
+  catalogue (below) and owns the price. No client field moves money. _(Fully resolved — the
+  interim `422 extras_unavailable` guard is superseded by the D-1 catalogue.)_
+- `S7-DEF-005` — a persistent refresh cookie was defeated by a `sessionStorage` restore hint
+  (lost on browser restart / not shared across tabs). Moved to `localStorage` in `apps/web` +
+  `apps/site`.
+- `S7-DEF-002` — the transactional outbox was write-only. New `outbox-relay.ts`
+  (claim `for update skip locked` → dispatch → `delivered_at` / exponential backoff /
+  dead-letter → retention prune), a 15 s `outbox-relay` worker job, and the `outbox_backlog`
+  gauge (SRS-OBS-006, refreshed on readiness).
+- `S7-DEF-001` — committed `openapi.json` was stale; regenerated + a git-independent
+  `openapi:check` (`--check`) gate added to `verify:static`.
+- `S7-OPT-001` — one dev DB password (`carrental_dev_pw`) across the native and Docker local
+  workflows.
+
+**Added — SCREEN-OPS-027 / SCREEN-CUS-005 / FR-ADM-006 extras & protection products (vertical slice)**
+
+- `product` table (migration `0007_zippy_crystal`) — org-scoped `code`, `kind` (extra |
+  protection), `unitPriceMinor`, `currency`, `taxable`, `maxQuantity`, `categoryScope` /
+  `locationScope` (empty = applies everywhere), `sortOrder`, `active`. 5 seeded products
+  (full / basic protection, additional driver, child seat, GPS).
+- `ProductService` — `resolveForBooking({ extraCodes, … })` is the one authoritative pricing
+  path: the server sets label + amount from the row; unknown / inactive / out-of-scope /
+  currency-mismatch / quantity-over-`maxQuantity` → `422`; repeated codes fold into a capped
+  quantity. `POST /bookings/confirm` prices `extraCodes` into snapshotted `extra` reservation
+  lines, taxed at the quote's effective rate.
+- `GET /api/v1/catalogue/products?category=&location=` (customer surface) ·
+  `GET | POST /api/v1/ops/catalogue/products` · `POST …/:code/{deactivate,restore}`
+  (`catalogue.manage` to write). Screen `/ops/catalogue/products` (SCREEN-OPS-027) — list +
+  upsert + activate/deactivate. `apps/site` checkout gains an extras step (SCREEN-CUS-005) —
+  steppers / toggles by `maxQuantity`, client-side estimate only, sends `extraCodes`.
+- `product.spec.ts` (6) + `booking.spec.ts` (`S7-DEF-004` rewrite + `SCREEN-CUS-005`) + e2e
+  (`report.spec.ts` SCREEN-OPS-027, `booking.spec.ts` SCREEN-CUS-005). i18n `ops.prod.*` (33) +
+  `checkout.extras*` (8), all three locales.
+- Deferred to a follow-up CR (documented): `config_version` governance for `product`
+  (draft / approve / effective-date / terms-version), localized name/description, stock limits,
+  agreement & receipt template line integration.
+
+**Added — SCREEN-OPS-004 / FR-ADM-003 unified reservation + rental search**
+
+- `SearchModule` — `GET /api/v1/ops/search` (`reservation.read` | `rental.read`): free text on a
+  reference, the primary driver / licence, or (rentals) the vehicle plate / VIN; `kind` /
+  `status` / `locationCode` / `from` / `to` filters; each hit carries `kind`, an `overdue` flag,
+  the linked `reservationReference`, and an `href` to the owning surface. Screen `/ops/search`.
+  `search.spec.ts` (6) + e2e. Deferred → follow-up CR: saved views, assigned-staff /
+  payment-state / channel facets.
+
+**Added — SCREEN-OPS-028 / FR-ADM-007 location & operating-hours editor**
+
+- `LocationAdminService` + `/api/v1/ops/locations*` — upsert (name / timezone / weekly hours /
+  after-hours / pickup+return instructions / supported categories / turnaround); holiday-closure
+  exceptions; archive (never delete) with a **future-reservation impact check** (`?force` to
+  confirm); inverted hours → `422 hours_inverted`. `config.publish` to write. Screen
+  `/ops/config/locations`. `location-admin.spec.ts` (4) + e2e. Deferred → follow-up CR:
+  one-way-route pricing, per-location localized public content, map-coordinate confirmation.
+
+**Added — SCREEN-OPS-033 / FR-ADM-011 notification templates (content + event rules)**
+
+- Content half — `TemplateService` + `/api/v1/ops/templates*` (list / get / readiness / draft /
+  preview / submit / publish with the declared-variable + legal-content gate; emits
+  `notify.template.published.v1`). Screen `/ops/config/templates`. `template.spec.ts` (7) + e2e.
+- Event-rules half — `notification_rule` table (migration `0010`) + `notification.sender`.
+  `NotificationRuleService`: one rule per (event, channel) — `enabled`, `audience`,
+  `delayMinutes`, `quietHours`, `maxAttempts`, `retryBackoffMinutes`, `escalateAfterAttempts`,
+  `senderIdentity`; absent = built-in default. `GET | POST /api/v1/ops/notification-rules` +
+  `:event/:channel/{enable,disable}` (`config.publish`). `notify.send()` **suppresses** a
+  disabled event (`deliveryState: suppressed`, `lastError: rule_disabled`) and stamps the sender
+  identity. `RuleCard` on the templates screen. `notification-rule.spec.ts` (4) + e2e.
+- Deferred → follow-up CR: a scheduler that enforces `delayMinutes` / `quietHours` /
+  `escalateAfterAttempts` (stored + surfaced today).
+
+**Added — SCREEN-OPS-021/022 / FR-ADM-001+002 customer records, eligibility restrictions, merge**
+
+- `CustomerModule` — `GET /api/v1/ops/customers?q=` (min-2 query, masked contact, active-restriction
+  badge) + `GET /api/v1/ops/customers/:id` (consolidated: contact, saved drivers, reservations,
+  rentals, balance, open recovery cases, restrictions, merge history). Screen `/ops/customers`.
+  `customer.read`. `customer.spec.ts` (5).
+- **Eligibility restrictions (FR-ADM-002, write side)** — `customer_restriction.status`
+  lifecycle (`pending_review` → `active` | `rejected`; `active` → `lifted`; migration `0008`).
+  Create (`customer.manage`), approve/reject **by a different user** (the author gets `403`),
+  lift. `assertCanTransact()` is enforced in `POST /bookings/confirm` for a customer booking —
+  an in-scope active `block` → `422 customer_restricted`; `review` restrictions never block.
+  `customer-restriction.spec.ts` (3) + e2e.
+- **Reversible merge (FR-ADM-001)** — `customer_merge` table (migration `0009`).
+  `POST /api/v1/ops/customers/:id/merge {intoId}` folds the duplicate into the survivor (moves
+  its drivers + restrictions, repoints `reservation.customerId`, marks it `merged` +
+  `mergedIntoId` — **never deleted** — and records what moved); `POST …/unmerge` reverses it.
+  `customer-merge.spec.ts` (3) + e2e.
+- Deferred to a follow-up CR (documented): automated duplicate _detection_; rental-pickup
+  enforcement of restrictions; the customer-facing restriction explanation.
+
 ### SCREEN-OPS-002 — operational dashboard (2026-09-08)
 
 The `/ops` landing dashboard was a foundation slice (system-health only, KPI cards stubbed

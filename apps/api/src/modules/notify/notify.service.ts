@@ -8,6 +8,8 @@ import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { notification, template } from '../../database/schema/notify';
 
+import { NotificationRuleService } from './notification-rule.service';
+
 export interface SendInput {
   event: string; // notification_event code
   channel?: 'email' | 'sms' | 'push';
@@ -33,6 +35,7 @@ export class NotifyService {
   constructor(
     @Inject(DB) private readonly db: Database,
     @Inject(ENV) private readonly env: Env,
+    private readonly rules: NotificationRuleService,
   ) {}
 
   async send(input: SendInput): Promise<{ id: string }> {
@@ -68,6 +71,9 @@ export class NotifyService {
       body = `[${input.event}] ` + JSON.stringify(vars);
     }
 
+    // FR-ADM-011 event rule — a disabled rule suppresses the send; the sender identity is stamped.
+    const rule = await this.rules.resolve(input.event, channel);
+
     const [row] = await this.db
       .insert(notification)
       .values({
@@ -80,13 +86,23 @@ export class NotifyService {
         templateVersion,
         subject,
         body,
+        sender: rule.senderIdentity,
         variables: vars,
-        deliveryState: 'queued',
+        deliveryState: rule.enabled ? 'queued' : 'suppressed',
+        lastError: rule.enabled ? null : 'rule_disabled',
         sourceType: input.sourceType ?? null,
         sourceId: input.sourceId ?? null,
         traceId: getCorrelation()?.traceId ?? null,
       })
       .returning({ id: notification.id });
+
+    if (!rule.enabled) {
+      this.logger.log(
+        { event: input.event, channel, id: row!.id },
+        'notification suppressed by event rule',
+      );
+      return { id: row!.id };
+    }
 
     // Local driver: no real carrier. The worker relays; for immediate dev feedback, mark sent.
     if (this.env.MAIL_DRIVER === 'outbox') {

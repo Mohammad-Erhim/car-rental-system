@@ -1,0 +1,16 @@
+S7-DEF-004 — runtime verification (2026-09-08, native stack, POST /api/v1/bookings/confirm)
+
+1) Body with `extraCodes: ["protection_full"]`
+   -> HTTP 422  business_rule_violation  reason=extras_unavailable
+   (server log: one level:40 "Handled business_rule_violation" — expected, not an error)
+   No reservation created.
+
+2) Body with legacy client-priced `extras: [{code:"x", label:"Injected", amountMinor:500000}]`
+   -> HTTP 201
+      confirmed totalMinor = 12114   (quote totalMinor = 12114)   <- injected 500000 had NO effect
+      reservation lines with kind="extra" = 0
+   The field is stripped by the DTO; nothing from the request body moves money or writes a line.
+
+Pre-fix behaviour (from code): `extrasMinor = extras.reduce((a,e)=>a+e.amountMinor,0)` was added
+to the quote subtotal and charged, and each `{code,label,amountMinor}` was persisted verbatim as
+a reservation line.

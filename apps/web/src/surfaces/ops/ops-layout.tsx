@@ -10,12 +10,16 @@ import {
   Languages,
   LayoutDashboard,
   LogOut,
+  Mail,
+  MapPin,
+  Package,
   Palette,
   ScrollText,
   Search,
   Settings2,
   ShieldCheck,
   Tag,
+  UserSearch,
   Users,
   Wallet,
 } from 'lucide-react';
@@ -66,6 +70,12 @@ const NAV_GROUPS: NavGroup[] = [
     titleKey: 'ops.navGroup.operations',
     items: [
       {
+        to: '/search',
+        label: 'ops.nav.search',
+        Icon: Search,
+        anyOf: ['reservation.read', 'rental.read'],
+      },
+      {
         to: '/work',
         label: 'ops.nav.reservations',
         Icon: ClipboardList,
@@ -84,6 +94,12 @@ const NAV_GROUPS: NavGroup[] = [
         anyOf: ['fleet.read', 'fleet.manage'],
       },
       { to: '/finance', label: 'ops.nav.finance', Icon: Wallet, anyOf: ['payment.read'] },
+      {
+        to: '/customers',
+        label: 'ops.nav.customers',
+        Icon: UserSearch,
+        anyOf: ['customer.read'],
+      },
     ],
   },
   {
@@ -101,6 +117,12 @@ const NAV_GROUPS: NavGroup[] = [
         Icon: Tag,
         anyOf: ['config.read', 'config.publish'],
       },
+      {
+        to: '/catalogue/products',
+        label: 'ops.nav.products',
+        Icon: Package,
+        anyOf: ['catalogue.read', 'catalogue.manage', 'config.read'],
+      },
     ],
   },
   {
@@ -114,6 +136,12 @@ const NAV_GROUPS: NavGroup[] = [
         anyOf: ['config.read', 'config.publish'],
       },
       {
+        to: '/config/locations',
+        label: 'ops.nav.locations',
+        Icon: MapPin,
+        anyOf: ['config.read', 'config.publish'],
+      },
+      {
         to: '/config/languages',
         label: 'ops.nav.languages',
         Icon: Languages,
@@ -123,6 +151,12 @@ const NAV_GROUPS: NavGroup[] = [
         to: '/config/translations',
         label: 'ops.nav.translations',
         Icon: Languages,
+        anyOf: ['config.read', 'config.publish'],
+      },
+      {
+        to: '/config/templates',
+        label: 'ops.nav.templates',
+        Icon: Mail,
         anyOf: ['config.read', 'config.publish'],
       },
       {

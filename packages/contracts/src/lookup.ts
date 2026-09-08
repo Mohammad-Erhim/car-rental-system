@@ -82,4 +82,6 @@ export const zLookupUsage = z.object({
   valueCode: z.string(),
   consumers: z.array(z.object({ surface: z.string(), count: z.number().int() })),
   totalReferences: z.number().int(),
+  /** false when this lookup type has no mapped consumer column yet (a `0` is not "unused") */
+  tracked: z.boolean().optional(),
 });

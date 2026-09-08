@@ -26,7 +26,7 @@ if [ "${DEV_UP_FORCE_NATIVE:-0}" != "1" ] \
   && docker info >/dev/null 2>&1; then
   echo "==> Docker detected — starting postgres + redis containers (published on ${PG_PORT}/6379)"
   docker compose up -d postgres redis
-  echo "==> Ready. Next: cp .env.example .env (DATABASE_URL password 'carrental') && pnpm db:migrate && pnpm db:seed && pnpm dev"
+  echo "==> Ready. Next: cp .env.example .env (dev DB password is 'carrental_dev_pw' — same for native + Docker) && pnpm db:migrate && pnpm db:seed && pnpm dev"
   echo "    (Full containerised stack instead: docker compose up)"
   exit 0
 fi

@@ -23,8 +23,8 @@ name: carrental-dev
 
 x-api-env: &api-env
   NODE_ENV: development
-  DATABASE_URL: postgres://carrental:carrental@postgres:5432/carrental_dev
-  DATABASE_URL_TEST: postgres://carrental:carrental@postgres:5432/carrental_test
+  DATABASE_URL: postgres://carrental:carrental_dev_pw@postgres:5432/carrental_dev
+  DATABASE_URL_TEST: postgres://carrental:carrental_dev_pw@postgres:5432/carrental_test
   REDIS_URL: redis://redis:6379/0
   REDIS_URL_TEST: redis://redis:6379/1
   API_PORT: '3001'
@@ -67,7 +67,7 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: carrental
-      POSTGRES_PASSWORD: carrental
+      POSTGRES_PASSWORD: carrental_dev_pw
       POSTGRES_DB: carrental_dev
     ports: ['${DEV_DB_PORT:-5432}:5432']
     volumes:

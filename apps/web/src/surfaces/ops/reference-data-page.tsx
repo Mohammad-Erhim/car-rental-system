@@ -19,7 +19,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Lock } from 'lucide-react';
 import { useState } from 'react';
 
-import { useLookupTypes, useLookupValues } from '../../lib/api-hooks.js';
+import { useLookupTypes, useLookupUsage, useLookupValues } from '../../lib/api-hooks.js';
 import { apiFetch } from '../../lib/api.js';
 import { useAuth } from '../../lib/auth.js';
 import { useFormErrors } from '../../lib/use-form-errors.js';
@@ -122,10 +122,12 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
   const errs = useFormErrors({ code: t('ops.tbl.code'), label: t('ops.tbl.label') });
   const [newCode, setNewCode] = useState('');
   const [newLabel, setNewLabel] = useState('');
-  const [deactivateId, setDeactivateId] = useState<string | null>(null);
+  const [deactivate, setDeactivate] = useState<{ id: string; code: string } | null>(null);
 
   const type = values.data?.type;
   const readOnly = type?.editability === 'read_only';
+  const usage = useLookupUsage(typeCode, deactivate?.code ?? null);
+  const inUse = (usage.data?.totalReferences ?? 0) > 0;
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['reference-data'] });
 
@@ -145,9 +147,11 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
   });
 
   const setActive = useMutation({
-    mutationFn: (input: { id: string; active: boolean }) =>
+    mutationFn: (input: { id: string; active: boolean; force?: boolean }) =>
       apiFetch(
-        `/reference-data/types/${typeCode}/values/${input.id}/${input.active ? 'restore' : 'deactivate'}`,
+        `/reference-data/types/${typeCode}/values/${input.id}/${input.active ? 'restore' : 'deactivate'}${
+          input.force ? '?force=true' : ''
+        }`,
         { method: 'POST' },
       ),
     onSuccess: () => void invalidate(),
@@ -199,7 +203,7 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => setDeactivateId(v.id)}
+              onClick={() => setDeactivate({ id: v.id, code: v.code })}
               data-testid={`deactivate-${v.code}`}
             >
               {t('ops.ref.deactivate')}
@@ -311,14 +315,20 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
       </CardContent>
 
       <ConfirmDialog
-        open={!!deactivateId}
-        onOpenChange={(v) => !v && setDeactivateId(null)}
+        open={!!deactivate}
+        onOpenChange={(v) => !v && setDeactivate(null)}
         title={t('ops.ref.deactivateQ')}
-        description={t('ops.ref.deactivateBody')}
+        description={
+          usage.isLoading
+            ? t('ops.st.loading')
+            : inUse
+              ? t('ops.ref.deactivateInUse', { n: usage.data!.totalReferences })
+              : t('ops.ref.deactivateBody')
+        }
         confirmLabel={t('ops.ref.deactivate')}
         destructive
         onConfirm={() => {
-          if (deactivateId) setActive.mutate({ id: deactivateId, active: false });
+          if (deactivate) setActive.mutate({ id: deactivate.id, active: false, force: inUse });
         }}
       />
     </Card>

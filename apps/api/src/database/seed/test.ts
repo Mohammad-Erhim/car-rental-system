@@ -2,6 +2,7 @@ import { hash } from '@node-rs/argon2';
 import { sql } from 'drizzle-orm';
 
 import type { Database } from '../drizzle';
+import { customer } from '../schema/customer';
 import { account, staffProfile } from '../schema/iam';
 import { location, organization } from '../schema/org';
 
@@ -163,7 +164,49 @@ export async function seedTest(db: Database): Promise<void> {
           },
         });
     }
+    // domain profile for the customer account (register/verify creates this in real use) so the
+    // ops customer-record screen (SCREEN-OPS-021/022, FR-ADM-001) has a record to find.
+    if (acc && a.kind === 'customer') {
+      await db
+        .insert(customer)
+        .values({
+          accountId: acc.id,
+          organizationId: org.id,
+          fullName: 'Test Customer',
+          email: a.email,
+          emailNormalized: a.email,
+          phone: '+15555550199',
+          localeCode: 'en',
+          communicationPrefs: { marketingEmail: false },
+          consents: [
+            { type: 'account_terms', version: '1.0', acceptedAt: new Date().toISOString() },
+          ],
+          status: 'active',
+        })
+        .onConflictDoUpdate({
+          target: customer.accountId,
+          set: { status: 'active', fullName: 'Test Customer', updatedAt: sql`now()` },
+        });
+    }
   }
+
+  // a second, account-less "Test Customer II" so the duplicate-review + merge flow (FR-ADM-001)
+  // has two look-alike records to work with. Distinct name so the SCREEN-OPS-021 record test
+  // (which finds the account-backed "Test Customer" by exact name) is unaffected.
+  await db
+    .insert(customer)
+    .values({
+      organizationId: org.id,
+      fullName: 'Test Customer II',
+      email: 'test-customer.dup@example.test',
+      emailNormalized: 'test-customer.dup@example.test',
+      phone: '+15555550188',
+      localeCode: 'en',
+      communicationPrefs: {},
+      consents: [],
+      status: 'active',
+    })
+    .onConflictDoNothing();
 
   await seedDiscovery(db, org.id, { locationCodes: ['TST1', 'TST2'] });
 }

@@ -56,7 +56,7 @@ test.describe('operations dashboard (APP-OPS)', () => {
     guards.assertClean();
   });
 
-  test('after staff sign-in the dashboard shows the health drill and labelled unavailable metrics', async ({
+  test('after staff sign-in the dashboard shows real KPI cards and the health drill', async ({
     page,
   }, testInfo) => {
     const guards = attachConsoleGuards(page);
@@ -67,11 +67,22 @@ test.describe('operations dashboard (APP-OPS)', () => {
     await page.getByRole('button', { name: /^Sign in$/ }).click();
 
     await expect(page.getByRole('heading', { name: 'Operational dashboard' })).toBeVisible();
+
+    // SCREEN-OPS-002 — real, role/location-scoped KPI cards from GET /ops/dashboard. On the
+    // seeded DB the call succeeds, so the cards show figures, not the "unavailable" placeholder
+    // (FR-RPT-001 — a metric that can't be read shows "unavailable", never 0).
+    const stats = page.getByTestId('ops-dash-stats');
+    await expect(stats).toBeVisible();
+    await expect(stats.getByText('Awaiting assignment')).toBeVisible();
+    await expect(stats.getByText('Today’s pickups')).toBeVisible();
+    await expect(page.getByTestId('metric-unavailable')).toHaveCount(0);
+    await expect(page.getByTestId('ops-dash-fleet')).toBeVisible();
+
+    // Live system-health drill still sits below the KPIs.
     const health = page.getByTestId('health-components');
     await expect(health).toBeVisible();
     await expect(health.locator('[data-component="db"]')).toHaveAttribute('data-status', 'ok');
     await expect(health.locator('[data-component="lookups"]')).toHaveAttribute('data-status', 'ok');
-    await expect(page.getByTestId('metric-unavailable').first()).toContainText('Not available yet');
 
     await shot(page, testInfo, 'ops-dashboard-default');
     guards.assertClean();

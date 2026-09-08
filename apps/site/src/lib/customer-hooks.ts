@@ -167,6 +167,30 @@ export function useQuoteByRef(reference: string | null) {
   });
 }
 
+/** SCREEN-CUS-005 — extras & protection a customer may add for a category + pickup location. */
+export interface CatalogueProduct {
+  id: string;
+  code: string;
+  name: string;
+  kind: 'extra' | 'protection';
+  unitPriceMinor: number;
+  currency: string;
+  taxable: boolean;
+  maxQuantity: number;
+}
+
+export function useAvailableProducts(categoryCode: string | null, locationCode: string | null) {
+  return useQuery({
+    queryKey: ['catalogue', 'products', categoryCode, locationCode],
+    enabled: !!categoryCode && !!locationCode,
+    queryFn: ({ signal }) =>
+      apiFetch<CatalogueProduct[]>(
+        `/catalogue/products?category=${encodeURIComponent(categoryCode!)}&location=${encodeURIComponent(locationCode!)}`,
+        { signal, anonymous: true },
+      ),
+  });
+}
+
 export interface ReservationResult extends Reservation {
   guestAccessToken: string | null;
   payment: { brand: string | null; last4: string | null; alreadyProcessed: boolean };

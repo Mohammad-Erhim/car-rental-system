@@ -35,7 +35,7 @@ export class BookingController {
       actor: actor ?? null,
       holderKey: body.holderKey,
       drivers: body.drivers,
-      extras: body.extras,
+      extraCodes: body.extraCodes,
       acceptTerms: body.acceptTerms,
       paymentToken: body.paymentToken,
       simulateWriteFailure: body.simulateWriteFailure,

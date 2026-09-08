@@ -109,6 +109,68 @@ describe('booking / payment', () => {
     expect(again.body.reference).not.toBe(quote.reference);
   });
 
+  it('S7-DEF-004 a client cannot move money through the confirm body (extra price/label is server-owned)', async () => {
+    // Legacy shape: a hand-crafted request with a priced, labelled "extras" object. The DTO
+    // strips the unknown key entirely — the charged total equals the authoritative quote, no
+    // `extra` line is written.
+    const q1 = await makeQuote(server);
+    const tampered = await request(server)
+      .post('/api/v1/bookings/confirm')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        quoteReference: q1.reference,
+        drivers: DRIVERS,
+        acceptTerms: true,
+        paymentToken: 'tok_visa_ok',
+        extras: [{ code: 'protection_full', label: 'Full protection', amountMinor: 900000 }],
+      })
+      .expect(201);
+    expect(tampered.body.totalMinor).toBe(q1.totalMinor);
+    expect(tampered.body.paidMinor).toBe(q1.totalMinor);
+    expect(tampered.body.lines.some((l: { kind: string }) => l.kind === 'extra')).toBe(false);
+
+    // New shape: `extraCodes` — the server resolves each to a catalogue `product` and prices it.
+    // The added line uses the catalogue price + name, not anything from the request.
+    const q2 = await makeQuote(server);
+    const withExtra = await request(server)
+      .post('/api/v1/bookings/confirm')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        quoteReference: q2.reference,
+        drivers: DRIVERS,
+        acceptTerms: true,
+        paymentToken: 'tok_visa_ok',
+        extraCodes: ['gps'],
+      })
+      .expect(201);
+    const gpsLine = (
+      withExtra.body.lines as Array<{
+        kind: string;
+        code: string;
+        label: string;
+        amountMinor: number;
+      }>
+    ).find((l) => l.kind === 'extra' && l.code === 'gps');
+    expect(gpsLine).toBeTruthy();
+    expect(gpsLine!.label).toBe('GPS navigation'); // catalogue name, not client-supplied
+    expect(gpsLine!.amountMinor).toBe(600); // catalogue price (seed)
+    expect(withExtra.body.totalMinor).toBeGreaterThan(q2.totalMinor); // quote + priced extra + tax
+
+    // an unknown / inactive code is rejected — no charge, no reservation
+    const q3 = await makeQuote(server);
+    await request(server)
+      .post('/api/v1/bookings/confirm')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        quoteReference: q3.reference,
+        drivers: DRIVERS,
+        acceptTerms: true,
+        paymentToken: 'tok_visa_ok',
+        extraCodes: ['does_not_exist'],
+      })
+      .expect(422);
+  });
+
   it('TEST-ERR-002 a duplicate confirm returns the same reservation and does not charge twice', async () => {
     const quote = await makeQuote(server, { categoryCode: 'compact' });
     const body = {

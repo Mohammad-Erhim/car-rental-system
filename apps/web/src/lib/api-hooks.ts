@@ -227,6 +227,26 @@ export function useLookupValues(
   });
 }
 
+export interface LookupUsage {
+  typeCode: string;
+  valueCode: string;
+  consumers: Array<{ surface: string; count: number }>;
+  totalReferences: number;
+  tracked?: boolean;
+}
+
+/** FR-ADM-008 "where used" — fetched on demand (e.g. before deactivating a value). */
+export function useLookupUsage(typeCode: string, valueCode: string | null) {
+  return useQuery({
+    queryKey: ['reference-data', 'usage', typeCode, valueCode],
+    queryFn: ({ signal }) =>
+      apiFetch<LookupUsage>(`/reference-data/types/${typeCode}/values/${valueCode}/usage`, {
+        signal,
+      }),
+    enabled: !!valueCode,
+  });
+}
+
 export function useAuthMutation<TBody, TResult>(path: string, method: 'POST' = 'POST') {
   return useMutation({
     mutationFn: (body: TBody) =>

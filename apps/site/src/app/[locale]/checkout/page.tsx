@@ -21,6 +21,7 @@ import { ApiError } from '../../../lib/api-client';
 import { useAuth } from '../../../lib/auth-context';
 import {
   formatMinor,
+  useAvailableProducts,
   useConfirmBooking,
   useQuoteByRef,
   type ReservationResult,
@@ -45,11 +46,16 @@ function CheckoutInner() {
   const { status } = useAuth();
   const quote = useQuoteByRef(ref);
   const confirm = useConfirmBooking();
+  const products = useAvailableProducts(
+    quote.data?.categoryCode ?? null,
+    quote.data?.pickupLocationCode ?? null,
+  );
 
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [licence, setLicence] = useState('');
   const [card, setCard] = useState<CardToken>(TEST_CARD_TOKENS[0]);
+  const [extras, setExtras] = useState<Record<string, number>>({});
   const [accepted, setAccepted] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
   const [result, setResult] = useState<ReservationResult | null>(null);
@@ -67,6 +73,19 @@ function CheckoutInner() {
 
   const expired = secondsLeft != null && secondsLeft <= 0;
   const lines = useMemo(() => quote.data?.lines ?? [], [quote.data]);
+
+  // Client-side estimate only — the server re-prices `extraCodes` authoritatively on confirm.
+  const extraCodes = useMemo(
+    () => Object.entries(extras).flatMap(([code, qty]) => Array.from({ length: qty }, () => code)),
+    [extras],
+  );
+  const extrasEstimateMinor = useMemo(() => {
+    const byCode = new Map((products.data ?? []).map((p) => [p.code, p.unitPriceMinor]));
+    return Object.entries(extras).reduce(
+      (sum, [code, qty]) => sum + (byCode.get(code) ?? 0) * qty,
+      0,
+    );
+  }, [extras, products.data]);
 
   async function pay(e: FormEvent) {
     e.preventDefault();
@@ -89,6 +108,7 @@ function CheckoutInner() {
         ],
         acceptTerms: true,
         paymentToken: card,
+        extraCodes: extraCodes.length ? extraCodes : undefined,
       });
       setResult(r);
     } catch (err) {
@@ -159,6 +179,92 @@ function CheckoutInner() {
             </CardContent>
           </Card>
 
+          {products.data && products.data.length > 0 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">{t('checkout.extrasTitle')}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3" data-testid="checkout-extras">
+                {products.data.map((p) => {
+                  const qty = extras[p.code] ?? 0;
+                  const setQty = (n: number) =>
+                    setExtras((cur) => {
+                      const next = { ...cur };
+                      const clamped = Math.max(0, Math.min(p.maxQuantity, n));
+                      if (clamped === 0) delete next[p.code];
+                      else next[p.code] = clamped;
+                      return next;
+                    });
+                  return (
+                    <div
+                      key={p.code}
+                      className="flex flex-wrap items-center justify-between gap-3"
+                      data-testid={`extra-${p.code}`}
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">
+                          {p.name}{' '}
+                          {p.kind === 'protection' ? (
+                            <Badge variant="neutral">{t('checkout.extrasProtection')}</Badge>
+                          ) : null}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {t('checkout.extrasPerDay', {
+                            amount: formatMinor(p.unitPriceMinor, p.currency, uiLocale),
+                          })}
+                        </p>
+                      </div>
+                      {p.maxQuantity === 1 ? (
+                        <label className="flex items-center gap-2 text-sm">
+                          <Checkbox
+                            checked={qty > 0}
+                            onChange={(e) => setQty(e.target.checked ? 1 : 0)}
+                            data-testid={`extra-toggle-${p.code}`}
+                          />
+                          {t('checkout.extrasAdd')}
+                        </label>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            aria-label={t('checkout.extrasLess')}
+                            onClick={() => setQty(qty - 1)}
+                          >
+                            −
+                          </Button>
+                          <span
+                            className="w-6 text-center text-sm tabular-nums"
+                            data-testid={`extra-qty-${p.code}`}
+                          >
+                            {qty}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            aria-label={t('checkout.extrasMore')}
+                            onClick={() => setQty(qty + 1)}
+                          >
+                            +
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {extrasEstimateMinor > 0 ? (
+                  <p className="border-t pt-2 text-sm" data-testid="extras-estimate">
+                    {t('checkout.extrasEstimate', {
+                      amount: formatMinor(extrasEstimateMinor, quote.data.currency, uiLocale),
+                    })}
+                  </p>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
+
           <Card>
             <CardHeader>
               <CardTitle className="text-base">{t('checkout.driverPayment')}</CardTitle>
@@ -222,6 +328,17 @@ function CheckoutInner() {
                     {localError}
                   </p>
                 ) : null}
+                {extrasEstimateMinor > 0 ? (
+                  <p className="text-xs text-muted-foreground" data-testid="co-extras-note">
+                    {t('checkout.extrasChargeNote', {
+                      amount: formatMinor(
+                        quote.data.totalMinor + extrasEstimateMinor,
+                        quote.data.currency,
+                        uiLocale,
+                      ),
+                    })}
+                  </p>
+                ) : null}
                 <Button
                   type="submit"
                   loading={confirm.isPending}
@@ -229,7 +346,11 @@ function CheckoutInner() {
                   data-testid="co-pay"
                 >
                   {t('checkout.payConfirm', {
-                    amount: formatMinor(quote.data.totalMinor, quote.data.currency, uiLocale),
+                    amount: formatMinor(
+                      quote.data.totalMinor + extrasEstimateMinor,
+                      quote.data.currency,
+                      uiLocale,
+                    ),
                   })}
                 </Button>
               </form>

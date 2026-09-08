@@ -1,4 +1,14 @@
-import { boolean, index, integer, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
+import {
+  boolean,
+  index,
+  integer,
+  jsonb,
+  pgTable,
+  text,
+  uniqueIndex,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
 import { actorColumns, auditColumns } from './_helpers';
 
@@ -64,5 +74,44 @@ export const vehicleCategoryFeature = pgTable(
   },
   (t) => ({
     pairUnq: uniqueIndex('vehicle_category_feature_unq').on(t.categoryId, t.featureCode),
+  }),
+);
+
+/**
+ * DAT-PRODUCT (FR-ADM-006, FR-PRC-005/006) — extras & protection products offered at checkout.
+ * The server owns the price; a booking snapshots the accepted code/label/price into a
+ * `reservation_line` (`kind='extra'`) so historical selections keep their accepted terms even
+ * after the catalogue changes. `code` is stable; the name is translated (`translation`
+ * namespace `product`).
+ */
+export const product = pgTable(
+  'product',
+  {
+    ...auditColumns,
+    ...actorColumns,
+    organizationId: uuid('organization_id').notNull(),
+    code: text('code').notNull(),
+    name: text('name').notNull(),
+    kind: text('kind').notNull(), // extra | protection
+    unitPriceMinor: integer('unit_price_minor').notNull(),
+    currency: text('currency').notNull().default('USD'),
+    taxable: boolean('taxable').notNull().default(true),
+    maxQuantity: integer('max_quantity').notNull().default(1),
+    /** [] = every category; else the category codes this product applies to */
+    categoryScope: jsonb('category_scope')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    /** [] = every location; else the location codes this product applies to */
+    locationScope: jsonb('location_scope')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    sortOrder: integer('sort_order').notNull().default(0),
+    active: boolean('active').notNull().default(true),
+  },
+  (t) => ({
+    codeUnq: uniqueIndex('product_org_code_unq').on(t.organizationId, t.code),
+    activeIdx: index('product_active_idx').on(t.organizationId, t.active),
   }),
 );

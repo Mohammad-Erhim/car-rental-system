@@ -6,7 +6,7 @@
 import 'reflect-metadata';
 import './config/bootstrap-env';
 
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { createApp, openapiDocument } from './bootstrap';
@@ -19,8 +19,30 @@ async function main() {
   if (!doc) throw new Error('openapi document not produced by createApp()');
 
   const out = resolve(process.cwd(), 'openapi.json');
-  writeFileSync(out, JSON.stringify(doc, null, 2) + '\n', 'utf8');
-  process.stderr.write(`[openapi] wrote ${out} (${Object.keys(doc.paths ?? {}).length} paths)\n`);
+  const rendered = JSON.stringify(doc, null, 2) + '\n';
+  const pathCount = Object.keys(doc.paths ?? {}).length;
+
+  // `--check` (verify:static): fail if the committed document is stale, don't rewrite it.
+  if (process.argv.includes('--check')) {
+    let current = '';
+    try {
+      current = readFileSync(out, 'utf8');
+    } catch {
+      /* missing file → treated as drift below */
+    }
+    if (current !== rendered) {
+      process.stderr.write(
+        `[openapi] ✖ apps/api/openapi.json is stale (${pathCount} paths from code). ` +
+          `Run \`pnpm openapi:generate\` and commit the result.\n`,
+      );
+      process.exit(1);
+    }
+    process.stderr.write(`[openapi] check OK (${pathCount} paths).\n`);
+    process.exit(0);
+  }
+
+  writeFileSync(out, rendered, 'utf8');
+  process.stderr.write(`[openapi] wrote ${out} (${pathCount} paths)\n`);
   process.exit(0);
 }
 

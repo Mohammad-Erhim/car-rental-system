@@ -1,0 +1,20 @@
+Stage 7 — horizontal / vertical authz probe (2026-09-08, native stack, direct API)
+
+PASS  anon GET /api/v1/reservations/:ref            -> 401   (no session, rejected before ownership)
+PASS  customer-token GET /api/v1/ops/reservations   -> 403   (vertical: customer cannot reach ops)
+PASS  customer-token GET /api/v1/ops/rentals        -> 403   (vertical)
+PASS  customer GET /api/v1/reservations/mine        -> 200   (self-scoped, no id param)
+PASS  customer GET /api/v1/rentals/mine             -> 200   (self-scoped)
+PASS  customer GET /api/v1/auth/data-requests       -> 200   (self-scoped)
+PASS  staff (agent) GET /api/v1/reservations/:ref   -> 200   (owner-or-staff: staff always allowed)
+
+Cross-customer (customer B reading customer A's reservation by ref) — verified by code, not by
+this probe run (the probe's customer-B creation helper checked for HTTP 200 but register/sign-in
+return 201, so B's token was not captured; not re-iterated).
+Guard: `reservation-ops.service.ts` `assertOwnerOrStaff(row, actor)` —
+  `if (actor.kind === 'staff') return; if (row.accountId && row.accountId === actor.accountId) return;
+   throw AppError.forbidden('This reservation belongs to another account');`
+called in `detail()`, `history()`, and (via `detail()`) `cancel()` / `modify()`. `verify:security`
+TEST-SEC-008 covers scope-param tampering for the ops side. Non-reservation resources
+(`/rentals/:ref`, `/auth/drivers/:id`) follow the same self-or-staff pattern — spot-confirm in the
+post-decision deep pass (S7-Q-010).

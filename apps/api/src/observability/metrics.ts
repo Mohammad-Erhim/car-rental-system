@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Counter, Histogram, Registry, collectDefaultMetrics, type Gauge } from 'prom-client';
+import { Counter, Gauge, Histogram, Registry, collectDefaultMetrics } from 'prom-client';
 
 /**
  * Prometheus text-exposition metrics (SRS-OBS-006). Traffic, latency, errors, and per-domain
@@ -13,7 +13,7 @@ export class MetricsService {
   readonly httpDuration: Histogram<string>;
   readonly domainCommands: Counter<string>;
   readonly providerAttempts: Counter<string>;
-  readonly outboxBacklog: Gauge<string> | undefined;
+  readonly outboxBacklog: Gauge<string>;
 
   constructor() {
     this.registry.setDefaultLabels({ service: 'carrental-api' });
@@ -47,6 +47,19 @@ export class MetricsService {
       labelNames: ['provider', 'outcome'],
       registers: [this.registry],
     });
+
+    // SRS-OBS-006 — undelivered transactional-outbox rows. Refreshed by HealthService on every
+    // readiness probe (the operational signal per SRS §"workers periodically inspect … outbox
+    // messages not delivered").
+    this.outboxBacklog = new Gauge({
+      name: 'outbox_backlog',
+      help: 'Transactional outbox rows not yet delivered',
+      registers: [this.registry],
+    });
+  }
+
+  setOutboxBacklog(n: number): void {
+    this.outboxBacklog.set(n);
   }
 
   async render(): Promise<string> {

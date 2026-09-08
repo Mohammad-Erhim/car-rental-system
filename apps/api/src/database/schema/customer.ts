@@ -151,6 +151,9 @@ export const customerRestriction = pgTable(
     scope: text('scope').notNull().default('all'), // all | category:<code> | location:<code>
     reasonCode: text('reason_code'), // -> lookup
     evidenceRef: text('evidence_ref'),
+    /** pending_review → active | rejected; an active row → lifted (FR-ADM-002 approval path) */
+    status: text('status').notNull().default('active'),
+    reviewNotes: text('review_notes'),
     approvedBy: uuid('approved_by'),
     effectiveFrom: timestamp('effective_from', { withTimezone: true, mode: 'string' }),
     effectiveTo: timestamp('effective_to', { withTimezone: true, mode: 'string' }),
@@ -158,4 +161,37 @@ export const customerRestriction = pgTable(
     isActive: boolean('is_active').notNull().default(true),
   },
   (t) => ({ customerIdx: index('customer_restriction_customer_idx').on(t.customerId, t.isActive) }),
+);
+
+/**
+ * Reversible customer merge (FR-ADM-001 "duplicate review before merge"). Records which rows moved
+ * from the duplicate to the survivor so an `unmerge` can put them back. Never deleted.
+ */
+export const customerMerge = pgTable(
+  'customer_merge',
+  {
+    ...auditColumns,
+    ...actorColumns,
+    survivorId: uuid('survivor_id').notNull(),
+    mergedId: uuid('merged_id').notNull(),
+    reason: text('reason'),
+    movedDrivers: jsonb('moved_drivers')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    movedRestrictions: jsonb('moved_restrictions')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    movedReservations: jsonb('moved_reservations')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    reversedAt: timestamp('reversed_at', { withTimezone: true, mode: 'string' }),
+    reversedBy: uuid('reversed_by'),
+  },
+  (t) => ({
+    survivorIdx: index('customer_merge_survivor_idx').on(t.survivorId),
+    mergedIdx: index('customer_merge_merged_idx').on(t.mergedId),
+  }),
 );

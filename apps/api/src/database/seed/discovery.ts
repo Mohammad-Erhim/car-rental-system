@@ -1,7 +1,12 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import type { Database } from '../drizzle';
-import { vehicleCategory, vehicleCategoryFeature, vehicleFeature } from '../schema/catalogue';
+import {
+  product,
+  vehicleCategory,
+  vehicleCategoryFeature,
+  vehicleFeature,
+} from '../schema/catalogue';
 import { vehicleUnit } from '../schema/fleet';
 import { location } from '../schema/org';
 import { ratePlan, rateTier } from '../schema/pricing';
@@ -252,5 +257,72 @@ export async function seedDiscovery(
         { ratePlanId: plan!.id, minHours: 720, dayMinor: Math.round(cat.baseDayMinor * 0.7) },
       ]);
     }
+  }
+
+  // --- extras & protection products (FR-ADM-006) ---
+  const PRODUCTS = [
+    {
+      code: 'protection_full',
+      name: 'Full protection (zero excess)',
+      kind: 'protection',
+      unitPriceMinor: 2500,
+      maxQuantity: 1,
+      taxable: true,
+      sortOrder: 0,
+    },
+    {
+      code: 'protection_basic',
+      name: 'Collision damage waiver',
+      kind: 'protection',
+      unitPriceMinor: 1500,
+      maxQuantity: 1,
+      taxable: true,
+      sortOrder: 1,
+    },
+    {
+      code: 'additional_driver',
+      name: 'Additional driver',
+      kind: 'extra',
+      unitPriceMinor: 900,
+      maxQuantity: 3,
+      taxable: true,
+      sortOrder: 2,
+    },
+    {
+      code: 'child_seat',
+      name: 'Child seat',
+      kind: 'extra',
+      unitPriceMinor: 700,
+      maxQuantity: 3,
+      taxable: true,
+      sortOrder: 3,
+    },
+    {
+      code: 'gps',
+      name: 'GPS navigation',
+      kind: 'extra',
+      unitPriceMinor: 600,
+      maxQuantity: 1,
+      taxable: true,
+      sortOrder: 4,
+    },
+  ];
+  for (const p of PRODUCTS) {
+    await db
+      .insert(product)
+      .values({ organizationId: orgId, currency: 'USD', active: true, ...p })
+      .onConflictDoUpdate({
+        target: [product.organizationId, product.code],
+        set: {
+          name: p.name,
+          kind: p.kind,
+          unitPriceMinor: p.unitPriceMinor,
+          maxQuantity: p.maxQuantity,
+          taxable: p.taxable,
+          sortOrder: p.sortOrder,
+          active: true,
+          updatedAt: sql`now()`,
+        },
+      });
   }
 }

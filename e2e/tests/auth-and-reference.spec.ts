@@ -37,6 +37,59 @@ test.describe('customer auth (APP-CWEB)', () => {
     guards.assertClean();
   });
 
+  test('S7-DEF-005: a persisted refresh cookie restores the session after the browser is reopened / in a new tab', async ({
+    page,
+    browser,
+  }) => {
+    // Sign in, then simulate "closed the browser and came back": a fresh context seeded with
+    // storageState carries the persistent cookie + localStorage, but NOT sessionStorage. The
+    // session must still restore (the restore hint must live in localStorage, not sessionStorage).
+    await page.goto('/account');
+    await expect(page).toHaveURL(/\/sign-in$/);
+    await page.getByLabel('Email', { exact: false }).fill(CUSTOMER.email);
+    await page.getByLabel('Password', { exact: false }).fill(CUSTOMER.password);
+    await page.getByRole('button', { name: /^Sign in$/ }).click();
+    await expect(page).toHaveURL(/\/account$/);
+
+    const state = await page.context().storageState();
+    expect(state.cookies.some((c) => c.name === 'carrental_rt')).toBe(true);
+
+    const reopened = await browser.newContext({ storageState: state });
+    try {
+      const p2 = await reopened.newPage();
+      const guards = attachConsoleGuards(p2);
+      await p2.goto('/account');
+      // stays on /account (silent refresh), never bounces to /sign-in
+      await expect(p2).toHaveURL(/\/account$/);
+      await expect(p2.getByRole('heading', { name: /^Account$/ })).toBeVisible();
+      guards.assertClean();
+    } finally {
+      await reopened.close();
+    }
+  });
+
+  test('S7-OPT-002: signing out in one tab logs the other tab out too', async ({ context }) => {
+    // two pages in ONE context = one origin storage, so `storage` events fire between them
+    const a = await context.newPage();
+    await a.goto('/account');
+    await a.getByLabel('Email', { exact: false }).fill(CUSTOMER.email);
+    await a.getByLabel('Password', { exact: false }).fill(CUSTOMER.password);
+    await a.getByRole('button', { name: /^Sign in$/ }).click();
+    await expect(a).toHaveURL(/\/account$/);
+
+    const b = await context.newPage();
+    await b.goto('/account');
+    await expect(b).toHaveURL(/\/account$/); // tab B is authenticated
+
+    await a.getByRole('button', { name: /Sign out/ }).click();
+    // tab B reacts to the storage event and drops to an anonymous state
+    await b.goto('/account');
+    await expect(b).toHaveURL(/\/sign-in$/);
+
+    await a.close();
+    await b.close();
+  });
+
   test('SCREEN-CUS-012: changing language persists and re-renders the app in that locale', async ({
     page,
   }) => {
@@ -127,6 +180,13 @@ test.describe('operations foundation (APP-OPS)', () => {
     const body = await res.json();
     const other = body.values.find((v: { code: string }) => v.code === 'other');
     expect(other.label).toBe(newLabel);
+
+    // FR-ADM-008 usage check: deactivating a value opens a confirm that reports "where used"
+    // (this configurable value has no references in the seed → the plain body shows, no crash)
+    await page.getByTestId('deactivate-other').click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toContainText(/new selections|used by/i);
+    await dialog.getByRole('button', { name: /^Cancel$/ }).click();
 
     guards.assertClean();
   });

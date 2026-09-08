@@ -17,16 +17,13 @@ export const zDriverInput = z.object({
 export const zConfirmBookingRequest = z.object({
   quoteReference: z.string().min(3).max(40),
   drivers: z.array(zDriverInput).min(1).max(6),
-  extras: z
-    .array(
-      z.object({
-        code: z.string().max(60),
-        label: z.string().max(120),
-        amountMinor: z.number().int().nonnegative(),
-      }),
-    )
-    .max(20)
-    .optional(),
+  /**
+   * Selected extras / protection products, by catalogue code only. The server resolves each
+   * code to an active, applicable product version and prices it — the client never supplies a
+   * price or label (S7-DEF-004). No product catalogue exists yet, so any non-empty value is
+   * currently rejected; see S7-GAP-EXTRAS / FR-ADM-006.
+   */
+  extraCodes: z.array(z.string().min(1).max(60)).max(20).optional(),
   acceptTerms: z.literal(true),
   paymentToken: z.string().min(3).max(200),
   holderKey: z.string().max(120).optional(),

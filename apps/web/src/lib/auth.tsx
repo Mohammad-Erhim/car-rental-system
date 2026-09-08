@@ -31,7 +31,11 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-const ACCESS_EXP_KEY = 'carrental.session.hint';
+// Marks "this browser has an active refresh session" so a fresh load attempts a silent refresh.
+// MUST be localStorage, not sessionStorage: the refresh cookie is persistent (survives browser
+// restart) and shared across tabs, so the hint has to be too, or a restart / second tab looks
+// signed-out despite a valid cookie (S7-DEF-005).
+const SESSION_HINT_KEY = 'carrental.session.hint';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
@@ -55,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setActor(session.actor);
       setStatus('authenticated');
       try {
-        sessionStorage.setItem(ACCESS_EXP_KEY, '1');
+        localStorage.setItem(SESSION_HINT_KEY, '1');
       } catch {
         /* ignore */
       }
@@ -70,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setStatus('anonymous');
     if (refreshTimer.current) window.clearTimeout(refreshTimer.current);
     try {
-      sessionStorage.removeItem(ACCESS_EXP_KEY);
+      localStorage.removeItem(SESSION_HINT_KEY);
     } catch {
       /* ignore */
     }
@@ -97,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     registerRefreshHandler(doRefresh);
     let hadHint = false;
     try {
-      hadHint = sessionStorage.getItem(ACCESS_EXP_KEY) === '1';
+      hadHint = localStorage.getItem(SESSION_HINT_KEY) === '1';
     } catch {
       /* ignore */
     }
@@ -108,8 +112,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } else {
       setStatus('anonymous');
     }
-    return () => registerRefreshHandler(null);
-  }, [doRefresh]);
+
+    // S7-OPT-002 — keep tabs in sync: a sign-out in one tab clears the others; a sign-in
+    // prompts a silent refresh so a second tab picks up the session without a reload.
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== SESSION_HINT_KEY) return;
+      if (e.newValue === '1') void doRefresh();
+      else clearSession();
+    };
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      registerRefreshHandler(null);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [doRefresh, clearSession]);
 
   // A signed-in actor's saved locale preference follows them across sign-ins/devices
   // (FR-IAM-006). Only push when the actor's own value changes — never fight a switcher

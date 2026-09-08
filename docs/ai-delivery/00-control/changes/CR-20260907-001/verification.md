@@ -21,11 +21,15 @@ decision. Not yet `VERIFIED` or `CLOSED`.
     budget, standalone serving), `SRS-BRAND-001..003` (`branding`/`seo` config kinds + brand-
     asset upload + sanitiser), `SRS-SEC-018` (step-up); extends `SRS-UI-011`; extends §18.2
     with STAGE-009..013.
-- **No behaviour gap was introduced.** The suites that would detect one were re-run and are
-  green with no code change: `verify:static`, `verify:i18n` (+`--strict`, 768 keys),
-  `verify:theme`, `verify:unit`, `test:api` (15 files / 101 tests), `verify:seo`,
-  `verify:a11y`, `verify:e2e` (customer + ops flows, against a `apps/site` build made with the
-  API up).
+- **No behaviour gap was introduced _by the amendment drafting itself_.** The doc-only pass
+  changed no code. **However — Stage 7 correction (2026-09-08):** on a clean checkout at
+  `1efea67`, `verify:e2e` was **RED** (`S7-DEF-003` — `smoke.spec.ts` still asserted the
+  pre-SCREEN-OPS-002 "unavailable metrics" placeholder; the green e2e run cited here pre-dated
+  the `1efea67` dashboard commit). Stage 7 fixed the test and re-verified: `verify:e2e` green on
+  all three viewports. The other suites (`verify:static` / `verify:i18n` — now 778 keys after a
+  dead key was removed / `verify:theme` / `verify:unit` 89 / `verify:api` **107** incl. the new
+  `outbox.spec` / `verify:seo` / `verify:a11y` / `verify:perf`) are green after the Stage 7
+  fixes. See `05-system-validation/`.
 - **`04-implementation/traceability-matrix.md`** — the new IDs' code/test anchors are the
   Appendix A / Appendix B tables in each v1.1 file and the per-increment entries in the root
   `CHANGELOG.md` `[Unreleased]`; a formal merge of these into the matrix is a Stage-7 step.

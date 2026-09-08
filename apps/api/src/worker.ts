@@ -10,6 +10,7 @@ import { lt, sql } from 'drizzle-orm';
 import IORedis from 'ioredis';
 import pino from 'pino';
 
+import { runOutboxRelay } from './common/outbox/outbox-relay';
 import { createDb } from './database/drizzle';
 import { authChallenge } from './database/schema/iam';
 import { idempotencyKey, outboxMessage } from './database/schema/platform';
@@ -38,9 +39,38 @@ async function main() {
     },
   );
 
+  // Outbox relay every 15s (SRS-FLOW-002 — deliver committed domain events + prune, so
+  // `outbox_message` stays bounded and `outbox_backlog` is truthful). See `outbox-relay.ts`.
+  await housekeeping.add(
+    'outbox-relay',
+    {},
+    {
+      repeat: { every: 15 * 1000 },
+      jobId: 'outbox-relay-tick',
+      removeOnComplete: 20,
+      removeOnFail: 20,
+    },
+  );
+
   const worker = new Worker(
     'housekeeping',
     async (job: Job) => {
+      if (job.name === 'outbox-relay') {
+        const r = await runOutboxRelay(db, connection, log, {
+          onDeadLetter: async (rec, lastError) => {
+            await deadLetter.add('outbox-poison', {
+              outboxId: rec.id,
+              eventType: rec.eventType,
+              aggregate: `${rec.aggregateType}:${rec.aggregateId}`,
+              lastError,
+            });
+          },
+        });
+        if (r.delivered || r.failed || r.deadLettered || r.pruned) {
+          log.info(r, 'outbox relay tick');
+        }
+        return r;
+      }
       if (job.name === 'reap') {
         const nowExpr = sql`now()`;
         const challenges = await db

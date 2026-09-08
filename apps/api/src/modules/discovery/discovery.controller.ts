@@ -13,6 +13,7 @@ import type { Database } from '../../database/drizzle';
 import { organization } from '../../database/schema/org';
 import { AvailabilityService } from '../availability/availability.service';
 import { CatalogueService } from '../catalogue/catalogue.service';
+import { ProductService } from '../catalogue/product.service';
 import { PricingService } from '../pricing/pricing.service';
 
 @ApiTags('discovery')
@@ -21,9 +22,20 @@ export class DiscoveryController {
   constructor(
     private readonly availability: AvailabilityService,
     private readonly catalogue: CatalogueService,
+    private readonly products: ProductService,
     private readonly pricing: PricingService,
     @Inject(DB) private readonly db: Database,
   ) {}
+
+  @Get('catalogue/products')
+  @OptionalAuth()
+  @ApiOperation({
+    operationId: 'catalogue_listProducts',
+    summary: 'Extras & protection products available for a category + location',
+  })
+  listProducts(@Query('category') category: string, @Query('location') location: string) {
+    return this.products.availableFor(category, location);
+  }
 
   @Get('catalogue/categories')
   @OptionalAuth()

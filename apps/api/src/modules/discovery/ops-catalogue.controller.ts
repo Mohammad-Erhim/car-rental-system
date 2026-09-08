@@ -10,6 +10,7 @@ import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { AvailabilityService } from '../availability/availability.service';
 import { CatalogueService } from '../catalogue/catalogue.service';
+import { ProductService } from '../catalogue/product.service';
 import { FleetService } from '../fleet/fleet.service';
 import { PricingService } from '../pricing/pricing.service';
 
@@ -64,15 +65,62 @@ const zUnitImport = z.object({
   commit: z.boolean().optional(),
 });
 
+const zProduct = z.object({
+  code: z
+    .string()
+    .min(2)
+    .max(60)
+    .regex(/^[a-z0-9_]+$/),
+  name: z.string().min(1).max(120),
+  kind: z.enum(['extra', 'protection']),
+  unitPriceMinor: z.number().int().min(0),
+  currency: z.string().length(3).optional(),
+  taxable: z.boolean().optional(),
+  maxQuantity: z.number().int().min(1).max(20).optional(),
+  categoryScope: z.array(z.string().max(40)).max(50).optional(),
+  locationScope: z.array(z.string().max(20)).max(50).optional(),
+  sortOrder: z.number().int().optional(),
+});
+
 @ApiTags('ops-catalogue')
 @Controller({ path: 'ops', version: '1' })
 export class OpsCatalogueController {
   constructor(
     private readonly catalogue: CatalogueService,
+    private readonly products: ProductService,
     private readonly fleet: FleetService,
     private readonly pricing: PricingService,
     private readonly availability: AvailabilityService,
   ) {}
+
+  // --- extras & protection products (SCREEN-OPS-027 / FR-ADM-006) ---
+
+  @Get('catalogue/products')
+  @Permissions('catalogue.read', 'config.read')
+  listProducts() {
+    return this.products.list();
+  }
+
+  @Post('catalogue/products')
+  @Permissions('catalogue.manage')
+  upsertProduct(
+    @Body(new ZodValidationPipe(zProduct)) body: z.infer<typeof zProduct>,
+    @CurrentActor() actor: Actor,
+  ) {
+    return this.products.upsert(actor, body);
+  }
+
+  @Post('catalogue/products/:code/deactivate')
+  @Permissions('catalogue.manage')
+  deactivateProduct(@Param('code') code: string, @CurrentActor() actor: Actor) {
+    return this.products.setActive(actor, code, false);
+  }
+
+  @Post('catalogue/products/:code/restore')
+  @Permissions('catalogue.manage')
+  restoreProduct(@Param('code') code: string, @CurrentActor() actor: Actor) {
+    return this.products.setActive(actor, code, true);
+  }
 
   // --- catalogue (SCREEN-OPS-013/025) ---
 

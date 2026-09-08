@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { AvailabilityService } from '../availability/availability.service';
 import { CatalogueService } from '../catalogue/catalogue.service';
+import { ProductService } from '../catalogue/product.service';
 import { FleetService } from '../fleet/fleet.service';
 import { PricingService } from '../pricing/pricing.service';
 
@@ -14,7 +15,7 @@ import { OpsCatalogueController } from './ops-catalogue.controller';
  */
 @Module({
   controllers: [DiscoveryController, OpsCatalogueController],
-  providers: [CatalogueService, FleetService, PricingService, AvailabilityService],
-  exports: [CatalogueService, FleetService, PricingService, AvailabilityService],
+  providers: [CatalogueService, ProductService, FleetService, PricingService, AvailabilityService],
+  exports: [CatalogueService, ProductService, FleetService, PricingService, AvailabilityService],
 })
 export class DiscoveryModule {}

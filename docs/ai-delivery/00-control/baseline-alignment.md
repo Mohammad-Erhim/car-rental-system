@@ -25,3 +25,65 @@ behaviour. They renumber and reinterpret nothing in v1.0. Formal acceptance of v
 these rows to `ALIGNED`, and the independent Stage-7 four-way audit remain for the user at the
 next stage gate (the CR's `plan.md` path 2). No behaviour changed to produce the amendments;
 the `verify:*` suites were re-run green.
+
+## Stage 7 note (2026-09-08 — `SESSION-20260907-185500-STAGE-07`)
+
+Stage 7 started and is `IN_PROGRESS` (`AWAITING_USER_DECISION`). It **verified** the v1.1
+amendment drafts are accurate for the Enhancement-Program scope, but found the alignment is **not**
+yet complete:
+
+- `verify:e2e` was **RED** at `1efea67` (`S7-DEF-003` — a stale test; the "e2e green" line in
+  `CR-20260907-001/verification.md` pre-dated the SCREEN-OPS-002 commit). Fixed + re-verified green.
+- `04-implementation/traceability-matrix.md` **over-claims** `COMPLETED` for FR-ADM-001/002/006/007
+  (mapped to unrelated or partial features) and carries stale pre-STAGE-011 customer paths
+  (`S7-DEF-007`). "Code/Database" alignment cannot read `ALIGNED` until these are corrected and the
+  unbuilt FR-ADM surfaces (`05-system-validation/decision-list.md` D-1..D-6) are resolved
+  (built or an accepted scoped-out CR amendment).
+- Stage 7 applied 5 code/test fixes (S7-DEF-001/003/004p1/005 + S7-OPT-001), **uncommitted**; the
+  SRS v1.1 draft should also record the `openapi:check` gate and the `extraCodes` contract shape.
+
+Rows stay `IN_PROGRESS`. They move to `ALIGNED` when Stage 7 closes (`05-system-validation/final-report.md`
+non-DRAFT + `verify:all` green + the v1.1 docs accepted).
+
+## Stage 7 update 2 (2026-09-08 — batch 3)
+
+Stage 7 built the cleanly-bounded FR-ADM slices autonomously ("continue with best practices"):
+
+- **FR-ADM-011 / SCREEN-OPS-033** — notification-template editor (content half): `TemplateService`
+  - `/api/v1/ops/templates*` + `/ops/config/templates`. `template.spec` 7. Event-rules half → `CR-20260908-001`.
+- **FR-ADM-001/002 / SCREEN-OPS-021/022** — customer records read side: `CustomerModule` +
+  `GET /ops/customers[?q=|/:id]` + `/ops/customers`. `customer.spec` 5. Merge + restriction
+  write-workflow → `CR-20260908-001`.
+- `S7-DEF-002` outbox relay fixed.
+
+**`CR-20260908-001`** gathered the remaining deferred FR-ADM scope.
+
+## Stage 7 update 3 (2026-09-08 — `CR-20260908-001` full build)
+
+The user gave full authorization to build; **all `CR-20260908-001` items are delivered**:
+
+- **D-1** FR-ADM-006 / SCREEN-OPS-027 / SCREEN-CUS-005 — `product` catalogue + authoritative
+  booking-time pricing + ops screen + `apps/site` checkout extras step (migration `0007`).
+- **D-2** FR-ADM-001/002 — customer records; **eligibility restrictions** write side
+  (`pending_review`→`active`→`lifted`, author≠approver, enforced in `booking.confirm()`,
+  migration `0008`); **reversible merge** (`customer_merge`, archive-not-delete, `unmerge`,
+  migration `0009`).
+- **D-3** FR-ADM-007 / SCREEN-OPS-028 — locations & operating-hours editor (hours / instructions
+  / holiday exceptions / archive with future-reservation impact check).
+- **D-4** FR-ADM-011 / SCREEN-OPS-033 — template content editor + **event rules**
+  (`notification_rule`; `notify.send()` applies the enable gate + sender, migration `0010`).
+- **D-5** `S7-DEF-002` outbox relay. **D-6** FR-ADM-003 / SCREEN-OPS-004 unified search.
+  **`S7-DEF-006`** FR-ADM-008 real reference-data usage counts.
+
+Each item's deferred depth (config-version governance / timing scheduler / duplicate detection /
+one-way-route pricing …) is recorded as a follow-up CR in `decision-list.md` +
+`CR-20260908-001/verification.md`. `traceability-matrix.md` FR-ADM rows re-stated + delivery
+appendix + `SCREEN-CUS-*` old→new path map added (`S7-Q-014` docs complete).
+
+**Gates:** `verify:static` (openapi 134) + `verify:i18n` (968) + `verify:unit` (89) green;
+targeted `verify:api` green per feature; `report` e2e 9/9 + `booking` 3/3 + `auth-and-reference`
+5/5 on laptop. Full single-run `verify:api` + full 3-viewport `verify:e2e` → Phase 4 (host RAM).
+
+Code/Tests rows stay `IN_PROGRESS`. They move to `ALIGNED` when `CR-20260907-001` is accepted
+(`D-7`), the `CR-20260908-001` acceptance stage-gate passes, and the Phase-4 full `verify:all`
+runs clean on a host with headroom / in CI.

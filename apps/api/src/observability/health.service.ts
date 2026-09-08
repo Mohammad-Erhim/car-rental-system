@@ -8,6 +8,9 @@ import type { Env } from '../config/env.schema';
 import { DB } from '../database/database.module';
 import type { Database } from '../database/drizzle';
 import { lookupType, lookupValue } from '../database/schema/lookup';
+import { outboxMessage } from '../database/schema/platform';
+
+import { MetricsService } from './metrics';
 
 type Status = 'ok' | 'degraded' | 'down';
 
@@ -18,6 +21,7 @@ export class HealthService {
   constructor(
     @Inject(DB) private readonly db: Database,
     @Inject(ENV) private readonly env: Env,
+    private readonly metrics: MetricsService,
   ) {}
 
   private getRedis(): Redis {
@@ -90,6 +94,17 @@ export class HealthService {
         throw new Error(`missing lookup codes: ${missing.slice(0, 10).join(', ')}`);
       return `${types.length} lookup types verified`;
     });
+
+    // SRS-OBS-006 — refresh the outbox-backlog gauge on every readiness probe (cheap, indexed).
+    try {
+      const rows = await this.db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(outboxMessage)
+        .where(sql`${outboxMessage.deliveredAt} is null`);
+      this.metrics.setOutboxBacklog(rows[0]?.n ?? 0);
+    } catch {
+      /* metric refresh is best-effort; never fail readiness on it */
+    }
 
     const statuses = Object.values(checks).map((c) => c.status);
     const status: Status = statuses.includes('down')
