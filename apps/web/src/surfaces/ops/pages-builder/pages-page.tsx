@@ -191,7 +191,24 @@ export function PagesPage() {
   }
 
   const publishedRev = published.data?.revision ?? 0;
-  const iframeWidth = viewport === 'mobile' ? 390 : viewport === 'tablet' ? 768 : undefined;
+
+  // Emulate device widths by rendering the iframe at a real width and scaling it to fit.
+  const DEVICE_W: Record<typeof viewport, number> = { desktop: 1280, tablet: 834, mobile: 390 };
+  const PREVIEW_H = 760;
+  const previewWrapRef = useRef<HTMLDivElement | null>(null);
+  const [containerW, setContainerW] = useState(560);
+  useEffect(() => {
+    const el = previewWrapRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width;
+      if (w) setContainerW(w);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const deviceW = DEVICE_W[viewport];
+  const scale = Math.min(1, Math.max(0.2, (containerW - 4) / deviceW));
 
   return (
     <div className="space-y-6">
@@ -207,7 +224,7 @@ export function PagesPage() {
         }
       />
 
-      <div className="grid gap-6 xl:grid-cols-[20rem_1fr_28rem] [&>*]:min-w-0">
+      <div className="grid items-start gap-5 xl:grid-cols-[17rem_19rem_minmax(0,1fr)] [&>*]:min-w-0">
         {/* ---- block list ---- */}
         <Card className="h-fit">
           <CardHeader className="flex-row items-center justify-between space-y-0">
@@ -219,192 +236,163 @@ export function PagesPage() {
           <CardContent className="space-y-1.5">
             {blocks.map((b, i) => {
               const def = BLOCK_DEFS[b.type];
+              const btn =
+                'rounded p-1 text-muted-foreground hover:bg-background hover:text-foreground disabled:opacity-25';
               return (
                 <div
                   key={b.id}
-                  className={`flex items-center gap-1 rounded-md border px-2 py-1.5 text-sm ${
+                  className={`rounded-md border ${
                     b.id === selectedId
                       ? 'border-primary bg-primary/5'
                       : 'border-transparent hover:bg-muted/50'
                   } ${b.hidden ? 'opacity-50' : ''}`}
                 >
-                  <GripVertical className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                   <button
                     type="button"
-                    className="flex flex-1 items-center gap-2 truncate text-start"
+                    aria-pressed={b.id === selectedId}
+                    className="flex w-full items-center gap-2 px-2 pt-1.5 text-start text-sm"
                     onClick={() => setSelectedId(b.id)}
                   >
+                    <GripVertical
+                      className="size-3.5 shrink-0 text-muted-foreground/60"
+                      aria-hidden
+                    />
                     <def.Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                     <span className="truncate">{t(def.label)}</span>
                     {def.required ? <span className="text-xs text-muted-foreground">*</span> : null}
                   </button>
-                  <button
-                    type="button"
-                    className="rounded p-1 text-muted-foreground hover:text-foreground disabled:opacity-30"
-                    disabled={i === 0}
-                    aria-label={t('ops.pages.moveUp')}
-                    onClick={() => move(b.id, -1)}
-                  >
-                    <ArrowUp className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded p-1 text-muted-foreground hover:text-foreground disabled:opacity-30"
-                    disabled={i === blocks.length - 1}
-                    aria-label={t('ops.pages.moveDown')}
-                    onClick={() => move(b.id, 1)}
-                  >
-                    <ArrowDown className="size-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded p-1 text-muted-foreground hover:text-foreground disabled:opacity-30"
-                    disabled={def.required}
-                    aria-label={b.hidden ? t('ops.pages.show') : t('ops.pages.hide')}
-                    onClick={() => updateBlock(b.id, (x) => ({ ...x, hidden: !x.hidden }))}
-                  >
-                    {b.hidden ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded p-1 text-muted-foreground hover:text-destructive disabled:opacity-30"
-                    disabled={def.required}
-                    aria-label={t('ops.pages.delete')}
-                    onClick={() => setConfirmDelete(b.id)}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </button>
+                  <div className="flex justify-end gap-0.5 px-1 pb-1">
+                    <button
+                      type="button"
+                      className={btn}
+                      disabled={i === 0}
+                      aria-label={t('ops.pages.moveUp')}
+                      onClick={() => move(b.id, -1)}
+                    >
+                      <ArrowUp className="size-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      className={btn}
+                      disabled={i === blocks.length - 1}
+                      aria-label={t('ops.pages.moveDown')}
+                      onClick={() => move(b.id, 1)}
+                    >
+                      <ArrowDown className="size-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      className={btn}
+                      disabled={def.required}
+                      aria-label={b.hidden ? t('ops.pages.show') : t('ops.pages.hide')}
+                      onClick={() => updateBlock(b.id, (x) => ({ ...x, hidden: !x.hidden }))}
+                    >
+                      {b.hidden ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                    </button>
+                    <button
+                      type="button"
+                      className={`${btn} hover:text-destructive`}
+                      disabled={def.required}
+                      aria-label={t('ops.pages.delete')}
+                      onClick={() => setConfirmDelete(b.id)}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </button>
+                  </div>
                 </div>
               );
             })}
           </CardContent>
         </Card>
 
-        {/* ---- inspector ---- */}
-        <Card>
-          <CardHeader className="flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-base">
-              {selected ? t(BLOCK_DEFS[selected.type].label) : t('ops.pages.inspector')}
-            </CardTitle>
-            <div
-              className="flex gap-1 rounded-md border p-0.5"
-              role="tablist"
-              aria-label={t('ops.pages.locale')}
-            >
-              {LOCALES.map((l) => (
-                <button
-                  key={l}
-                  type="button"
-                  role="tab"
-                  aria-selected={editLocale === l}
-                  className={`rounded px-2.5 py-1 text-xs uppercase ${
-                    editLocale === l
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground'
-                  }`}
-                  onClick={() => setEditLocale(l)}
-                >
-                  {l}
-                </button>
-              ))}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {!selected ? (
-              <p className="text-sm text-muted-foreground">{t('ops.pages.selectHint')}</p>
-            ) : (
-              <>
-                {editLocale !== 'en' ? (
-                  <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-                    {t('ops.pages.localeFallbackHint')}
-                  </p>
-                ) : null}
-                {BLOCK_DEFS[selected.type].supportsTone ? (
-                  <label className="block space-y-1 text-sm">
-                    <span className="font-medium text-muted-foreground">{t('ops.pages.tone')}</span>
-                    <select
-                      className={selectClass}
-                      value={selected.tone}
-                      onChange={(e) =>
-                        updateBlock(selected.id, (x) => ({
-                          ...x,
-                          tone: e.target.value as Block['tone'],
-                        }))
-                      }
-                    >
-                      {(['default', 'muted', 'brand'] as const).map((tn) => (
-                        <option key={tn} value={tn}>
-                          {t(`ops.pages.tone.${tn}`)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
-                {BLOCK_DEFS[selected.type].fields.map((f) => (
-                  <FieldControl
-                    key={f.key}
-                    def={f}
-                    value={(selected.props as Record<string, unknown>)[f.key]}
-                    locale={editLocale}
-                    t={t}
-                    assetUrls={assetUrls.current}
-                    uploading={upload.isPending}
-                    onExpand={setLightbox}
-                    onUpload={(file, cb) => onUpload(f.purpose ?? 'pageImage', file, cb)}
-                    onChange={(v) =>
-                      updateBlock(
-                        selected.id,
-                        (x) =>
-                          ({
-                            ...x,
-                            props: { ...(x.props as Record<string, unknown>), [f.key]: v },
-                          }) as Block,
-                      )
-                    }
-                  />
-                ))}
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* ---- preview + workflow ---- */}
-        <div className="space-y-4">
+        {/* ---- inspector + workflow (column 2) ---- */}
+        <div className="flex flex-col gap-4">
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-base">{t('ops.pages.preview')}</CardTitle>
-              <div className="flex gap-1 rounded-md border p-0.5">
-                {(
-                  [
-                    ['desktop', Monitor],
-                    ['tablet', Tablet],
-                    ['mobile', Smartphone],
-                  ] as const
-                ).map(([v, I]) => (
+              <CardTitle className="text-base">
+                {selected ? t(BLOCK_DEFS[selected.type].label) : t('ops.pages.inspector')}
+              </CardTitle>
+              <div
+                className="flex gap-1 rounded-md border p-0.5"
+                role="tablist"
+                aria-label={t('ops.pages.locale')}
+              >
+                {LOCALES.map((l) => (
                   <button
-                    key={v}
+                    key={l}
                     type="button"
-                    aria-label={t(`ops.pages.viewport.${v}`)}
-                    aria-pressed={viewport === v}
-                    className={`rounded p-1.5 ${viewport === v ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
-                    onClick={() => setViewport(v)}
+                    role="tab"
+                    aria-selected={editLocale === l}
+                    className={`rounded px-2.5 py-1 text-xs uppercase ${
+                      editLocale === l
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground'
+                    }`}
+                    onClick={() => setEditLocale(l)}
                   >
-                    <I className="size-4" />
+                    {l}
                   </button>
                 ))}
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="max-w-full overflow-auto rounded-lg border bg-muted/30 p-2">
-                <iframe
-                  ref={iframeRef}
-                  title={t('ops.pages.previewFrameTitle')}
-                  src={`${SITE_ORIGIN}/${editLocale}?preview=1`}
-                  className="mx-auto block h-[62vh] rounded border-0 bg-background"
-                  style={{ width: iframeWidth ? `${iframeWidth}px` : '100%' }}
-                />
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">{t('ops.pages.previewHint')}</p>
+            <CardContent className="space-y-4">
+              {!selected ? (
+                <p className="text-sm text-muted-foreground">{t('ops.pages.selectHint')}</p>
+              ) : (
+                <>
+                  {editLocale !== 'en' ? (
+                    <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                      {t('ops.pages.localeFallbackHint')}
+                    </p>
+                  ) : null}
+                  {BLOCK_DEFS[selected.type].supportsTone ? (
+                    <label className="block space-y-1 text-sm">
+                      <span className="font-medium text-muted-foreground">
+                        {t('ops.pages.tone')}
+                      </span>
+                      <select
+                        className={selectClass}
+                        value={selected.tone}
+                        onChange={(e) =>
+                          updateBlock(selected.id, (x) => ({
+                            ...x,
+                            tone: e.target.value as Block['tone'],
+                          }))
+                        }
+                      >
+                        {(['default', 'muted', 'brand'] as const).map((tn) => (
+                          <option key={tn} value={tn}>
+                            {t(`ops.pages.tone.${tn}`)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                  {BLOCK_DEFS[selected.type].fields.map((f) => (
+                    <FieldControl
+                      key={f.key}
+                      def={f}
+                      value={(selected.props as Record<string, unknown>)[f.key]}
+                      locale={editLocale}
+                      t={t}
+                      assetUrls={assetUrls.current}
+                      uploading={upload.isPending}
+                      onExpand={setLightbox}
+                      onUpload={(file, cb) => onUpload(f.purpose ?? 'pageImage', file, cb)}
+                      onChange={(v) =>
+                        updateBlock(
+                          selected.id,
+                          (x) =>
+                            ({
+                              ...x,
+                              props: { ...(x.props as Record<string, unknown>), [f.key]: v },
+                            }) as Block,
+                        )
+                      }
+                    />
+                  ))}
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -492,6 +480,64 @@ export function PagesPage() {
                   </div>
                 ))
               )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ---- live preview (column 3) ---- */}
+        <div className="xl:sticky xl:top-4">
+          <Card>
+            <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
+              <CardTitle className="text-base">
+                {t('ops.pages.preview')}
+                <span className="ms-2 text-xs font-normal text-muted-foreground">
+                  {t(`ops.pages.viewport.${viewport}`)} · {Math.round(scale * 100)}%
+                </span>
+              </CardTitle>
+              <div className="flex gap-1 rounded-md border p-0.5">
+                {(
+                  [
+                    ['desktop', Monitor],
+                    ['tablet', Tablet],
+                    ['mobile', Smartphone],
+                  ] as const
+                ).map(([v, I]) => (
+                  <button
+                    key={v}
+                    type="button"
+                    aria-label={t(`ops.pages.viewport.${v}`)}
+                    aria-pressed={viewport === v}
+                    className={`rounded p-1.5 ${viewport === v ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}
+                    onClick={() => setViewport(v)}
+                  >
+                    <I className="size-4" />
+                  </button>
+                ))}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div ref={previewWrapRef} className="overflow-hidden rounded-lg border bg-muted/40">
+                <div
+                  className="mx-auto"
+                  style={{ width: Math.round(deviceW * scale), height: PREVIEW_H }}
+                >
+                  <iframe
+                    ref={iframeRef}
+                    title={t('ops.pages.previewFrameTitle')}
+                    src={`${SITE_ORIGIN}/${editLocale}?preview=1`}
+                    style={{
+                      width: deviceW,
+                      height: Math.round(PREVIEW_H / scale),
+                      transform: `scale(${scale})`,
+                      transformOrigin: 'top left',
+                      border: 0,
+                      display: 'block',
+                      background: 'hsl(var(--background))',
+                    }}
+                  />
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">{t('ops.pages.previewHint')}</p>
             </CardContent>
           </Card>
         </div>
