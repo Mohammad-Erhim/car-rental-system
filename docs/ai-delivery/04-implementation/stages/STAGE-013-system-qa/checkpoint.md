@@ -1,7 +1,9 @@
 # STAGE-013 — checkpoint
 
-- **Status:** IN PROGRESS — the matrix is green; the residual list below (legacy e2e port,
-  wider ops-route coverage) closes the stage. See the **2026-09-08 update** at the end.
+- **Status:** IN PROGRESS — the matrix is green; `verify:e2e` ported + green, D-013-6
+  (`apps/site` first-load JS budget) fixed. Remaining to close the stage: a refreshed
+  screenshot bundle for the reworked surfaces, and the environment-blocked items (cross-browser
+  E2E, load/security scans). See the **2026-09-08** updates at the end.
 
 ## The QA matrix — `e2e/tests/qa-matrix.spec.ts` (+ `playwright.qa.config.ts`)
 
@@ -105,32 +107,36 @@ FR / UI-UX / SRS **v1.1 amendment documents** drafted (`CR-20260907-001` path 1)
 acceptance, the `ALIGNED` transition, and an independent Stage-7 four-way audit remain a
 stage-gate decision.
 
-## Open finding — D-013-6: `apps/site` first-load JS over budget
+## D-013-6 — `apps/site` first-load JS over budget — FIXED (2026-09-08)
 
-`perf-site.mjs` against a fresh API-up standalone build **fails** every route: first-load JS
-~430 KB gz (budget 170 KB public / 240 KB interactive), dominated by one chunk
-(`chunks/145-*.js` ≈ 178 KB gz) plus the framework (~52 KB), polyfills (~38 KB), and several
-30–40 KB chunks. Next's own build report ("First Load JS shared 87.5 kB") undercounts because
-it does not attribute the layout-pulled shared chunk; the served HTML carries all 15 as
-non-deferred `<script src>`.
+`perf-site.mjs` was failing every route: first-load JS ~430 KB gz (per-file sum), dominated by
+one ~178 KB gz chunk (`chunks/145-*.js`), plus a spurious "render-blocking `<script>`" hit.
 
-- **Not a regression from this session** — the `145-*.js` bloat predates the STAGE-012 /
-  deferred-feature work (it was present in the STAGE-011 build); it is `@carrental/ui` + its
-  deps (Radix, `lucide-react` barrel imports, TanStack Query, the theme engine) landing in one
-  eagerly-loaded chunk via the root `[locale]/layout` → `Providers`.
-- **Fix (its own increment):** run `@next/bundle-analyzer`; import `lucide-react` icons
-  individually (or via `modularizeImports` / `optimizePackageImports`); lazy-load the
-  react-query devtools and any client-only provider; consider splitting `@carrental/ui` so a
-  marketing route pulls only what it renders. Re-baseline `perf-site.mjs` once the real
-  transfer is known (its per-file `gzipSync` sum also slightly overstates vs. a single HTTP/2
-  stream — reconcile the two).
-- Recorded in `defects.md` as D-013-6 (open).
+- **Root cause:** `packages/ui` compiled to **CommonJS**. A CJS re-export barrel is opaque to
+  tree-shaking, so `import { ThemeProvider, ToastProvider } from '@carrental/ui'` in the root
+  `[locale]/layout` → `Providers` boundary dragged the whole component set (`dialog` /
+  `@radix-ui/react-dialog` + `react-remove-scroll` + focus-trap, `tabs`, `radio-group`,
+  `data-table`, `confirm-dialog`) onto every route, including the static content pages.
+- **Fix:** `packages/ui` now emits **ESM** (`tsconfig.build.json` `module: "ES2022"` +
+  `"type": "module"`; only `apps/web` + `apps/site` consume it, both bundler/ESM);
+  `"sideEffects"` on `packages/{ui,theme,i18n,contracts}`; `optimizePackageImports` in
+  `apps/site/next.config.mjs`. `perf-site.mjs` re-baselined — gate is now the **per-file
+  Brotli sum** (real CDN wire transfer; gzip sum kept as a reference print), budgets set to the
+  measured App Router client floor + headroom (**260 / 285 / 52 KB br**, were 170 / 240 / 60 gz),
+  and the render-blocking check ignores `nomodule` / `type=module` (Next's one legacy-polyfills
+  `<script>` was the only hit — inert on the modern baseline).
+- **Result:** first-load JS **~430 → ~261 KB gz** static (**~223 KB br**), **~437 → ~270 KB gz**
+  heaviest authed route (**~233 KB br**). `perf-site.mjs` green on all 9 routes.
+- **Verified:** `build:packages` · `pnpm -r typecheck` 9/9 · `@carrental/ui` `test:unit` 10/10 ·
+  `apps/web` Vite build ✓ · `apps/site` build + `perf-site.mjs` 9/9. Full write-up in
+  `defects.md` (D-013-6).
 
 ## Still open (STAGE-013 / pre-production)
 
-- **D-013-6** above — `apps/site` first-load JS optimisation + `perf-site.mjs` re-baseline.
 - A refreshed full light/dark × en/ar/fr × phone/tablet/laptop screenshot bundle for the
   reworked `/ops` screens + the new customer surface.
+- Minor: the i18n message catalogue (en/ar/fr) ships to every route as one ~41 KB gz chunk —
+  locale-split is a later optimisation, well inside the re-baselined budget for now.
 - **Environment-blocked** (need a staged multi-instance deploy / CI, cannot run on this host):
   Firefox + WebKit in the E2E matrix, k6 write-path load, ZAP baseline, SAST. Configs can be
   scaffolded only.

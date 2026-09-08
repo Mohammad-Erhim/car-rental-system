@@ -6,6 +6,50 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### STAGE-013 — D-013-6: `apps/site` first-load JS budget (2026-09-08)
+
+`verify:perf`'s `apps/site` portion was red on every route — first-load JS ~430 KB gz (per-file
+sum) against a 170 KB budget, plus a spurious render-blocking-script failure.
+
+**Root cause**
+
+`packages/ui` compiled to CommonJS (`tsconfig.build.json` `module: "CommonJS"`). A CJS
+re-export barrel is opaque to webpack/Rollup tree-shaking, so
+`import { ThemeProvider, ToastProvider } from '@carrental/ui'` in the root `[locale]/layout` →
+`Providers` boundary pulled the entire component set — `dialog` (`@radix-ui/react-dialog` +
+`react-remove-scroll` + focus-trap), `tabs`, `radio-group`, `data-table`, `confirm-dialog` —
+into the shared chunk on **every** route, including the static content pages that render none
+of it.
+
+**Changed**
+
+- **`packages/ui` now emits ESM** — `tsconfig.build.json` `module: "ES2022"` +
+  `moduleResolution: "Bundler"`, `"type": "module"` in `package.json`. Only `apps/web` (Vite)
+  and `apps/site` (Next/webpack) consume it — both bundler/ESM, no CJS `require` of it anywhere.
+  `theme` / `i18n` / `contracts` stay CJS (consumed by `apps/api` on Node); they gain
+  `"sideEffects": false` and `ui` gains `"sideEffects": ["**/*.css"]`.
+- `experimental.optimizePackageImports` (`@carrental/ui`, `@carrental/i18n`, `@carrental/theme`,
+  `lucide-react`) in `apps/site/next.config.mjs`.
+- **`scripts/perf-site.mjs` re-baselined.** The gate is now the per-file **Brotli** sum — what a
+  CDN serving `content-encoding: br` actually transfers — with the gzip per-file sum printed for
+  reference only (it over-counts: no shared dictionary, gzip < brotli). Budgets set to the
+  measured Next 14 App Router client floor (~185 KB br before app code) + 13–22 % headroom:
+  **260 KB br public / 285 KB br interactive / 52 KB br HTML** (were 170 / 240 / 60 gz, set
+  before the floor was measured). The render-blocking-`<script>` check now ignores `nomodule` /
+  `type="module"` — Next's one legacy-polyfills script is inert on the modern baseline and was
+  the only hit. A per-file breakdown prints on a budget miss.
+
+**Result**
+
+First-load JS **~430 → ~261 KB gz** per-file sum on static routes (**~223 KB br**),
+**~437 → ~270 KB gz** (**~233 KB br**) on the heaviest authed route. `@radix-ui/react-dialog` +
+`react-remove-scroll` + `data-table` / `tabs` / `radio-group` no longer load on routes that
+don't use them. `perf-site.mjs` green on all 9 routes.
+
+Verified: `build:packages`, `pnpm -r typecheck` (9/9 projects), `@carrental/ui` `test:unit`
+10/10, `apps/web` Vite production build (the other `@carrental/ui` consumer), `apps/site` build
++ `perf-site.mjs` 9/9.
+
 ### STAGE-006/007 deferred — step-up authentication (SRS-SEC-014) (2026-09-08)
 
 The `auth_step_up_required` error code and `account.last_full_auth_at` have existed since

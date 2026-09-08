@@ -13,7 +13,21 @@ const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
 const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
-  experimental: { outputFileTracingRoot: repoRoot },
+  experimental: {
+    outputFileTracingRoot: repoRoot,
+    // D-013-6: resolve barrel imports (`@carrental/ui`, i18n, lucide) to per-module paths so a
+    // route only ships the components it renders. The real fix is `@carrental/ui` now emitting
+    // ESM (its `tsconfig.build.json` + `"type": "module"`) — a CJS re-export barrel can't be
+    // tree-shaken, so the root [locale]/layout → Providers boundary was pulling every UI
+    // component (Dialog, Tabs, RadioGroup, DataTable + their Radix deps) into the shared chunk
+    // on every route. This + `sideEffects` on the workspace packages reinforce that.
+    optimizePackageImports: [
+      '@carrental/ui',
+      '@carrental/i18n',
+      '@carrental/theme',
+      'lucide-react',
+    ],
+  },
   poweredByHeader: false,
   transpilePackages: [
     '@carrental/ui',
