@@ -140,4 +140,70 @@ describe('fleet operations', () => {
       .send({ toLocationCode: 'TST2' })
       .expect(403);
   });
+
+  it('CSV import: a dry run reports per-row errors; a clean commit adds the units', async () => {
+    const stamp = Date.now().toString().slice(-6);
+    const header = 'plate,vin,categoryCode,locationCode,year,make,model,colour';
+    const bad = [
+      header,
+      `IMP${stamp}A,VIN${stamp}0000001,economy,TST1,2024,Kia,Rio,white`,
+      `,VIN${stamp}0000002,economy,TST1,2024,Kia,Rio,white`, // missing plate
+      `IMP${stamp}C,short,economy,TST1,2024,Kia,Rio,white`, // bad vin
+      `IMP${stamp}D,VIN${stamp}0000004,nope,TST1,2024,Kia,Rio,white`, // unknown category
+      `IMP${stamp}E,VIN${stamp}0000005,economy,ZZZZ,2024,Kia,Rio,white`, // unknown location
+      `IMP${stamp}A,VIN${stamp}0000006,economy,TST1,2024,Kia,Rio,white`, // dup plate in file
+    ].join('\n');
+
+    const dry = await request(server)
+      .post('/api/v1/ops/fleet/units/import')
+      .set(auth(adminToken))
+      .send({ csv: bad, commit: true })
+      .expect(201);
+    expect(dry.body.committed).toBe(false);
+    expect(dry.body.total).toBe(6);
+    const fields = (dry.body.errors as Array<{ field: string }>).map((e) => e.field);
+    expect(fields).toEqual(
+      expect.arrayContaining(['plate', 'vin', 'categoryCode', 'locationCode']),
+    );
+
+    const before = (await unitsAt('TST1', 'economy')).length;
+    const good = [
+      header,
+      `IMP${stamp}X,VIN${stamp}000000X,economy,TST1,2024,Kia,Rio,white`,
+      `IMP${stamp}Y,VIN${stamp}000000Y,economy,TST2,2023,Kia,Rio,black`,
+    ].join('\n');
+
+    const preview = await request(server)
+      .post('/api/v1/ops/fleet/units/import')
+      .set(auth(adminToken))
+      .send({ csv: good, commit: false })
+      .expect(201);
+    expect(preview.body).toMatchObject({ total: 2, valid: 2, committed: false, created: 0 });
+    expect(preview.body.errors).toHaveLength(0);
+
+    const committed = await request(server)
+      .post('/api/v1/ops/fleet/units/import')
+      .set(auth(adminToken))
+      .send({ csv: good, commit: true })
+      .expect(201);
+    expect(committed.body).toMatchObject({ committed: true, created: 2 });
+
+    expect((await unitsAt('TST1', 'economy')).length).toBe(before + 1);
+    expect((await unitsAt('TST2', 'economy')).some((u) => u.plate === `IMP${stamp}Y`)).toBe(true);
+
+    // re-importing the same file now collides with the DB
+    const again = await request(server)
+      .post('/api/v1/ops/fleet/units/import')
+      .set(auth(adminToken))
+      .send({ csv: good, commit: true })
+      .expect(201);
+    expect(again.body.committed).toBe(false);
+    expect(again.body.errors.length).toBeGreaterThanOrEqual(2);
+
+    await request(server)
+      .post('/api/v1/ops/fleet/units/import')
+      .set(auth(agentToken))
+      .send({ csv: good, commit: false })
+      .expect(403);
+  });
 });

@@ -96,6 +96,25 @@ export function useTransferUnit() {
   });
 }
 
+export interface UnitImportResult {
+  total: number;
+  valid: number;
+  committed: boolean;
+  created: number;
+  errors: Array<{ row: number; field: string; message: string }>;
+}
+
+export function useImportUnits() {
+  const invalidate = useFleetInvalidate();
+  return useMutation({
+    mutationFn: (input: { csv: string; commit: boolean }) =>
+      apiFetch<UnitImportResult>('/ops/fleet/units/import', { method: 'POST', body: input }),
+    onSuccess: (r) => {
+      if (r.committed) invalidate();
+    },
+  });
+}
+
 export interface RatePlan {
   id: string;
   categoryCode: string;

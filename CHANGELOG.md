@@ -6,6 +6,29 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### STAGE-005 deferred — fleet CSV bulk import (2026-09-08)
+
+**Added (API)**
+
+- `POST /api/v1/ops/fleet/units/import` (`fleet.manage`) — body `{ csv, commit }`. A small
+  RFC-4180-ish parser (`parseCsv`, quoted fields + `""` escapes + CR/LF) reads the header
+  `plate,vin,categoryCode,locationCode,year,make,model,colour`. Every row is validated
+  (required fields; VIN 11–17 chars; known category + location; plate/VIN unique within the
+  file **and** against the fleet). `commit: false` is a dry run; `commit: true` inserts in one
+  transaction only when there are **zero** errors (all rows or none). Returns
+  `{ total, valid, committed, created, errors: [{ row, field, message }] }`. Audits
+  `fleet.units.imported`. First unit-write path; no schema change.
+
+**Added (web)**
+
+- `/ops/fleet` gains a **Bulk import** card (CSV paste + file picker → **Validate** shows the
+  per-row error `DataTable` → **Import N units** commits when clean). 14 `ops.fleet.import*`
+  keys en/fr/ar.
+
+Verified: `fleet-ops.spec.ts` +1 (dry-run per-field errors incl. in-file dup; clean
+preview → commit → re-import collides with the DB; agent → 403) → `test:api` 100; web
+typecheck / lint / build / `verify:i18n` 758 + `--strict` green.
+
 ### STAGE-006 deferred — data-quality panel (SCREEN-OPS-039) (2026-09-08)
 
 **Added (API)**

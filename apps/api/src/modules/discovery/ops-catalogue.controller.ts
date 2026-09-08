@@ -59,6 +59,11 @@ const zTransfer = z.object({
   note: z.string().max(1000).optional(),
 });
 
+const zUnitImport = z.object({
+  csv: z.string().min(1).max(2_000_000),
+  commit: z.boolean().optional(),
+});
+
 @ApiTags('ops-catalogue')
 @Controller({ path: 'ops', version: '1' })
 export class OpsCatalogueController {
@@ -148,6 +153,15 @@ export class OpsCatalogueController {
     @CurrentActor() actor: Actor,
   ) {
     return this.fleet.transferUnit(actor, { unitId: id, ...body });
+  }
+
+  @Post('fleet/units/import')
+  @Permissions('fleet.manage')
+  importUnits(
+    @Body(new ZodValidationPipe(zUnitImport)) body: z.infer<typeof zUnitImport>,
+    @CurrentActor() actor: Actor,
+  ) {
+    return this.fleet.importUnits(actor, { csv: body.csv, commit: body.commit ?? false });
   }
 
   // --- rate plans (SCREEN-OPS-025/026) ---

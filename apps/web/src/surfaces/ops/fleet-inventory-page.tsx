@@ -9,6 +9,7 @@ import {
   DataTable,
   Input,
   PageHeader,
+  Textarea,
   Toolbar,
   type DataTableColumn,
 } from '@carrental/ui';
@@ -20,11 +21,15 @@ import { useLocations } from '../../lib/discovery-hooks.js';
 import {
   useAddFleetBlock,
   useFleetBlocks,
+  useImportUnits,
   useOpsUnits,
   useReleaseFleetBlock,
   useTransferUnit,
   type FleetBlock,
+  type UnitImportResult,
 } from '../../lib/ops-discovery-hooks.js';
+
+const IMPORT_HEADER = 'plate,vin,categoryCode,locationCode,year,make,model,colour';
 
 type Unit = NonNullable<ReturnType<typeof useOpsUnits>['data']>[number];
 
@@ -275,6 +280,136 @@ export function FleetInventoryPage() {
           />
         </CardContent>
       </Card>
+
+      {canManage ? <ImportUnitsCard /> : null}
     </div>
+  );
+}
+
+function ImportUnitsCard() {
+  const { t } = useI18n();
+  const importUnits = useImportUnits();
+  const [csv, setCsv] = useState('');
+  const [result, setResult] = useState<UnitImportResult | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function run(commit: boolean) {
+    setMsg(null);
+    try {
+      const r = await importUnits.mutateAsync({ csv, commit });
+      setResult(r);
+      if (r.committed) {
+        setMsg(t('ops.fleet.importDone', { n: r.created }));
+        setCsv('');
+      }
+    } catch (e) {
+      setMsg(e instanceof ApiError ? e.message : t('ops.fleet.importFail'));
+    }
+  }
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (file) setCsv(await file.text());
+    e.target.value = '';
+  }
+
+  const errorColumns: Array<DataTableColumn<UnitImportResult['errors'][number]>> = [
+    { key: 'row', header: t('ops.fleet.importRow'), cell: (r) => r.row, className: 'tabular-nums' },
+    {
+      key: 'field',
+      header: t('ops.fleet.importField'),
+      cell: (r) => r.field,
+      className: 'font-mono text-xs',
+    },
+    { key: 'message', header: t('ops.fleet.importIssue'), cell: (r) => r.message },
+  ];
+
+  const clean = result && result.errors.length === 0 && result.valid > 0 && !result.committed;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{t('ops.fleet.import')}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          {t('ops.fleet.importHint')} <code className="bidi-isolate">{IMPORT_HEADER}</code>
+        </p>
+        <Textarea
+          rows={5}
+          value={csv}
+          onChange={(e) => setCsv(e.target.value)}
+          placeholder={IMPORT_HEADER}
+          aria-label={t('ops.fleet.import')}
+          data-testid="fleet-import-csv"
+          className="font-mono text-xs"
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="file"
+            accept=".csv,text/csv"
+            onChange={onFile}
+            aria-label={t('ops.fleet.importFile')}
+            className="text-xs"
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!csv.trim()}
+            loading={importUnits.isPending}
+            onClick={() => run(false)}
+            data-testid="fleet-import-validate"
+          >
+            {t('ops.fleet.importValidate')}
+          </Button>
+          <Button
+            size="sm"
+            disabled={!clean}
+            loading={importUnits.isPending}
+            onClick={() => run(true)}
+            data-testid="fleet-import-commit"
+          >
+            {result
+              ? t('ops.fleet.importCommit', { n: result.valid })
+              : t('ops.fleet.importCommitEmpty')}
+          </Button>
+        </div>
+
+        {msg ? (
+          <p className="text-sm text-muted-foreground" data-testid="fleet-import-msg">
+            {msg}
+          </p>
+        ) : null}
+
+        {result && !result.committed ? (
+          <div className="space-y-2" data-testid="fleet-import-result">
+            <p className="text-sm">
+              {t('ops.fleet.importSummary', {
+                total: result.total,
+                valid: result.valid,
+                errors: result.errors.length,
+              })}
+            </p>
+            {result.errors.length ? (
+              <DataTable
+                columns={errorColumns}
+                rows={result.errors}
+                rowKey={(_r, i) => String(i)}
+                testid="fleet-import-errors"
+                minWidth="28rem"
+                labels={{
+                  loading: t('ops.st.loading'),
+                  loadFailTitle: t('ops.fleet.importFail'),
+                  retry: t('ops.st.retry'),
+                  empty: t('ops.fleet.importClean'),
+                }}
+              />
+            ) : (
+              <p className="text-sm text-success">{t('ops.fleet.importClean')}</p>
+            )}
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }

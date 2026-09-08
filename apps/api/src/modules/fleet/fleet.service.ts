@@ -11,6 +11,58 @@ import { vehicleBlock, vehicleUnit } from '../../database/schema/fleet';
 import { location } from '../../database/schema/org';
 import { rental } from '../../database/schema/rental';
 
+/** Minimal RFC-4180-ish CSV parse — quoted fields, "" escapes, CR/LF rows. Header row required. */
+export function parseCsv(text: string): Array<Record<string, string>> {
+  const rows: string[][] = [];
+  let field = '';
+  let row: string[] = [];
+  let inQuotes = false;
+  const src = text.replace(/^\uFEFF/, '');
+  for (let i = 0; i < src.length; i += 1) {
+    const ch = src[i]!;
+    if (inQuotes) {
+      if (ch === '"') {
+        if (src[i + 1] === '"') {
+          field += '"';
+          i += 1;
+        } else inQuotes = false;
+      } else field += ch;
+    } else if (ch === '"') {
+      inQuotes = true;
+    } else if (ch === ',') {
+      row.push(field);
+      field = '';
+    } else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && src[i + 1] === '\n') i += 1;
+      row.push(field);
+      field = '';
+      if (row.some((c) => c !== '')) rows.push(row);
+      row = [];
+    } else field += ch;
+  }
+  if (field !== '' || row.length) {
+    row.push(field);
+    if (row.some((c) => c !== '')) rows.push(row);
+  }
+  if (rows.length < 1) return [];
+  const header = rows[0]!.map((h) => h.trim());
+  return rows.slice(1).map((r) => {
+    const rec: Record<string, string> = {};
+    header.forEach((h, idx) => {
+      rec[h] = (r[idx] ?? '').trim();
+    });
+    return rec;
+  });
+}
+
+export interface UnitImportResult {
+  total: number;
+  valid: number;
+  committed: boolean;
+  created: number;
+  errors: Array<{ row: number; field: string; message: string }>;
+}
+
 export interface UnitRow {
   id: string;
   categoryCode: string;
@@ -340,5 +392,97 @@ export class FleetService {
       after: { locationCode: dest.code, note: input.note ?? null },
     });
     return { id: unit.id, currentLocationCode: dest.code, state: unit.state };
+  }
+
+  /**
+   * FR-FLT-002 — bulk-add units from a CSV (`plate,vin,categoryCode,locationCode,year,make,
+   * model,colour`). Every row is validated first (required fields, known category + location,
+   * plate/vin unique in the file and against the DB); with `commit: false` this is a dry run.
+   * `commit: true` inserts only when there are zero errors — all rows or none.
+   */
+  async importUnits(
+    actor: Actor,
+    input: { csv: string; commit: boolean },
+  ): Promise<UnitImportResult> {
+    const records = parseCsv(input.csv);
+    const errors: UnitImportResult['errors'] = [];
+
+    const cats = await this.db
+      .select({ id: vehicleCategory.id, code: vehicleCategory.code })
+      .from(vehicleCategory);
+    const locs = await this.db
+      .select({ id: location.id, code: location.code, organizationId: location.organizationId })
+      .from(location);
+    const catByCode = new Map(cats.map((c) => [c.code, c.id]));
+    const locByCode = new Map(locs.map((l) => [l.code, l]));
+    const existing = await this.db
+      .select({ vin: vehicleUnit.vin, plate: vehicleUnit.plate })
+      .from(vehicleUnit);
+    const dbPlates = new Set(existing.map((u) => u.plate.toUpperCase()));
+    const dbVins = new Set(existing.map((u) => u.vin.toUpperCase()));
+
+    const seenPlate = new Set<string>();
+    const seenVin = new Set<string>();
+    const staged: Array<typeof vehicleUnit.$inferInsert> = [];
+
+    records.forEach((rec, i) => {
+      const rowNo = i + 2; // 1-based + header
+      const err = (field: string, message: string) => errors.push({ row: rowNo, field, message });
+      const plate = (rec.plate ?? '').toUpperCase();
+      const vin = (rec.vin ?? '').toUpperCase();
+
+      if (!plate) err('plate', 'required');
+      else if (seenPlate.has(plate)) err('plate', 'duplicated in the file');
+      else if (dbPlates.has(plate)) err('plate', 'already in the fleet');
+      if (!vin) err('vin', 'required');
+      else if (vin.length < 11 || vin.length > 17) err('vin', 'must be 11–17 characters');
+      else if (seenVin.has(vin)) err('vin', 'duplicated in the file');
+      else if (dbVins.has(vin)) err('vin', 'already in the fleet');
+
+      const catId = catByCode.get(rec.categoryCode ?? '');
+      if (!rec.categoryCode) err('categoryCode', 'required');
+      else if (!catId) err('categoryCode', `unknown category "${rec.categoryCode}"`);
+
+      const loc = locByCode.get(rec.locationCode ?? '');
+      if (!rec.locationCode) err('locationCode', 'required');
+      else if (!loc) err('locationCode', `unknown location "${rec.locationCode}"`);
+
+      if (plate) seenPlate.add(plate);
+      if (vin) seenVin.add(vin);
+
+      if (catId && loc && plate && vin) {
+        staged.push({
+          organizationId: loc.organizationId,
+          categoryId: catId,
+          homeLocationId: loc.id,
+          currentLocationId: loc.id,
+          vin,
+          plate,
+          year: rec.year || null,
+          make: rec.make || null,
+          model: rec.model || null,
+          colour: rec.colour || null,
+          state: 'available',
+          createdBy: actor.accountId,
+        });
+      }
+    });
+
+    const total = records.length;
+    const valid = staged.length;
+    if (!input.commit || errors.length > 0 || valid === 0) {
+      return { total, valid, committed: false, created: 0, errors };
+    }
+
+    await this.db.transaction(async (tx) => {
+      await tx.insert(vehicleUnit).values(staged);
+    });
+    await this.audit.record({
+      action: 'fleet.units.imported',
+      targetType: 'vehicle_unit',
+      actor,
+      after: { created: valid },
+    });
+    return { total, valid, committed: true, created: valid, errors: [] };
   }
 }
