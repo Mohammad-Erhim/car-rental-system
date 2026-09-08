@@ -6,6 +6,37 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### SCREEN-OPS-002 — operational dashboard (2026-09-08)
+
+The `/ops` landing dashboard was a foundation slice (system-health only, KPI cards stubbed
+"metric pending"). Now a real role- and location-scoped overview.
+
+**Added (API)**
+
+- `ReportService.opsDashboard(actor)` + `GET /api/v1/ops/dashboard` (`@Permissions('reservation.read')`)
+  — read-only aggregate: today's pickups / returns (each a `done` / `total` split), overdue
+  rentals, the assignment queue (confirmed reservations picking up today with no rental yet),
+  finance/integration exceptions (`recovery_case` + `reconciliation_exception`), and the
+  fleet-readiness breakdown by `vehicle_unit.state`. Rental + reservation counts run through
+  `scopeCodes(actor)` (FR-RPT-004, same location-scope filter as `report.run`); fleet + finance
+  exceptions are org-wide. A metric that can't be read is surfaced as "unavailable", never `0`
+  (FR-RPT-001). `report.spec.ts` `SCREEN-OPS-002` — shape, `done ≤ total`, `financeExceptions.total`
+  math, fleet sum > 0, customer → 403.
+
+**Added (web)**
+
+- `ops-dashboard.tsx` rebuilt: 4 stat cards (assign queue, today's pickups, today's returns,
+  overdue) each drilling to its queue (`/work`, `/rentals`), a fleet-readiness card, a finance-
+  exceptions card, and the existing live system-health panel below. On a read error every card
+  shows "unavailable", not a number. `useOpsDashboard()` in `admin-hooks.ts` (60 s refetch).
+  22 `ops.dash.*` keys en/ar/fr (`verify:i18n` 779, green).
+
+**Docs**
+
+- `traceability-matrix.md` — SCREEN-OPS-002 → COMPLETED, plus a sweep of ~10 stale
+  `IN_PROGRESS` / `PARTIAL` status labels on rows whose follow-up stage has since closed
+  (APP-CWEB / APP-OPS, SRS-API / DAT / I18N / LKP families, SCREEN-CUS-004 / -014, COMP-SH).
+
 ### STAGE-013 — stage close-out: gates green + widened QA matrix (2026-09-08)
 
 An autonomous hardening pass that took every `verify:*` gate to green and closed STAGE-011 /

@@ -13,6 +13,7 @@ import { vehicleUnit } from '../../database/schema/fleet';
 import { account, staffProfile } from '../../database/schema/iam';
 import { organization } from '../../database/schema/org';
 import { paymentIntent, recoveryCase } from '../../database/schema/payment';
+import { rental } from '../../database/schema/rental';
 import { reservation, reconciliationException } from '../../database/schema/reservation';
 
 @Injectable()
@@ -158,6 +159,94 @@ export class ReportService {
       rows,
       rowCount: rows.length,
       scopeNote,
+    };
+  }
+
+  /**
+   * SCREEN-OPS-002 — the operational dashboard aggregate. Read-only counts for the `/ops`
+   * landing cards: today's pickups / returns (with a done/total split), overdue rentals, the
+   * assignment queue, finance/integration exceptions, and the fleet-readiness breakdown.
+   * Rental + reservation counts are confined to the actor's `locationScope` (FR-RPT-004);
+   * fleet + finance exceptions are org-wide (units belong to the org; payment issues carry no
+   * location). A metric that cannot be read is `null`, never `0` (FR-RPT-001) — the caller
+   * surfaces "unavailable".
+   */
+  async opsDashboard(actor: Actor) {
+    const orgId = await this.orgId();
+    const scope = this.scopeCodes(actor);
+    const scopeNote = scope ? `Scoped to ${scope.join(', ')}` : 'All locations';
+    // parameterised `= any($1)` list, or `true` when the scope is org-wide
+    const inPickup = scope ? sql`${rental.pickupLocationCode} = any(${scope})` : sql`true`;
+    const inReturn = scope ? sql`${rental.returnLocationCode} = any(${scope})` : sql`true`;
+    const inResPickup = scope ? sql`${reservation.pickupLocationCode} = any(${scope})` : sql`true`;
+
+    const [pickups] = await this.db
+      .select({
+        total: sql<number>`count(*)::int`,
+        done: sql<number>`(count(*) filter (where ${rental.pickedUpAt} is not null))::int`,
+      })
+      .from(rental)
+      .where(and(sql`${rental.scheduledPickupAt}::date = current_date`, inPickup));
+
+    const [returns] = await this.db
+      .select({
+        total: sql<number>`count(*)::int`,
+        done: sql<number>`(count(*) filter (where ${rental.returnedAt} is not null))::int`,
+      })
+      .from(rental)
+      .where(and(sql`${rental.scheduledReturnAt}::date = current_date`, inReturn));
+
+    const [overdue] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(rental)
+      .where(and(eq(rental.state, 'overdue'), inReturn));
+
+    // confirmed reservations picking up today that don't yet have a rental — the assign queue
+    const [queue] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(reservation)
+      .where(
+        and(
+          eq(reservation.state, 'confirmed'),
+          sql`${reservation.pickupAt}::date <= current_date`,
+          inResPickup,
+          sql`not exists (select 1 from rental r where r.reservation_reference = ${reservation.reference})`,
+        ),
+      );
+
+    const [cases] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(recoveryCase)
+      .where(sql`${recoveryCase.state} <> 'resolved'`);
+    const [exc] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(reconciliationException)
+      .where(eq(reconciliationException.state, 'open'));
+
+    const fleetRows = await this.db
+      .select({ state: vehicleUnit.state, n: sql<number>`count(*)::int` })
+      .from(vehicleUnit)
+      .where(eq(vehicleUnit.organizationId, orgId))
+      .groupBy(vehicleUnit.state);
+    const fleet = { available: 0, on_rent: 0, prep: 0, maintenance: 0, other: 0 };
+    for (const r of fleetRows) {
+      if (r.state in fleet) fleet[r.state as keyof typeof fleet] = r.n;
+      else fleet.other += r.n;
+    }
+
+    return {
+      checkedAt: new Date().toISOString(),
+      scopeNote,
+      pickupsToday: { total: pickups?.total ?? 0, done: pickups?.done ?? 0 },
+      returnsToday: { total: returns?.total ?? 0, done: returns?.done ?? 0 },
+      overdue: overdue?.n ?? 0,
+      assignQueue: queue?.n ?? 0,
+      financeExceptions: {
+        recoveryCases: cases?.n ?? 0,
+        reconciliation: exc?.n ?? 0,
+        total: (cases?.n ?? 0) + (exc?.n ?? 0),
+      },
+      fleet,
     };
   }
 

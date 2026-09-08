@@ -41,6 +41,14 @@ export class ReportController {
     @Inject(DB) private readonly db: Database,
   ) {}
 
+  // ---- operational dashboard (SCREEN-OPS-002) ----
+
+  @Get('dashboard')
+  @Permissions('reservation.read')
+  dashboard(@CurrentActor() actor: Actor) {
+    return this.reports.opsDashboard(actor);
+  }
+
   // ---- reports ----
 
   @Get('reports')

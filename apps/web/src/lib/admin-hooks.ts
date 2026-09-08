@@ -230,3 +230,30 @@ export function useDataQuality() {
     queryFn: ({ signal }) => apiFetch<DataQualityReport>('/ops/data-quality', { signal }),
   });
 }
+
+// ---- operational dashboard (SCREEN-OPS-002, FR-RPT-001) ----
+
+export interface OpsDashboard {
+  checkedAt: string;
+  scopeNote: string;
+  pickupsToday: { total: number; done: number };
+  returnsToday: { total: number; done: number };
+  overdue: number;
+  assignQueue: number;
+  financeExceptions: { recoveryCases: number; reconciliation: number; total: number };
+  fleet: {
+    available: number;
+    on_rent: number;
+    prep: number;
+    maintenance: number;
+    other: number;
+  };
+}
+
+export function useOpsDashboard() {
+  return useQuery({
+    queryKey: ['ops', 'dashboard'],
+    queryFn: ({ signal }) => apiFetch<OpsDashboard>('/ops/dashboard', { signal }),
+    refetchInterval: 60_000,
+  });
+}

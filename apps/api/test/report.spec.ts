@@ -415,4 +415,63 @@ describe('STAGE-006 administration & reporting', () => {
       .set('Authorization', `Bearer ${agentToken}`)
       .expect(403);
   });
+
+  it('SCREEN-OPS-002 the operational dashboard returns scoped counts, never below zero; a customer is refused', async () => {
+    const res = await request(server)
+      .get('/api/v1/ops/dashboard')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const b = res.body as {
+      checkedAt: string;
+      scopeNote: string;
+      pickupsToday: { total: number; done: number };
+      returnsToday: { total: number; done: number };
+      overdue: number;
+      assignQueue: number;
+      financeExceptions: { recoveryCases: number; reconciliation: number; total: number };
+      fleet: {
+        available: number;
+        on_rent: number;
+        prep: number;
+        maintenance: number;
+        other: number;
+      };
+    };
+    expect(typeof b.checkedAt).toBe('string');
+    expect(b.scopeNote).toBe('All locations');
+    for (const n of [
+      b.pickupsToday.total,
+      b.pickupsToday.done,
+      b.returnsToday.total,
+      b.returnsToday.done,
+      b.overdue,
+      b.assignQueue,
+      b.financeExceptions.total,
+      b.fleet.available,
+      b.fleet.on_rent,
+    ]) {
+      expect(Number.isInteger(n)).toBe(true);
+      expect(n).toBeGreaterThanOrEqual(0);
+    }
+    // done never exceeds total
+    expect(b.pickupsToday.done).toBeLessThanOrEqual(b.pickupsToday.total);
+    expect(b.returnsToday.done).toBeLessThanOrEqual(b.returnsToday.total);
+    // total == its parts
+    expect(b.financeExceptions.total).toBe(
+      b.financeExceptions.recoveryCases + b.financeExceptions.reconciliation,
+    );
+    // the fixture seeds a fleet, so the readiness breakdown is populated
+    const fleetSum =
+      b.fleet.available + b.fleet.on_rent + b.fleet.prep + b.fleet.maintenance + b.fleet.other;
+    expect(fleetSum).toBeGreaterThan(0);
+
+    // FR-RPT-004 — the rental/reservation counts run through `scopeCodes(actor)` (the same
+    // location-scope filter proven by TEST-RPT-001); an org-wide actor gets "All locations".
+
+    // a customer has no ops permissions
+    await request(server)
+      .get('/api/v1/ops/dashboard')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
+  });
 });

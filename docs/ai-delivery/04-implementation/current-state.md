@@ -23,6 +23,12 @@ _Concise, authoritative. Update after every meaningful verified unit._
     a11y bug on phone found + fixed (D-013-11).
   - `openapi.json` regenerated (was missing the STAGE-005/006 deferred-feature routes);
     traceability matrix Enhancement section → all 10 mandate items VALIDATED.
+  - **SCREEN-OPS-002 completed** — the `/ops` dashboard was a foundation slice (health only);
+    now `GET /ops/dashboard` (`report.service.opsDashboard`, location-scoped) + real cards:
+    today's pickups/returns (done/total), overdue, assign queue, finance exceptions, fleet
+    readiness — each drilling to its queue. `report.spec` `SCREEN-OPS-002`; `verify:i18n` 779.
+  - traceability matrix status sweep — ~10 stale `IN_PROGRESS` / `PARTIAL` labels on rows
+    whose follow-up stage has since closed → `COMPLETED`.
 - **Prior stages (Enhancement Program):** 009 theming/branding, 010 i18n (en/ar/fr),
   011 `apps/site` Next.js public site + full SEO, 012 `/ops` dashboard UX (DataTable / command
   palette / breadcrumbs). All COMPLETE — see each `stages/STAGE-0NN-*/checkpoint.md`.
