@@ -30,11 +30,19 @@ export function pickText(v: Localized | undefined | null, locale: string): strin
   return (hit && hit.trim()) || v.en || '';
 }
 
-/** An uploaded object ref (`obj:<key>`, resolved to a signed URL server-side) or an https URL. */
+/**
+ * An uploaded object ref (`obj:<key>`) or an https URL. Stored payloads only ever hold the
+ * `obj:` form; the API resolves it to a signed `/api/v1/assets/…` URL for `GET /meta/pages`,
+ * and the ops builder passes that resolved URL straight into the live-preview postMessage —
+ * so the resolved shape has to validate too (the builder converts it back to `obj:` on save).
+ */
 export const zAssetRef = z
   .string()
   .max(512)
-  .regex(/^(obj:[A-Za-z0-9._/-]+|https:\/\/\S+)$/, 'must be an uploaded ref or an https URL');
+  .regex(
+    /^(obj:[A-Za-z0-9._/-]+|https:\/\/\S+|\/api\/v1\/assets\/\S+)$/,
+    'must be an uploaded ref or an https URL',
+  );
 
 /** Curated lucide icon names usable in blocks — an allowlist so the site never ships all icons. */
 export const ICON_NAMES = [
@@ -284,13 +292,41 @@ export const zSitePage = z.object({
 });
 export type SitePage = z.infer<typeof zSitePage>;
 
-/** Page keys the builder manages. `home` is the flagship; others reserved for a fast-follow. */
-export const PAGE_KEYS = ['home'] as const;
+/** Page keys the builder manages. `home` is fully block-driven; help/legal are prose. */
+export const PAGE_KEYS = ['home', 'help', 'legal-terms', 'legal-privacy'] as const;
 export type PageKey = (typeof PAGE_KEYS)[number];
+
+/** Public route for each managed page (used by the builder's preview iframe). */
+export const PAGE_ROUTES: Record<PageKey, string> = {
+  home: '',
+  help: '/help',
+  'legal-terms': '/legal/terms',
+  'legal-privacy': '/legal/privacy',
+};
+
+/**
+ * Site-wide announcement bar (above the header on every public page). Off by default. Bump
+ * `id` to re-surface the bar for visitors who dismissed a previous message.
+ */
+export const zAnnouncement = z.object({
+  enabled: z.boolean().default(false),
+  id: z
+    .string()
+    .min(1)
+    .max(40)
+    .regex(/^[A-Za-z0-9._-]+$/)
+    .default('announcement'),
+  message: zLocalized(200),
+  cta: zCtaLink.nullable().default(null),
+  variant: z.enum(['info', 'success', 'warning', 'critical']).default('info'),
+  dismissible: z.boolean().default(true),
+});
+export type Announcement = z.infer<typeof zAnnouncement>;
 
 export const zPagesConfig = z.object({
   version: z.literal(1).default(1),
   pages: z.record(zSitePage),
+  announcement: zAnnouncement.optional(),
 });
 export type PagesConfig = z.infer<typeof zPagesConfig>;
 
@@ -302,9 +338,25 @@ export const zPagesResponse = z.object({
 });
 export type PagesResponse = z.infer<typeof zPagesResponse>;
 
-/* ── default = today's homepage, structure only ──────────────────────────── */
+/* ── defaults ────────────────────────────────────────────────────────────────
+ * `home` is structure-only (each block falls back to its i18n key → byte-identical
+ * render). `help` / `legal-*` are prose pages, so their copy is inlined here from
+ * the same strings the hand-coded pages used. */
 const b = (id: string, type: BlockType, tone: Tone = 'default') =>
   ({ id, type, tone, hidden: false, props: {} }) as unknown;
+
+const richBlock = (
+  id: string,
+  heading: Localized,
+  body: Localized,
+  extra: Record<string, unknown> = {},
+) => ({
+  id,
+  type: 'rich-text',
+  tone: 'default',
+  hidden: false,
+  props: { heading, body, maxWidth: 'prose', align: 'start', ...extra },
+});
 
 export const DEFAULT_PAGES_CONFIG: PagesConfig = zPagesConfig.parse({
   version: 1,
@@ -322,6 +374,58 @@ export const DEFAULT_PAGES_CONFIG: PagesConfig = zPagesConfig.parse({
         b('locations', 'locations'),
         b('faq', 'faq', 'muted'),
         b('cta', 'cta', 'brand'),
+      ],
+    },
+    help: {
+      blocks: [
+        richBlock(
+          'intro',
+          {
+            en: 'Help & FAQ',
+            fr: 'Aide & FAQ',
+            ar: 'المساعدة والأسئلة الشائعة',
+          },
+          {
+            en: 'Quick answers to the questions we hear most.',
+            fr: 'Des réponses rapides aux questions les plus fréquentes.',
+            ar: 'إجابات سريعة لأكثر الأسئلة تكرارًا.',
+          },
+        ),
+        b('faq', 'faq'),
+      ],
+    },
+    'legal-terms': {
+      blocks: [
+        richBlock(
+          'body',
+          {
+            en: 'Terms of Service',
+            fr: "Conditions d’utilisation",
+            ar: 'شروط الخدمة',
+          },
+          {
+            en: 'This is a demo environment. The text below is placeholder content.\n\nThese terms govern your use of the demo Car Rental service. All bookings, prices, and vehicles are simulated for demonstration purposes only.',
+            fr: "Ceci est un environnement de démonstration. Le texte ci-dessous est un contenu fictif.\n\nCes conditions régissent votre utilisation du service de démonstration de location de voitures. Toutes les réservations, tous les prix et tous les véhicules sont simulés à des fins de démonstration uniquement.",
+            ar: 'هذه بيئة تجريبية. النص أدناه محتوى نائب.\n\nتحكم هذه الشروط استخدامك لخدمة تأجير السيارات التجريبية. جميع الحجوزات والأسعار والمركبات محاكاة لأغراض العرض فقط.',
+          },
+        ),
+      ],
+    },
+    'legal-privacy': {
+      blocks: [
+        richBlock(
+          'body',
+          {
+            en: 'Privacy Policy',
+            fr: 'Politique de confidentialité',
+            ar: 'سياسة الخصوصية',
+          },
+          {
+            en: 'This is a demo environment. The text below is placeholder content.\n\nThis demo stores only the data needed to simulate a booking flow. No real personal data should be entered.',
+            fr: "Ceci est un environnement de démonstration. Le texte ci-dessous est un contenu fictif.\n\nCette démo ne stocke que les données nécessaires pour simuler un parcours de réservation. N’entrez aucune donnée personnelle réelle.",
+            ar: 'هذه بيئة تجريبية. النص أدناه محتوى نائب.\n\nتخزّن هذه النسخة التجريبية فقط البيانات اللازمة لمحاكاة مسار الحجز. لا تُدخِل بيانات شخصية حقيقية.',
+          },
+        ),
       ],
     },
   },

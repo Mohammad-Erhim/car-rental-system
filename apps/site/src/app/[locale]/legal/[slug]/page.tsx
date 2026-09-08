@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
-import { SiteContainer } from '../../../../components/site-container';
+import { BlockRenderer } from '../../../../components/marketing';
+import { PreviewBridge } from '../../../../components/marketing/preview-bridge';
 import { ACTIVE_LOCALES, getT } from '../../../../lib/i18n';
+import { getPagesConfig, pageBlocks } from '../../../../lib/pages-config';
 import { buildMetadata } from '../../../../lib/seo';
 
 const SLUGS = ['terms', 'privacy'] as const;
@@ -14,8 +16,10 @@ export function generateStaticParams() {
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: { locale: string; slug: string };
+  searchParams?: Record<string, string | string[] | undefined>;
 }): Promise<Metadata> {
   const t = await getT(params.locale);
   if (!SLUGS.includes(params.slug as Slug))
@@ -26,27 +30,40 @@ export async function generateMetadata({
       description: '',
       noindex: true,
     });
-  return buildMetadata({
+  const meta = await buildMetadata({
     locale: params.locale,
     path: `/legal/${params.slug}`,
     title: `${t.t(`site.legal.${params.slug}.title`)} — ${t.t('app.name')}`,
     description: t.t(`site.legal.${params.slug}.description`),
     type: 'article',
   });
+  if (searchParams?.preview === '1') meta.robots = { index: false, follow: false };
+  return meta;
 }
 
-export default async function LegalPage({ params }: { params: { locale: string; slug: string } }) {
-  const t = await getT(params.locale);
-  if (!SLUGS.includes(params.slug as Slug)) notFound();
+export default async function LegalPage({
+  params,
+  searchParams,
+}: {
+  params: { locale: string; slug: string };
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
+  const { locale, slug } = params;
+  if (!SLUGS.includes(slug as Slug)) notFound();
+  const preview = searchParams?.preview === '1';
+  const t = await getT(locale);
+  const config = await getPagesConfig();
+  const blocks = pageBlocks(config, slug === 'terms' ? 'legal-terms' : 'legal-privacy');
+
+  if (preview) {
+    return (
+      <PreviewBridge initialBlocks={blocks} locale={locale} categories={[]} locations={[]} />
+    );
+  }
   return (
-    <SiteContainer as="article" size="md" className="space-y-4">
-      <h1 className="text-3xl font-bold tracking-tight text-ink">
-        {t.t(`site.legal.${params.slug}.title`)}
-      </h1>
-      <p className="text-sm text-ink-muted">{t.t('site.legal.placeholder')}</p>
-      <p className="whitespace-pre-line text-sm leading-relaxed text-ink-muted">
-        {t.t(`site.legal.${params.slug}.body`)}
-      </p>
-    </SiteContainer>
+    <BlockRenderer
+      blocks={blocks}
+      ctx={{ t: t.t, locale, categories: [], locations: [], locationsCount: 0 }}
+    />
   );
 }

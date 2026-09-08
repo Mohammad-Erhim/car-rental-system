@@ -1,13 +1,25 @@
 import {
   DEFAULT_PAGES_CONFIG,
+  PAGE_KEYS,
+  PAGE_ROUTES,
+  zAnnouncement,
   zBlock,
   zPagesConfig,
+  type Announcement,
   type Block,
   type BlockType,
   type Localized,
+  type PageKey,
   type PagesConfig,
 } from '@carrental/contracts';
 import { useI18n } from '@carrental/i18n/react';
+import {
+  hexToHslTriple,
+  hslTripleToHex,
+  PRESETS,
+  validateBrandConfig,
+  type BrandConfig,
+} from '@carrental/theme';
 import {
   Badge,
   Button,
@@ -44,6 +56,12 @@ import { Link as RouterLink } from 'react-router-dom';
 
 import { useAuth } from '../../../lib/auth.js';
 import {
+  useBrandingTransition,
+  useBrandingVersions,
+  useDraftBranding,
+  usePublishedBranding,
+} from '../../../lib/branding-hooks.js';
+import {
   useDraftPages,
   usePagesTransition,
   usePagesVersions,
@@ -57,9 +75,29 @@ const LOCALES = ['en', 'fr', 'ar'] as const;
 type EditLocale = (typeof LOCALES)[number];
 const SITE_ORIGIN = import.meta.env.VITE_SITE_URL || window.location.origin;
 
+const PAGE_NAME_KEY: Record<PageKey, string> = {
+  home: 'home',
+  help: 'help',
+  'legal-terms': 'legalTerms',
+  'legal-privacy': 'legalPrivacy',
+};
+
 const selectClass = 'h-9 w-full rounded-md border bg-background px-2 text-sm';
 const newId = () => Math.random().toString(36).slice(2, 10);
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+
+/** Deep-map every string value in a JSON-serialisable tree. */
+function mapStrings<T>(node: T, fn: (s: string) => string): T {
+  return JSON.parse(
+    JSON.stringify(node, (_k, v) => (typeof v === 'string' ? fn(v) : v)),
+  ) as T;
+}
+const ASSET_URL_RE = /^(?:https?:\/\/[^/]+)?\/api\/v1\/assets\/([A-Za-z0-9._/-]+)\?/;
+/** `/api/v1/assets/<key>?…` (or `obj:<key>`) → `obj:<key>`; anything else unchanged. */
+const toStorageRef = (s: string): string => {
+  const m = s.match(ASSET_URL_RE);
+  return m ? `obj:${m[1]}` : s;
+};
 const isLocalized = (v: unknown): v is Localized =>
   !!v && typeof v === 'object' && 'en' in (v as Record<string, unknown>);
 
@@ -81,9 +119,13 @@ export function PagesPage() {
   const draftMut = useDraftPages();
   const transition = usePagesTransition();
   const upload = useUploadPageAsset();
+  const publishedBrand = usePublishedBranding();
 
   const [draft, setDraft] = useState<PagesConfig | null>(null);
+  const [brandDraft, setBrandDraft] = useState<BrandConfig | null>(null);
+  const brandAdopted = useRef(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [editPage, setEditPage] = useState<PageKey>('home');
   const [editLocale, setEditLocale] = useState<EditLocale>('en');
   const [viewport, setViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [note, setNote] = useState('');
@@ -96,21 +138,45 @@ export function PagesPage() {
   const previewReady = useRef(false);
 
   const cfg = draft ?? published.data?.config ?? DEFAULT_PAGES_CONFIG;
-  const blocks = cfg.pages.home?.blocks ?? [];
+  const blocks = cfg.pages[editPage]?.blocks ?? [];
   const selected = blocks.find((b) => b.id === selectedId) ?? null;
 
-  // adopt the published config once
+  // adopt the published config once. `/meta/pages` hands back resolved `/api/v1/assets/…` URLs
+  // in image fields — stash each against its `obj:` ref (so the inspector + preview can still
+  // show it) but keep the durable `obj:` ref in the draft we edit and later save.
   useEffect(() => {
     if (published.data && !adopted.current) {
       adopted.current = true;
-      if (!draft) setDraft(clone(published.data.config));
+      if (!draft) {
+        setDraft(
+          mapStrings(published.data.config, (s) => {
+            const m = s.match(ASSET_URL_RE);
+            if (m) {
+              assetUrls.current[`obj:${m[1]}`] = s;
+              return `obj:${m[1]}`;
+            }
+            return s;
+          }),
+        );
+      }
     }
   }, [published.data, draft]);
+
+  useEffect(() => {
+    if (publishedBrand.data && !brandAdopted.current) {
+      brandAdopted.current = true;
+      if (!brandDraft) setBrandDraft(clone(publishedBrand.data.config));
+    }
+  }, [publishedBrand.data, brandDraft]);
+  const brandForPreview = brandDraft ?? publishedBrand.data?.config ?? null;
 
   const issues = useMemo(() => {
     const parsed = zPagesConfig.safeParse(cfg);
     if (parsed.success) {
-      if (!blocks.some((b) => b.type === 'search-card' && !b.hidden)) {
+      if (
+        editPage === 'home' &&
+        !(cfg.pages.home?.blocks ?? []).some((b) => b.type === 'search-card' && !b.hidden)
+      ) {
         return [t('ops.pages.searchRequired')];
       }
       return [];
@@ -118,13 +184,19 @@ export function PagesPage() {
     return parsed.error.issues
       .slice(0, 8)
       .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);
-  }, [cfg, blocks, t]);
+  }, [cfg, editPage, t]);
 
   function mutate(next: PagesConfig) {
     setDraft(clone(next));
   }
+  function changePage(p: PageKey) {
+    if (p === editPage) return;
+    setEditPage(p);
+    setSelectedId(null);
+    previewReady.current = false;
+  }
   function setBlocks(nextBlocks: Block[]) {
-    mutate({ ...cfg, pages: { ...cfg.pages, home: { blocks: nextBlocks } } });
+    mutate({ ...cfg, pages: { ...cfg.pages, [editPage]: { blocks: nextBlocks } } });
   }
   function updateBlock(id: string, patch: (b: Block) => Block) {
     setBlocks(blocks.map((b) => (b.id === id ? patch(clone(b)) : b)));
@@ -147,11 +219,24 @@ export function PagesPage() {
   // ---- live preview: post the draft to the iframe (debounced) ----
   const postPreview = useMemo(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
-    return (payloadBlocks: Block[], locale: string) => {
+    return (
+      payloadBlocks: Block[],
+      locale: string,
+      brand: BrandConfig | null,
+      announcement: PagesConfig['announcement'] | null,
+    ) => {
       clearTimeout(timer);
       timer = setTimeout(() => {
+        // swap `obj:` refs for their resolved URL so the preview <img> can load them
+        const resolved = mapStrings(payloadBlocks, (s) =>
+          s.startsWith('obj:') && assetUrls.current[s] ? assetUrls.current[s]! : s,
+        );
         iframeRef.current?.contentWindow?.postMessage(
-          { type: 'carrental:preview:update', v: 1, payload: { blocks: payloadBlocks, locale } },
+          {
+            type: 'carrental:preview:update',
+            v: 1,
+            payload: { blocks: resolved, locale, brand, announcement: announcement ?? null },
+          },
           SITE_ORIGIN,
         );
       }, 180);
@@ -162,15 +247,16 @@ export function PagesPage() {
       if (e.origin !== SITE_ORIGIN) return;
       if ((e.data as { type?: string })?.type === 'carrental:preview:ready') {
         previewReady.current = true;
-        postPreview(blocks, editLocale);
+        postPreview(blocks, editLocale, brandForPreview, cfg.announcement ?? null);
       }
     }
     window.addEventListener('message', onMsg);
     return () => window.removeEventListener('message', onMsg);
-  }, [blocks, editLocale, postPreview]);
+  }, [blocks, editLocale, brandForPreview, cfg.announcement, postPreview]);
   useEffect(() => {
-    if (previewReady.current) postPreview(blocks, editLocale);
-  }, [blocks, editLocale, postPreview]);
+    if (previewReady.current)
+      postPreview(blocks, editLocale, brandForPreview, cfg.announcement ?? null);
+  }, [blocks, editLocale, brandForPreview, cfg.announcement, postPreview]);
 
   async function onUpload(
     purpose: 'heroImage' | 'pageImage',
@@ -185,7 +271,10 @@ export function PagesPage() {
   function saveDraft() {
     if (issues.length) return;
     draftMut.mutate(
-      { payload: zPagesConfig.parse(cfg), note: note.trim() || undefined },
+      {
+        payload: zPagesConfig.parse(mapStrings(cfg, toStorageRef)),
+        note: note.trim() || undefined,
+      },
       { onSuccess: () => versions.refetch() },
     );
   }
@@ -223,6 +312,36 @@ export function PagesPage() {
           </Badge>
         }
       />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium text-muted-foreground">{t('ops.pages.page')}</span>
+        <div
+          className="flex flex-wrap gap-0.5 rounded-md border p-0.5"
+          role="tablist"
+          aria-label={t('ops.pages.page')}
+        >
+          {PAGE_KEYS.map((p) => (
+            <button
+              key={p}
+              type="button"
+              role="tab"
+              aria-selected={editPage === p}
+              className={`rounded px-3 py-1.5 text-sm ${
+                editPage === p
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+              onClick={() => changePage(p)}
+            >
+              {t(`ops.pages.pageName.${PAGE_NAME_KEY[p]}`)}
+            </button>
+          ))}
+        </div>
+        <span className="text-xs text-muted-foreground">
+          /{editLocale}
+          {PAGE_ROUTES[editPage]}
+        </span>
+      </div>
 
       <div className="grid items-start gap-5 xl:grid-cols-[17rem_19rem_minmax(0,1fr)] [&>*]:min-w-0">
         {/* ---- block list ---- */}
@@ -396,7 +515,17 @@ export function PagesPage() {
             </CardContent>
           </Card>
 
-          <ColoursPanel />
+          <AnnouncementPanel
+            value={cfg.announcement ?? null}
+            locale={editLocale}
+            onChange={(a) => mutate({ ...cfg, announcement: a ?? undefined })}
+          />
+
+          <ColoursPanel
+            value={brandDraft}
+            published={publishedBrand.data?.config ?? null}
+            onChange={setBrandDraft}
+          />
 
           <Card>
             <CardContent className="space-y-3 pt-6">
@@ -522,9 +651,10 @@ export function PagesPage() {
                   style={{ width: Math.round(deviceW * scale), height: PREVIEW_H }}
                 >
                   <iframe
+                    key={editPage}
                     ref={iframeRef}
                     title={t('ops.pages.previewFrameTitle')}
-                    src={`${SITE_ORIGIN}/${editLocale}?preview=1`}
+                    src={`${SITE_ORIGIN}/${editLocale}${PAGE_ROUTES[editPage]}?preview=1`}
                     style={{
                       width: deviceW,
                       height: Math.round(PREVIEW_H / scale),
@@ -912,20 +1042,341 @@ function emptyItem(fields: FieldDef[]): Record<string, unknown> {
   return o;
 }
 
+/* ---------------------------------------------------------- announcement panel */
+
+const ANNOUNCE_VARIANTS = ['info', 'success', 'warning', 'critical'] as const;
+
+function AnnouncementPanel({
+  value,
+  locale,
+  onChange,
+}: {
+  value: Announcement | null;
+  locale: EditLocale;
+  onChange: (a: Announcement | null) => void;
+}) {
+  const { t } = useI18n();
+  const base: Announcement = value ?? zAnnouncement.parse({ message: { en: '' } });
+  const set = (patch: Partial<Announcement>) => onChange({ ...base, ...patch });
+  const msg = (base.message as Record<string, string | undefined>)[locale] ?? '';
+  const ctaLabel = base.cta ? (base.cta.label as Record<string, string | undefined>)[locale] ?? '' : '';
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <CardTitle className="text-base">{t('ops.pages.announce.title')}</CardTitle>
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={base.enabled}
+            onChange={(e) => set({ enabled: e.target.checked })}
+          />
+          {t('ops.pages.announce.enable')}
+        </label>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <p className="text-xs text-muted-foreground">{t('ops.pages.announce.hint')}</p>
+
+        <label className="block space-y-1">
+          <span className="font-medium text-muted-foreground">
+            {t('ops.pages.announce.message')}
+          </span>
+          <Input
+            value={msg}
+            placeholder={locale !== 'en' ? base.message.en : ''}
+            maxLength={200}
+            onChange={(e) =>
+              set({
+                message: {
+                  ...base.message,
+                  [locale]: locale === 'en' ? e.target.value : e.target.value || undefined,
+                },
+              })
+            }
+          />
+        </label>
+
+        <label className="block space-y-1">
+          <span className="font-medium text-muted-foreground">
+            {t('ops.pages.announce.variant')}
+          </span>
+          <select
+            className={selectClass}
+            value={base.variant}
+            onChange={(e) => set({ variant: e.target.value as Announcement['variant'] })}
+          >
+            {ANNOUNCE_VARIANTS.map((v) => (
+              <option key={v} value={v}>
+                {t(`ops.pages.announce.variant.${v}`)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="block space-y-1">
+            <span className="font-medium text-muted-foreground">
+              {t('ops.pages.announce.ctaLabel')}
+            </span>
+            <Input
+              value={ctaLabel}
+              maxLength={60}
+              onChange={(e) => {
+                const label = {
+                  ...(base.cta?.label ?? { en: '' }),
+                  [locale]: locale === 'en' ? e.target.value : e.target.value || undefined,
+                };
+                set({ cta: { label, href: base.cta?.href ?? '' } });
+              }}
+            />
+          </label>
+          <label className="block space-y-1">
+            <span className="font-medium text-muted-foreground">
+              {t('ops.pages.announce.ctaHref')}
+            </span>
+            <Input
+              value={base.cta?.href ?? ''}
+              placeholder="/en/search · https://…"
+              onChange={(e) => {
+                const href = e.target.value;
+                if (!href && !ctaLabel) return set({ cta: null });
+                set({ cta: { label: base.cta?.label ?? { en: '' }, href } });
+              }}
+            />
+          </label>
+        </div>
+
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={base.dismissible}
+            onChange={(e) => set({ dismissible: e.target.checked })}
+          />
+          <span className="font-medium text-muted-foreground">
+            {t('ops.pages.announce.dismissible')}
+          </span>
+        </label>
+
+        <label className="block space-y-1">
+          <span className="flex items-center justify-between font-medium text-muted-foreground">
+            {t('ops.pages.announce.campaignId')}
+            <span className="text-[0.7rem] normal-case">
+              {t('ops.pages.announce.campaignIdHint')}
+            </span>
+          </span>
+          <Input
+            value={base.id}
+            maxLength={40}
+            onChange={(e) =>
+              set({ id: e.target.value.replace(/[^A-Za-z0-9._-]/g, '-') || 'announcement' })
+            }
+          />
+        </label>
+      </CardContent>
+    </Card>
+  );
+}
+
 /* ---------------------------------------------------------------- colours panel */
 
-function ColoursPanel() {
+const COLOUR_TOKENS = [
+  'primary',
+  'primaryForeground',
+  'background',
+  'foreground',
+  'accent',
+  'accentForeground',
+  'ring',
+] as const;
+
+function ColoursPanel({
+  value,
+  published,
+  onChange,
+}: {
+  value: BrandConfig | null;
+  published: BrandConfig | null;
+  onChange: (b: BrandConfig) => void;
+}) {
   const { t } = useI18n();
+  const { hasPermission } = useAuth();
+  const canPublish = hasPermission('config.publish');
+  const draftBrand = useDraftBranding();
+  const brandVersions = useBrandingVersions();
+  const brandTransition = useBrandingTransition();
+  const [note, setNote] = useState('');
+
+  if (!value) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t('ops.pages.colours')}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">…</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const violations = validateBrandConfig(value);
+  const setToken = (token: (typeof COLOUR_TOKENS)[number], hex: string) => {
+    const triple = hexToHslTriple(hex);
+    if (!triple) return;
+    onChange({
+      ...value,
+      colors: { ...value.colors, light: { ...value.colors.light, [token]: triple } },
+    });
+  };
+  const activePreset = PRESETS.find(
+    (p) => JSON.stringify(p.config.colors) === JSON.stringify(value.colors),
+  );
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">{t('ops.pages.colours')}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3 text-sm">
+      <CardContent className="space-y-4 text-sm">
         <p className="text-muted-foreground">{t('ops.pages.coloursHint')}</p>
-        <Button asChild variant="outline" size="sm">
-          <RouterLink to="/config/branding">{t('ops.pages.editColoursLink')}</RouterLink>
-        </Button>
+
+        <div className="space-y-1.5">
+          <span className="font-medium text-muted-foreground">{t('ops.pages.colourPreset')}</span>
+          <div className="flex flex-wrap gap-1.5">
+            {PRESETS.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                aria-pressed={activePreset?.id === p.id}
+                title={p.description}
+                className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs ${
+                  activePreset?.id === p.id
+                    ? 'border-primary bg-primary/5'
+                    : 'hover:border-primary'
+                }`}
+                onClick={() => onChange({ ...value, colors: clone(p.config.colors) })}
+              >
+                <span
+                  className="size-3 rounded-full border"
+                  style={{ background: hslTripleToHex(p.config.colors.light.primary) }}
+                />
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          {COLOUR_TOKENS.map((token) => (
+            <label key={token} className="flex items-center gap-2">
+              <input
+                type="color"
+                aria-label={t(`ops.pages.colourToken.${token}`)}
+                value={hslTripleToHex(value.colors.light[token])}
+                onChange={(e) => setToken(token, e.target.value)}
+                className="size-8 shrink-0 cursor-pointer rounded border bg-transparent p-0.5"
+              />
+              <span className="min-w-0 truncate text-xs text-muted-foreground">
+                {t(`ops.pages.colourToken.${token}`)}
+              </span>
+            </label>
+          ))}
+        </div>
+
+        {violations.length ? (
+          <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">
+            <p>{t('ops.pages.coloursContrast')}</p>
+            <ul className="mt-1 list-disc ps-4">
+              {violations.slice(0, 4).map((v) => (
+                <li key={`${v.mode}-${v.fg}-${v.bg}`}>
+                  {v.mode}: {v.fg} on {v.bg} — {v.ratio}:1
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        <Textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder={t('ops.pages.notePlaceholder')}
+          className="min-h-[52px] text-sm"
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            disabled={violations.length > 0 || draftBrand.isPending}
+            loading={draftBrand.isPending}
+            onClick={() =>
+              draftBrand.mutate(
+                { payload: value, note: note.trim() || undefined },
+                { onSuccess: () => brandVersions.refetch() },
+              )
+            }
+          >
+            {t('ops.pages.coloursSave')}
+          </Button>
+          {published ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onChange(clone(published))}
+              disabled={JSON.stringify(published.colors) === JSON.stringify(value.colors)}
+            >
+              {t('ops.pages.colourReset')}
+            </Button>
+          ) : null}
+          <Button asChild variant="ghost" size="sm">
+            <RouterLink to="/config/branding">{t('ops.pages.editColoursLink')}</RouterLink>
+          </Button>
+          {draftBrand.isSuccess ? (
+            <span className="text-xs text-success">{t('ops.pages.colourSaved')}</span>
+          ) : null}
+        </div>
+
+        {brandVersions.data?.length ? (
+          <div className="space-y-1.5 border-t pt-2">
+            {brandVersions.data.slice(0, 4).map((v) => (
+              <div key={v.id} className="flex items-center justify-between gap-2 text-xs">
+                <span className="flex items-center gap-1.5">
+                  r{v.revision}
+                  <Badge
+                    variant={
+                      v.state === 'published'
+                        ? 'success'
+                        : v.state === 'in_review'
+                          ? 'warning'
+                          : v.state === 'rejected'
+                            ? 'destructive'
+                            : 'neutral'
+                    }
+                  >
+                    {v.state}
+                  </Badge>
+                </span>
+                <span className="flex gap-1">
+                  {v.state === 'draft' ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => brandTransition.mutate({ id: v.id, action: 'submit' })}
+                    >
+                      {t('ops.pages.submit')}
+                    </Button>
+                  ) : null}
+                  {v.state === 'in_review' && canPublish ? (
+                    <Button
+                      size="sm"
+                      onClick={() => brandTransition.mutate({ id: v.id, action: 'approve' })}
+                    >
+                      {t('ops.pages.approve')}
+                    </Button>
+                  ) : null}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );

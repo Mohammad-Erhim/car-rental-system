@@ -1,40 +1,51 @@
 import type { Metadata } from 'next';
 
-import { SiteContainer } from '../../../components/site-container';
+import { BlockRenderer } from '../../../components/marketing';
+import { PreviewBridge } from '../../../components/marketing/preview-bridge';
 import { getT } from '../../../lib/i18n';
+import { getPagesConfig, pageBlocks } from '../../../lib/pages-config';
 import { buildMetadata } from '../../../lib/seo';
 
 export async function generateMetadata({
   params,
+  searchParams,
 }: {
   params: { locale: string };
+  searchParams?: Record<string, string | string[] | undefined>;
 }): Promise<Metadata> {
   const t = await getT(params.locale);
-  return buildMetadata({
+  const meta = await buildMetadata({
     locale: params.locale,
     path: '/help',
     title: `${t.t('nav.help')} — ${t.t('app.name')}`,
     description: t.t('site.help.metaDescription'),
   });
+  if (searchParams?.preview === '1') meta.robots = { index: false, follow: false };
+  return meta;
 }
 
-export default async function HelpPage({ params }: { params: { locale: string } }) {
-  const t = await getT(params.locale);
-  const faqs = ['booking', 'changes', 'payment', 'pickup'] as const;
+export default async function HelpPage({
+  params,
+  searchParams,
+}: {
+  params: { locale: string };
+  searchParams?: Record<string, string | string[] | undefined>;
+}) {
+  const { locale } = params;
+  const preview = searchParams?.preview === '1';
+  const t = await getT(locale);
+  const config = await getPagesConfig();
+  const blocks = pageBlocks(config, 'help');
+
+  if (preview) {
+    return (
+      <PreviewBridge initialBlocks={blocks} locale={locale} categories={[]} locations={[]} />
+    );
+  }
   return (
-    <SiteContainer size="md" className="space-y-6">
-      <h1 className="text-3xl font-bold tracking-tight text-ink">{t.t('site.help.title')}</h1>
-      <p className="text-ink-muted">{t.t('site.help.intro')}</p>
-      <dl className="space-y-3">
-        {faqs.map((f) => (
-          <div key={f} className="surface-card p-5">
-            <dt className="font-semibold text-ink">{t.t(`site.help.faq.${f}.q`)}</dt>
-            <dd className="mt-1.5 text-sm leading-relaxed text-ink-muted">
-              {t.t(`site.help.faq.${f}.a`)}
-            </dd>
-          </div>
-        ))}
-      </dl>
-    </SiteContainer>
+    <BlockRenderer
+      blocks={blocks}
+      ctx={{ t: t.t, locale, categories: [], locations: [], locationsCount: 0 }}
+    />
   );
 }

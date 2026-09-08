@@ -2,11 +2,13 @@ import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { Providers } from '../../components/providers';
+import { SiteAnnouncement } from '../../components/site-announcement';
 import { SiteFooter } from '../../components/site-footer';
 import { SiteHeader } from '../../components/site-header';
 import { brandingCss, getBranding } from '../../lib/branding';
 import { fontClassName } from '../../lib/fonts';
 import { ACTIVE_LOCALES, getMessages, getT, isSupportedLocale, localeDir } from '../../lib/i18n';
+import { getPagesConfig } from '../../lib/pages-config';
 
 export function generateStaticParams() {
   return ACTIVE_LOCALES.map((locale) => ({ locale }));
@@ -22,10 +24,11 @@ export default async function LocaleLayout({
   const { locale } = params;
   if (!isSupportedLocale(locale) || !ACTIVE_LOCALES.includes(locale)) notFound();
 
-  const [messages, branding, t] = await Promise.all([
+  const [messages, branding, t, pages] = await Promise.all([
     getMessages(locale),
     getBranding(),
     getT(locale),
+    getPagesConfig(),
   ]);
   const dir = localeDir(locale);
 
@@ -52,6 +55,7 @@ export default async function LocaleLayout({
           <a href="#main" className="skip-link">
             {t.t('common.skipToContent')}
           </a>
+          <SiteAnnouncement initial={pages.announcement ?? null} locale={locale} />
           <SiteHeader locale={locale} />
           {/* Edge-to-edge: the marketing homepage runs full-bleed bands; app routes opt back
               into a centred gutter via <SiteContainer>. `pb-24` clears the mobile bottom nav. */}

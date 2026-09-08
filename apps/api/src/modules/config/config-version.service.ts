@@ -24,6 +24,20 @@ export const POLICY_DEFAULTS: PolicyDefaults = {
   fuel_rate: { minorPerPct: 150 },
 };
 
+/**
+ * The ops builder feeds the live preview signed `/api/v1/assets/<key>?…` URLs and can echo one
+ * back on save. Signed URLs expire, so a stored payload must only ever hold the durable `obj:`
+ * ref — collapse any resolved asset URL back to `obj:<key>` before validating/persisting.
+ */
+function normalizePagesAssets(payload: Record<string, unknown>): Record<string, unknown> {
+  const json = JSON.stringify(payload, (_k, v) =>
+    typeof v === 'string'
+      ? v.replace(/^(?:https?:\/\/[^/]+)?\/api\/v1\/assets\/([A-Za-z0-9._/-]+)\?.*$/, 'obj:$1')
+      : v,
+  );
+  return JSON.parse(json) as Record<string, unknown>;
+}
+
 @Injectable()
 export class ConfigVersionService {
   constructor(
@@ -77,6 +91,7 @@ export class ConfigVersionService {
     actor: Actor,
     input: { kind: string; key: string; payload: Record<string, unknown>; note?: string },
   ) {
+    if (input.kind === 'pages') input.payload = normalizePagesAssets(input.payload);
     this.validate(input.kind, input.payload);
     const orgId = await this.orgId();
     const [prev] = await this.db
