@@ -5,6 +5,8 @@
 #
 #   E2E_ONLY="smoke discovery"   run just these spec files (still all three viewports)
 #   E2E_PROJECTS="laptop"        run just these viewport projects
+#   E2E_ALL_BROWSERS=1           also run the firefox + webkit projects (CI only — the browsers
+#                                don't install on the authoring host; see STAGE-007)
 #   E2E_SKIP_SITE_BUILD=1        reuse the existing apps/site build (must already be API-fresh)
 #
 # The `apps/site` build MUST run with the API reachable — `generateStaticParams` and every
@@ -50,8 +52,11 @@ site_pid=$!
 for _ in $(seq 1 60); do curl -sf "http://localhost:${WEB_PORT}/ops/" >/dev/null 2>&1 && break; sleep 1; done
 for _ in $(seq 1 60); do curl -sf "http://localhost:${SITE_PORT}/en" >/dev/null 2>&1 && break; sleep 1; done
 
+default_projects="phone tablet laptop"
+[[ -n "${E2E_ALL_BROWSERS:-}" ]] && default_projects="$default_projects firefox webkit"
+
 status=0
-for project in ${E2E_PROJECTS:-phone tablet laptop}; do
+for project in ${E2E_PROJECTS:-$default_projects}; do
   echo "verify:e2e — db:reset + project=${project}"
   pnpm --filter @carrental/api db:reset >/dev/null
   E2E_REUSE_SERVER=1 pnpm --filter @carrental/e2e exec playwright test ${E2E_ONLY:-} \

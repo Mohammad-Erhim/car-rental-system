@@ -14,6 +14,10 @@ const API_URL = process.env.E2E_API_URL ?? 'http://localhost:3001';
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://localhost:3000';
 const WEB_URL = process.env.E2E_WEB_URL ?? 'http://localhost:3100';
 const REUSE = !!process.env.E2E_REUSE_SERVER;
+// Firefox/WebKit can't be installed on the authoring host (see STAGE-007 release-readiness).
+// A CI runner with the browsers present sets E2E_ALL_BROWSERS=1 to add them as desktop
+// projects; the default run is Chromium-only across the three responsive classes.
+const ALL_BROWSERS = !!process.env.E2E_ALL_BROWSERS;
 
 export default defineConfig({
   testDir: './tests',
@@ -70,6 +74,13 @@ export default defineConfig({
       name: 'laptop',
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
+    // Cross-engine coverage — only when the runner has the browsers (E2E_ALL_BROWSERS=1).
+    ...(ALL_BROWSERS
+      ? [
+          { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+          { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+        ]
+      : []),
   ],
   webServer: REUSE
     ? []

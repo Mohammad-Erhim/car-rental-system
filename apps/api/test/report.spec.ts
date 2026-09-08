@@ -309,6 +309,11 @@ describe('STAGE-006 administration & reporting', () => {
       .expect(201);
     const scheduleId = created.body.id as string;
 
+    // let the sign-in from `beforeAll` age past STEP_UP_MAX_AGE_SEC (1s in tests) so the first
+    // send is genuinely stale — otherwise a fast run reaches here inside the window and the
+    // guard (correctly) lets it through.
+    await new Promise((r) => setTimeout(r, 1200));
+
     // without a recent step-up the send is refused
     const stale = await request(server)
       .post(`/api/v1/ops/reports/schedules/${scheduleId}/send`)

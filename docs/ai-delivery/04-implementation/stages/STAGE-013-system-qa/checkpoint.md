@@ -1,14 +1,20 @@
 # STAGE-013 — checkpoint
 
-- **Status:** IN PROGRESS — the matrix is green; `verify:e2e` ported + green, D-013-6
-  (`apps/site` first-load JS budget) fixed. Remaining to close the stage: a refreshed
-  screenshot bundle for the reworked surfaces, and the environment-blocked items (cross-browser
-  E2E, load/security scans). See the **2026-09-08** updates at the end.
+- **Status:** COMPLETE for everything runnable on this host (2026-09-08). All `verify:*` gates
+  green, the QA screenshot matrix widened to all 16 `/ops` screens and green, `defects.md`
+  D-013-1..11 resolved. Only pre-production, environment-blocked items remain (cross-browser
+  E2E, k6 load, ZAP/SAST, Lighthouse field run — scaffolded + documented). See the
+  **2026-09-08 — stage close-out** section at the end for the gate table and the QA matrix
+  result; the earlier dated sections below are the running history.
 
-## The QA matrix — `e2e/tests/qa-matrix.spec.ts` (+ `playwright.qa.config.ts`)
+> **The three sections that follow (`The QA matrix` … `Verified`) are the 2026-09-07 first
+> pass — superseded by the `2026-09-08 — stage close-out` section further down (all gates green,
+> the matrix widened to 16 `/ops` screens, 282 screenshots). Kept for history.**
+
+## The QA matrix — 2026-09-07 first pass — `e2e/tests/qa-matrix.spec.ts` (+ `playwright.qa.config.ts`)
 
 Every public route of `apps/site` (`/`, `/search`, `/help`, `/legal/terms`, `/legal/privacy`)
-and the key `/ops` screens (`sign-in`, `config/branding`, `config/languages`) ×
+and, then, three `/ops` screens (`sign-in`, `config/branding`, `config/languages`) ×
 `en` / `ar` / `fr` × `light` / `dark` × phone (390) / tablet (820) / laptop (1440).
 
 Per cell:
@@ -26,9 +32,10 @@ Servers: `apps/api` (`:3001`), `apps/site` Next standalone (`:3000`), `apps/web`
 (`:4000`, `base=/ops/`). Run: `pnpm --filter @carrental/e2e exec playwright test --config
 playwright.qa.config.ts` (with the three servers up + `QA_REUSE_SERVER=1`).
 
-## Result
+## Result — 2026-09-07 first pass
 
-**30 / 30 cells pass** (10 test bodies × 3 viewport projects) — after the fixes below.
+**30 / 30 cells pass** (10 test bodies × 3 viewport projects) — after the fixes below. (The
+2026-09-08 close-out re-ran the widened matrix: 30 test bodies green, 282 screenshots.)
 
 ## Defects found + fixed (see `defects.md`)
 
@@ -40,22 +47,20 @@ playwright.qa.config.ts` (with the three servers up + `QA_REUSE_SERVER=1`).
 | D-013-4 | dark theme, all apps     | `--destructive` `0 72% 51%` → `0 84% 62%` (+ dark foreground): `text-destructive` on the dark background was 3.93:1 (axe serious). Solid-button variant stays AA via the flipped foreground; `verify:theme` + 9 tests still green. |
 | D-013-5 | `apps/web` `/ops` header | phone (390) horizontal overflow on the sign-in screen: left scope block → `hidden sm:flex`; language-switcher label → `hidden sm:inline`; tighter header gaps. 495 → 407 → **no overflow**.                                        |
 
-## Residuals (tracked, not blockers)
+## Residuals from the 2026-09-07 first pass — all now closed (see the close-out section)
 
-- The **legacy customer-flow e2e specs** (`discovery`, `booking`, `account-and-i18n`,
-  `auth-and-reference` customer half, `full-sweep` customer half, `smoke`, `rtl`, `responsive`)
-  still target the pre-split single `apps/web` at `/` — superseded by the split (STAGE-011).
-  They need porting to `apps/site` / the new `/ops` routing. `verify:e2e` is red until then;
-  `qa-matrix` is the STAGE-013 evidence in the interim.
-- Matrix `/ops` coverage is 3 screens — widen to all 15 as STAGE-012 reworks them.
-- `apps/site` authed flows (auth/account/trips/checkout) — STAGE-011 increment 3.
-- `verify:seo` (Lighthouse) — STAGE-011 increment 3.
-- `og-default.png` — referenced by OG meta, not yet generated.
+- ~~legacy customer-flow e2e specs target the pre-split `apps/web`; `verify:e2e` red~~ →
+  ported + green (STAGE-011 3d); `verify:e2e` 91 across 3 viewports.
+- ~~matrix `/ops` coverage is 3 screens~~ → widened to all 16.
+- ~~`apps/site` authed flows not built~~ → account / trips / checkout on the App Router
+  (STAGE-011 3a/3b).
+- ~~`verify:seo`~~ → green (`scripts/verify-seo.{mjs,sh}`).
+- ~~`og-default.png` not generated~~ → `apps/site/scripts/gen-og-default.mjs`.
 
-## Verified
+## Verified — 2026-09-07 first pass
 
 `qa-matrix` 30/30 · `verify:static` PASS · `verify:unit` 72 · `verify:theme` 9 · `verify:i18n`
-OK · `apps/web` + `apps/site` builds OK.
+OK · `apps/web` + `apps/site` builds OK. (Superseded by the 2026-09-08 gate table below.)
 
 ---
 
@@ -131,12 +136,56 @@ one ~178 KB gz chunk (`chunks/145-*.js`), plus a spurious "render-blocking `<scr
   `apps/web` Vite build ✓ · `apps/site` build + `perf-site.mjs` 9/9. Full write-up in
   `defects.md` (D-013-6).
 
-## Still open (STAGE-013 / pre-production)
+## 2026-09-08 — stage close-out (autonomous hardening session)
 
-- A refreshed full light/dark × en/ar/fr × phone/tablet/laptop screenshot bundle for the
-  reworked `/ops` screens + the new customer surface.
-- Minor: the i18n message catalogue (en/ar/fr) ships to every route as one ~41 KB gz chunk —
-  locale-split is a later optimisation, well inside the re-baselined budget for now.
-- **Environment-blocked** (need a staged multi-instance deploy / CI, cannot run on this host):
-  Firefox + WebKit in the E2E matrix, k6 write-path load, ZAP baseline, SAST. Configs can be
-  scaffolded only.
+Every `verify:*` gate run green this session (individually — a single end-to-end `verify:all`
+is the same set and is the §1.10 artifact of record):
+
+| Gate              | Result                                                                                                                                                              |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `verify:static`   | PASS — after `prettier --write` on 17 committed-but-unformatted docs (D-013-7); `format:check` had been red since `bb14dab`                                         |
+| `verify:i18n`     | PASS — en/ar/fr parity + ICU + `--strict` 0 literals in `apps/site/src`                                                                                             |
+| `verify:theme`    | PASS — 9 tests, WCAG AA both modes, no literal colours                                                                                                              |
+| `verify:unit`     | PASS — 89 (theme 9, i18n 11, contracts 4, ui 10, api 42, web 13)                                                                                                    |
+| `verify:api`      | PASS — 101 / 15 spec files (after D-013-9 Redis outage + D-013-10 two timing-fragile tests)                                                                         |
+| `verify:migrate`  | PASS — 4, head `0006`                                                                                                                                               |
+| `verify:security` | PASS — 13 (`security.spec.ts`)                                                                                                                                      |
+| `verify:seo`      | PASS — 6 routes × en/ar/fr, robots, sitemap 30 `<loc>`, noindex on private routes (after the `verify-seo.sh` build-order fix — API up before the `apps/site` build) |
+| `verify:e2e`      | PASS — 91 across phone (30) / tablet (29) / laptop (32), all 13 specs, single-origin `apps/site` + `/ops` proxy                                                     |
+| `verify:a11y`     | PASS — 2 (laptop), 0 serious/critical over the customer + `/ops` critical set                                                                                       |
+| `verify:perf`     | PASS — `apps/site` first-load JS ~223 KB br static / ~233 KB br interactive (D-013-6)                                                                               |
+
+**QA matrix — widened.** `qa-matrix.spec.ts` `OPS_ROUTES` grew from 3 to **all 16** `/ops`
+screens (dashboard, work, rentals, fleet, finance, data-quality, insights, audit, config +
+rate-plans / reference-data / translations / branding / seo / languages, admin/staff). Site
+routes × {en,ar,fr}, ops routes × {en,ar}, all × {light,dark} × {phone,tablet,laptop}. Runner:
+`scripts/qa-matrix.sh` (API up → build both apps API-up → serve → `playwright.qa.config.ts`,
+`start:standalone` not `next start`; `E2E_SCREENSHOT_DIR` → this stage's `screenshots/`).
+**Result: 30 test bodies pass (8.5 min), 282 screenshots** (`screenshots/site/` 90 =
+5 routes × 3 locales × 2 themes × 3 viewports; `screenshots/ops/` 192 = 16 screens × 2 locales
+× 2 themes × 3 viewports). axe 0 serious/critical, no h-overflow, no missing-marker,
+`<html lang/dir>` + `.dark` correct, no console/network errors, on every cell.
+
+**Bugs found + fixed by the widened matrix:** D-013-11 — `apps/site` header sign-in/account
+link had no accessible name below the `sm` breakpoint (text in a `hidden sm:inline` span);
+axe `link-name` serious on every site route at phone width. `verify:a11y` never caught it (it
+runs the laptop project only). Fixed with an `aria-label`.
+
+**Also this session:** `openapi.json` regenerated (was missing the STAGE-005/006 deferred-
+feature routes — `/auth/step-up`, `/ops/fleet/blocks` GET, …); `PageHeader` added to the last
+two `/ops` screens (D-013-8); `traceability-matrix.md` Enhancement section → all 10 mandate
+items **VALIDATED**; STAGE-011 + STAGE-012 checkpoints → COMPLETE.
+
+## Still open (pre-production, environment-blocked — need a staged multi-instance deploy / CI)
+
+- Firefox + WebKit in the E2E matrix — scaffolded: `e2e/playwright.config.ts` `firefox` /
+  `webkit` projects behind `E2E_ALL_BROWSERS=1`; `scripts/verify-e2e.sh` appends them on that flag.
+- k6 write-path load — scenario scripted at `scripts/load/write-path.k6.js` (unrun here).
+- OWASP ZAP baseline + SAST — `verify:security` covers the SRS-SEC adversarial set as
+  integration tests in the interim.
+- Lighthouse LCP / INP field run for `apps/site` — `verify:perf` covers the first-load JS /
+  HTML / render-blocking / CLS budget; the field run is CI-optional (needs headless Chrome).
+- Minor: the i18n message catalogue (en/ar/fr) ships as one ~41 KB gz chunk on every route —
+  a locale-split is a later optimisation, well inside the re-baselined budget.
+
+See `release-readiness.md` for the full picture.

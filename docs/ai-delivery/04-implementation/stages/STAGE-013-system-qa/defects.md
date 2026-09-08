@@ -101,3 +101,68 @@ sm:gap-2`, header `px-3 sm:px-4`; `language-switcher.tsx` — name label `hidden
   is a declared-but-unused `packages/ui` dependency that can be dropped on the next lockfile
   touch. The CJS→ESM change was scoped to `packages/ui` only; `theme` / `i18n` / `contracts`
   stay CJS because `apps/api` (Node) consumes them.
+
+## D-013-7 — `verify:static` red: 17 committed docs unformatted, FIXED (2026-09-08)
+
+- **Where:** `pnpm verify:static` → `pnpm format:check` (`prettier --check "**/*.{…,md,…}"`).
+- **Symptom:** 17 files failed Prettier — `apps/site/scripts/serve-standalone.mjs` plus
+  `docs/ai-delivery/00-control/**` (pipeline-state, baseline-alignment, change-register, the
+  `MIG-20260907-001` migration set, two session folders). All last touched by `bb14dab`
+  (pipeline-adoption); `verify:static` — and therefore `verify:all` — had been red since then.
+- **Fix:** `prettier --write` on the 17 (markdown table-pipe alignment + prose rewrap + one
+  long `console.error` wrapped; no content change). The v1.0 spec artifacts + `prompt-library/`
+  stay protected by `.prettierignore`. `format:check` green.
+
+## D-013-8 — STAGE-012 `PageHeader` gap on two `/ops` screens, FIXED (2026-09-08)
+
+- **Where:** `apps/web/src/surfaces/ops/{branding,languages}-page.tsx`.
+- **Symptom:** both rendered a bare `<h1 class="text-2xl font-semibold">` + `<p>` instead of the
+  shared `<PageHeader>` every other `/ops` screen uses — contradicting the STAGE-012 checkpoint's
+  "PageHeader on all 13 screens". Predate the STAGE-012 DataTable/PageHeader sweep (mtimes
+  2026-09-07).
+- **Fix:** both now use `<PageHeader title description />`; `branding-page` moves its
+  published-revision `<Badge>` into the `actions` slot. Same accessible `<h1>` name — no e2e
+  heading assertion targets these screens. `apps/web` typecheck + build + `verify:a11y` green.
+
+## D-013-9 — Redis outage → 4 `verify:api` failures, FIXED (2026-09-08)
+
+- **Where:** the native `redis-server` service; surfaced in `verify:api`
+  (`security.spec` TEST-SEC-015, `config-lookup.spec` TEST-LKP-004/009/011, `meta.spec` ×2).
+- **Symptom:** the first full `verify:all` run failed with `/health/ready` = `down`, a
+  lookup-edit ETag that never bumped, and a rate-limit burst that never 429'd — all Redis-backed.
+  `redis-server` was dead: its `/var/log/redis` and `/var/run/redis` directories had been wiped,
+  so the daemon exited 1 on start ("Can't open the log file"). Most likely collateral of the
+  OOM pressure from the concurrent Next builds on this ~1.9 GB host.
+- **Fix:** recreated `/var/log/redis` + `/var/run/redis` (owner `redis:redis`), restarted the
+  service. `verify:api` re-run with Redis up: `config-lookup` + `meta` pass. The long-run
+  wrappers now re-`systemctl start redis-server` if a health ping fails between gates.
+- Two latent test races were **exposed** by the healthy (faster) re-run and fixed under D-013-10.
+
+## D-013-10 — two timing-fragile API tests, FIXED (2026-09-08)
+
+Both passed only because the host was slow; the Redis fix (D-013-9) made the suite fast enough
+to break their unstated timing assumptions. Neither is a product defect.
+
+- **`security.spec` TEST-SEC-015** — 30 **sequential** requests took ~3 s on this host, but the
+  limiter's window (`RATE_LIMIT_AUTH_WINDOW_SEC`) is 2 s, so the burst split across two fixed
+  windows and neither reached the cap of 25 → zero 429s. **Fix:** bind the in-process server
+  once (so `supertest` reuses one port instead of racing `listen(0)` → `ECONNRESET`), then fire
+  **60 concurrent** — a worst-case 30/30 window split still puts one window over 25.
+- **`report.spec` TEST-ADM-006** — asserts a `@StepUp()` send is refused as "stale", but
+  `STEP_UP_MAX_AGE_SEC` is 1 s in tests and nothing waited; a fast run reached the assertion
+  inside the freshness window and the guard (correctly) allowed the send → `201` not `401`.
+  **Fix:** an explicit `setTimeout(1200)` before the stale assertion.
+
+## D-013-11 — `apps/site` header: sign-in/account link unlabelled at phone width, FIXED (2026-09-08)
+
+- **Where:** `apps/site/src/components/site-header.tsx` — surfaced on **every** `apps/site`
+  route at the phone viewport by the widened STAGE-013 QA matrix (site × phone, all 6
+  locale/theme cells; passed on tablet + laptop).
+- **Symptom:** axe `link-name` **serious** — "Links must have discernible text". The
+  account / sign-in control is `<Button size="sm" asChild><Link>…</Link></Button>`; its text is
+  in a `<span className="hidden sm:inline">`, so below the `sm` breakpoint (640 px) the link
+  contains only an `aria-hidden` icon and has no accessible name. `verify:a11y` (`a11y.spec.ts`)
+  runs the laptop project only, so it never caught this; the QA matrix's phone project did.
+- **Fix:** `aria-label={authed ? t('nav.account') : t('action.signIn')}` on the `<Link>` — a
+  name that survives the hidden text span. `apps/site` typecheck green; QA matrix phone site
+  cells green after the fix.

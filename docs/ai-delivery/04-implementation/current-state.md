@@ -4,31 +4,41 @@ _Concise, authoritative. Update after every meaningful verified unit._
 
 - **Approved scope:** Full system minus APP-CMOB frontend (see `selected-scope.md`). Backend,
   APP-CWEB, APP-OPS all in scope. Autonomous multi-stage build (user: "never stop before 100%").
-- **Source versions:** FR 1.0, UI/UX 1.0, SRS 1.0 (hashes in `source-manifest.md`).
-- **Active stage:** STAGE-008 — Containerization & local-run parity. **COMPLETED** 2026-09-07.
-  Feature scope was done at STAGE-007; STAGE-008 is post-release infra — no app behaviour
-  changed. Docker (dev `compose.yaml` + prod-shaped `compose.prod.yaml`) is now run and
-  verified; the no-Docker native path (DEC-013) is retested and unchanged. Evidence:
-  `stages/STAGE-008-containerization/`. Defect D-008-1 fixed.
-- **Stage status:** COMPLETED.
-- **Last completed:** STAGE-008 — Docker for all stages, best-practice, tested both ways
-  (native + container). `pnpm --prod deploy` fix, root compose split (DEC-022),
-  `postgres-init.sql`, `deps` one-shot self-cleans stale `tsbuildinfo` (D-008-1), worker
-  Redis healthcheck, `dev-up.sh` daemon-reachability check. Gates in-container: static PASS,
-  unit 63, api 68, migrate 4; native `verify:api` 68 + boot smoke.
-- **Prior stage:** STAGE-007 — Release hardening. Security (`RateLimitGuard` SEC-015 +
-  `CsrfGuard` SEC-003 + `security.spec.ts` 13), a11y (axe WCAG A+AA, 0 serious/critical),
-  perf (`verify:perf`, indicative), backup/restore rehearsed, deploy artifacts (`deploy/`),
-  full responsive+locale sweep, overdue worker wired. Gates: static PASS, unit 63, api 68,
-  migrate 4, e2e full suite green (1 local retry). Evidence `stages/STAGE-007-release-hardening/`
-  (D-007-1..3).
-- **Last verified tests:** as above.
-- **Unresolved defects / blockers:** none. STAGE-001..008 defects (D-001..D-008) all fixed.
+- **Source versions:** FR 1.0, UI/UX 1.0, SRS 1.0 (v1.1 amendment docs drafted under
+  `CR-20260907-001`; hashes in `source-manifest.md`).
+- **Active stage:** STAGE-013 — System-wide QA & hardening (Enhancement Program). Closing out
+  2026-09-08. STAGE-000..008 (SRS roadmap + containerization) and STAGE-009..012 (theming,
+  i18n, Next.js public site, `/ops` UX overhaul) are **COMPLETE**.
+- **Stage status:** STAGE-013 CLOSING — all `verify:*` gates green this session; widened QA
+  screenshot matrix run; `defects.md` D-013-1..11 resolved.
+- **Last completed (2026-09-08):** STAGE-013 hardening pass —
+  - `verify:all` gates all green individually: `static` (after formatting 17 stale docs,
+    D-013-7), `i18n`, `theme`, `unit` **89**, `api` **101** (Redis outage fixed + 2 timing-
+    fragile tests hardened, D-013-9/10), `migrate` 4, `security` 13, `seo` (verify-seo.sh
+    build-order fix), `e2e` **91** across phone/tablet/laptop, `a11y` 2, `perf` (D-013-6 —
+    `apps/site` first-load JS ~430→~261 KB gz via the `packages/ui` CJS→ESM fix).
+  - STAGE-012 close-out: `PageHeader` on 15/15 `/ops` screens (D-013-8); `FormLayout`/
+    `DetailLayout` closed as an explicit no-build decision.
+  - STAGE-013 QA matrix widened to all 16 `/ops` screens (was 3); site-header `link-name`
+    a11y bug on phone found + fixed (D-013-11).
+  - `openapi.json` regenerated (was missing the STAGE-005/006 deferred-feature routes);
+    traceability matrix Enhancement section → all 10 mandate items VALIDATED.
+- **Prior stages (Enhancement Program):** 009 theming/branding, 010 i18n (en/ar/fr),
+  011 `apps/site` Next.js public site + full SEO, 012 `/ops` dashboard UX (DataTable / command
+  palette / breadcrumbs). All COMPLETE — see each `stages/STAGE-0NN-*/checkpoint.md`.
+- **Unresolved defects / blockers:** none. D-001..D-008 and D-013-1..11 all fixed.
+  Environment-blocked (need CI / staged deploy, not code): Firefox/WebKit E2E, k6 write-path
+  load, ZAP baseline, SAST — scaffolds in `e2e/playwright.config.ts` (`E2E_ALL_BROWSERS`) +
+  `scripts/load/write-path.k6.js`; documented in `stages/STAGE-013-system-qa/release-readiness.md`.
 - **Environment:** PostgreSQL 16 + Redis 7 — native (`scripts/dev-up.sh`, the low-footprint
   default, DEC-013) **or** containers (`docker compose up`, STAGE-008 / DEC-022); both verified.
-  ~1.9 GB RAM ⇒ single Vite SPA for both surfaces (DEC-004/018); API runs via
-  `@swc-node/register` on source in dev, `tsc→dist` in the runtime image. Chromium-only E2E.
-- **Frontend stack:** React 18 + Vite 5 + TypeScript + shadcn/ui + React Router v6 + TanStack Query.
+  ~1.9 GB RAM host; API runs via `@swc-node/register` on source in dev, `tsc→dist` in the
+  runtime image. Chromium-only E2E (Firefox/WebKit behind `E2E_ALL_BROWSERS`, CI-only).
+- **Frontend stack (post STAGE-011 split, DEC-023):** customer surface = `apps/site`
+  (Next.js 14 App Router, SSG/ISR, `/[locale]/` routing en/ar/fr, full technical SEO);
+  operations dashboard = `apps/web` (Vite 5 SPA, `/ops` only). Shared: `packages/ui`
+  (shadcn/ui primitives, now ESM — D-013-6), `packages/theme` (design-token engine),
+  `packages/i18n`, TanStack Query, React 18 + TS strict.
 - **DB state (dev):** migrated to `0006` (STAGE-007 added no migration); seeded system + development. Discovery fixture: 5
   vehicle categories, 8 features, ~54 units across JFK/LHR/PAR, one published rate plan (+ tiers)
   per category. `system` seed also loads 5 `report_definition` rows. Demo customer

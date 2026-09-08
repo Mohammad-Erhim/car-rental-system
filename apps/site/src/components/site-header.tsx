@@ -77,7 +77,10 @@ export function SiteHeader({ locale }: { locale: string }) {
             }}
           />
           <Button variant="outline" size="sm" asChild>
-            <Link href={authed ? `/${locale}/account` : `/${locale}/sign-in`}>
+            <Link
+              href={authed ? `/${locale}/account` : `/${locale}/sign-in`}
+              aria-label={authed ? t('nav.account') : t('action.signIn')}
+            >
               {authed ? (
                 <UserRound className="size-4" aria-hidden="true" />
               ) : (

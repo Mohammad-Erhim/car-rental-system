@@ -6,6 +6,58 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### STAGE-013 — stage close-out: gates green + widened QA matrix (2026-09-08)
+
+An autonomous hardening pass that took every `verify:*` gate to green and closed STAGE-011 /
+012 / 013.
+
+**Fixed**
+
+- **D-013-7** — `verify:static` had been red since `bb14dab`: 17 committed docs
+  (`apps/site/scripts/serve-standalone.mjs` + `docs/ai-delivery/00-control/**`) failed
+  `prettier --check`. Formatted (table-pipe alignment + prose rewrap; no content change).
+- **D-013-8** — `branding-page` + `languages-page` used a bare `<h1>` instead of the shared
+  `<PageHeader>`. Both converted; all 15 `/ops` screens now use it.
+- **D-013-9** — native `redis-server` was dead (its `/var/log/redis` + `/var/run/redis` dirs
+  had been wiped, so it exited 1 on start). That caused every Redis-backed `verify:api` failure
+  (`TEST-SEC-015`, `TEST-LKP-004/009/011`, `meta.spec` health checks). Dirs recreated, service
+  restarted; the long-run wrappers now re-start it between gates if a health ping fails.
+- **D-013-10** — two timing-fragile API tests, exposed once the Redis fix made the suite fast:
+  `TEST-SEC-015` (30 sequential requests spanned two 2 s rate windows → 0×429; now a bound
+  server + 60 concurrent) and `TEST-ADM-006` (`STEP_UP_MAX_AGE_SEC=1 s` with no wait; now an
+  explicit `setTimeout(1200)`).
+- **D-013-11** — `apps/site` header: the sign-in/account link's text is in a
+  `hidden sm:inline` span, so below the `sm` breakpoint it was an unlabelled icon-only link
+  (axe `link-name` serious, every site route at phone width — `verify:a11y` runs laptop only
+  and missed it). Fixed with an `aria-label`. Found by the widened QA matrix.
+- `scripts/verify-seo.sh` built `apps/site` **before** starting the API, so build-time SSR
+  fetches hit `ECONNREFUSED`. Reordered (API up first), matching `scripts/verify-e2e.sh`.
+- `apps/api/openapi.json` regenerated — it was missing the STAGE-005/006 deferred-feature
+  routes (`/auth/step-up`, `GET /ops/fleet/blocks`, …).
+
+**Changed**
+
+- **QA matrix widened** — `qa-matrix.spec.ts` `OPS_ROUTES` 3 → all 16 `/ops` screens. New
+  `scripts/qa-matrix.sh` runner (API up → build both apps API-up → serve → run;
+  `start:standalone`, not `next start`). `playwright.qa.config.ts` site server → `start:standalone`.
+- **Cross-browser E2E scaffold** — `e2e/playwright.config.ts` gains `firefox` + `webkit`
+  projects behind `E2E_ALL_BROWSERS=1`; `scripts/verify-e2e.sh` appends them on that flag.
+- **k6 write-path load scenario** — `scripts/load/write-path.k6.js` (search → quote → contended
+  hold; SRS-NFR thresholds). Unrun on this host; the scenario of record for a staged run.
+- `packages/ui` — `PageHeader` import added where missing; no API change.
+
+**Docs**
+
+- `traceability-matrix.md` Enhancement-program section → all 10 mandate items **VALIDATED**
+  with named artifacts.
+- STAGE-011 + STAGE-012 `checkpoint.md` → **COMPLETE**; STAGE-013 `checkpoint.md` gains the
+  gate table + QA matrix result; `release-readiness.md` finalised; `current-state.md` brought
+  up to date (was still on STAGE-008).
+
+**Gates** (run individually — an end-to-end `verify:all` is the same set): `static` PASS ·
+`i18n` PASS · `theme` 9 · `unit` 89 · `api` 101 · `migrate` 4 · `security` 13 · `seo` PASS ·
+`e2e` 91 (phone 30 / tablet 29 / laptop 32) · `a11y` 2 · `perf` PASS · QA matrix green.
+
 ### STAGE-013 — D-013-6: `apps/site` first-load JS budget (2026-09-08)
 
 `verify:perf`'s `apps/site` portion was red on every route — first-load JS ~430 KB gz (per-file

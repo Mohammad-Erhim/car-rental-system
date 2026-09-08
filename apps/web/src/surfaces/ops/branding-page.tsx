@@ -12,7 +12,16 @@ import {
   hslTripleToHex,
   validateBrandConfig,
 } from '@carrental/theme';
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input } from '@carrental/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Input,
+  PageHeader,
+} from '@carrental/ui';
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { useAuth } from '../../lib/auth.js';
@@ -112,17 +121,17 @@ export function BrandingPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">{t('ops.branding.title')}</h1>
-          <p className="text-sm text-muted-foreground">{t('ops.branding.subtitle')}</p>
-        </div>
-        <Badge variant={published.data?.revision ? 'success' : 'neutral'}>
-          {published.data?.revision
-            ? t('ops.branding.publishedRev', { n: published.data.revision })
-            : t('ops.branding.usingDefault')}
-        </Badge>
-      </div>
+      <PageHeader
+        title={t('ops.branding.title')}
+        description={t('ops.branding.subtitle')}
+        actions={
+          <Badge variant={published.data?.revision ? 'success' : 'neutral'}>
+            {published.data?.revision
+              ? t('ops.branding.publishedRev', { n: published.data.revision })
+              : t('ops.branding.usingDefault')}
+          </Badge>
+        }
+      />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
         <div className="space-y-6">

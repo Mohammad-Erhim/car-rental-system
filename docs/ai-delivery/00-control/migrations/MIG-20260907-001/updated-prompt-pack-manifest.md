@@ -10,6 +10,7 @@ byte-identical to the attached source (see canonical manifest for the full hash 
 internal conflict found; installation completed without blocking.
 
 **Installed paths:**
+
 - `docs/ai-delivery/README.md`
 - `docs/ai-delivery/prompt-library/current/01_CREATE_FUNCTIONAL_REQUIREMENTS.md` … `07_AUDIT_TEST_FIX_AND_HARDEN_SYSTEM.md`
 - `docs/ai-delivery/prompt-library/prompt-pack-manifest.md`

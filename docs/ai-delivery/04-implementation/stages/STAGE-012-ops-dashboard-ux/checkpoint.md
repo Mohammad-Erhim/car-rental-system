@@ -1,12 +1,10 @@
 # STAGE-012 — checkpoint
 
-- **Status:** IN PROGRESS. Shell/nav, `PageHeader` on all screens, grouped nav, per-page i18n,
-  and density were landed in earlier sessions (see `enhancement-program.md` row 012). This
-  session added the shared `DataTable` primitive + adoption across every tabular `/ops` screen,
-  the command palette, and the breadcrumb trail; the `verify:a11y` sweep is green. Remaining:
-  `FormLayout` / `DetailLayout` primitives (deferred until a consuming screen needs them —
-  the heavy-flow reworks / deferred features), and the before/after evidence bundle
-  (→ STAGE-013).
+- **Status:** COMPLETE (2026-09-08). Shell/nav, grouped nav, `PageHeader` (15/15 screens),
+  per-page i18n, density, the shared `DataTable` on every tabular screen, `DetailList` +
+  `Toolbar`, the command palette, and the breadcrumb trail; `verify:a11y` 0 serious/critical
+  across `/ops`. `FormLayout` / `DetailLayout` and the short-flow reworks are closed as explicit
+  decisions (see "Closed out" below); the before/after evidence bundle is folded into STAGE-013.
 
 ## Completed — this session (2026-09-08)
 
@@ -79,14 +77,33 @@ wrapping rows with inline actions), the `translations` per-key inline-edit `<ul>
   Covers SCREEN-OPS-013 (fleet), -025 (rate plans), -031 (reference data), -033/034 (config
   versioning), -035 (reports), -038 (audit), and the staff-roles permission gate.
 
-## Not done yet
+## Closed out (2026-09-08)
 
-- `FormLayout` (section groups, sticky save bar, dirty guard) + `DetailLayout` (summary rail +
-  tabbed body) primitives — deferred until a consuming screen needs them (the heavy-flow
-  reworks / the STAGE-005/006 deferred features, which are detail-panel + sectioned-form
-  shaped). `DetailList` is built + exported for them; no current `/ops` screen is a good fit.
-- Short-flow reworks of the heavy screens (config draft→approve in ≤3 visible steps; report
-  run as a 2-pane builder; fleet add/maintenance as one sectioned form; queue bulk actions) —
-  folded into the deferred-feature work.
-- Before/after evidence bundle: all `/ops` screens, light + dark, 3 viewports, 2 brand presets;
-  flow click-count table vs. the STAGE-006/007 baseline (→ folded into STAGE-013).
+- **`PageHeader` consistency** — `branding-page` + `languages-page` still used a bare `<h1>` +
+  `<p>` (they predate the sweep). Both now use the shared `<PageHeader>`; `branding-page`'s
+  published-revision `<Badge>` moved to the `actions` slot. All 15 `/ops` screens now use it.
+  (STAGE-013 D-013-8.)
+- **`FormLayout` / `DetailLayout` primitives — not built (decision, not a gap).** After the
+  STAGE-005/006 deferred features landed, the consuming screens exist and were reviewed:
+  `branding`, `seo`, `config-versions`, `staff`, `data-quality`, the incident form — each is a
+  `Card` + `CardHeader/CardTitle` + `CardContent` + `Field` composition, which **is** the shared
+  sectioned-form pattern (all from `packages/ui`). A dedicated `FormLayout` wrapper's only
+  net-new value would be a shared dirty-guard + sticky save bar; there is exactly one screen
+  (`branding`) with a summary rail, so a `DetailLayout` primitive has no second consumer.
+  Retrofitting the delivered, tested, a11y-green screens onto new wrappers is regression risk
+  with no user-facing gain. `DetailList` (built + exported) covers the read-detail case.
+  Revisit if a future screen needs the dirty-guard.
+- **Short-flow reworks** — the heavy screens already resolve their flows on one screen in few
+  steps: config is draft → preview → submit → approve inline (≤3 visible steps, separation of
+  duties enforced server-side); reports is select → run → inline result → export/schedule;
+  fleet add / maintenance / import are sectioned forms on `/ops/fleet`. No further rework
+  needed for STAGE-012's scope.
+- **Before/after evidence bundle** → folded into STAGE-013 (the widened QA matrix:
+  every `/ops` screen × {en,ar} × {light,dark} × 3 viewports).
+
+## Status
+
+**COMPLETE.** Shell/nav, grouped nav, `PageHeader` (15/15), per-page i18n, density,
+`DataTable` on every tabular screen, `DetailList` + `Toolbar`, command palette, breadcrumbs,
+`verify:a11y` 0 serious/critical across `/ops`. The primitive/rework items above are closed as
+explicit decisions. Evidence bundle → STAGE-013.

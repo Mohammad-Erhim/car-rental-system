@@ -2,8 +2,8 @@
 
 Append-only. One row per change request, in creation order. Never renumber or delete a row.
 
-| CR ID | Date | Title | Classification | Status | Affected layers | Record |
-|---|---|---|---|---|---|---|
+| CR ID           | Date       | Title                                                                                                         | Classification | Status  | Affected layers                                 | Record                                |
+| --------------- | ---------- | ------------------------------------------------------------------------------------------------------------- | -------------- | ------- | ----------------------------------------------- | ------------------------------------- |
 | CR-20260907-001 | 2026-09-07 | Propagate Enhancement Program (STAGE-008..013) scope into Functional Requirements, UI/UX Design Plan, and SRS | Change Request | `DRAFT` | Functional Requirements, UI/UX Design Plan, SRS | `00-control/changes/CR-20260907-001/` |
 
 Created during pipeline-adoption migration `SESSION-20260907-185415-PIPELINE-ADOPTION`

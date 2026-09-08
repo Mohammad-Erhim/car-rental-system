@@ -1,6 +1,11 @@
 # STAGE-011 — checkpoint
 
-- **Status:** IN PROGRESS (increment 3 underway).
+- **Status:** COMPLETE (2026-09-08). Increments 1 + 2 + SEO panel + 3a/3b/3c + 3d (E2E port) all
+  landed. `verify:e2e` re-confirmed green this session — phone 30 / tablet 29 / laptop 32, 0
+  failures, all 13 specs on the single-origin `apps/site` + `/ops`-proxy stack. `verify:seo`
+  green (6 routes × en/ar/fr, robots, sitemap 30 `<loc>`, noindex on private routes).
+  `verify:perf` first-load JS budget green (D-013-6). Residual: Lighthouse LCP/INP field run is
+  CI-optional (needs headless Chrome in CI).
 - **Increment 1 (done, 2026-09-07):** `apps/site` scaffold + home / search / vehicle-detail /
   help / legal, full technical SEO, `/[locale]/` i18n routing (en/ar/fr + RTL), brand overlay,
   Docker image + compose wiring. Builds + runs verified.

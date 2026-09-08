@@ -1,5 +1,14 @@
 import { useI18n } from '@carrental/i18n/react';
-import { Badge, Button, Card, CardContent, CardHeader, CardTitle, Input } from '@carrental/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Input,
+  PageHeader,
+} from '@carrental/ui';
 import { Check, Globe, Star } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -43,10 +52,7 @@ export function LanguagesPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">{t('ops.languages.title')}</h1>
-        <p className="text-sm text-muted-foreground">{t('ops.languages.subtitle')}</p>
-      </div>
+      <PageHeader title={t('ops.languages.title')} description={t('ops.languages.subtitle')} />
 
       <Card>
         <CardHeader>

@@ -10,7 +10,7 @@
 - **No repository instruction files found:** no `AGENTS.md` or `CLAUDE.md` anywhere in the
   repository (searched full tree, case-insensitive, excluding `node_modules`).
 - **Pre-existing top-level layout:** `apps/{api,web,site}`, `packages/{contracts,ui,i18n,config,
-  theme}`, `e2e/`, `docs/ai-delivery/`, `deploy/`, `scripts/`, `prompts/` (legacy prompt pack,
+theme}`, `e2e/`, `docs/ai-delivery/`, `deploy/`, `scripts/`, `prompts/` (legacy prompt pack,
   see `legacy-prompt-inventory.md`), root `functional-requirements-v1.0.md` / `srs-v1.0.md` /
   `ui-ux-design-plan-v1.0.md` (documented intentional duplicates of the `docs/ai-delivery/`
   copies — see `manifest.md`), root `CHANGELOG.md` (the project's actual pipeline changelog).

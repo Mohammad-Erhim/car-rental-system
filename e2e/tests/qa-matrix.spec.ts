@@ -28,10 +28,25 @@ const SITE_ROUTES: Array<[path: string, name: string]> = [
   ['/legal/privacy', 'legal-privacy'],
 ];
 
+// Every authenticated `/ops` screen (router.tsx). en/ar only — `fr` is LTR like `en` and its
+// key parity is gated by `verify:i18n`; the site half below covers all three locales.
 const OPS_ROUTES: Array<[path: string, name: string]> = [
-  ['/ops/', 'ops-signin'],
+  ['/ops/', 'ops-dashboard'],
+  ['/ops/work', 'ops-work'],
+  ['/ops/rentals', 'ops-rentals'],
+  ['/ops/fleet', 'ops-fleet'],
+  ['/ops/finance', 'ops-finance'],
+  ['/ops/data-quality', 'ops-data-quality'],
+  ['/ops/insights', 'ops-insights'],
+  ['/ops/audit', 'ops-audit'],
+  ['/ops/config', 'ops-config-versions'],
+  ['/ops/config/rate-plans', 'ops-rate-plans'],
+  ['/ops/config/reference-data', 'ops-reference-data'],
+  ['/ops/config/translations', 'ops-translations'],
   ['/ops/config/branding', 'ops-branding'],
+  ['/ops/config/seo', 'ops-seo'],
   ['/ops/config/languages', 'ops-languages'],
+  ['/ops/admin/staff', 'ops-staff'],
 ];
 
 async function setTheme(page: Page, theme: string) {

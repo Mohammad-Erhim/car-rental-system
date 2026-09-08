@@ -41,32 +41,35 @@ describe('STAGE-007 security', () => {
 
   it('TEST-SEC-015 an auth-route burst from one client is rate-limited (429 + Retry-After)', async () => {
     const ip = `198.51.100.${1 + Math.floor(Math.random() * 200)}`;
-    // sequential to avoid ephemeral-port races on the in-process server; 30 > the test-only
-    // cap of 25, all inside the 2s window
-    const statuses: number[] = [];
-    let retryAfter: string | undefined;
-    let limitedCode: string | undefined;
-    for (let i = 0; i < 30; i++) {
-      const r = await request(server)
-        .post('/api/v1/auth/resend-verification')
-        .set('X-Forwarded-For', ip)
-        .send({ accountId: randomUUID() });
-      statuses.push(r.status);
-      if (r.status === 429) {
-        retryAfter ??= r.headers['retry-after'] as string;
-        limitedCode ??= r.body.code as string;
-      }
+    // Bind the in-process server once up front so `supertest` reuses a single listening port —
+    // firing many requests at a non-listening server makes each call `server.listen(0)` and they
+    // race (ECONNRESET). With a bound port the burst can go out *concurrently* so it lands in as
+    // few of the limiter's fixed 2s windows (`RATE_LIMIT_AUTH_WINDOW_SEC`) as possible: a slow
+    // host spreads a *sequential* loop across two windows and neither exceeds the cap of 25
+    // (`RATE_LIMIT_AUTH_MAX`). 60 in flight means even a worst-case boundary split (30 / 30)
+    // still puts one window over 25 → at least one 429.
+    if (!server.listening) {
+      await new Promise<void>((res) => server.listen(0, () => res()));
     }
-    expect(statuses.filter((s) => s === 429).length).toBeGreaterThan(0);
-    expect(retryAfter).toBeTruthy();
-    expect(limitedCode).toBe('rate_limited');
+    const results = await Promise.all(
+      Array.from({ length: 60 }, () =>
+        request(server)
+          .post('/api/v1/auth/resend-verification')
+          .set('X-Forwarded-For', ip)
+          .send({ accountId: randomUUID() }),
+      ),
+    );
+    const limited = results.filter((r) => r.status === 429);
+    expect(limited.length).toBeGreaterThan(0);
+    expect(limited[0]!.headers['retry-after']).toBeTruthy();
+    expect(limited[0]!.body.code).toBe('rate_limited');
     // a different client IP is unaffected
     await request(server)
       .post('/api/v1/auth/resend-verification')
       .set('X-Forwarded-For', '203.0.113.9')
       .send({ accountId: randomUUID() })
       .then((r) => expect(r.status).not.toBe(429));
-  });
+  }, 60_000);
 
   // ---- TEST-SEC-015: CORS allow-list ----
 

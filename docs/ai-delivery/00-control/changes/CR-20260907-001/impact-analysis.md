@@ -27,7 +27,7 @@ routes).
 
 ## Dependencies and compatibility
 
-- No database migration is anticipated to *document* the change (schema already exists:
+- No database migration is anticipated to _document_ the change (schema already exists:
   migrations through `0006`, see `docs/ai-delivery/04-implementation/source-manifest.md`).
 - No breaking change to already-published FR/SCREEN/FLOW/SRS IDs is intended; this is additive
   documentation of already-shipped, already-tested behavior.

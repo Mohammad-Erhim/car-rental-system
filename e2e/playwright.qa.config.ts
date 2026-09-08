@@ -65,7 +65,9 @@ export default defineConfig({
           },
         },
         {
-          command: 'pnpm --filter @carrental/site start',
+          // standalone, not `next start` (which mis-renders the error / not-found boundaries
+          // under output: 'standalone'). Needs a prior `next build` made with the API reachable.
+          command: 'pnpm --filter @carrental/site start:standalone',
           cwd: '..',
           url: SITE_URL,
           reuseExistingServer: true,

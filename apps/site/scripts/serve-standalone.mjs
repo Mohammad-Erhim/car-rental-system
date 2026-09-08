@@ -15,7 +15,9 @@ const standaloneDir = join(appDir, '.next/standalone/apps/site');
 const serverJs = join(standaloneDir, 'server.js');
 
 if (!existsSync(serverJs)) {
-  console.error(`No standalone build at ${serverJs}. Run \`pnpm --filter @carrental/site build\` first.`);
+  console.error(
+    `No standalone build at ${serverJs}. Run \`pnpm --filter @carrental/site build\` first.`,
+  );
   process.exit(1);
 }
 

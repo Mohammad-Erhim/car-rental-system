@@ -150,6 +150,21 @@
         ]
       }
     },
+    "/api/v1/auth/step-up": {
+      "post": {
+        "operationId": "auth_stepUp",
+        "summary": "Re-confirm the password to satisfy a step-up-protected action",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/api/v1/auth/profile": {
       "get": {
         "operationId": "IamController_getProfile",
@@ -889,6 +904,35 @@
       }
     },
     "/api/v1/ops/fleet/blocks": {
+      "get": {
+        "operationId": "OpsCatalogueController_listBlocks",
+        "parameters": [
+          {
+            "name": "unitId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      },
       "post": {
         "operationId": "OpsCatalogueController_addBlock",
         "parameters": [],
@@ -915,6 +959,43 @@
             }
           }
         ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/fleet/units/{id}/transfer": {
+      "post": {
+        "operationId": "OpsCatalogueController_transferUnit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/fleet/units/import": {
+      "post": {
+        "operationId": "OpsCatalogueController_importUnits",
+        "parameters": [],
         "responses": {
           "201": {
             "description": ""
@@ -1353,6 +1434,29 @@
         ]
       }
     },
+    "/api/v1/ops/cases/{id}/retry": {
+      "post": {
+        "operationId": "ReservationController_retryCase",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reservations"
+        ]
+      }
+    },
     "/api/v1/rentals/mine": {
       "get": {
         "operationId": "RentalController_mine",
@@ -1513,6 +1617,29 @@
         ]
       }
     },
+    "/api/v1/ops/rentals/{reference}/incident": {
+      "post": {
+        "operationId": "RentalController_incident",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
     "/api/v1/ops/rentals/{reference}/readiness": {
       "post": {
         "operationId": "RentalController_readiness",
@@ -1649,6 +1776,29 @@
       "post": {
         "operationId": "ReportController_schedule",
         "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/reports/schedules/{id}/send": {
+      "post": {
+        "operationId": "ReportController_sendSchedule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "201": {
             "description": ""
@@ -1822,6 +1972,20 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/data-quality": {
+      "get": {
+        "operationId": "ReportController_dataQuality",
+        "parameters": [],
         "responses": {
           "200": {
             "description": ""

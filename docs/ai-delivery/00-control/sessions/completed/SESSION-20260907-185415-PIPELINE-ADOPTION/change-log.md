@@ -11,11 +11,11 @@ Append-only record of mutations performed during this session, in order:
    prompt-pack immutability guard to `.prettierignore`.
 5. Removed `prompts/` (`git rm -r prompts/`, staged not committed) — user-authorized mid-session.
 6. Created `docs/ai-delivery/00-control/{pipeline-state,active-session,baseline-alignment,
-   change-register}.md`, `sessions/{active,paused,completed,abandoned}/`, `changes/`,
+change-register}.md`, `sessions/{active,paused,completed,abandoned}/`, `changes/`,
    `migrations/`.
 7. Created `docs/ai-delivery/CHANGELOG.md` (thin pointer to root `CHANGELOG.md`).
 8. Created `docs/ai-delivery/00-control/changes/CR-20260907-001/{request,impact-analysis,plan,
-   verification}.md` (all `DRAFT`).
+verification}.md` (all `DRAFT`).
 9. Created `docs/ai-delivery/00-control/migrations/MIG-20260907-001/*` (10 files: migration-state,
    updated-prompt-pack-manifest, legacy-prompt-inventory, legacy-artifact-inventory,
    repository-snapshot, baseline-reconstruction, alignment-gap-register, adoption-decisions,
