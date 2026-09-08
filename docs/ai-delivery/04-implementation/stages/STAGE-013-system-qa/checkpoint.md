@@ -105,10 +105,30 @@ FR / UI-UX / SRS **v1.1 amendment documents** drafted (`CR-20260907-001` path 1)
 acceptance, the `ALIGNED` transition, and an independent Stage-7 four-way audit remain a
 stage-gate decision.
 
+## Open finding — D-013-6: `apps/site` first-load JS over budget
+
+`perf-site.mjs` against a fresh API-up standalone build **fails** every route: first-load JS
+~430 KB gz (budget 170 KB public / 240 KB interactive), dominated by one chunk
+(`chunks/145-*.js` ≈ 178 KB gz) plus the framework (~52 KB), polyfills (~38 KB), and several
+30–40 KB chunks. Next's own build report ("First Load JS shared 87.5 kB") undercounts because
+it does not attribute the layout-pulled shared chunk; the served HTML carries all 15 as
+non-deferred `<script src>`.
+
+- **Not a regression from this session** — the `145-*.js` bloat predates the STAGE-012 /
+  deferred-feature work (it was present in the STAGE-011 build); it is `@carrental/ui` + its
+  deps (Radix, `lucide-react` barrel imports, TanStack Query, the theme engine) landing in one
+  eagerly-loaded chunk via the root `[locale]/layout` → `Providers`.
+- **Fix (its own increment):** run `@next/bundle-analyzer`; import `lucide-react` icons
+  individually (or via `modularizeImports` / `optimizePackageImports`); lazy-load the
+  react-query devtools and any client-only provider; consider splitting `@carrental/ui` so a
+  marketing route pulls only what it renders. Re-baseline `perf-site.mjs` once the real
+  transfer is known (its per-file `gzipSync` sum also slightly overstates vs. a single HTTP/2
+  stream — reconcile the two).
+- Recorded in `defects.md` as D-013-6 (open).
+
 ## Still open (STAGE-013 / pre-production)
 
-- `verify:perf` for `apps/site` — `perf-site.mjs` exists; a recorded evidence run (with a
-  fresh API-up site build) is pending.
+- **D-013-6** above — `apps/site` first-load JS optimisation + `perf-site.mjs` re-baseline.
 - A refreshed full light/dark × en/ar/fr × phone/tablet/laptop screenshot bundle for the
   reworked `/ops` screens + the new customer surface.
 - **Environment-blocked** (need a staged multi-instance deploy / CI, cannot run on this host):

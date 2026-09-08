@@ -51,3 +51,21 @@ same stage. Category ∈ {a11y, responsive, functional, visual, hydration, build
 - **Fix:** `ops-layout.tsx` — left block `hidden sm:flex`, control cluster `shrink` + `gap-1
 sm:gap-2`, header `px-3 sm:px-4`; `language-switcher.tsx` — name label `hidden sm:inline`
   (globe icon still shown, `aria-label` unchanged). 495 → 407 → **no overflow** in all locales.
+
+## D-013-6 — `apps/site` first-load JS over budget, OPEN
+
+- **Where:** every `apps/site` route, measured by `perf-site.mjs` against a fresh API-up
+  standalone build.
+- **Symptom:** first-load JS ~430 KB gz vs. the 170 KB (public) / 240 KB (interactive)
+  budgets; one chunk (`chunks/145-*.js`) is ~178 KB gz. `verify:perf`'s site portion fails.
+  Next's build report ("First Load JS shared 87.5 kB") undercounts — it does not attribute the
+  shared chunk the root `[locale]/layout` → `Providers` pulls; the served HTML carries all 15
+  scripts as non-deferred `<script src>`.
+- **Not a regression:** the bloat predates STAGE-012 / the deferred-feature work — it is
+  `@carrental/ui` + Radix + `lucide-react` (barrel imports) + TanStack Query + the theme engine
+  in one eagerly-loaded chunk.
+- **Fix (own increment):** `@next/bundle-analyzer`; per-icon `lucide-react` imports /
+  `optimizePackageImports`; lazy-load client-only providers + query devtools; split
+  `@carrental/ui`; re-baseline `perf-site.mjs` (its per-file `gzipSync` sum also slightly
+  overstates vs. one HTTP/2 stream).
+- **Status:** OPEN — tracked in the STAGE-013 checkpoint "Open finding" section.
