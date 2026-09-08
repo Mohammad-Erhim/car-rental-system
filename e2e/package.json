@@ -1,0 +1,24 @@
+{
+  "name": "@carrental/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "report": "playwright show-report",
+    "install:browsers": "playwright install chromium",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
+    "@carrental/config": "workspace:*",
+    "@playwright/test": "1.46.1",
+    "@types/node": "20.14.15",
+    "axe-core": "^4.13.0",
+    "eslint": "9.9.0",
+    "globals": "15.9.0",
+    "typescript": "5.5.4"
+  }
+}

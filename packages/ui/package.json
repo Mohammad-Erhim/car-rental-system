@@ -1,0 +1,65 @@
+{
+  "name": "@carrental/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./styles.css": "./src/styles.css",
+    "./tailwind-preset": "./tailwind.preset.cjs"
+  },
+  "files": [
+    "dist",
+    "src/styles.css",
+    "tailwind.preset.cjs"
+  ],
+  "scripts": {
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@carrental/theme": "workspace:*",
+    "@radix-ui/react-dialog": "1.1.1",
+    "@radix-ui/react-dropdown-menu": "2.1.1",
+    "@radix-ui/react-label": "2.1.0",
+    "@radix-ui/react-radio-group": "1.2.0",
+    "@radix-ui/react-select": "2.1.1",
+    "@radix-ui/react-slot": "1.1.0",
+    "@radix-ui/react-tabs": "1.1.0",
+    "@radix-ui/react-toast": "1.2.1",
+    "class-variance-authority": "0.7.0",
+    "clsx": "2.1.1",
+    "lucide-react": "0.427.0",
+    "tailwind-merge": "2.5.2"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "devDependencies": {
+    "@carrental/config": "workspace:*",
+    "@carrental/i18n": "workspace:*",
+    "@testing-library/jest-dom": "6.4.8",
+    "@testing-library/react": "16.0.0",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "eslint": "9.9.0",
+    "globals": "15.9.0",
+    "jsdom": "24.1.1",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "tailwindcss": "3.4.10",
+    "typescript": "5.5.4",
+    "vitest": "2.0.5"
+  }
+}

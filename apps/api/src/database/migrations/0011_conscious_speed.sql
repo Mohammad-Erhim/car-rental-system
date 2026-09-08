@@ -1,0 +1,1 @@
+ALTER TABLE "customer_merge" ADD COLUMN "moved_reservations" jsonb DEFAULT '[]'::jsonb NOT NULL;

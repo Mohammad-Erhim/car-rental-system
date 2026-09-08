@@ -1,0 +1,35 @@
+{
+  "name": "@carrental/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run",
+    "build": "tsc -p tsconfig.build.json",
+    "check:drift": "node ./scripts/check-openapi-drift.mjs"
+  },
+  "dependencies": {
+    "@carrental/theme": "workspace:*",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@carrental/config": "workspace:*",
+    "eslint": "9.9.0",
+    "globals": "15.9.0",
+    "typescript": "5.5.4",
+    "vitest": "2.0.5"
+  }
+}

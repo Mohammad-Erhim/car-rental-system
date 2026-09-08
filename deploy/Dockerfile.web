@@ -1,0 +1,55 @@
+# syntax=docker/dockerfile:1.7
+# Car Rental System — Customer Web + Operations Dashboard (one Vite SPA, DEC-004/018).
+#   dev target  : vite dev server with HMR, source bind-mounted by compose.yaml
+#   runtime tgt : static bundle served by nginx, /api + /health proxied to the API service
+#
+#   docker build -f deploy/Dockerfile.web --target runtime -t carrental-web .
+#   docker build -f deploy/Dockerfile.web --target dev     -t carrental-web:dev .
+
+########################  base  ########################
+FROM node:22-bookworm-slim AS base
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=1
+RUN corepack enable && corepack prepare pnpm@9.15.0 --activate \
+ && pnpm config set store-dir /pnpm/store --global
+WORKDIR /app
+
+########################  deps  ########################
+FROM base AS deps
+COPY pnpm-workspace.yaml pnpm-lock.yaml package.json .npmrc ./
+COPY apps/api/package.json           apps/api/package.json
+COPY apps/web/package.json           apps/web/package.json
+COPY e2e/package.json                e2e/package.json
+COPY packages/contracts/package.json packages/contracts/package.json
+COPY packages/i18n/package.json      packages/i18n/package.json
+COPY packages/ui/package.json        packages/ui/package.json
+COPY packages/theme/package.json     packages/theme/package.json
+COPY packages/config/package.json    packages/config/package.json
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm install --frozen-lockfile
+
+########################  dev  ########################
+# Vite bundles the shared packages from TS source (see vite.config aliases), so no package
+# build step is needed. Source is bind-mounted by compose.
+FROM deps AS dev
+ENV NODE_ENV=development
+EXPOSE 3000
+CMD ["pnpm", "--filter", "@carrental/web", "dev", "--", "--host", "0.0.0.0"]
+
+########################  build  ########################
+FROM deps AS build
+ENV NODE_ENV=production
+COPY tsconfig.base.json ./
+COPY packages/ packages/
+COPY apps/web/ apps/web/
+RUN pnpm --filter @carrental/theme --filter @carrental/contracts --filter @carrental/i18n --filter @carrental/ui build \
+ && pnpm --filter @carrental/web build
+
+########################  runtime  ########################
+FROM nginx:1.27-alpine AS runtime
+ENV API_UPSTREAM=http://api:3001
+COPY deploy/nginx.conf /etc/nginx/templates/default.conf.template
+COPY --from=build /app/apps/web/dist /usr/share/nginx/html/ops
+EXPOSE 8080
+HEALTHCHECK --interval=15s --timeout=4s --start-period=10s --retries=5 \
+  CMD wget -qO- http://127.0.0.1:8080/ops/ >/dev/null 2>&1 || exit 1
+# nginx:alpine entrypoint renders /etc/nginx/templates/*.template with envsubst, then runs nginx.

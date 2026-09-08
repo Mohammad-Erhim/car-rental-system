@@ -1,0 +1,41 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+build/
+out/
+*.tsbuildinfo
+.vite/
+coverage/
+.turbo/
+
+# local runtime state
+var/
+!var/.gitkeep
+*.log
+logs/
+
+# env & secrets
+.env
+.env.*
+!.env.example
+
+# test artifacts
+e2e/test-results/
+e2e/playwright-report/
+e2e/blob-report/
+apps/api/test-results/
+**/__screenshots__/*.actual.png
+evidence-bundle-*.zip
+
+# editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.recommended.json
+apps/site/.next/
+e2e/test-results-qa/
+e2e/playwright-report-qa/

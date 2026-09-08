@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Operations Console</title>
+    <meta name="description" content="Car Rental operations & admin dashboard." />
+    <script>
+      /* Apply theme + cached brand tokens before first paint (no flash). Mirrors
+         @carrental/ui ThemeProvider / @carrental/theme; safe if storage is unavailable. */
+      (function () {
+        try {
+          var t = localStorage.getItem('carrental.theme') || 'system';
+          var dark =
+            t === 'dark' ||
+            (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+          var r = document.documentElement;
+          r.classList.toggle('dark', dark);
+          r.style.colorScheme = dark ? 'dark' : 'light';
+          var css = localStorage.getItem('carrental.brand.css.v1');
+          if (css) {
+            var s = document.createElement('style');
+            s.id = 'carrental-brand-tokens';
+            s.textContent = css;
+            document.head.appendChild(s);
+          }
+          var b = localStorage.getItem('carrental.brand.v1');
+          if (b) {
+            var cfg = JSON.parse(b);
+            if (cfg && cfg.density) r.dataset.density = cfg.density;
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

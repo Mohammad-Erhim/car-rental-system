@@ -1,0 +1,12 @@
+        event_type        | aggregate_type | count | undelivered |              min              
+--------------------------+----------------+-------+-------------+-------------------------------
+ booking.hold.placed.v1   | hold           |     3 |           3 | 2026-09-08 11:49:26.048941+03
+ payment.captured.v1      | payment_intent |     2 |           2 | 2026-09-08 11:49:26.22815+03
+ reservation.confirmed.v1 | reservation    |     2 |           2 | 2026-09-08 11:49:26.230574+03
+(3 rows)
+
+
+Captured 2026-09-08 (Stage 7 runtime spot-check). Native carrental_dev, fresh `db:reset` then
+ONE customer booking (Q-MTSFHLJ38EB -> RES-16E2C02E) + two more confirm attempts.
+Every row has delivered_at IS NULL. `apps/api/src/worker.ts` only COUNTs these rows for a log
+line; no code sets delivered_at or dispatches. Confirms S7-DEF-002.

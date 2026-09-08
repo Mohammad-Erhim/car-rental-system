@@ -1,0 +1,408 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens for apps/site — GENERATED from @carrental/theme (see packages/theme/tokens.ts,
+ * `pnpm --filter @carrental/theme gen:css`). The published brand config is inlined as a
+ * `<style>` overlay in the [locale] layout (SSR — no FOUC).
+ */
+@layer base {
+  /* @carrental/theme:start — generated from @carrental/theme. Edit tokens in packages/theme/src/tokens.ts,
+     then `pnpm --filter @carrental/theme gen:css`. Do not hand-edit between the markers. */
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 222 74% 40%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 40%;
+    --accent: 210 40% 94%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 74% 39%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 142 72% 24%;
+    --success-foreground: 0 0% 100%;
+    --warning: 30 100% 26%;
+    --warning-foreground: 0 0% 100%;
+    --border: 214 32% 88%;
+    --input: 214 32% 84%;
+    --ring: 222 74% 40%;
+    --radius: 0.6rem;
+    --font-sans: var(--font-brand, Inter), system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+
+  .dark {
+    --background: 222 47% 8%;
+    --foreground: 210 40% 96%;
+    --card: 222 44% 11%;
+    --card-foreground: 210 40% 96%;
+    --popover: 222 44% 11%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 213 84% 66%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 217 33% 18%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 68%;
+    --accent: 217 33% 20%;
+    --accent-foreground: 210 40% 96%;
+    --destructive: 0 84% 62%;
+    --destructive-foreground: 0 60% 9%;
+    --success: 142 55% 48%;
+    --success-foreground: 222 47% 11%;
+    --warning: 38 92% 60%;
+    --warning-foreground: 222 47% 11%;
+    --border: 217 33% 24%;
+    --input: 217 33% 26%;
+    --ring: 213 84% 66%;
+  }
+  /* @carrental/theme:end */
+
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  html,
+  body {
+    min-height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-sans, Inter, system-ui, sans-serif);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+/* code-like mixed-direction tokens stay LTR inside RTL pages (SRS-I18N-008) */
+.bidi-isolate {
+  unicode-bidi: isolate;
+  direction: ltr;
+}
+
+.skip-link {
+  position: absolute;
+  inset-inline-start: 0.5rem;
+  top: -3rem;
+  z-index: 100;
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 0.5rem 0.75rem;
+  transition: top 0.15s ease;
+}
+.skip-link:focus {
+  top: 0.5rem;
+}
+
+/* Control sizing — driven by the density token (`data-density` on <html>, set from the brand
+   config by ThemeProvider). `comfortable` keeps the 44px touch target (SRS-NFR-012); `compact`
+   tightens forms for data-dense dashboard screens. Components read these vars, not fixed heights. */
+:root {
+  --control-h: 2.75rem;
+  --control-h-sm: 2.25rem;
+  --control-px: 1rem;
+}
+:root[data-density='compact'] {
+  --control-h: 2.375rem;
+  --control-h-sm: 2rem;
+  --control-px: 0.75rem;
+}
+
+/* ============================================================================
+ * MARKETING DESIGN LAYER (apps/site only) — DEC-025 extension.
+ * A richer surface/colour/elevation vocabulary for the public marketing pages,
+ * layered ON TOP of the shared @carrental/theme tokens (never edits the generated
+ * block above). The operations dashboard is unaffected. All values are token-based;
+ * status colour is always paired with an icon in components (FR-GBL-007).
+ * ============================================================================ */
+:root {
+  /* --- Aliased to the admin brand-config tokens (DEC-025). Operations → Branding rewrites
+   *     --primary / --card / --border / --foreground / --muted-foreground at SSR, and the whole
+   *     marketing layer moves with them. --- */
+  --brand: var(--primary);
+  --ink: var(--foreground);
+  --ink-muted: var(--muted-foreground);
+  --hairline: var(--border);
+  --surface: var(--card);
+
+  /* --- Design-system values that stay stable across a rebrand. --- */
+  --brand-strong: 224 62% 22%;
+  /* text + icons that sit on the brand gradient — white in BOTH themes (the gradient is always dark). */
+  --on-brand: 0 0% 100%;
+  --surface-muted: 216 33% 97%;
+  --surface-sunken: 216 30% 94%;
+
+  /* Warm accent — energy for CTAs, ratings, highlights (the open road at dusk). */
+  --warm: 28 92% 50%;
+  --warm-strong: 21 90% 43%;
+  --warm-foreground: 24 66% 11%;
+
+  /* Elevation — soft, cool-tinted depth. */
+  --shadow-card: 0 1px 2px hsl(222 45% 12% / 0.05), 0 4px 12px hsl(222 45% 12% / 0.06);
+  --shadow-lift: 0 2px 6px hsl(222 45% 12% / 0.06), 0 18px 40px hsl(222 45% 12% / 0.14);
+  --shadow-glow: 0 20px 55px hsl(var(--primary) / 0.28);
+
+  /* Brand gradient — fallback stops for browsers without color-mix(); the @supports block below
+     re-derives the hue from the admin --primary while keeping every stop dark for white text. */
+  --gradient-brand: linear-gradient(
+    135deg,
+    hsl(224 60% 20%) 0%,
+    hsl(222 70% 30%) 55%,
+    hsl(214 70% 40%) 100%
+  );
+  --gradient-hero-veil: linear-gradient(
+    180deg,
+    hsl(224 60% 8% / 0.3) 0%,
+    hsl(224 58% 6% / 0.52) 52%,
+    hsl(224 56% 5% / 0.82) 100%
+  );
+
+  /* HeroScene inline-SVG palette. */
+  --hero-sun: 30 90% 64%;
+  --hero-glow: 18 82% 56%;
+  --hero-star: 0 0% 100%;
+  --hero-road: 220 100% 90%;
+  --hero-hill-1: 224 46% 16%;
+  --hero-hill-2: 226 54% 11%;
+  --hero-ink: 224 62% 6%;
+}
+
+@supports (background: color-mix(in oklab, red, blue)) {
+  :root {
+    --gradient-brand: linear-gradient(
+      135deg,
+      color-mix(in oklab, hsl(var(--primary)) 55%, #0b1020) 0%,
+      color-mix(in oklab, hsl(var(--primary)) 86%, #0b1020) 55%,
+      color-mix(in oklab, hsl(var(--primary)) 78%, #e8f0ff) 100%
+    );
+  }
+}
+
+.dark {
+  --brand-strong: 224 44% 15%;
+  --surface-muted: 224 40% 10.5%;
+  --surface-sunken: 223 38% 16%;
+
+  --warm: 32 96% 61%;
+  --warm-strong: 30 94% 55%;
+  --warm-foreground: 26 64% 9%;
+
+  --shadow-card: 0 1px 2px hsl(0 0% 0% / 0.4), 0 4px 14px hsl(0 0% 0% / 0.42);
+  --shadow-lift: 0 2px 6px hsl(0 0% 0% / 0.42), 0 20px 46px hsl(0 0% 0% / 0.56);
+  --shadow-glow: 0 20px 55px hsl(213 90% 55% / 0.32);
+
+  --gradient-brand: linear-gradient(
+    135deg,
+    hsl(224 52% 12%) 0%,
+    hsl(221 58% 20%) 55%,
+    hsl(213 60% 29%) 100%
+  );
+  --gradient-hero-veil: linear-gradient(
+    180deg,
+    hsl(224 55% 5% / 0.22) 0%,
+    hsl(224 52% 4% / 0.42) 52%,
+    hsl(224 50% 3% / 0.72) 100%
+  );
+  --hero-hill-1: 223 42% 12%;
+  --hero-hill-2: 226 48% 8%;
+}
+
+@supports (background: color-mix(in oklab, red, blue)) {
+  .dark {
+    --gradient-brand: linear-gradient(
+      135deg,
+      color-mix(in oklab, hsl(var(--primary)) 34%, #04060d) 0%,
+      color-mix(in oklab, hsl(var(--primary)) 55%, #04060d) 55%,
+      color-mix(in oklab, hsl(var(--primary)) 62%, #04060d) 100%
+    );
+  }
+}
+
+@layer components {
+  /* Horizontal rhythm — matches the app shell's max-w-6xl but owns its own gutters so the page
+     shell can go full-bleed for hero / stat / CTA bands. */
+  .mkt-container {
+    @apply mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8;
+  }
+  .mkt-section {
+    @apply py-12 md:py-16;
+  }
+  .mkt-section-tight {
+    @apply py-10 md:py-12;
+  }
+  /* Anchor targets clear the sticky header when jumped to. */
+  .scroll-anchor {
+    scroll-margin-top: 5rem;
+  }
+
+  .eyebrow {
+    @apply inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.14em] text-brand;
+  }
+  .dark .eyebrow {
+    @apply text-brand;
+  }
+
+  .headline {
+    @apply text-balance font-extrabold tracking-tight text-ink;
+    font-size: clamp(2rem, 1.15rem + 3.4vw, 3.4rem);
+    line-height: 1.06;
+    letter-spacing: -0.02em;
+  }
+  .subhead {
+    @apply text-pretty text-ink-muted;
+    font-size: clamp(1rem, 0.95rem + 0.4vw, 1.15rem);
+    line-height: 1.6;
+  }
+
+  /* Gradient-clipped text — decorative; always sits on top of a solid colour fallback. */
+  .text-gradient {
+    background-image: var(--gradient-brand);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .surface-card {
+    @apply rounded-2xl border bg-surface;
+    border-color: hsl(var(--hairline));
+    box-shadow: var(--shadow-card);
+  }
+  .hover-lift {
+    transition:
+      transform 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1),
+      border-color 0.28s ease;
+  }
+  .hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lift);
+    border-color: hsl(var(--brand) / 0.35);
+  }
+
+  /* Icon chip — a tinted rounded square that carries a lucide glyph. */
+  .icon-chip {
+    @apply inline-flex size-11 shrink-0 items-center justify-center rounded-xl;
+    background: hsl(var(--brand) / 0.1);
+    color: hsl(var(--brand));
+  }
+  .icon-chip-warm {
+    background: hsl(var(--warm) / 0.16);
+    color: hsl(var(--warm-strong));
+  }
+  .dark .icon-chip-warm {
+    color: hsl(var(--warm));
+  }
+
+  /* Full-bleed band: stretches edge-to-edge inside the (now un-containered) <main>, no 100vw. */
+  .band {
+    @apply w-full;
+  }
+  .band-muted {
+    background: hsl(var(--surface-muted));
+  }
+  .band-brand {
+    background-image: var(--gradient-brand);
+    color: hsl(var(--on-brand));
+  }
+
+  /* Ambient decoration for tinted sections — soft colour clouds, purely cosmetic. */
+  .aurora {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .aurora::before,
+  .aurora::after {
+    content: '';
+    position: absolute;
+    width: 42rem;
+    height: 42rem;
+    border-radius: 9999px;
+    filter: blur(80px);
+    opacity: 0.4;
+  }
+  .aurora::before {
+    background: hsl(var(--on-brand) / 0.14);
+    inset-inline-start: -12rem;
+    top: -16rem;
+  }
+  .aurora::after {
+    background: hsl(var(--warm) / 0.28);
+    inset-inline-end: -14rem;
+    bottom: -18rem;
+  }
+  .dark .aurora::before,
+  .dark .aurora::after {
+    opacity: 0.22;
+  }
+
+  /* Dotted grid — CSS only, no asset. */
+  .dot-grid {
+    background-image: radial-gradient(hsl(var(--ink) / 0.07) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+
+  /* Soft drop shadow for the inline car art on brand panels (token-based; keeps tsx literal-free). */
+  .art-shadow {
+    filter: drop-shadow(0 12px 22px hsl(var(--hero-ink) / 0.32));
+  }
+}
+
+/* Decorative float — transform only (never hides content), stilled by reduced-motion. */
+@keyframes mkt-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-14px);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .mkt-float {
+    animation: mkt-float 7s ease-in-out infinite;
+  }
+  .mkt-float-slow {
+    animation: mkt-float 11s ease-in-out infinite;
+  }
+}
+
+/* Native <details> FAQ — chevron rotation, smooth open. */
+.faq-item > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.faq-item > summary::-webkit-details-marker {
+  display: none;
+}
+.faq-item > summary .faq-chevron {
+  transition: transform 0.2s ease;
+}
+.faq-item[open] > summary .faq-chevron {
+  transform: rotate(180deg);
+}

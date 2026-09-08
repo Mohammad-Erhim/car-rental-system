@@ -1,0 +1,3587 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/api/v1/ops/notification-rules": {
+      "get": {
+        "operationId": "TemplateController_listRules",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "TemplateController_upsertRule",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/notification-rules/{event}/{channel}": {
+      "get": {
+        "operationId": "TemplateController_getRule",
+        "parameters": [
+          {
+            "name": "event",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "channel",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/notification-rules/{event}/{channel}/enable": {
+      "post": {
+        "operationId": "TemplateController_enableRule",
+        "parameters": [
+          {
+            "name": "event",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "channel",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/notification-rules/{event}/{channel}/disable": {
+      "post": {
+        "operationId": "TemplateController_disableRule",
+        "parameters": [
+          {
+            "name": "event",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "channel",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/templates": {
+      "get": {
+        "operationId": "TemplateController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/templates/{key}/{channel}/readiness": {
+      "get": {
+        "operationId": "TemplateController_readiness",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "channel",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/templates/{key}/{channel}/{locale}": {
+      "get": {
+        "operationId": "TemplateController_get",
+        "parameters": [
+          {
+            "name": "key",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "channel",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locale",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/templates/draft": {
+      "post": {
+        "operationId": "TemplateController_draft",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/templates/preview": {
+      "post": {
+        "operationId": "TemplateController_preview",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/templates/{id}/submit": {
+      "post": {
+        "operationId": "TemplateController_submit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/templates/{id}/publish": {
+      "post": {
+        "operationId": "TemplateController_publish",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "operationId": "auth_register",
+        "summary": "Create a customer account",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/verify-contact": {
+      "post": {
+        "operationId": "auth_verifyContact",
+        "summary": "Verify email/phone with a code",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/resend-verification": {
+      "post": {
+        "operationId": "IamController_resend",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/sign-in": {
+      "post": {
+        "operationId": "auth_signIn",
+        "summary": "Sign in with credentials",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "operationId": "auth_refresh",
+        "summary": "Rotate the refresh session",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/sign-out": {
+      "post": {
+        "operationId": "auth_signOut",
+        "summary": "End the current (or all) sessions",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/recovery/start": {
+      "post": {
+        "operationId": "auth_startRecovery",
+        "summary": "Begin account recovery",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/recovery/complete": {
+      "post": {
+        "operationId": "auth_completeRecovery",
+        "summary": "Finish account recovery",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/change-password": {
+      "post": {
+        "operationId": "auth_changePassword",
+        "summary": "Change password (signed-in)",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "operationId": "auth_me",
+        "summary": "Current session actor + profile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/step-up": {
+      "post": {
+        "operationId": "auth_stepUp",
+        "summary": "Re-confirm the password to satisfy a step-up-protected action",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/profile": {
+      "get": {
+        "operationId": "IamController_getProfile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      },
+      "post": {
+        "operationId": "IamController_updateProfile",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/drivers": {
+      "get": {
+        "operationId": "IamController_listDrivers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      },
+      "post": {
+        "operationId": "IamController_addDriver",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/drivers/{id}/remove": {
+      "post": {
+        "operationId": "IamController_removeDriver",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/data-requests": {
+      "get": {
+        "operationId": "IamController_listDataRequests",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      },
+      "post": {
+        "operationId": "IamController_createDataRequest",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/auth/data-requests/{id}/cancel": {
+      "post": {
+        "operationId": "IamController_cancelDataRequest",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/reference-data/types": {
+      "get": {
+        "operationId": "lookup_listTypes",
+        "summary": "List reference-data catalogue",
+        "parameters": [
+          {
+            "name": "classification",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ownerModule",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reference-data"
+        ]
+      }
+    },
+    "/api/v1/reference-data/types/{code}": {
+      "get": {
+        "operationId": "LookupController_getType",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reference-data"
+        ]
+      }
+    },
+    "/api/v1/reference-data/types/{code}/values": {
+      "get": {
+        "operationId": "lookup_getValues",
+        "summary": "Dynamic option list for a type",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reference-data"
+        ]
+      },
+      "post": {
+        "operationId": "lookup_createValue",
+        "summary": "Add a reference value",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reference-data"
+        ]
+      }
+    },
+    "/api/v1/reference-data/types/{code}/values/{valueCode}/usage": {
+      "get": {
+        "operationId": "LookupController_usage",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reference-data"
+        ]
+      }
+    },
+    "/api/v1/reference-data/types/{code}/values/{valueId}": {
+      "post": {
+        "operationId": "lookup_updateValue",
+        "summary": "Edit a reference value / labels",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reference-data"
+        ]
+      }
+    },
+    "/api/v1/reference-data/types/{code}/values/{valueId}/deactivate": {
+      "post": {
+        "operationId": "LookupController_deactivate",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reference-data"
+        ]
+      }
+    },
+    "/api/v1/reference-data/types/{code}/values/{valueId}/restore": {
+      "post": {
+        "operationId": "LookupController_restore",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reference-data"
+        ]
+      }
+    },
+    "/api/v1/reference-data/types/{code}/reorder": {
+      "post": {
+        "operationId": "LookupController_reorder",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reference-data"
+        ]
+      }
+    },
+    "/api/v1/config/locations": {
+      "get": {
+        "operationId": "config_listLocations",
+        "summary": "Active rental locations",
+        "parameters": [
+          {
+            "name": "organizationId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/v1/config/organization": {
+      "get": {
+        "operationId": "ConfigController_organization",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/v1/config/translations/completeness": {
+      "get": {
+        "operationId": "ConfigController_completeness",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/v1/config/translations": {
+      "get": {
+        "operationId": "ConfigController_list",
+        "parameters": [
+          {
+            "name": "namespace",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locale",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      },
+      "post": {
+        "operationId": "ConfigController_upsert",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/v1/config/translations/{namespace}/{locale}/publish": {
+      "post": {
+        "operationId": "ConfigController_publish",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/v1/config/locales": {
+      "get": {
+        "operationId": "config_listLocalesAdmin",
+        "summary": "All locales incl. inactive",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      },
+      "post": {
+        "operationId": "config_upsertLocale",
+        "summary": "Add or edit a locale",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/v1/config/locales/{code}/activate": {
+      "post": {
+        "operationId": "ConfigController_activateLocale",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/v1/config/locales/{code}/deactivate": {
+      "post": {
+        "operationId": "ConfigController_deactivateLocale",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/v1/config/locales/{code}/default": {
+      "post": {
+        "operationId": "ConfigController_makeDefaultLocale",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/v1/config/branding/assets": {
+      "post": {
+        "operationId": "config_uploadBrandAsset",
+        "summary": "Upload a brand image (logo / favicon / OG) and get an obj: ref for the config (DEC-025)",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
+    "/api/v1/ops/locations": {
+      "get": {
+        "operationId": "LocationAdminController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-config"
+        ]
+      },
+      "post": {
+        "operationId": "LocationAdminController_upsert",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-config"
+        ]
+      }
+    },
+    "/api/v1/ops/locations/{code}": {
+      "get": {
+        "operationId": "LocationAdminController_get",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-config"
+        ]
+      }
+    },
+    "/api/v1/ops/locations/{code}/impact": {
+      "get": {
+        "operationId": "LocationAdminController_impact",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-config"
+        ]
+      }
+    },
+    "/api/v1/ops/locations/{code}/archive": {
+      "post": {
+        "operationId": "LocationAdminController_archive",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-config"
+        ]
+      }
+    },
+    "/api/v1/ops/locations/{code}/restore": {
+      "post": {
+        "operationId": "LocationAdminController_restore",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-config"
+        ]
+      }
+    },
+    "/api/v1/ops/locations/{code}/hours-exceptions": {
+      "post": {
+        "operationId": "LocationAdminController_addException",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-config"
+        ]
+      }
+    },
+    "/api/v1/ops/locations/{code}/hours-exceptions/{id}/remove": {
+      "post": {
+        "operationId": "LocationAdminController_removeException",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-config"
+        ]
+      }
+    },
+    "/api/v1/admin/roles": {
+      "get": {
+        "operationId": "admin_listRoles",
+        "summary": "Roles + permission action catalogue",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/staff": {
+      "get": {
+        "operationId": "admin_listStaff",
+        "summary": "Staff accounts + access",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/staff/invite": {
+      "post": {
+        "operationId": "admin_inviteStaff",
+        "summary": "Invite a staff member",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/staff/{accountId}/access": {
+      "post": {
+        "operationId": "admin_changeStaffAccess",
+        "summary": "Change roles / scope / status",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/customers": {
+      "get": {
+        "operationId": "CustomerController_search",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/customers/{id}": {
+      "get": {
+        "operationId": "CustomerController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/customers/{id}/restrictions": {
+      "get": {
+        "operationId": "CustomerController_listRestrictions",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "CustomerController_createRestriction",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/customers/{id}/restrictions/{rid}/approve": {
+      "post": {
+        "operationId": "CustomerController_approveRestriction",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "rid",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/customers/{id}/restrictions/{rid}/reject": {
+      "post": {
+        "operationId": "CustomerController_rejectRestriction",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "rid",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/customers/{id}/restrictions/{rid}/lift": {
+      "post": {
+        "operationId": "CustomerController_liftRestriction",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "rid",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/customers/{id}/merge": {
+      "post": {
+        "operationId": "CustomerController_merge",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/customers/{id}/unmerge": {
+      "post": {
+        "operationId": "CustomerController_unmerge",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/catalogue/products": {
+      "get": {
+        "operationId": "catalogue_listProducts",
+        "summary": "Extras & protection products available for a category + location",
+        "parameters": [
+          {
+            "name": "category",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "location",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "discovery"
+        ]
+      }
+    },
+    "/api/v1/catalogue/categories": {
+      "get": {
+        "operationId": "catalogue_listCategories",
+        "summary": "Bookable vehicle categories",
+        "parameters": [
+          {
+            "name": "includeInactive",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "discovery"
+        ]
+      }
+    },
+    "/api/v1/catalogue/categories/{code}": {
+      "get": {
+        "operationId": "DiscoveryController_category",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "discovery"
+        ]
+      }
+    },
+    "/api/v1/discovery/search": {
+      "post": {
+        "operationId": "discovery_search",
+        "summary": "Real-time availability for a window",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "discovery"
+        ]
+      }
+    },
+    "/api/v1/discovery/quote": {
+      "post": {
+        "operationId": "discovery_quote",
+        "summary": "Itemised quote + optional checkout hold",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "discovery"
+        ]
+      }
+    },
+    "/api/v1/discovery/quotes/{reference}": {
+      "get": {
+        "operationId": "DiscoveryController_getQuote",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "discovery"
+        ]
+      }
+    },
+    "/api/v1/ops/catalogue/products": {
+      "get": {
+        "operationId": "OpsCatalogueController_listProducts",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      },
+      "post": {
+        "operationId": "OpsCatalogueController_upsertProduct",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/catalogue/products/{code}/deactivate": {
+      "post": {
+        "operationId": "OpsCatalogueController_deactivateProduct",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/catalogue/products/{code}/restore": {
+      "post": {
+        "operationId": "OpsCatalogueController_restoreProduct",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/catalogue/categories": {
+      "get": {
+        "operationId": "OpsCatalogueController_listCategories",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      },
+      "post": {
+        "operationId": "OpsCatalogueController_upsertCategory",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/catalogue/features": {
+      "get": {
+        "operationId": "OpsCatalogueController_listFeatures",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/catalogue/categories/{code}/deactivate": {
+      "post": {
+        "operationId": "OpsCatalogueController_deactivateCategory",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/catalogue/categories/{code}/restore": {
+      "post": {
+        "operationId": "OpsCatalogueController_restoreCategory",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/fleet/units": {
+      "get": {
+        "operationId": "OpsCatalogueController_listUnits",
+        "parameters": [
+          {
+            "name": "locationCode",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "categoryCode",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/fleet/blocks": {
+      "get": {
+        "operationId": "OpsCatalogueController_listBlocks",
+        "parameters": [
+          {
+            "name": "unitId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      },
+      "post": {
+        "operationId": "OpsCatalogueController_addBlock",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/fleet/blocks/{id}/release": {
+      "post": {
+        "operationId": "OpsCatalogueController_releaseBlock",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/fleet/units/{id}/transfer": {
+      "post": {
+        "operationId": "OpsCatalogueController_transferUnit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/fleet/units/import": {
+      "post": {
+        "operationId": "OpsCatalogueController_importUnits",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/pricing/rate-plans": {
+      "get": {
+        "operationId": "OpsCatalogueController_listPlans",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      },
+      "post": {
+        "operationId": "OpsCatalogueController_upsertPlan",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/pricing/rate-plans/{id}/publish": {
+      "post": {
+        "operationId": "OpsCatalogueController_publishPlan",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/availability/holds": {
+      "get": {
+        "operationId": "OpsCatalogueController_listHolds",
+        "parameters": [
+          {
+            "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/availability/holds/{id}/release": {
+      "post": {
+        "operationId": "OpsCatalogueController_releaseHold",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/bookings/confirm": {
+      "post": {
+        "operationId": "booking_confirm",
+        "summary": "Confirm a held quote into a reservation",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "booking"
+        ]
+      }
+    },
+    "/api/v1/bookings/mine": {
+      "get": {
+        "operationId": "booking_listMine",
+        "summary": "The signed-in customer reservations",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "booking"
+        ]
+      }
+    },
+    "/api/v1/bookings/{reference}": {
+      "get": {
+        "operationId": "BookingController_get",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "booking"
+        ]
+      }
+    },
+    "/api/v1/bookings/{reference}/claim": {
+      "post": {
+        "operationId": "booking_claimGuest",
+        "summary": "Attach a guest booking to my account",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "booking"
+        ]
+      }
+    },
+    "/api/v1/reservations/mine": {
+      "get": {
+        "operationId": "ReservationController_mine",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reservations"
+        ]
+      }
+    },
+    "/api/v1/reservations/{reference}": {
+      "get": {
+        "operationId": "ReservationController_detail",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reservations"
+        ]
+      }
+    },
+    "/api/v1/reservations/{reference}/history": {
+      "get": {
+        "operationId": "ReservationController_history",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reservations"
+        ]
+      }
+    },
+    "/api/v1/reservations/{reference}/cancel": {
+      "post": {
+        "operationId": "ReservationController_cancel",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reservations"
+        ]
+      }
+    },
+    "/api/v1/reservations/{reference}/modify": {
+      "post": {
+        "operationId": "ReservationController_modify",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reservations"
+        ]
+      }
+    },
+    "/api/v1/ops/reservations": {
+      "get": {
+        "operationId": "ReservationController_list",
+        "parameters": [
+          {
+            "name": "state",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locationCode",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reservations"
+        ]
+      }
+    },
+    "/api/v1/ops/reservations/{reference}/no-show": {
+      "post": {
+        "operationId": "ReservationController_noShow",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reservations"
+        ]
+      }
+    },
+    "/api/v1/ops/payments/reconciliation": {
+      "get": {
+        "operationId": "ReservationController_listExceptions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reservations"
+        ]
+      }
+    },
+    "/api/v1/ops/payments/reconciliation/run": {
+      "post": {
+        "operationId": "ReservationController_reconcile",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reservations"
+        ]
+      }
+    },
+    "/api/v1/ops/payments/reconciliation/{id}/resolve": {
+      "post": {
+        "operationId": "ReservationController_resolveException",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reservations"
+        ]
+      }
+    },
+    "/api/v1/ops/cases": {
+      "get": {
+        "operationId": "ReservationController_cases",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reservations"
+        ]
+      }
+    },
+    "/api/v1/ops/cases/{id}/resolve": {
+      "post": {
+        "operationId": "ReservationController_resolveCase",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reservations"
+        ]
+      }
+    },
+    "/api/v1/ops/cases/{id}/retry": {
+      "post": {
+        "operationId": "ReservationController_retryCase",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reservations"
+        ]
+      }
+    },
+    "/api/v1/rentals/mine": {
+      "get": {
+        "operationId": "RentalController_mine",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rentals/{reference}": {
+      "get": {
+        "operationId": "RentalController_detail",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/rentals/{reference}/extend": {
+      "post": {
+        "operationId": "RentalController_extend",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/ops/rentals": {
+      "get": {
+        "operationId": "RentalController_list",
+        "parameters": [
+          {
+            "name": "state",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locationCode",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/ops/reservations/{reservationReference}/assign": {
+      "post": {
+        "operationId": "RentalController_assign",
+        "parameters": [
+          {
+            "name": "reservationReference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/ops/rentals/{reference}/pickup": {
+      "post": {
+        "operationId": "RentalController_pickup",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/ops/rentals/{reference}/return": {
+      "post": {
+        "operationId": "RentalController_returnRental",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/ops/rentals/{reference}/incident": {
+      "post": {
+        "operationId": "RentalController_incident",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/ops/rentals/{reference}/readiness": {
+      "post": {
+        "operationId": "RentalController_readiness",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/ops/rentals/overdue-sweep": {
+      "post": {
+        "operationId": "RentalController_overdueSweep",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "rentals"
+        ]
+      }
+    },
+    "/api/v1/ops/dashboard": {
+      "get": {
+        "operationId": "ReportController_dashboard",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/reports": {
+      "get": {
+        "operationId": "ReportController_listDefinitions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/reports/runs": {
+      "get": {
+        "operationId": "ReportController_listRuns",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/reports/{code}/run": {
+      "post": {
+        "operationId": "ReportController_run",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/reports/runs/{runId}/export": {
+      "get": {
+        "operationId": "ReportController_exportCsv",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/reports/schedules": {
+      "get": {
+        "operationId": "ReportController_listSchedules",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "ReportController_schedule",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/reports/schedules/{id}/send": {
+      "post": {
+        "operationId": "ReportController_sendSchedule",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/config/versions": {
+      "get": {
+        "operationId": "ReportController_listVersions",
+        "parameters": [
+          {
+            "name": "kind",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "operationId": "ReportController_draft",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/config/versions/preview": {
+      "post": {
+        "operationId": "ReportController_preview",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/config/versions/{id}/submit": {
+      "post": {
+        "operationId": "ReportController_submit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/config/versions/{id}/approve": {
+      "post": {
+        "operationId": "ReportController_approve",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/config/versions/{id}/reject": {
+      "post": {
+        "operationId": "ReportController_reject",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/audit": {
+      "get": {
+        "operationId": "ReportController_audit",
+        "parameters": [
+          {
+            "name": "action",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "targetType",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/data-quality": {
+      "get": {
+        "operationId": "ReportController_dataQuality",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/search": {
+      "get": {
+        "operationId": "ops_search",
+        "summary": "Unified search across reservations and rentals (FR-ADM-003)",
+        "parameters": [
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locationCode",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-search"
+        ]
+      }
+    },
+    "/api/v1/meta/locales": {
+      "get": {
+        "operationId": "meta_getLocales",
+        "summary": "Enabled locales, default, and fallbacks",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocalesResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/api/v1/meta/build": {
+      "get": {
+        "operationId": "meta_getBuild",
+        "summary": "Safe build/version metadata",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BuildInfoDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/api/v1/meta/branding": {
+      "get": {
+        "operationId": "meta_getBranding",
+        "summary": "Published brand/theme config for both frontends (DEC-025)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandingResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/api/v1/meta/seo": {
+      "get": {
+        "operationId": "meta_getSeo",
+        "summary": "Published SEO config for the public site (SRS-ADM-006)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeoResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/api/v1/meta/translations": {
+      "get": {
+        "operationId": "meta_getTranslations",
+        "summary": "Published translation overrides for a namespace + locale (public, DEC-024)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/api/v1/meta/health-summary": {
+      "get": {
+        "operationId": "meta_getHealthSummary",
+        "summary": "Coarse system status for the UI status bar",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthSummaryDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "meta"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Car Rental System API",
+    "description": "Versioned REST boundary consumed by Customer Web, Operations Dashboard, workers, and the mobile app. All business options are served dynamically; money is integer minor units.",
+    "version": "1",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "access-token": {
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "type": "http"
+      },
+      "cookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "refresh_token"
+      }
+    },
+    "schemas": {
+      "LocalesResponseDto": {
+        "type": "object",
+        "properties": {
+          "defaultLocale": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 35
+          },
+          "locales": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "minLength": 2,
+                  "maxLength": 35
+                },
+                "nativeName": {
+                  "type": "string"
+                },
+                "englishName": {
+                  "type": "string"
+                },
+                "direction": {
+                  "type": "string",
+                  "enum": [
+                    "ltr",
+                    "rtl"
+                  ]
+                },
+                "isDefault": {
+                  "type": "boolean"
+                },
+                "fallback": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 35
+                  }
+                },
+                "testOnly": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "code",
+                "nativeName",
+                "englishName",
+                "direction",
+                "isDefault",
+                "fallback",
+                "testOnly"
+              ]
+            }
+          }
+        },
+        "required": [
+          "defaultLocale",
+          "locales"
+        ]
+      },
+      "BuildInfoDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "gitSha": {
+            "type": "string",
+            "nullable": true
+          },
+          "builtAt": {
+            "type": "string"
+          },
+          "nodeEnv": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "name",
+          "version",
+          "gitSha",
+          "builtAt",
+          "nodeEnv",
+          "schemaVersion"
+        ]
+      },
+      "BrandingResponseDto": {
+        "type": "object",
+        "properties": {
+          "config": {
+            "type": "object",
+            "properties": {
+              "colors": {
+                "type": "object",
+                "properties": {
+                  "light": {
+                    "type": "object",
+                    "properties": {
+                      "background": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "foreground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "card": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "cardForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "popover": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "popoverForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "primary": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "primaryForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "secondary": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "secondaryForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "muted": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "mutedForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "accent": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "accentForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "destructive": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "destructiveForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "success": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "successForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "warning": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "warningForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "border": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "input": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "ring": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      }
+                    },
+                    "required": [
+                      "background",
+                      "foreground",
+                      "card",
+                      "cardForeground",
+                      "popover",
+                      "popoverForeground",
+                      "primary",
+                      "primaryForeground",
+                      "secondary",
+                      "secondaryForeground",
+                      "muted",
+                      "mutedForeground",
+                      "accent",
+                      "accentForeground",
+                      "destructive",
+                      "destructiveForeground",
+                      "success",
+                      "successForeground",
+                      "warning",
+                      "warningForeground",
+                      "border",
+                      "input",
+                      "ring"
+                    ]
+                  },
+                  "dark": {
+                    "type": "object",
+                    "properties": {
+                      "background": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "foreground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "card": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "cardForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "popover": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "popoverForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "primary": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "primaryForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "secondary": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "secondaryForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "muted": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "mutedForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "accent": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "accentForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "destructive": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "destructiveForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "success": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "successForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "warning": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "warningForeground": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "border": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "input": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      },
+                      "ring": {
+                        "type": "string",
+                        "pattern": "^-?\\d+(?:\\.\\d+)?\\s+\\d+(?:\\.\\d+)?%\\s+\\d+(?:\\.\\d+)?%$"
+                      }
+                    },
+                    "required": [
+                      "background",
+                      "foreground",
+                      "card",
+                      "cardForeground",
+                      "popover",
+                      "popoverForeground",
+                      "primary",
+                      "primaryForeground",
+                      "secondary",
+                      "secondaryForeground",
+                      "muted",
+                      "mutedForeground",
+                      "accent",
+                      "accentForeground",
+                      "destructive",
+                      "destructiveForeground",
+                      "success",
+                      "successForeground",
+                      "warning",
+                      "warningForeground",
+                      "border",
+                      "input",
+                      "ring"
+                    ]
+                  }
+                },
+                "required": [
+                  "light",
+                  "dark"
+                ]
+              },
+              "radius": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "sm",
+                  "md",
+                  "lg",
+                  "full"
+                ],
+                "default": "md"
+              },
+              "density": {
+                "type": "string",
+                "enum": [
+                  "comfortable",
+                  "compact"
+                ],
+                "default": "comfortable"
+              },
+              "font": {
+                "type": "string",
+                "enum": [
+                  "inter",
+                  "system",
+                  "ibm-plex-sans",
+                  "cairo",
+                  "tajawal"
+                ],
+                "default": "inter"
+              },
+              "assets": {
+                "type": "object",
+                "properties": {
+                  "logo": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "nullable": true,
+                    "default": null
+                  },
+                  "logoDark": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "nullable": true,
+                    "default": null
+                  },
+                  "favicon": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "nullable": true,
+                    "default": null
+                  },
+                  "ogImage": {
+                    "type": "string",
+                    "maxLength": 512,
+                    "nullable": true,
+                    "default": null
+                  },
+                  "wordmark": {
+                    "type": "string",
+                    "maxLength": 80,
+                    "default": "Car Rental"
+                  }
+                },
+                "default": {
+                  "logo": null,
+                  "logoDark": null,
+                  "favicon": null,
+                  "ogImage": null,
+                  "wordmark": "Car Rental"
+                }
+              }
+            },
+            "required": [
+              "colors"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": false
+          },
+          "updatedAt": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "config",
+          "revision",
+          "updatedAt"
+        ]
+      },
+      "SeoResponseDto": {
+        "type": "object",
+        "properties": {
+          "config": {
+            "type": "object",
+            "properties": {
+              "siteName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "titleTemplate": {
+                "type": "string",
+                "maxLength": 80,
+                "default": "%s"
+              },
+              "defaultTitle": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "defaultDescription": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 320
+              },
+              "canonicalBaseUrl": {
+                "type": "string",
+                "format": "uri"
+              },
+              "ogImageUrl": {
+                "type": "string",
+                "format": "uri",
+                "nullable": true,
+                "default": null
+              },
+              "twitterHandle": {
+                "type": "string",
+                "pattern": "^@[A-Za-z0-9_]{1,15}$",
+                "nullable": true,
+                "default": null
+              },
+              "indexable": {
+                "type": "boolean",
+                "default": true
+              },
+              "googleSiteVerification": {
+                "type": "string",
+                "maxLength": 200,
+                "nullable": true,
+                "default": null
+              },
+              "bingSiteVerification": {
+                "type": "string",
+                "maxLength": 200,
+                "nullable": true,
+                "default": null
+              },
+              "organizationLogoUrl": {
+                "type": "string",
+                "format": "uri",
+                "nullable": true,
+                "default": null
+              }
+            },
+            "required": [
+              "siteName",
+              "defaultTitle",
+              "defaultDescription",
+              "canonicalBaseUrl"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": false
+          },
+          "updatedAt": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "config",
+          "revision",
+          "updatedAt"
+        ]
+      },
+      "HealthSummaryDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded",
+              "down"
+            ]
+          },
+          "checkedAt": {
+            "type": "string"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "ok",
+                    "degraded",
+                    "down"
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "status"
+              ]
+            }
+          }
+        },
+        "required": [
+          "status",
+          "checkedAt",
+          "components"
+        ]
+      }
+    }
+  }
+}

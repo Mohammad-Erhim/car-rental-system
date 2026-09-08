@@ -1,0 +1,46 @@
+# Build context hygiene — keep images small and cache-friendly.
+# The dev compose bind-mounts the repo at runtime, so this only affects `docker build`
+# (the production images and the dev base image's dependency install).
+
+**/node_modules
+**/dist
+**/.turbo
+**/coverage
+**/.vite
+**/.next
+**/vite.config.ts.timestamp-*
+**/*.tsbuildinfo
+
+# test / evidence output
+**/playwright-report
+**/test-results
+e2e/playwright/.cache
+e2e/tests
+e2e/playwright.config.ts
+
+# specs & delivery docs — never needed by an image build, ~1 MB of context otherwise
+docs/
+*.md
+/functional-requirements-v1.0.md
+/srs-v1.0.md
+/ui-ux-design-plan-v1.0.md
+
+# vcs / editor / os
+.git
+.gitignore
+**/.DS_Store
+.vscode
+.idea
+
+# local runtime + secrets (never bake into an image)
+.env
+.env.*
+!.env.example
+var/
+*.log
+*.dump
+*.sha256
+
+# things only the host needs
+scripts/dev-up.sh
+scripts/dev-down.sh
