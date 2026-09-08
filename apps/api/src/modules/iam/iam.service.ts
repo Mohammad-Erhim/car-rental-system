@@ -402,6 +402,39 @@ export class IamService {
     });
   }
 
+  /**
+   * SRS-SEC-014 — re-confirm the current holder's password to satisfy a `@StepUp()` route.
+   * On success `last_full_auth_at` is refreshed (the next request re-reads it from the account);
+   * no new tokens are minted and existing sessions are untouched.
+   */
+  async stepUp(accountId: string, password: string): Promise<{ ok: true }> {
+    const [acc] = await this.db.select().from(account).where(eq(account.id, accountId)).limit(1);
+    if (!acc) throw new AppError('auth_required');
+    const ok = acc.passwordHash ? await this.passwords.verify(acc.passwordHash, password) : false;
+    if (!ok) {
+      await this.audit.record({
+        action: 'iam.step_up.failed',
+        targetType: 'account',
+        targetId: accountId,
+        reason: 'wrong_password',
+      });
+      throw new AppError('validation_failed', {
+        title: 'That password is not correct',
+        fieldErrors: [{ path: 'password', code: 'incorrect' }],
+      });
+    }
+    await this.db
+      .update(account)
+      .set({ lastFullAuthAt: sql`now()`, updatedAt: sql`now()` })
+      .where(eq(account.id, accountId));
+    await this.audit.record({
+      action: 'iam.step_up',
+      targetType: 'account',
+      targetId: accountId,
+    });
+    return { ok: true };
+  }
+
   // --------------------------------------------------------------------- helpers
 
   private async mintSession(accountId: string, ctx: SessionCtx, _opts: { fullAuth: boolean }) {

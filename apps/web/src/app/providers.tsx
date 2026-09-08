@@ -8,6 +8,7 @@ import { AuthProvider } from '../lib/auth.js';
 import { usePublishedBranding } from '../lib/branding-hooks.js';
 import { detectInitialLocale, storeLocale } from '../lib/locale-storage.js';
 import { createQueryClient } from '../lib/query.js';
+import { StepUpProvider } from '../lib/step-up.js';
 
 const MISSING_KEYS = new Set<string>();
 
@@ -52,7 +53,9 @@ export function AppProviders({ children }: { children: ReactNode }) {
         >
           <LocalisedUiStrings>
             <AuthProvider>
-              <ToastProvider>{children}</ToastProvider>
+              <ToastProvider>
+                <StepUpProvider>{children}</StepUpProvider>
+              </ToastProvider>
             </AuthProvider>
           </LocalisedUiStrings>
         </I18nProvider>

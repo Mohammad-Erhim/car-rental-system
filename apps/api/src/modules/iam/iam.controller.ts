@@ -197,6 +197,19 @@ export class IamController {
     };
   }
 
+  @Post('step-up')
+  @ApiOperation({
+    operationId: 'auth_stepUp',
+    summary: 'Re-confirm the password to satisfy a step-up-protected action',
+  })
+  stepUp(
+    @Body(new ZodValidationPipe(z.object({ password: z.string().min(1).max(400) })))
+    body: { password: string },
+    @CurrentActor() actor: Actor,
+  ) {
+    return this.iam.stepUp(actor.accountId, body.password);
+  }
+
   // ---- profile / preferences (FR-IAM-006) ----
 
   @Get('profile')

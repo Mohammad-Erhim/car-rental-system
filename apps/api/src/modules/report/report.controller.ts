@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { CurrentActor } from '../../common/auth/auth.guard';
 import { Permissions } from '../../common/auth/permissions.guard';
+import { StepUp } from '../../common/auth/step-up.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { DB } from '../../database/database.module';
@@ -94,6 +95,7 @@ export class ReportController {
 
   @Post('reports/schedules/:id/send')
   @Permissions('report.export')
+  @StepUp()
   sendSchedule(@Param('id') id: string, @CurrentActor() actor: Actor) {
     return this.reports.sendScheduleNow(actor, id);
   }

@@ -6,6 +6,36 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### STAGE-006/007 deferred — step-up authentication (SRS-SEC-014) (2026-09-08)
+
+The `auth_step_up_required` error code and `account.last_full_auth_at` have existed since
+STAGE-001 with nothing producing or consuming them. This wires the mechanism end to end.
+
+**Added (API)**
+
+- `StepUpGuard` + `@StepUp()` decorator (a 4th global `APP_GUARD`, after `PermissionsGuard`) —
+  a marked route requires the holder's last full password auth to be within
+  `STEP_UP_MAX_AGE_SEC` (env, default 900); otherwise `401 auth_step_up_required` with the
+  window in `params`.
+- `POST /api/v1/auth/step-up` `{ password }` (any authenticated principal) — re-verifies the
+  password (Argon2), refreshes `last_full_auth_at` (no new tokens, sessions untouched), audits
+  `iam.step_up` / `iam.step_up.failed`. Wrong password → `422` with a `password` field error.
+- `@StepUp()` applied to `POST /ops/reports/schedules/:id/send` (send a scoped report to a
+  distribution list now — deliberate + sensitive). Guard order means an agent still gets `403`
+  from `PermissionsGuard` first.
+
+**Added (web)**
+
+- `registerStepUpHandler` in `api.ts`: an `auth_step_up_required` response triggers the handler
+  and retries the request once on success (mirrors the silent-refresh path).
+- `StepUpProvider` (mounted under `AuthProvider`) — a password dialog that POSTs `/auth/step-up`
+  and resolves the retry. 5 `stepUp.*` keys en/fr/ar. 2 unit tests.
+
+Verified: `report.spec.ts` `TEST-ADM-006` extended — send without a fresh step-up → `401`
+`auth_step_up_required`; wrong password → `422`; step-up → send works; owner suspended →
+step-up → skipped + paused. `report` 9/9, `iam` 9/9, `security` 13/13 isolated. web
+typecheck / lint / build / test (13) / `verify:i18n` 768 + `--strict` green.
+
 ### STAGE-006 deferred — scheduled-report send-time re-authorization (2026-09-08)
 
 The `report_schedule` table has carried `last_skip_reason` since STAGE-006 for exactly this;

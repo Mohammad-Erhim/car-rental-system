@@ -288,7 +288,15 @@ describe('STAGE-006 administration & reporting', () => {
     expect(actions).toContain('config.version.approved');
   });
 
-  it('TEST-ADM-006 a scheduled report re-checks its owner at send time and pauses if they lost access', async () => {
+  it('TEST-ADM-006 sending a schedule needs a fresh step-up, then re-checks the owner and pauses if they lost access', async () => {
+    // a helper: STEP_UP_MAX_AGE_SEC is 1s in tests, so re-confirm right before each send
+    const stepUp = () =>
+      request(server)
+        .post('/api/v1/auth/step-up')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ password: 'Test-Passw0rd!' })
+        .expect(201);
+
     // scoped finance staff owns the schedule (they hold report.export)
     const created = await request(server)
       .post('/api/v1/ops/reports/schedules')
@@ -301,13 +309,29 @@ describe('STAGE-006 administration & reporting', () => {
       .expect(201);
     const scheduleId = created.body.id as string;
 
-    // unknown id → 404
+    // without a recent step-up the send is refused
+    const stale = await request(server)
+      .post(`/api/v1/ops/reports/schedules/${scheduleId}/send`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(401);
+    expect(stale.body.code).toBe('auth_step_up_required');
+
+    // a wrong password does not grant the step-up
+    await request(server)
+      .post('/api/v1/auth/step-up')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ password: 'not-the-password' })
+      .expect(422);
+
+    // unknown id → 404 (after a valid step-up)
+    await stepUp();
     await request(server)
       .post('/api/v1/ops/reports/schedules/00000000-0000-0000-0000-000000000000/send')
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(404);
 
     // owner still authorised → sent
+    await stepUp();
     const sent = await request(server)
       .post(`/api/v1/ops/reports/schedules/${scheduleId}/send`)
       .set('Authorization', `Bearer ${adminToken}`)
@@ -331,6 +355,7 @@ describe('STAGE-006 administration & reporting', () => {
       .expect(201);
 
     // now the send is skipped and the schedule is paused with a recorded reason
+    await stepUp();
     const skipped = await request(server)
       .post(`/api/v1/ops/reports/schedules/${scheduleId}/send`)
       .set('Authorization', `Bearer ${adminToken}`)
@@ -374,11 +399,11 @@ describe('STAGE-006 administration & reporting', () => {
       expect(Array.isArray(c.sample)).toBe(true);
     }
     // the referential-integrity checks stay clean — no test creates orphans or dangling rows
-    const byId = Object.fromEntries(checks.map((c) => [c.id, c]));
-    expect(byId.rental_active_without_unit.count).toBe(0);
-    expect(byId.unit_orphan_location.count).toBe(0);
-    expect(byId.lookup_value_dangling_type.count).toBe(0);
-    expect(byId.reservation_orphan_account.count).toBe(0);
+    const countFor = (id: string) => checks.find((c) => c.id === id)?.count;
+    expect(countFor('rental_active_without_unit')).toBe(0);
+    expect(countFor('unit_orphan_location')).toBe(0);
+    expect(countFor('lookup_value_dangling_type')).toBe(0);
+    expect(countFor('reservation_orphan_account')).toBe(0);
 
     await request(server)
       .get('/api/v1/ops/data-quality')

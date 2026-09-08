@@ -41,6 +41,12 @@ export function registerRefreshHandler(fn: (() => Promise<boolean>) | null): voi
   refreshFn = fn;
 }
 
+// --- step-up hook (set by StepUpProvider): prompt for the password, POST /auth/step-up ---
+let stepUpFn: (() => Promise<boolean>) | null = null;
+export function registerStepUpHandler(fn: (() => Promise<boolean>) | null): void {
+  stepUpFn = fn;
+}
+
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: unknown;
@@ -99,6 +105,18 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
       refreshing = null;
     });
     const ok = await refreshing;
+    if (ok) return apiFetch<T>(path, { ...opts, _retried: true });
+  }
+
+  // a step-up-protected action: prompt for the password once, then retry
+  if (
+    isProblem(json) &&
+    json.code === 'auth_step_up_required' &&
+    !opts._retried &&
+    stepUpFn &&
+    !path.startsWith('/auth/')
+  ) {
+    const ok = await stepUpFn();
     if (ok) return apiFetch<T>(path, { ...opts, _retried: true });
   }
 

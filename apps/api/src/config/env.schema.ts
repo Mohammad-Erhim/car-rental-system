@@ -62,6 +62,9 @@ export const envSchema = z.object({
   RATE_LIMIT_AUTH_MAX: z.coerce.number().int().positive().default(40),
   RATE_LIMIT_AUTH_WINDOW_SEC: z.coerce.number().int().positive().default(60),
 
+  /** SRS-SEC-014 — how recent a full password auth must be for a `@StepUp()` route (seconds). */
+  STEP_UP_MAX_AGE_SEC: z.coerce.number().int().nonnegative().default(900),
+
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
   METRICS_ENABLED: z.coerce.boolean().default(true),

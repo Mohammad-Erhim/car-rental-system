@@ -16,6 +16,10 @@ process.env.NODE_ENV = 'test';
 process.env.RATE_LIMIT_AUTH_MAX ??= '25';
 process.env.RATE_LIMIT_AUTH_WINDOW_SEC ??= '2';
 
+// SRS-SEC-014 step-up: a 1s freshness window so a `@StepUp()` route reliably demands a
+// re-auth a moment after sign-in (only `reports/schedules/:id/send` is protected today).
+process.env.STEP_UP_MAX_AGE_SEC ??= '1';
+
 function loadDotenv(path: string): boolean {
   try {
     const text = readFileSync(path, 'utf8');
