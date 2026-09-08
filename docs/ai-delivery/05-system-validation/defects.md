@@ -42,7 +42,8 @@ Severity: `BLOCKER` (release-stopping), `HIGH`, `MEDIUM`, `LOW`.
   - The "endpoint under-typed" sub-point is **withdrawn**: 0/113 operations in this API carry a
     response schema (only `meta.controller` uses `@ApiOkResponse`) — the thin OpenAPI is the
     codebase convention; typing only the dashboard op would be inconsistent. Not a defect.
-- **Status:** FIXED — verify with a clean `pnpm verify:static` run.
+- **Status:** VERIFIED (committed in `56e3b64`; `pnpm verify:static` EXIT 0 with the
+  `openapi:check` gate active).
 
 ---
 
@@ -129,8 +130,9 @@ Severity: `BLOCKER` (release-stopping), `HIGH`, `MEDIUM`, `LOW`.
     `delivered_at` + the `outbox_pending_idx` — designed for a relay that was never built.
 - **Regression risk:** contained. `verify:api` (full) re-run + worker boot smoke — both green.
   `emit()` (the transactional write path) is unchanged.
-- **Status:** FIXED — `verify:api` full re-run pending for VERIFIED. External fan-out handlers
-  remain an explicit deferral (owner: whoever adds the first external consumer / APP-CMOB).
+- **Status:** VERIFIED (committed in `56e3b64`; `verify:api` 146/146 on one clean run + worker
+  boot smoke green). External fan-out handlers remain an explicit deferral (owner: whoever adds
+  the first external consumer / APP-CMOB).
 
 ---
 
@@ -185,7 +187,7 @@ Severity: `BLOCKER` (release-stopping), `HIGH`, `MEDIUM`, `LOW`.
   - **Full `verify:e2e` re-run (2026-09-08) — GREEN all viewports:** phone ✓, tablet 29 pass /
     3 skip, laptop 32 pass. `smoke.spec.ts:59` "…shows real KPI cards and the health drill" passes
     on every project.
-- **Status:** VERIFIED (fix in working tree, not yet committed — see `recovery-snapshot.md`).
+- **Status:** VERIFIED (committed in `56e3b64`).
 
 ---
 
@@ -337,7 +339,7 @@ pickupLocationCode, currency })`, persists each priced result as a snapshotted `
   the session after the browser is reopened / in a new tab". The test fails on the pre-fix code
   (Playwright `storageState` restores cookies + localStorage but not sessionStorage → old
   `sessionStorage` hint absent → redirect to sign-in).
-- **Status:** VERIFIED (fix in working tree, not yet committed).
+- **Status:** VERIFIED (committed in `56e3b64`).
 
 ---
 
