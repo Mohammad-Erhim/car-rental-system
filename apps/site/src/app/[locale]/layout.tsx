@@ -38,6 +38,8 @@ export default async function LocaleLayout({
   return (
     <html lang={locale} dir={dir} data-density={branding.config.density} suppressHydrationWarning>
       <head>
+        {/* Favicon follows the published brand colour (DEC-025) — served by the API. */}
+        <link rel="icon" type="image/svg+xml" href="/api/v1/meta/icon.svg" />
         {/* SSR brand-token overlay (DEC-025) — applied before first paint, no FOUC */}
         <style
           id="carrental-brand-tokens"

@@ -302,13 +302,13 @@ function CheckoutInner() {
                   {({ id }) => (
                     <select
                       id={id}
-                      className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      className="flex h-11 w-full rounded-md border border-hairline bg-surface px-3 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                       value={card}
                       onChange={(e) => setCard(e.target.value as CardToken)}
                       data-testid="co-card"
                     >
                       {TEST_CARD_TOKENS.map((tok) => (
-                        <option key={tok} value={tok}>
+                        <option key={tok} value={tok} className="bg-surface text-ink">
                           {t(CARD_LABEL_KEY[tok])}
                         </option>
                       ))}

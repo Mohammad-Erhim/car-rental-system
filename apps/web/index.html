@@ -4,12 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
-    <link rel="icon" type="image/svg+xml" href="/ops/icon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/api/v1/meta/icon.svg" />
+    <!-- Published brand tokens, render-blocking → no brand flash on first load (DEC-025).
+         The ThemeProvider still applies live updates without a reload. -->
+    <link rel="stylesheet" href="/api/v1/meta/branding.css" />
     <title>Operations Console</title>
     <meta name="description" content="Car Rental operations & admin dashboard." />
     <script>
-      /* Apply theme + cached brand tokens before first paint (no flash). Mirrors
-         @carrental/ui ThemeProvider / @carrental/theme; safe if storage is unavailable. */
+      /* Light/dark + density before first paint. The brand *colours* come from the
+         render-blocking branding.css <link> above; the ThemeProvider then keeps everything
+         live without a reload. Safe if storage is unavailable. */
       (function () {
         try {
           var t = localStorage.getItem('carrental.theme') || 'system';
@@ -18,13 +22,6 @@
           var r = document.documentElement;
           r.classList.toggle('dark', dark);
           r.style.colorScheme = dark ? 'dark' : 'light';
-          var css = localStorage.getItem('carrental.brand.css.v1');
-          if (css) {
-            var s = document.createElement('style');
-            s.id = 'carrental-brand-tokens';
-            s.textContent = css;
-            document.head.appendChild(s);
-          }
           var b = localStorage.getItem('carrental.brand.v1');
           if (b) {
             var cfg = JSON.parse(b);

@@ -92,11 +92,11 @@ export function SiteHeader({ locale }: { locale: string }) {
               <select
                 value={locale}
                 onChange={(e) => switchLocale(e.target.value)}
-                className="rounded-md border-0 bg-transparent py-1 pe-6 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                className="rounded-md border border-hairline bg-surface py-1 pe-6 ps-2 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                 aria-label={t('lang.switcher.label')}
               >
                 {SUPPORTED_LOCALE_CODES.filter((c) => ACTIVE_LOCALES.includes(c)).map((c) => (
-                  <option key={c} value={c}>
+                  <option key={c} value={c} className="bg-surface text-ink">
                     {getLocaleDefinition(c).nativeName}
                   </option>
                 ))}
