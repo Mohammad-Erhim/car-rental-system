@@ -80,10 +80,19 @@ describe('meta API', () => {
   });
 
   it('GET /api/v1/meta/icon.svg is an SVG favicon coloured from the brand', async () => {
-    const res = await request(server).get('/api/v1/meta/icon.svg').expect(200);
+    const res = await request(server)
+      .get('/api/v1/meta/icon.svg')
+      .buffer(true)
+      .parse((r, cb) => {
+        let data = '';
+        r.on('data', (c) => (data += c));
+        r.on('end', () => cb(null, data));
+      })
+      .expect(200);
     expect(res.headers['content-type']).toContain('image/svg+xml');
     expect(res.headers.etag).toMatch(/^"icon-/);
-    expect(res.text).toMatch(/<svg[\s\S]*<\/svg>/);
-    expect(res.text).toMatch(/#[0-9a-fA-F]{6}/); // brand-derived gradient stops
+    const svg = res.body as string;
+    expect(svg).toMatch(/<svg[\s\S]*<\/svg>/);
+    expect(svg).toMatch(/#[0-9a-fA-F]{6}/); // brand-derived gradient stops
   });
 });
