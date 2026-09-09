@@ -1,10 +1,9 @@
+import { stashReturnTo } from '@carrental/client';
+import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import { AppStateView, Spinner } from '@carrental/ui';
 import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-
-import { useAuth } from '../lib/auth.js';
-import { stashReturnTo } from '../lib/return-to.js';
 
 /** Requires an authenticated session of the given audience; otherwise redirects to sign-in
  * while stashing the return target (FLOW-CUS-002, SRS-UI-006). */

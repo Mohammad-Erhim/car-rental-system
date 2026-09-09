@@ -1,3 +1,4 @@
+import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
@@ -21,7 +22,6 @@ import {
   useUpsertTranslation,
 } from '../../lib/api-hooks.js';
 import { ApiError } from '../../lib/api.js';
-import { useAuth } from '../../lib/auth.js';
 
 /**
  * SCREEN-OPS-034 — Translation catalogue (FR-ADM-012, SRS-I18N-003). Coverage by language +

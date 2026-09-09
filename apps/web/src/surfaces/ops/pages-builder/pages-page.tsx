@@ -1,3 +1,4 @@
+import { useAuth } from '@carrental/client/react';
 import {
   DEFAULT_PAGES_CONFIG,
   PAGE_KEYS,
@@ -54,7 +55,6 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 
-import { useAuth } from '../../../lib/auth.js';
 import {
   useBrandingTransition,
   useBrandingVersions,

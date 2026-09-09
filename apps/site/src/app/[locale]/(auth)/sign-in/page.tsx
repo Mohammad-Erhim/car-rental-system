@@ -1,15 +1,14 @@
 'use client';
 
+import { stashReturnTo, takeReturnTo } from '@carrental/client';
+import { useAuth, useFormErrors } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import { Alert, AlertDescription, Button, ErrorSummary, Field, Input } from '@carrental/ui';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState, type FormEvent } from 'react';
 
-import { useAuth } from '../../../../lib/auth-context';
 import { useLocale } from '../../../../lib/nav';
-import { stashReturnTo, takeReturnTo } from '../../../../lib/return-to';
-import { useFormErrors } from '../../../../lib/use-form-errors';
 
 /** SCREEN-CUS-008 — customer sign-in; returns to the intended task (FLOW-CUS-002, SRS-UI-006). */
 function SignInInner() {

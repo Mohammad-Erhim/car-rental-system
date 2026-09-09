@@ -1,3 +1,4 @@
+import { useAuth } from '@carrental/client/react';
 import { DEFAULT_SEO_CONFIG, seoConfigSchema, type SeoConfig } from '@carrental/contracts';
 import { useI18n } from '@carrental/i18n/react';
 import {
@@ -15,7 +16,6 @@ import {
 } from '@carrental/ui';
 import { useEffect, useRef, useState } from 'react';
 
-import { useAuth } from '../../lib/auth.js';
 import {
   useDraftSeo,
   usePublishedSeo,

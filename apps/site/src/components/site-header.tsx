@@ -1,5 +1,6 @@
 'use client';
 
+import { useAuth } from '@carrental/client/react';
 import { getLocaleDefinition, SUPPORTED_LOCALE_CODES } from '@carrental/i18n';
 import { useI18n } from '@carrental/i18n/react';
 import { Button, ThemeToggle } from '@carrental/ui';
@@ -8,7 +9,6 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-import { useAuth } from '../lib/auth-context';
 import { ACTIVE_LOCALES } from '../lib/i18n';
 
 export function SiteHeader({ locale }: { locale: string }) {

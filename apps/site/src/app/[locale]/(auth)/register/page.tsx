@@ -1,5 +1,7 @@
 'use client';
 
+import { apiFetch, takeReturnTo } from '@carrental/client';
+import { useAuth, useFormErrors } from '@carrental/client/react';
 import type { SessionResponse } from '@carrental/contracts';
 import { useI18n } from '@carrental/i18n/react';
 import {
@@ -15,11 +17,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
 
-import { apiFetch } from '../../../../lib/api-client';
-import { useAuth } from '../../../../lib/auth-context';
 import { useLocale } from '../../../../lib/nav';
-import { takeReturnTo } from '../../../../lib/return-to';
-import { useFormErrors } from '../../../../lib/use-form-errors';
 
 type RegisterResult = {
   accountId: string;

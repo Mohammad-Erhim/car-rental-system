@@ -1,5 +1,6 @@
 'use client';
 
+import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import { Button } from '@carrental/ui';
 import { CreditCard, FileText, IdCard, LogOut, UserRound } from 'lucide-react';
@@ -7,7 +8,6 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 
-import { useAuth } from '../lib/auth-context';
 import { useLocale } from '../lib/nav';
 
 /** Account sub-navigation + sign-out (design §7.1). Wraps every `/account/*` page. */

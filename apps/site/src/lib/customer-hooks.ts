@@ -6,6 +6,7 @@
  */
 'use client';
 
+import { apiFetch } from '@carrental/client';
 import type {
   AddDriverRequest,
   AvailabilitySearchResponse,
@@ -18,8 +19,6 @@ import type {
   VehicleCategory,
 } from '@carrental/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-
-import { apiFetch } from './api-client';
 
 // ---- profile (SCREEN-CUS-011/012) ----
 

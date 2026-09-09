@@ -1,10 +1,3 @@
-/**
- * Client auth context for `apps/site` — in-memory access token + silent refresh against the
- * shared API, first-party `SameSite=Lax` refresh cookie (DEC-021). Adapted from
- * `apps/web/src/lib/auth.tsx`; the customer site only ever signs in the `customer` audience.
- */
-'use client';
-
 import type { SessionResponse } from '@carrental/contracts';
 import { useI18n } from '@carrental/i18n/react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -19,37 +12,56 @@ import {
   type ReactNode,
 } from 'react';
 
-import { apiFetch, registerRefreshHandler, setAccessToken } from './api-client';
+import { apiFetch } from '../api-fetch';
+import { registerRefreshHandler, setAccessToken } from '../token-store';
 
 type Actor = SessionResponse['actor'];
+type Audience = 'customer' | 'staff';
 
-interface AuthContextValue {
+export interface AuthContextValue {
   actor: Actor | null;
   status: 'loading' | 'authenticated' | 'anonymous';
-  signIn: (input: { email: string; password: string }) => Promise<Actor>;
+  signIn: (input: { email: string; password: string; audience?: Audience }) => Promise<Actor>;
   applySession: (session: SessionResponse) => void;
   signOut: (everywhere?: boolean) => Promise<void>;
   refresh: () => Promise<boolean>;
+  /** Staff permission check. Always false for a customer actor. */
+  hasPermission: (...actions: string[]) => boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
-// MUST be localStorage, not sessionStorage — the refresh cookie is persistent + cross-tab, so a
-// browser restart or a second tab would otherwise look signed-out despite a valid cookie (S7-DEF-005).
+
+// MUST be localStorage, not sessionStorage: the refresh cookie is persistent (survives a browser
+// restart) and shared across tabs, so this "there is a session" hint has to be too — otherwise a
+// restart or a second tab looks signed-out despite a valid cookie (S7-DEF-005).
 const SESSION_HINT_KEY = 'carrental.session.hint';
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export interface AuthProviderProps {
+  children: ReactNode;
+  /** Audience used when `signIn` is called without one. `apps/site` → 'customer'; ops → 'staff'. */
+  defaultAudience?: Audience;
+}
+
+/**
+ * The shared browser auth provider: an in-memory access token, a silent refresh scheduled just
+ * before expiry, a one-shot refresh on mount when a prior session hint exists, cross-tab
+ * sign-in/out sync, and following the actor's saved locale (FR-IAM-006). `apps/web` and
+ * `apps/site` both mount this — only `defaultAudience` and the surrounding shell differ.
+ */
+export function AuthProvider({ children, defaultAudience = 'customer' }: AuthProviderProps) {
   const qc = useQueryClient();
   const { locale, setLocale } = useI18n();
   const [actor, setActor] = useState<Actor | null>(null);
   const [status, setStatus] = useState<'loading' | 'authenticated' | 'anonymous'>('loading');
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const appliedActorLocale = useRef<string | null>(null);
+  const doRefreshRef = useRef<() => Promise<boolean>>(() => Promise.resolve(false));
 
   const scheduleRefresh = useCallback((expiresInSeconds: number) => {
     if (refreshTimer.current) clearTimeout(refreshTimer.current);
     const delay = Math.max(5, expiresInSeconds - 60) * 1000;
     refreshTimer.current = setTimeout(() => {
-      void doRefresh();
+      void doRefreshRef.current();
     }, delay);
   }, []);
 
@@ -95,6 +107,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [applySession, clearSession]);
 
+  doRefreshRef.current = doRefresh;
+
+  // on mount: restore a session only when a prior session hint exists (avoids an expected 401 on
+  // every fresh visit). The refresh cookie is only set after a successful sign-in / verify.
   useEffect(() => {
     registerRefreshHandler(doRefresh);
     let hadHint = false;
@@ -126,8 +142,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [doRefresh, clearSession]);
 
+  // A signed-in actor's saved locale preference follows them across sign-ins / devices
+  // (FR-IAM-006). Only push when the actor's own value changes — never fight a switcher change
+  // the user made this session.
   useEffect(() => {
-    const next = actor && 'localeCode' in actor ? actor.localeCode : undefined;
+    const next = actor?.localeCode;
     if (!next) {
       appliedActorLocale.current = null;
       return;
@@ -138,20 +157,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [actor, locale, setLocale]);
 
-  const signIn: AuthContextValue['signIn'] = useCallback(
-    async ({ email, password }) => {
+  const signIn = useCallback<AuthContextValue['signIn']>(
+    async ({ email, password, audience = defaultAudience }) => {
       const session = await apiFetch<SessionResponse>('/auth/sign-in', {
         method: 'POST',
-        body: { email, password, audience: 'customer' },
+        body: { email, password, audience },
         anonymous: true,
       });
       applySession(session);
       return session.actor;
     },
-    [applySession],
+    [applySession, defaultAudience],
   );
 
-  const signOut: AuthContextValue['signOut'] = useCallback(
+  const signOut = useCallback<AuthContextValue['signOut']>(
     async (everywhere = false) => {
       try {
         await apiFetch('/auth/sign-out', { method: 'POST', body: { everywhere }, anonymous: true });
@@ -163,9 +182,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [clearSession],
   );
 
+  const hasPermission = useCallback(
+    (...actions: string[]) => {
+      if (!actor || actor.kind !== 'staff') return false;
+      return actions.some((a) => actor.permissions.includes(a));
+    },
+    [actor],
+  );
+
   const value = useMemo<AuthContextValue>(
-    () => ({ actor, status, signIn, applySession, signOut, refresh: doRefresh }),
-    [actor, status, signIn, applySession, signOut, doRefresh],
+    () => ({ actor, status, signIn, applySession, signOut, refresh: doRefresh, hasPermission }),
+    [actor, status, signIn, applySession, signOut, doRefresh, hasPermission],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

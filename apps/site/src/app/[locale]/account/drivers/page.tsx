@@ -1,5 +1,6 @@
 'use client';
 
+import { useAuth, useFormErrors } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
@@ -17,9 +18,7 @@ import {
 import { IdCard } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
-import { useAuth } from '../../../../lib/auth-context';
 import { useAddDriver, useDrivers, useRemoveDriver } from '../../../../lib/customer-hooks';
-import { useFormErrors } from '../../../../lib/use-form-errors';
 
 /** SCREEN-CUS-013 — saved drivers & documents (FR-IAM-007). */
 export default function DriversPage() {

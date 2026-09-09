@@ -1,3 +1,4 @@
+import { useAuth } from '@carrental/client/react';
 import type { BrandAssetPurpose } from '@carrental/contracts';
 import { useI18n } from '@carrental/i18n/react';
 import type { BrandConfig } from '@carrental/theme';
@@ -24,7 +25,6 @@ import {
 } from '@carrental/ui';
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 
-import { useAuth } from '../../lib/auth.js';
 import {
   useBrandingPreview,
   useBrandingTransition,
@@ -416,9 +416,7 @@ export function BrandingPage() {
                     }}
                   >
                     <p className="text-sm font-bold">{cfg.assets.wordmark || 'Car Rental'}</p>
-                    <p className="mt-0.5 text-[11px] opacity-80">
-                      {t('ops.branding.previewBody')}
-                    </p>
+                    <p className="mt-0.5 text-[11px] opacity-80">{t('ops.branding.previewBody')}</p>
                     <div className="mt-2 flex items-center gap-2">
                       <span
                         className="px-2.5 py-1 text-[11px] font-semibold"

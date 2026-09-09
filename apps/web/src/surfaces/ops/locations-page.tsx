@@ -1,3 +1,4 @@
+import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
@@ -26,7 +27,6 @@ import {
   useUpsertLocation,
   type HoursSlot,
 } from '../../lib/admin-hooks.js';
-import { useAuth } from '../../lib/auth.js';
 
 /**
  * SCREEN-OPS-028 / FR-ADM-007 — location & operating-hours administration. Edit the fields

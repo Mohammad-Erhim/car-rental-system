@@ -1,5 +1,6 @@
 'use client';
 
+import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
@@ -17,7 +18,6 @@ import {
 import { AlertTriangle } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
-import { useAuth } from '../../../../lib/auth-context';
 import {
   useCancelDataRequest,
   useCreateDataRequest,

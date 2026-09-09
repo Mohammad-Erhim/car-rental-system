@@ -1,3 +1,4 @@
+import { useFormErrors } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   Alert,
@@ -15,7 +16,6 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { apiFetch } from '../../lib/api.js';
-import { useFormErrors } from '../../lib/use-form-errors.js';
 
 type StartResult = {
   challengeId: string | null;

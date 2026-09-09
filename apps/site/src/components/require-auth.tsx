@@ -4,14 +4,14 @@
  */
 'use client';
 
+import { stashReturnTo } from '@carrental/client';
+import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import { Spinner } from '@carrental/ui';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
 
-import { useAuth } from '../lib/auth-context';
 import { useLocale } from '../lib/nav';
-import { stashReturnTo } from '../lib/return-to';
 
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { t } = useI18n();

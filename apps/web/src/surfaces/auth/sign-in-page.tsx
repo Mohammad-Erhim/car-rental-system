@@ -1,3 +1,5 @@
+import { stashReturnTo, takeReturnTo } from '@carrental/client';
+import { useAuth, useFormErrors } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   Alert,
@@ -13,10 +15,6 @@ import {
 } from '@carrental/ui';
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-
-import { useAuth } from '../../lib/auth.js';
-import { stashReturnTo, takeReturnTo } from '../../lib/return-to.js';
-import { useFormErrors } from '../../lib/use-form-errors.js';
 
 /**
  * SCREEN-CUS-008 / SCREEN-OPS-001. Authenticate and return to the intended task

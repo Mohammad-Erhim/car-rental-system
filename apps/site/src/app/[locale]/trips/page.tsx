@@ -1,11 +1,11 @@
 'use client';
 
+import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import { AppStateView, Badge, Button, Card, CardContent } from '@carrental/ui';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
-import { useAuth } from '../../../lib/auth-context';
 import { formatMinor, useMyReservations } from '../../../lib/customer-hooks';
 import { useLocale } from '../../../lib/nav';
 

@@ -1,3 +1,4 @@
+import { useFormErrors } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   Badge,
@@ -22,7 +23,6 @@ import {
   usePublishRatePlan,
   useRatePlans,
 } from '../../lib/ops-discovery-hooks.js';
-import { useFormErrors } from '../../lib/use-form-errors.js';
 
 /**
  * SCREEN-OPS-025/026 — Rate plans. Draft → publish; a published plan is immutable (create a new

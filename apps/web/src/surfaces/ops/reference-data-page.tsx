@@ -1,3 +1,4 @@
+import { useAuth, useFormErrors } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
@@ -21,8 +22,6 @@ import { useState } from 'react';
 
 import { useLookupTypes, useLookupUsage, useLookupValues } from '../../lib/api-hooks.js';
 import { apiFetch } from '../../lib/api.js';
-import { useAuth } from '../../lib/auth.js';
-import { useFormErrors } from '../../lib/use-form-errors.js';
 
 /**
  * SCREEN-OPS-030 (catalogue) + SCREEN-OPS-031 (type & values management) combined.

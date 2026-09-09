@@ -1,48 +1,8 @@
-/**
- * Browser API client for `apps/site` authed flows (sign-in, account, trips, checkout).
- *
- * Server components use `lib/api.ts` (`apiGet`/`apiPost`, direct upstream). This module is the
- * client-side counterpart: it runs in the browser, calls the same `/api/v1` paths (proxied
- * same-origin by `next.config` rewrites, DEC-021), carries the in-memory access token, and does
- * one silent refresh on a 401. Adapted from `apps/web/src/lib/api.ts`.
- */
-'use client';
+import { isProblem } from '@carrental/contracts';
 
-import { isProblem, type Problem } from '@carrental/contracts';
-
-const BASE = '/api/v1';
-
-export class ApiError extends Error {
-  readonly problem: Problem;
-  constructor(problem: Problem) {
-    super(problem.title || problem.code);
-    this.name = 'ApiError';
-    this.problem = problem;
-  }
-  get code() {
-    return this.problem.code;
-  }
-  get status() {
-    return this.problem.status;
-  }
-  get fieldErrors() {
-    return this.problem.fieldErrors ?? [];
-  }
-}
-
-let accessToken: string | null = null;
-let refreshFn: (() => Promise<boolean>) | null = null;
-let refreshing: Promise<boolean> | null = null;
-
-export function setAccessToken(token: string | null): void {
-  accessToken = token;
-}
-export function getAccessToken(): string | null {
-  return accessToken;
-}
-export function registerRefreshHandler(fn: (() => Promise<boolean>) | null): void {
-  refreshFn = fn;
-}
+import { ApiError } from './api-error';
+import { getClientConfig } from './config';
+import { getAccessToken, getRefreshHandler, getStepUpHandler } from './token-store';
 
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
@@ -52,19 +12,37 @@ export interface RequestOptions {
   signal?: AbortSignal;
   locale?: string;
   headers?: Record<string, string>;
-  /** internal: prevents infinite refresh recursion */
+  /** internal: prevents infinite refresh / step-up recursion */
   _retried?: boolean;
   /** skip attaching the bearer token (auth endpoints) */
   anonymous?: boolean;
 }
 
+let refreshing: Promise<boolean> | null = null;
+
 function newCorrelationId(): string {
+  const { correlationPrefix } = getClientConfig();
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
-    : `site-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    : `${correlationPrefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
+function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The single browser entry point for the versioned API. Attaches the bearer token, an
+ * idempotency key and `If-Match` when given, a correlation id, and `Accept-Language`; on a 401
+ * it performs one silent refresh and retries; on `auth_step_up_required` it runs the registered
+ * step-up prompt once and retries. Everything else surfaces as an `ApiError`.
+ */
 export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+  const { baseUrl } = getClientConfig();
   const correlationId = newCorrelationId();
   const headers: Record<string, string> = {
     Accept: 'application/json',
@@ -75,9 +53,11 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   if (opts.idempotencyKey) headers['Idempotency-Key'] = opts.idempotencyKey;
   if (opts.ifMatch !== undefined) headers['If-Match'] = String(opts.ifMatch);
+
+  const accessToken = getAccessToken();
   if (!opts.anonymous && accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(`${baseUrl}${path}`, {
     method: opts.method ?? 'GET',
     headers,
     credentials: 'include',
@@ -90,6 +70,8 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
 
   if (res.ok) return json as T;
 
+  // silent refresh once on 401 for authenticated calls (never on /auth/* itself)
+  const refreshFn = getRefreshHandler();
   if (
     res.status === 401 &&
     !opts._retried &&
@@ -104,6 +86,19 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
     if (ok) return apiFetch<T>(path, { ...opts, _retried: true });
   }
 
+  // a step-up-protected action: prompt for the password once, then retry
+  const stepUpFn = getStepUpHandler();
+  if (
+    isProblem(json) &&
+    json.code === 'auth_step_up_required' &&
+    !opts._retried &&
+    stepUpFn &&
+    !path.startsWith('/auth/')
+  ) {
+    const ok = await stepUpFn();
+    if (ok) return apiFetch<T>(path, { ...opts, _retried: true });
+  }
+
   if (isProblem(json)) throw new ApiError(json);
   throw new ApiError({
     code: res.status === 0 ? 'dependency_unavailable' : 'internal_error',
@@ -112,12 +107,4 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
     title: res.statusText || 'Request failed',
     correlationId,
   });
-}
-
-function safeJson(text: string): unknown {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
 }

@@ -1,3 +1,4 @@
+import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   Badge,
@@ -19,7 +20,6 @@ import {
   useTranslationCompleteness,
   useUpsertLocale,
 } from '../../lib/api-hooks.js';
-import { useAuth } from '../../lib/auth.js';
 
 /**
  * SCREEN-OPS — Languages (SRS-I18N-001, FR-GBL-002, DEC-024). Add / activate / order a locale;

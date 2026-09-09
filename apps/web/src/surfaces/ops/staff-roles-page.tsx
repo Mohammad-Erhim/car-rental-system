@@ -1,3 +1,4 @@
+import { useFormErrors } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   Badge,
@@ -18,7 +19,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { apiFetch } from '../../lib/api.js';
-import { useFormErrors } from '../../lib/use-form-errors.js';
 
 interface Role {
   code: string;

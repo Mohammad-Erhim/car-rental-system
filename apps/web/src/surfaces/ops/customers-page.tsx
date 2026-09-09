@@ -1,3 +1,4 @@
+import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
@@ -21,7 +22,6 @@ import {
   useUnmergeCustomer,
   type CustomerRecord,
 } from '../../lib/admin-hooks.js';
-import { useAuth } from '../../lib/auth.js';
 import { formatMinor } from '../../lib/discovery-hooks.js';
 
 /**

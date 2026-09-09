@@ -1,3 +1,4 @@
+import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
@@ -25,7 +26,6 @@ import {
   useUpsertNotificationRule,
   type TemplateVar,
 } from '../../lib/admin-hooks.js';
-import { useAuth } from '../../lib/auth.js';
 
 /**
  * SCREEN-OPS-033 / FR-ADM-011 — notification template administration (content half). Edit the

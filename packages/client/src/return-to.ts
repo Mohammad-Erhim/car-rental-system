@@ -1,7 +1,8 @@
 /**
- * FLOW-CUS-002 / SRS-UI-006: preserve the logical return target across an auth detour.
- * We keep it in sessionStorage (survives the redirect) rather than only in the URL.
+ * FLOW-CUS-002 / SRS-UI-006: preserve the logical return target across an auth detour. Kept in
+ * sessionStorage (survives the redirect) rather than only in the URL.
  */
+
 const KEY = 'carrental.returnTo';
 
 export function stashReturnTo(path: string): void {
