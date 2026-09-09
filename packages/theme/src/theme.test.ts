@@ -57,8 +57,8 @@ describe('resolve', () => {
 
   it('brandConfigToCss emits :root and .dark blocks with only dark diffs', () => {
     const css = brandConfigToCss(DEFAULT_BRAND_CONFIG);
-    expect(css).toMatch(/:root \{[\s\S]*--primary: 222 74% 40%;[\s\S]*\}/);
-    expect(css).toMatch(/\.dark \{[\s\S]*--primary: 213 84% 66%;/);
+    expect(css).toMatch(/:root \{[\s\S]*--primary: 158 82% 26%;[\s\S]*\}/);
+    expect(css).toMatch(/\.dark \{[\s\S]*--primary: 154 62% 56%;/);
     // a token identical in both modes is not repeated under .dark
     expect(css.split('.dark {')[1]).not.toContain('--primary-foreground: 0 0% 100%');
     expect(DEFAULT_DARK.primaryForeground).not.toBe('0 0% 100%');
