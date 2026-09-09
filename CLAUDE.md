@@ -56,19 +56,21 @@ When you add a module: register it in `apps/api/src/app.module.ts` **and** in `A
 
 - Every controller sets an explicit `path` — `@Controller({ path: 'ops/foo', version: '1' })`,
   never a bare `@Controller({ version: '1' })` where the path hides in method decorators.
-- Staff endpoints declare `@Permissions(...)` on **every** method; staff-only controllers add
-  `@RequireAudience('staff')`. Public endpoints use `@Public()`. Sign-in enforces that a
+- Staff endpoints declare `@Permissions(...)` on **every** method. Public endpoints use
+  `@Public()`; customer-authed endpoints just require a valid actor. Sign-in enforces that a
   session's audience always equals the account kind (one email = one account = one kind), so a
-  customer session can only ever belong to a customer account and vice versa.
+  customer session can only ever belong to a customer account and vice versa — and
+  `@RequireAudience('staff' | 'customer')` is available to assert it per controller.
 - `apps/api/test/route-manifest.spec.ts` snapshots the full method + path + guard table. If your
   change moves a route or drops a guard, that test fails — update the snapshot deliberately.
 
 ### Data access
 
 Services may use Drizzle directly for one-off queries. But a query that is (a) built in more
-than two places, (b) needs tenant/org scoping, or (c) needs a soft-delete or status filter goes
-in `<domain>.repo.ts`. Use the shared `withActorScope(qb, actor)` helper (`common/auth`) for
-org/location scoping rather than hand-writing the `where` each time.
+than two places, (b) needs a soft-delete / status filter, or (c) is a natural place to later
+add caching or a read replica goes in `<domain>.repo.ts` (see `iam/account.repo.ts` for the
+shape). Org/location scoping is threaded explicitly as an `orgId` argument through service
+inputs — keep that convention rather than reading it from the actor deep in a query.
 
 ## Frontend anatomy
 
