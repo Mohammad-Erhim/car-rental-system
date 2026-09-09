@@ -5,6 +5,8 @@ import { CalendarClock, MapPin, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import { writeTrip, type TripWindow } from '../lib/trip';
+
 /** `datetime-local` wants `YYYY-MM-DDTHH:mm`; accept either that or a full ISO string. */
 function toLocalInput(value?: string): string {
   if (!value) return '';
@@ -29,6 +31,9 @@ export function HomeSearch({
   initialPickup = '',
   initialPickupAt,
   initialReturnAt,
+  onSubmit,
+  submitLabel,
+  testid = 'search',
 }: {
   locale: string;
   /** when provided the location field is a `<select>` of real codes instead of free text */
@@ -36,6 +41,11 @@ export function HomeSearch({
   initialPickup?: string;
   initialPickupAt?: string;
   initialReturnAt?: string;
+  /** when set, called with the chosen window instead of navigating to `/search` (in-place use) */
+  onSubmit?: (trip: TripWindow) => void;
+  submitLabel?: string;
+  /** prefix for the form's `data-testid`s — override when a page renders more than one */
+  testid?: string;
 }) {
   const { t } = useI18n();
   const router = useRouter();
@@ -64,10 +74,20 @@ export function HomeSearch({
       return setErr(t('search.errOrder'));
     }
     setErr(null);
-    const q = new URLSearchParams({
+    const trip: TripWindow = {
       pickup: pickup.trim().toUpperCase(),
       pickupAt: new Date(pickupAt).toISOString(),
       returnAt: new Date(returnAt).toISOString(),
+    };
+    writeTrip(trip);
+    if (onSubmit) {
+      onSubmit(trip);
+      return;
+    }
+    const q = new URLSearchParams({
+      pickup: trip.pickup,
+      pickupAt: trip.pickupAt,
+      returnAt: trip.returnAt,
     });
     router.push(`/${locale}/search?${q.toString()}`);
   }
@@ -80,7 +100,7 @@ export function HomeSearch({
   return (
     <form
       onSubmit={submit}
-      data-testid="search-form"
+      data-testid={`${testid}-form`}
       className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[1.5fr_1fr_1fr_auto] lg:items-end"
     >
       <label className="space-y-1.5 text-sm">
@@ -94,7 +114,7 @@ export function HomeSearch({
             value={pickup}
             onChange={(e) => setPickup(e.target.value)}
             aria-label={t('search.location')}
-            data-testid="search-location"
+            data-testid={`${testid}-location`}
           >
             <option value="">{t('search.locationPlaceholder')}</option>
             {locations.map((l) => (
@@ -124,7 +144,7 @@ export function HomeSearch({
           className={field}
           value={pickupAt}
           onChange={(e) => setPickupAt(e.target.value)}
-          data-testid="search-pickup-at"
+          data-testid={`${testid}-pickup-at`}
         />
       </label>
       <label className="space-y-1.5 text-sm">
@@ -137,17 +157,17 @@ export function HomeSearch({
           className={field}
           value={returnAt}
           onChange={(e) => setReturnAt(e.target.value)}
-          data-testid="search-return-at"
+          data-testid={`${testid}-return-at`}
         />
       </label>
       <div>
         <button
           type="submit"
-          data-testid="search-submit"
+          data-testid={`${testid}-submit`}
           className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary px-6 text-sm font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           <Search className="size-4" aria-hidden="true" />
-          {t('action.search')}
+          {submitLabel ?? t('action.search')}
         </button>
       </div>
       {err ? (

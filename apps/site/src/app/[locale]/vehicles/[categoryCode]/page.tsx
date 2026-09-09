@@ -74,7 +74,13 @@ export default async function VehicleDetailPage({
 }) {
   const { locale, categoryCode } = params;
   const t = await getT(locale);
-  const [cat, origin] = await Promise.all([load(categoryCode), seoOrigin()]);
+  const [cat, origin, locations] = await Promise.all([
+    load(categoryCode),
+    seoOrigin(),
+    apiGet<Array<{ code: string; name: string }>>('/config/locations', { revalidate: 300 })
+      .then((rows) => rows.map((r) => ({ code: r.code, name: r.name })))
+      .catch(() => [] as Array<{ code: string; name: string }>),
+  ]);
   if (!cat) notFound();
 
   const ld = {
@@ -179,7 +185,7 @@ export default async function VehicleDetailPage({
       ) : null}
 
       <section className="surface-card p-5 sm:p-6">
-        <VehicleReserve categoryCode={cat.code} />
+        <VehicleReserve categoryCode={cat.code} locations={locations} />
       </section>
     </SiteContainer>
   );
