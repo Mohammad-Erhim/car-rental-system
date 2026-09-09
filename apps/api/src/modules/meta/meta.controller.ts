@@ -66,6 +66,36 @@ export class MetaController {
     return body;
   }
 
+  @Get('branding.css')
+  @ApiOperation({
+    operationId: 'meta_getBrandingCss',
+    summary: 'Published brand tokens as a render-blocking stylesheet (DEC-025)',
+  })
+  async getBrandingCss(@Res() res: Response) {
+    const { css, revision } = await this.meta.brandingCss();
+    res.setHeader('Content-Type', 'text/css; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=60, stale-while-revalidate=300');
+    res.setHeader('ETag', `"brandcss-${revision}"`);
+    res.send(css);
+  }
+
+  @Get('icon.svg')
+  @ApiOperation({
+    operationId: 'meta_getIcon',
+    summary: 'Favicon that follows the published brand colour (DEC-025)',
+  })
+  async getIcon(@Res() res: Response) {
+    const result = await this.meta.icon();
+    if ('redirect' in result) {
+      res.redirect(302, result.redirect);
+      return;
+    }
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'public, max-age=300, stale-while-revalidate=86400');
+    res.setHeader('ETag', `"icon-${result.revision}"`);
+    res.send(result.svg);
+  }
+
   @Get('seo')
   @Header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
   @ApiOperation({

@@ -116,9 +116,11 @@ export function HomeSearch({
             aria-label={t('search.location')}
             data-testid={`${testid}-location`}
           >
-            <option value="">{t('search.locationPlaceholder')}</option>
+            <option value="" className="bg-surface text-ink">
+              {t('search.locationPlaceholder')}
+            </option>
             {locations.map((l) => (
-              <option key={l.code} value={l.code}>
+              <option key={l.code} value={l.code} className="bg-surface text-ink">
                 {l.name} ({l.code})
               </option>
             ))}

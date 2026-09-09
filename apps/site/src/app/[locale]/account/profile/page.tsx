@@ -139,7 +139,7 @@ export default function ProfilePage() {
                 onChange={(e) => setLocaleCode(e.target.value)}
               >
                 {SUPPORTED_LOCALE_CODES.map((code) => (
-                  <option key={code} value={code}>
+                  <option key={code} value={code} className="bg-surface text-ink">
                     {LOCALES[code]?.nativeName} ({LOCALES[code]?.englishName})
                   </option>
                 ))}

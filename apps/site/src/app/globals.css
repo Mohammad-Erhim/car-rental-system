@@ -87,6 +87,16 @@
     outline-offset: 2px;
   }
 
+  /* Native <select> popups: the browser paints them from `color-scheme` + the option colours.
+     Without this the dark-theme dropdown is white-on-white and unreadable. */
+  select {
+    color-scheme: light dark;
+  }
+  option {
+    background-color: hsl(var(--popover));
+    color: hsl(var(--popover-foreground));
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

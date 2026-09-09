@@ -2921,6 +2921,36 @@
         ]
       }
     },
+    "/api/v1/meta/branding.css": {
+      "get": {
+        "operationId": "meta_getBrandingCss",
+        "summary": "Published brand tokens as a render-blocking stylesheet (DEC-025)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/api/v1/meta/icon.svg": {
+      "get": {
+        "operationId": "meta_getIcon",
+        "summary": "Favicon that follows the published brand colour (DEC-025)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "meta"
+        ]
+      }
+    },
     "/api/v1/meta/seo": {
       "get": {
         "operationId": "meta_getSeo",

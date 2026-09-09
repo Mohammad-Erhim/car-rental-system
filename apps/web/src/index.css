@@ -86,6 +86,16 @@
     outline-offset: 2px;
   }
 
+  /* Native <select> popups: paint from `color-scheme` + the option colours so the dark-theme
+     dropdown isn't white-on-white. */
+  select {
+    color-scheme: light dark;
+  }
+  option {
+    background-color: hsl(var(--popover));
+    color: hsl(var(--popover-foreground));
+  }
+
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

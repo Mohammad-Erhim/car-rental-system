@@ -69,4 +69,21 @@ describe('meta API', () => {
     expect(res.text).toMatch(/# HELP http_requests_total/);
     expect(res.text).toMatch(/process_cpu_user_seconds_total|nodejs_eventloop_lag_seconds/);
   });
+
+  it('GET /api/v1/meta/branding.css serves the brand tokens as a cacheable stylesheet', async () => {
+    const res = await request(server).get('/api/v1/meta/branding.css').expect(200);
+    expect(res.headers['content-type']).toContain('text/css');
+    expect(res.headers['cache-control']).toContain('max-age');
+    expect(res.headers.etag).toMatch(/^"brandcss-/);
+    expect(res.text).toMatch(/:root\s*\{[\s\S]*--primary:/);
+    expect(res.text).toMatch(/\.dark\s*\{/);
+  });
+
+  it('GET /api/v1/meta/icon.svg is an SVG favicon coloured from the brand', async () => {
+    const res = await request(server).get('/api/v1/meta/icon.svg').expect(200);
+    expect(res.headers['content-type']).toContain('image/svg+xml');
+    expect(res.headers.etag).toMatch(/^"icon-/);
+    expect(res.text).toMatch(/<svg[\s\S]*<\/svg>/);
+    expect(res.text).toMatch(/#[0-9a-fA-F]{6}/); // brand-derived gradient stops
+  });
 });
