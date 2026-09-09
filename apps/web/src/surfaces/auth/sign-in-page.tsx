@@ -10,7 +10,6 @@ import {
   Input,
   PasswordInput,
 } from '@carrental/ui';
-import { LogIn, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -52,7 +51,6 @@ export function SignInPage({ audience = 'customer' as 'customer' | 'staff' }) {
 
   return (
     <AuthPanel
-      icon={isStaff ? <ShieldCheck className="size-6" /> : <LogIn className="size-6" />}
       title={isStaff ? t('auth.staffTitle') : t('action.signIn')}
       subtitle={isStaff ? t('auth.staffSubtitle') : undefined}
       footer={

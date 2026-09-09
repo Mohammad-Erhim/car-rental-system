@@ -9,7 +9,6 @@ import {
   Input,
   PasswordInput,
 } from '@carrental/ui';
-import { KeyRound } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
@@ -84,7 +83,6 @@ export function RecoveryPage({ audience = 'customer' as 'customer' | 'staff' }) 
 
   return (
     <AuthPanel
-      icon={<KeyRound className="size-6" />}
       title={t('auth.recoverTitle')}
       footer={
         <Link to="/sign-in" className="font-medium text-primary hover:underline">
