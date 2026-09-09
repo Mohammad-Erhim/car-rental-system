@@ -54,9 +54,11 @@ GET    /api/v1/docs/
 GET    /api/v1/docs/docs/swagger-ui-init.js
 GET    /api/v1/docs/swagger-ui-init.js
 GET    /api/v1/meta/branding
+GET    /api/v1/meta/branding.css
 GET    /api/v1/meta/build
 GET    /api/v1/meta/consent
 GET    /api/v1/meta/health-summary
+GET    /api/v1/meta/icon.svg
 GET    /api/v1/meta/locales
 GET    /api/v1/meta/pages
 GET    /api/v1/meta/seo
