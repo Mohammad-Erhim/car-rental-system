@@ -1,9 +1,12 @@
 import {
+  DEFAULT_CONSENT_CONFIG,
   DEFAULT_PAGES_CONFIG,
   DEFAULT_SEO_CONFIG,
   seoConfigSchema,
+  zConsentConfig,
   zPagesConfig,
   type BrandingResponse,
+  type ConsentConfigResponse,
   type HealthSummary,
   type LocalesResponse,
   type PagesResponse,
@@ -32,6 +35,10 @@ export const SEO_KEY = 'default';
 /** kind/key the page-builder config lives under in `config_version`. */
 export const PAGES_KIND = 'pages';
 export const PAGES_KEY = 'default';
+
+/** kind/key the cookie-consent config lives under in `config_version`. */
+export const CONSENT_KIND = 'consent';
+export const CONSENT_KEY = 'default';
 
 @Injectable()
 export class MetaService {
@@ -143,6 +150,24 @@ export class MetaService {
     return {
       config: this.signPageAssets(parsed.data),
       revision: published.revision,
+      updatedAt: published.effectiveFrom ?? published.createdAt,
+    };
+  }
+
+  /**
+   * The published cookie-consent config (banner copy, categories, layout, cookie declaration).
+   * Public + cacheable; falls back to the built-in default until a revision is published.
+   */
+  async consent(): Promise<ConsentConfigResponse> {
+    const rows = await this.configVersions.list(CONSENT_KIND, CONSENT_KEY);
+    const published = rows.find((r) => r.state === 'published');
+    if (!published) {
+      return { config: DEFAULT_CONSENT_CONFIG, revision: 0, updatedAt: null };
+    }
+    const parsed = zConsentConfig.safeParse(published.payload);
+    return {
+      config: parsed.success ? parsed.data : DEFAULT_CONSENT_CONFIG,
+      revision: parsed.success ? published.revision : 0,
       updatedAt: published.effectiveFrom ?? published.createdAt,
     };
   }

@@ -2,11 +2,12 @@
 
 import {
   ALL_CONSENT_CHOICES,
-  CONSENT_POLICY_VERSION,
   DEFAULT_CONSENT_CHOICES,
+  DEFAULT_CONSENT_CONFIG,
   type ConsentAction,
   type ConsentCategory,
   type ConsentChoices,
+  type ConsentConfig,
 } from '@carrental/contracts';
 import {
   createContext,
@@ -53,12 +54,12 @@ function uuid(): string {
   );
 }
 
-function loadStored(): StoredConsent | null {
+function loadStored(policyVersion: number): StoredConsent | null {
   const raw = readCookie(CONSENT_COOKIE);
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as StoredConsent;
-    if (!parsed || typeof parsed !== 'object' || parsed.v !== CONSENT_POLICY_VERSION) return null;
+    if (!parsed || typeof parsed !== 'object' || parsed.v !== policyVersion) return null;
     return {
       v: parsed.v,
       a: parsed.a,
@@ -75,8 +76,8 @@ interface ConsentContextValue {
   /** true once the visitor has made an explicit choice under the current policy version */
   decided: boolean;
   choices: ConsentChoices;
+  config: ConsentConfig;
   hasConsent: (category: ConsentCategory) => boolean;
-  /** the banner/preferences surface is visible */
   bannerOpen: boolean;
   prefsOpen: boolean;
   openPreferences: () => void;
@@ -91,12 +92,15 @@ const ConsentContext = createContext<ConsentContextValue | null>(null);
 export function ConsentProvider({
   children,
   locale,
-  enabled = true,
+  config = DEFAULT_CONSENT_CONFIG,
 }: {
   children: ReactNode;
   locale: string;
-  enabled?: boolean;
+  config?: ConsentConfig;
 }) {
+  const enabled = config.enabled;
+  const policyVersion = config.policyVersion;
+
   const [ready, setReady] = useState(false);
   const [decided, setDecided] = useState(false);
   const [choices, setChoices] = useState<ConsentChoices>(DEFAULT_CONSENT_CHOICES);
@@ -104,19 +108,22 @@ export function ConsentProvider({
   const cidRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const stored = loadStored();
+    const stored = loadStored(policyVersion);
     if (stored) {
       setChoices(stored.c);
       setDecided(true);
+    } else {
+      setChoices(DEFAULT_CONSENT_CHOICES);
+      setDecided(false);
     }
     cidRef.current = readCookie(CID_COOKIE);
     setReady(true);
-  }, []);
+  }, [policyVersion]);
 
   const persist = useCallback(
     (next: ConsentChoices, action: ConsentAction) => {
       const payload: StoredConsent = {
-        v: CONSENT_POLICY_VERSION,
+        v: policyVersion,
         c: next,
         a: action,
         t: new Date().toISOString(),
@@ -140,7 +147,7 @@ export function ConsentProvider({
             anonymousId: cidRef.current,
             action,
             choices: next,
-            policyVersion: CONSENT_POLICY_VERSION,
+            policyVersion,
             locale,
             page: window.location.pathname,
           }),
@@ -149,7 +156,7 @@ export function ConsentProvider({
         /* network offline — the cookie is still authoritative */
       }
     },
-    [locale],
+    [locale, policyVersion],
   );
 
   const value = useMemo<ConsentContextValue>(
@@ -157,6 +164,7 @@ export function ConsentProvider({
       ready,
       decided,
       choices,
+      config,
       hasConsent: (category) => (category === 'necessary' ? true : !!choices[category]),
       bannerOpen: enabled && ready && !decided && !prefsOpen,
       prefsOpen: enabled && prefsOpen,
@@ -166,15 +174,14 @@ export function ConsentProvider({
       rejectAll: () => persist(DEFAULT_CONSENT_CHOICES, 'reject_all'),
       savePreferences: (next) => persist({ ...next, necessary: true }, 'save_preferences'),
     }),
-    [ready, decided, choices, enabled, prefsOpen, persist],
+    [ready, decided, choices, config, enabled, prefsOpen, persist],
   );
 
   useEffect(() => {
-    if (!enabled) return;
     const onOpen = () => setPrefsOpen(true);
     window.addEventListener(OPEN_PREFERENCES_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_PREFERENCES_EVENT, onOpen);
-  }, [enabled]);
+  }, []);
 
   return <ConsentContext.Provider value={value}>{children}</ConsentContext.Provider>;
 }
@@ -187,6 +194,7 @@ export function useConsent(): ConsentContextValue {
       ready: true,
       decided: true,
       choices: DEFAULT_CONSENT_CHOICES,
+      config: DEFAULT_CONSENT_CONFIG,
       hasConsent: (c) => c === 'necessary',
       bannerOpen: false,
       prefsOpen: false,

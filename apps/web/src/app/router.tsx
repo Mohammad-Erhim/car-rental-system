@@ -9,6 +9,8 @@ import { SignInPage } from '../surfaces/auth/sign-in-page.js';
 import { AuditLogPage } from '../surfaces/ops/audit-log-page.js';
 import { BrandingPage } from '../surfaces/ops/branding-page.js';
 import { ConfigVersionsPage } from '../surfaces/ops/config-versions-page.js';
+import { ConsentLogPage } from '../surfaces/ops/consent/consent-log-page.js';
+import { ConsentPage } from '../surfaces/ops/consent/consent-page.js';
 import { CustomersPage } from '../surfaces/ops/customers-page.js';
 import { DataQualityPage } from '../surfaces/ops/data-quality-page.js';
 import { FinanceCasesPage } from '../surfaces/ops/finance-cases-page.js';
@@ -117,6 +119,11 @@ export const router = createBrowserRouter(
           path: 'config/pages',
           element: perm(['config.read', 'config.publish'], <PagesPage />),
         },
+        {
+          path: 'config/consent',
+          element: perm(['config.read', 'config.publish'], <ConsentPage />),
+        },
+        { path: 'consent-log', element: perm(['audit.read'], <ConsentLogPage />) },
         {
           path: 'config/languages',
           element: perm(['config.read', 'config.publish'], <LanguagesPage />),

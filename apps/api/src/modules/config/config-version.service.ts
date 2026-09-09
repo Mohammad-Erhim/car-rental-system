@@ -1,4 +1,9 @@
-import { seoConfigSchema, zPagesConfig, H1_CAPABLE_BLOCKS } from '@carrental/contracts';
+import {
+  seoConfigSchema,
+  zConsentConfig,
+  zPagesConfig,
+  H1_CAPABLE_BLOCKS,
+} from '@carrental/contracts';
 import { brandConfigSchema, validateBrandConfig } from '@carrental/theme';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
@@ -316,6 +321,34 @@ export class ConfigVersionService {
       }
       return { examples: out };
     }
+    if (kind === 'consent') {
+      const c = zConsentConfig.parse(payload);
+      const shown = c.categories.filter((cat) => cat.shown);
+      const optIn = c.categories.filter((cat) => cat.defaultOn && cat.id !== 'necessary');
+      const cover = (loc: 'fr' | 'ar') => {
+        const fields = [
+          c.text.bannerBody,
+          c.text.prefsIntro,
+          ...c.categories.map((cat) => cat.name),
+          ...c.categories.map((cat) => cat.description),
+        ];
+        const filled = fields.filter((f) => (f as Record<string, string>)[loc]?.trim()).length;
+        return Math.round((filled / fields.length) * 100);
+      };
+      return {
+        examples: [
+          c.enabled
+            ? `Banner is ON — ${c.layout.position === 'bar' ? 'bottom bar' : 'corner card'}, "Reject all" ${c.layout.showRejectAll ? 'shown' : 'hidden'}.`
+            : 'Banner is OFF — no consent prompt shown.',
+          `Policy version ${c.policyVersion} — bumping it re-asks every returning visitor.`,
+          `${shown.length} categories in the preference centre; pre-ticked: ${
+            optIn.length ? optIn.map((cat) => cat.id).join(', ') : 'none (necessary only)'
+          }.`,
+          `Translations — fr ${cover('fr')}% · ar ${cover('ar')}%.`,
+          `Cookie declaration: ${c.cookieTable.length} row(s) on the Cookie Policy page.`,
+        ],
+      };
+    }
     return { examples: ['No preview available for this kind yet.'] };
   }
 
@@ -405,6 +438,26 @@ export class ConfigVersionService {
               issues.push({ path: `${pageKey}.fleet`, code: 'fleet_anchor_target_missing' });
             }
           }
+        }
+      }
+    }
+    if (kind === 'consent') {
+      const parsed = zConsentConfig.safeParse(payload);
+      if (!parsed.success) {
+        for (const iss of parsed.error.issues) {
+          issues.push({ path: iss.path.join('.') || '(root)', code: iss.code });
+        }
+      } else {
+        const c = parsed.data;
+        if (!c.categories.some((cat) => cat.id === 'necessary')) {
+          issues.push({ path: 'categories', code: 'necessary_category_required' });
+        }
+        for (const cat of c.categories) {
+          if (!cat.name.en.trim())
+            issues.push({ path: `categories.${cat.id}.name`, code: 'name_required' });
+        }
+        if (!c.text.bannerBody.en.trim()) {
+          issues.push({ path: 'text.bannerBody', code: 'banner_body_required' });
         }
       }
     }

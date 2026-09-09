@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import {
   zBrandingResponse,
   zBuildInfo,
+  zConsentConfigResponse,
   zHealthSummary,
   zLocalesResponse,
   zPagesResponse,
@@ -23,6 +24,7 @@ class HealthSummaryDto extends createZodDto(zHealthSummary) {}
 class BrandingResponseDto extends createZodDto(zBrandingResponse) {}
 class SeoResponseDto extends createZodDto(zSeoResponse) {}
 class PagesResponseDto extends createZodDto(zPagesResponse) {}
+class ConsentConfigResponseDto extends createZodDto(zConsentConfigResponse) {}
 
 @ApiTags('meta')
 @Public()
@@ -91,6 +93,23 @@ export class MetaController {
   async getPages(@Res({ passthrough: true }) res: Response) {
     const body = await this.meta.pages();
     const etag = `"pages-${body.revision}-${createHash('sha1')
+      .update(JSON.stringify(body.config))
+      .digest('hex')
+      .slice(0, 16)}"`;
+    res.setHeader('ETag', etag);
+    return body;
+  }
+
+  @Get('consent')
+  @Header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
+  @ApiOperation({
+    operationId: 'meta_getConsent',
+    summary: 'Published cookie-consent config for the public banner',
+  })
+  @ApiOkResponse({ type: ConsentConfigResponseDto })
+  async getConsent(@Res({ passthrough: true }) res: Response) {
+    const body = await this.meta.consent();
+    const etag = `"consent-${body.revision}-${createHash('sha1')
       .update(JSON.stringify(body.config))
       .digest('hex')
       .slice(0, 16)}"`;

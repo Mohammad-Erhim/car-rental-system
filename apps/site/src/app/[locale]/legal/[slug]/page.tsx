@@ -1,8 +1,10 @@
+import { pickText } from '@carrental/contracts';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
 import { BlockRenderer } from '../../../../components/marketing';
 import { PreviewBridge } from '../../../../components/marketing/preview-bridge';
+import { getConsentConfig } from '../../../../lib/consent-config';
 import { ACTIVE_LOCALES, getT } from '../../../../lib/i18n';
 import { getPagesConfig, pageBlocks } from '../../../../lib/pages-config';
 import { buildMetadata } from '../../../../lib/seo';
@@ -63,10 +65,56 @@ export default async function LegalPage({
   if (preview) {
     return <PreviewBridge initialBlocks={blocks} locale={locale} categories={[]} locations={[]} />;
   }
+
+  const consent = slug === 'cookies' ? await getConsentConfig() : null;
+  const catName = (id: string) =>
+    pickText(consent?.categories.find((c) => c.id === id)?.name, locale) || id;
+
   return (
-    <BlockRenderer
-      blocks={blocks}
-      ctx={{ t: t.t, locale, categories: [], locations: [], locationsCount: 0 }}
-    />
+    <>
+      <BlockRenderer
+        blocks={blocks}
+        ctx={{ t: t.t, locale, categories: [], locations: [], locationsCount: 0 }}
+      />
+      {consent && consent.cookieTable.length ? (
+        <section className="mx-auto w-full max-w-6xl px-4 pb-16 sm:px-6 lg:px-8">
+          <h2 className="text-lg font-semibold text-ink">{t.t('site.cookie.table.heading')}</h2>
+          <div className="mt-3 overflow-x-auto rounded-lg border border-hairline">
+            <table className="w-full text-start text-sm">
+              <thead className="bg-surface-muted text-ink-muted">
+                <tr>
+                  <th className="px-3 py-2 text-start font-medium">
+                    {t.t('site.cookie.table.name')}
+                  </th>
+                  <th className="px-3 py-2 text-start font-medium">
+                    {t.t('site.cookie.table.provider')}
+                  </th>
+                  <th className="px-3 py-2 text-start font-medium">
+                    {t.t('site.cookie.table.category')}
+                  </th>
+                  <th className="px-3 py-2 text-start font-medium">
+                    {t.t('site.cookie.table.purpose')}
+                  </th>
+                  <th className="px-3 py-2 text-start font-medium">
+                    {t.t('site.cookie.table.duration')}
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-hairline">
+                {consent.cookieTable.map((row, i) => (
+                  <tr key={`${row.name}-${i}`} className="text-ink">
+                    <td className="px-3 py-2 font-mono text-xs">{row.name}</td>
+                    <td className="px-3 py-2">{row.provider}</td>
+                    <td className="px-3 py-2">{catName(row.category)}</td>
+                    <td className="px-3 py-2 text-ink-muted">{pickText(row.purpose, locale)}</td>
+                    <td className="px-3 py-2">{row.duration}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
+    </>
   );
 }

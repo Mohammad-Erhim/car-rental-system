@@ -1,5 +1,6 @@
 'use client';
 
+import type { ConsentConfig } from '@carrental/contracts';
 import { I18nProvider, useI18n } from '@carrental/i18n/react';
 import { ThemeProvider, ToastProvider, UiStringsProvider } from '@carrental/ui';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -15,11 +16,13 @@ export function Providers({
   locale,
   messages,
   branding,
+  consent,
   children,
 }: {
   locale: string;
   messages: Messages;
   branding: Branding;
+  consent: ConsentConfig;
   children: ReactNode;
 }) {
   const [qc] = useState(
@@ -41,7 +44,7 @@ export function Providers({
         >
           <AuthProvider>
             <ToastProvider>
-              <ConsentProvider locale={locale}>
+              <ConsentProvider locale={locale} config={consent}>
                 <LocalisedUiStrings>{children}</LocalisedUiStrings>
               </ConsentProvider>
             </ToastProvider>

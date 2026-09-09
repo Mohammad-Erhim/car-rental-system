@@ -24,7 +24,7 @@ const zSchedule = z.object({
   recipients: z.array(z.string().email()).min(1).max(20),
 });
 const zDraft = z.object({
-  kind: z.enum(['policy', 'pricing', 'product', 'location', 'branding', 'seo', 'pages']),
+  kind: z.enum(['policy', 'pricing', 'product', 'location', 'branding', 'seo', 'pages', 'consent']),
   key: z.string().min(1).max(60),
   payload: z.record(z.unknown()),
   note: z.string().max(1000).optional(),

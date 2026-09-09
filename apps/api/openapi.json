@@ -2965,6 +2965,28 @@
         ]
       }
     },
+    "/api/v1/meta/consent": {
+      "get": {
+        "operationId": "meta_getConsent",
+        "summary": "Published cookie-consent config for the public banner",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsentConfigResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "meta"
+        ]
+      }
+    },
     "/api/v1/meta/translations": {
       "get": {
         "operationId": "meta_getTranslations",
@@ -3024,6 +3046,21 @@
         },
         "tags": [
           "meta"
+        ]
+      }
+    },
+    "/api/v1/ops/consent/log": {
+      "get": {
+        "operationId": "consent_log",
+        "summary": "Consent events from the audit trail, with opt-in summary",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
         ]
       }
     }
@@ -5600,6 +5637,270 @@
             },
             "required": [
               "pages"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": false
+          },
+          "updatedAt": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "config",
+          "revision",
+          "updatedAt"
+        ]
+      },
+      "ConsentConfigResponseDto": {
+        "type": "object",
+        "properties": {
+          "config": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "number",
+                "minimum": 1,
+                "maximum": 1,
+                "default": 1
+              },
+              "enabled": {
+                "type": "boolean",
+                "default": true
+              },
+              "policyVersion": {
+                "type": "integer",
+                "minimum": 0,
+                "exclusiveMinimum": true,
+                "maximum": 9999,
+                "exclusiveMaximum": false,
+                "default": 1
+              },
+              "layout": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "string",
+                    "enum": [
+                      "bar",
+                      "card"
+                    ],
+                    "default": "bar"
+                  },
+                  "showRejectAll": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                },
+                "default": {}
+              },
+              "text": {
+                "type": "object",
+                "properties": {
+                  "bannerTitle": {
+                    "type": "object",
+                    "properties": {
+                      "en": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "fr": {
+                        "type": "string",
+                        "maxLength": 120
+                      },
+                      "ar": {
+                        "type": "string",
+                        "maxLength": 120
+                      }
+                    },
+                    "required": [
+                      "en"
+                    ]
+                  },
+                  "bannerBody": {
+                    "type": "object",
+                    "properties": {
+                      "en": {
+                        "type": "string",
+                        "maxLength": 600
+                      },
+                      "fr": {
+                        "type": "string",
+                        "maxLength": 600
+                      },
+                      "ar": {
+                        "type": "string",
+                        "maxLength": 600
+                      }
+                    },
+                    "required": [
+                      "en"
+                    ]
+                  },
+                  "prefsIntro": {
+                    "type": "object",
+                    "properties": {
+                      "en": {
+                        "type": "string",
+                        "maxLength": 600
+                      },
+                      "fr": {
+                        "type": "string",
+                        "maxLength": 600
+                      },
+                      "ar": {
+                        "type": "string",
+                        "maxLength": 600
+                      }
+                    },
+                    "required": [
+                      "en"
+                    ]
+                  }
+                },
+                "required": [
+                  "bannerTitle",
+                  "bannerBody",
+                  "prefsIntro"
+                ]
+              },
+              "categories": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 4,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "enum": [
+                        "necessary",
+                        "functional",
+                        "analytics",
+                        "marketing"
+                      ]
+                    },
+                    "shown": {
+                      "type": "boolean",
+                      "default": true
+                    },
+                    "defaultOn": {
+                      "type": "boolean",
+                      "default": false
+                    },
+                    "name": {
+                      "type": "object",
+                      "properties": {
+                        "en": {
+                          "type": "string",
+                          "maxLength": 60
+                        },
+                        "fr": {
+                          "type": "string",
+                          "maxLength": 60
+                        },
+                        "ar": {
+                          "type": "string",
+                          "maxLength": 60
+                        }
+                      },
+                      "required": [
+                        "en"
+                      ]
+                    },
+                    "description": {
+                      "type": "object",
+                      "properties": {
+                        "en": {
+                          "type": "string",
+                          "maxLength": 400
+                        },
+                        "fr": {
+                          "type": "string",
+                          "maxLength": 400
+                        },
+                        "ar": {
+                          "type": "string",
+                          "maxLength": 400
+                        }
+                      },
+                      "required": [
+                        "en"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "description"
+                  ]
+                }
+              },
+              "cookieTable": {
+                "type": "array",
+                "maxItems": 80,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "maxLength": 80
+                    },
+                    "provider": {
+                      "type": "string",
+                      "maxLength": 80
+                    },
+                    "category": {
+                      "type": "string",
+                      "enum": [
+                        "necessary",
+                        "functional",
+                        "analytics",
+                        "marketing"
+                      ]
+                    },
+                    "purpose": {
+                      "type": "object",
+                      "properties": {
+                        "en": {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        "fr": {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        "ar": {
+                          "type": "string",
+                          "maxLength": 200
+                        }
+                      },
+                      "required": [
+                        "en"
+                      ]
+                    },
+                    "duration": {
+                      "type": "string",
+                      "maxLength": 60
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "provider",
+                    "category",
+                    "purpose",
+                    "duration"
+                  ]
+                },
+                "default": []
+              }
+            },
+            "required": [
+              "text",
+              "categories"
             ]
           },
           "revision": {

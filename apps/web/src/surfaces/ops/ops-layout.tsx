@@ -4,6 +4,7 @@ import {
   BarChart3,
   CarFront,
   ClipboardList,
+  Cookie as CookieIcon,
   Database,
   ExternalLink,
   KeyRound,
@@ -178,6 +179,12 @@ const NAV_GROUPS: NavGroup[] = [
         Icon: Search,
         anyOf: ['config.read', 'config.publish'],
       },
+      {
+        to: '/config/consent',
+        label: 'ops.nav.consent',
+        Icon: CookieIcon,
+        anyOf: ['config.read', 'config.publish'],
+      },
     ],
   },
   {
@@ -186,6 +193,12 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/admin/staff', label: 'ops.nav.staff', Icon: Users, anyOf: ['staff.manage'] },
       { to: '/insights', label: 'ops.nav.reports', Icon: BarChart3, anyOf: ['report.read'] },
       { to: '/audit', label: 'ops.nav.audit', Icon: ScrollText, anyOf: ['audit.read'] },
+      {
+        to: '/consent-log',
+        label: 'ops.nav.consentLog',
+        Icon: CookieIcon,
+        anyOf: ['audit.read'],
+      },
       {
         to: '/data-quality',
         label: 'ops.nav.dataQuality',

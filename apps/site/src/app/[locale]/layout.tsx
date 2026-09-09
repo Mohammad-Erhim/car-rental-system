@@ -7,6 +7,7 @@ import { SiteAnnouncement } from '../../components/site-announcement';
 import { SiteFooter } from '../../components/site-footer';
 import { SiteHeader } from '../../components/site-header';
 import { brandingCss, getBranding } from '../../lib/branding';
+import { getConsentConfig } from '../../lib/consent-config';
 import { fontClassName } from '../../lib/fonts';
 import { ACTIVE_LOCALES, getMessages, getT, isSupportedLocale, localeDir } from '../../lib/i18n';
 import { getPagesConfig } from '../../lib/pages-config';
@@ -25,11 +26,12 @@ export default async function LocaleLayout({
   const { locale } = params;
   if (!isSupportedLocale(locale) || !ACTIVE_LOCALES.includes(locale)) notFound();
 
-  const [messages, branding, t, pages] = await Promise.all([
+  const [messages, branding, t, pages, consent] = await Promise.all([
     getMessages(locale),
     getBranding(),
     getT(locale),
     getPagesConfig(),
+    getConsentConfig(),
   ]);
   const dir = localeDir(locale);
 
@@ -52,7 +54,7 @@ export default async function LocaleLayout({
           branding.config.font,
         )}`}
       >
-        <Providers locale={locale} messages={messages} branding={branding}>
+        <Providers locale={locale} messages={messages} branding={branding} consent={consent}>
           <a href="#main" className="skip-link">
             {t.t('common.skipToContent')}
           </a>
