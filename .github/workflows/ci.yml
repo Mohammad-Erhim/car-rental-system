@@ -1,0 +1,179 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Nightly full run (03:17 UTC) so the slow tiers stay green even between merges.
+    - cron: '17 3 * * *'
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Deterministic, non-secret values for CI. The API's env schema requires these to be present;
+  # none of them touch a real external service (drivers are all simulator/outbox in test).
+  NODE_ENV: test
+  DATABASE_URL: postgresql://carrental:carrental@localhost:5432/carrental_test
+  DATABASE_URL_TEST: postgresql://carrental:carrental@localhost:5432/carrental_test
+  REDIS_URL: redis://localhost:6379/1
+  REDIS_URL_TEST: redis://localhost:6379/1
+  JWT_ACCESS_SECRET: ci-access-secret-ci-access-secret-ci-access
+  JWT_ISSUER: car-rental-system
+  JWT_AUDIENCE_CUSTOMER: carrental.customer
+  JWT_AUDIENCE_STAFF: carrental.staff
+  PASSWORD_PEPPER: ci-pepper-ci-pepper-ci-pepper-ci-pepper
+  COOKIE_SECRET: ci-cookie-secret-ci-cookie-secret-ci-cookie
+  OBJECT_STORAGE_DRIVER: fs
+  OBJECT_STORAGE_FS_ROOT: ./var/objects
+  OBJECT_STORAGE_SIGNING_SECRET: ci-obj-signing-ci-obj-signing
+  MAIL_DRIVER: outbox
+  SMS_DRIVER: outbox
+  PUSH_DRIVER: outbox
+  PAYMENT_DRIVER: simulator
+  PAYMENT_WEBHOOK_SECRET: ci-pay-webhook-ci-pay-webhook
+  IDENTITY_DRIVER: simulator
+  RATE_LIMIT_ENABLED: '1'
+
+jobs:
+  # -------------------------------------------------------------------------
+  # Fast tier — runs on every PR and gates merge. Target: < 8 min.
+  # -------------------------------------------------------------------------
+  static:
+    name: Static checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm build:packages
+      - run: pnpm -r lint
+      - run: pnpm -r typecheck
+      - run: pnpm format:check
+      - run: pnpm openapi:check
+      - run: pnpm --filter @carrental/contracts check:drift
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm build:packages
+      - run: pnpm verify:unit
+
+  api:
+    name: API + migration tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: carrental
+          POSTGRES_PASSWORD: carrental
+          POSTGRES_DB: carrental_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U carrental" --health-interval 10s
+          --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 10s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm build:packages
+      - run: pnpm --filter @carrental/api test:api
+      - run: pnpm --filter @carrental/api test:migrate
+
+  i18n-theme:
+    name: i18n + theme
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm build:packages
+      - run: pnpm verify:i18n
+      - run: pnpm verify:theme
+
+  # -------------------------------------------------------------------------
+  # Full tier — push to main + nightly. Slow suites, not a PR gate.
+  # -------------------------------------------------------------------------
+  security:
+    name: Security suite
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: carrental
+          POSTGRES_PASSWORD: carrental
+          POSTGRES_DB: carrental_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U carrental" --health-interval 10s
+          --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 10s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm build:packages
+      - run: pnpm verify:security
+
+  e2e:
+    name: End-to-end (Playwright)
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: carrental
+          POSTGRES_PASSWORD: carrental
+          POSTGRES_DB: carrental_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U carrental" --health-interval 10s
+          --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 10s
+          --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Install Playwright browsers
+        run: pnpm --filter @carrental/e2e exec playwright install --with-deps chromium
+      - run: pnpm verify:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7
+
+  # Aggregate gate — branch protection points at this one check.
+  ci-ok:
+    name: CI passed
+    if: always()
+    needs: [static, unit, api, i18n-theme]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" = "true" ]; then
+            echo "One or more required jobs failed."
+            exit 1
+          fi
+          echo "All required jobs passed."

@@ -18,9 +18,10 @@ export const API_MODULES = [
   'payment',
   'booking',
   'rental',
-  'case',
   'notify',
   'report',
+  'search',
+  'consent',
 ];
 
 export default [

@@ -90,6 +90,13 @@ describe('IAM / auth', () => {
       .expect(403);
   });
 
+  it('TEST-IAM-003 customer audience: a staff account cannot get a customer session', async () => {
+    await request(server)
+      .post('/api/v1/auth/sign-in')
+      .send({ email: 'test-agent@example.test', password: 'Test-Passw0rd!', audience: 'customer' })
+      .expect(403);
+  });
+
   it('TEST-IAM-003 refresh rotates; the old refresh token is rejected (reuse detection)', async () => {
     const first = await request(server)
       .post('/api/v1/auth/sign-in')
