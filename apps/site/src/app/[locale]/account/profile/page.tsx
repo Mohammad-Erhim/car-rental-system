@@ -1,5 +1,6 @@
 'use client';
 
+import { useAuth, useFormErrors } from '@carrental/client/react';
 import { LOCALES, SUPPORTED_LOCALE_CODES } from '@carrental/i18n';
 import { useI18n } from '@carrental/i18n/react';
 import {
@@ -17,9 +18,7 @@ import {
 } from '@carrental/ui';
 import { useEffect, useState, type FormEvent } from 'react';
 
-import { useAuth } from '../../../../lib/auth-context';
 import { useProfile, useUpdateProfile } from '../../../../lib/customer-hooks';
-import { useFormErrors } from '../../../../lib/use-form-errors';
 
 /** SCREEN-CUS-012 — profile & preferences (FR-IAM-006). Stale concurrent change → 409 → reload. */
 export default function ProfilePage() {

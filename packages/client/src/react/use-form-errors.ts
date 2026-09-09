@@ -2,9 +2,9 @@ import { useI18n } from '@carrental/i18n/react';
 import type { FieldErrorItem } from '@carrental/ui';
 import { useCallback, useMemo, useState } from 'react';
 
-import { ApiError } from './api.js';
+import { ApiError } from '../api-error';
 
-/** Map a zod/`nestjs-zod` field-error code to an `error.field.*` key. */
+/** Map a zod / `nestjs-zod` field-error sub-code to an `error.field.*` catalogue key. */
 function codeKey(code: string): string {
   switch (code) {
     case 'required':
@@ -30,8 +30,15 @@ function codeKey(code: string): string {
   }
 }
 
-/** Map an ApiError's field errors + a top-level message into a form-friendly shape (COMP-SH-005).
- *  Per-code text comes from the i18n `error.field.*` catalogue (en/ar/fr, DEC-024). */
+function humanize(path: string): string {
+  const last = path.split('.').pop() ?? path;
+  return last.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^\w/, (c) => c.toUpperCase());
+}
+
+/**
+ * Map an `ApiError`'s field errors + top-level message into a form-friendly shape (COMP-SH-005).
+ * Per-code text comes from the i18n `error.field.*` catalogue (en/ar/fr, DEC-024).
+ */
 export function useFormErrors(fieldLabels: Record<string, string> = {}) {
   const { t } = useI18n();
   const [error, setError] = useState<ApiError | null>(null);
@@ -75,9 +82,4 @@ export function useFormErrors(fieldLabels: Record<string, string> = {}) {
   const topLevelMessage = error && !error.fieldErrors.length ? error.message : null;
 
   return { error, summary, fieldError, topLevelMessage, fromError, clear };
-}
-
-function humanize(path: string): string {
-  const last = path.split('.').pop() ?? path;
-  return last.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/^\w/, (c) => c.toUpperCase());
 }

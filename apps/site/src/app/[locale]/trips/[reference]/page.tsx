@@ -1,5 +1,6 @@
 'use client';
 
+import { ApiError } from '@carrental/client';
 import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
@@ -17,7 +18,6 @@ import { useParams, useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 import { RequireAuth } from '../../../../components/require-auth';
-import { ApiError } from '../../../../lib/api-client';
 import {
   formatMinor,
   useCancelReservation,

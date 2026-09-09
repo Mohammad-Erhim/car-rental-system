@@ -1,3 +1,4 @@
+import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   Badge,
@@ -14,7 +15,6 @@ import {
 import { useState } from 'react';
 
 import { ApiError } from '../../lib/api.js';
-import { useAuth } from '../../lib/auth.js';
 import { formatMinor } from '../../lib/discovery-hooks.js';
 import {
   useReconciliationExceptions,

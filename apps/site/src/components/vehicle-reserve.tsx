@@ -1,12 +1,12 @@
 'use client';
 
+import { ApiError } from '@carrental/client';
 import { useI18n } from '@carrental/i18n/react';
 import { AppStateView, Badge, Button } from '@carrental/ui';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
 
-import { ApiError } from '../lib/api-client';
 import { formatMinor, useAvailabilitySearch, useCreateQuote } from '../lib/customer-hooks';
 import { useLocale } from '../lib/nav';
 

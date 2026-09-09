@@ -13,6 +13,7 @@
     "test:unit": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@carrental/client": "workspace:*",
     "@carrental/contracts": "workspace:*",
     "@carrental/i18n": "workspace:*",
     "@carrental/theme": "workspace:*",

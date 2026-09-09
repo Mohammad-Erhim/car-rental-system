@@ -1,3 +1,4 @@
+import { useAuth, useFormErrors } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   Badge,
@@ -22,8 +23,6 @@ import {
   useUpsertProduct,
   type CatalogueProduct,
 } from '../../lib/admin-hooks.js';
-import { useAuth } from '../../lib/auth.js';
-import { useFormErrors } from '../../lib/use-form-errors.js';
 
 /**
  * SCREEN-OPS-027 / FR-ADM-006 — extras & protection products. The server owns the price; a

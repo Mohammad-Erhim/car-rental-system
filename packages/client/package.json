@@ -1,0 +1,63 @@
+{
+  "name": "@carrental/client",
+  "version": "0.1.0",
+  "private": true,
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@carrental/contracts": "workspace:*"
+  },
+  "peerDependencies": {
+    "@carrental/i18n": "workspace:*",
+    "@carrental/ui": "workspace:*",
+    "@tanstack/react-query": ">=5",
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "@carrental/i18n": {
+      "optional": true
+    },
+    "@carrental/ui": {
+      "optional": true
+    },
+    "@tanstack/react-query": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@carrental/config": "workspace:*",
+    "@carrental/i18n": "workspace:*",
+    "@carrental/ui": "workspace:*",
+    "@tanstack/react-query": "5.51.23",
+    "@types/react": "18.3.3",
+    "eslint": "9.9.0",
+    "globals": "15.9.0",
+    "jsdom": "24.1.1",
+    "react": "18.3.1",
+    "typescript": "5.5.4",
+    "vitest": "2.0.5"
+  }
+}

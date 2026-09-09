@@ -1,3 +1,4 @@
+import { useAuth } from '@carrental/client/react';
 import {
   CONSENT_CATEGORIES,
   DEFAULT_CONSENT_CONFIG,
@@ -23,7 +24,6 @@ import {
 import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-import { useAuth } from '../../../lib/auth.js';
 import {
   useConsentPreview,
   useConsentTransition,

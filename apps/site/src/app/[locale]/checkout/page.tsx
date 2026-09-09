@@ -1,5 +1,7 @@
 'use client';
 
+import { ApiError } from '@carrental/client';
+import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
@@ -17,8 +19,6 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useState, type FormEvent } from 'react';
 
-import { ApiError } from '../../../lib/api-client';
-import { useAuth } from '../../../lib/auth-context';
 import {
   formatMinor,
   useAvailableProducts,

@@ -1,5 +1,6 @@
 'use client';
 
+import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   Badge,
@@ -13,7 +14,6 @@ import {
 import { CreditCard, FileText, IdCard, UserRound } from 'lucide-react';
 import Link from 'next/link';
 
-import { useAuth } from '../../../lib/auth-context';
 import { formatMinor, useMyReservations } from '../../../lib/customer-hooks';
 import { useLocale } from '../../../lib/nav';
 

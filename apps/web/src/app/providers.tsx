@@ -1,13 +1,13 @@
+import { createQueryClient } from '@carrental/client';
+import { AuthProvider } from '@carrental/client/react';
 import { BASE_RESOURCES, SUPPORTED_LOCALE_CODES } from '@carrental/i18n';
 import { I18nProvider, useI18n } from '@carrental/i18n/react';
 import { ThemeProvider, ToastProvider, UiStringsProvider } from '@carrental/ui';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useMemo, useState, type ReactNode } from 'react';
 
-import { AuthProvider } from '../lib/auth.js';
 import { usePublishedBranding } from '../lib/branding-hooks.js';
 import { detectInitialLocale, storeLocale } from '../lib/locale-storage.js';
-import { createQueryClient } from '../lib/query.js';
 import { StepUpProvider } from '../lib/step-up.js';
 
 const MISSING_KEYS = new Set<string>();

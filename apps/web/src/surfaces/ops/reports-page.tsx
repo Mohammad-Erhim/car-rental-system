@@ -1,3 +1,4 @@
+import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
@@ -26,7 +27,6 @@ import {
   type ReportRunResult,
 } from '../../lib/admin-hooks.js';
 import { ApiError } from '../../lib/api.js';
-import { useAuth } from '../../lib/auth.js';
 
 /**
  * SCREEN-OPS-035 — Reports. Each report is a whitelisted aggregate (no free SQL). Rows are

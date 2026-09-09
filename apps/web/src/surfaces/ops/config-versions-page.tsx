@@ -1,3 +1,4 @@
+import { useAuth, useFormErrors } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   Badge,
@@ -24,8 +25,6 @@ import {
   type ConfigState,
 } from '../../lib/admin-hooks.js';
 import { ApiError } from '../../lib/api.js';
-import { useAuth } from '../../lib/auth.js';
-import { useFormErrors } from '../../lib/use-form-errors.js';
 
 /**
  * SCREEN-OPS-033/034 — Configuration versioning. A change to a policy is drafted, previewed,

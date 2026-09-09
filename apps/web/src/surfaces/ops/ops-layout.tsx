@@ -1,3 +1,4 @@
+import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import { Button, ThemeToggle } from '@carrental/ui';
 import {
@@ -29,7 +30,6 @@ import { NavLink, Outlet } from 'react-router-dom';
 
 import { LanguageSwitcher } from '../../components/language-switcher.js';
 import { SystemStatus } from '../../components/system-status.js';
-import { useAuth } from '../../lib/auth.js';
 
 import { Breadcrumbs } from './breadcrumbs.js';
 import { CommandPalette } from './command-palette.js';
