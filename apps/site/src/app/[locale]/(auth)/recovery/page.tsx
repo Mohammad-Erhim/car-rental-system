@@ -3,7 +3,15 @@
 import { apiFetch } from '@carrental/client';
 import { useFormErrors } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
-import { Alert, AlertDescription, Button, ErrorSummary, Field, Input } from '@carrental/ui';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  ErrorSummary,
+  Field,
+  Input,
+  PasswordInput,
+} from '@carrental/ui';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type FormEvent } from 'react';
@@ -155,15 +163,16 @@ export default function RecoveryPage() {
               error={errs.fieldError('newPassword')}
             >
               {({ id, describedBy, invalid }) => (
-                <Input
+                <PasswordInput
                   id={id}
                   aria-describedby={describedBy}
                   invalid={invalid}
-                  type="password"
                   autoComplete="new-password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   required
+                  revealLabel={t('auth.showPw')}
+                  hideLabel={t('auth.hidePw')}
                 />
               )}
             </Field>

@@ -20,7 +20,13 @@ export {
   type AppStateAction,
 } from './components/app-state-view.js';
 
-export { Input, Textarea, type InputProps } from './components/input.js';
+export {
+  Input,
+  PasswordInput,
+  Textarea,
+  type InputProps,
+  type PasswordInputProps,
+} from './components/input.js';
 export { Label } from './components/label.js';
 export { Field, type FieldProps } from './components/field.js';
 export { ErrorSummary, type FieldErrorItem } from './components/error-summary.js';

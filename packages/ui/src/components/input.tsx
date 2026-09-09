@@ -1,4 +1,5 @@
-import { forwardRef, type InputHTMLAttributes } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
+import { forwardRef, useState, type InputHTMLAttributes } from 'react';
 
 import { cn } from '../lib/utils.js';
 
@@ -25,6 +26,52 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
   ),
 );
 Input.displayName = 'Input';
+
+export interface PasswordInputProps extends Omit<InputProps, 'type'> {
+  /** accessible label for the reveal toggle when the password is hidden */
+  revealLabel: string;
+  /** accessible label for the toggle when the password is shown */
+  hideLabel: string;
+}
+
+/**
+ * A password field with the reveal toggle *inside* the input (COMP-SH-004). The toggle sits on
+ * the trailing edge via logical properties (`pe-*` / `end-0`), so it lands correctly in both LTR
+ * and RTL. Icon-only with an `aria-label` — no layout-shifting "Show" / "Hide" text.
+ */
+export const PasswordInput = forwardRef<HTMLInputElement, PasswordInputProps>(
+  ({ revealLabel, hideLabel, className, ...props }, ref) => {
+    const [shown, setShown] = useState(false);
+    return (
+      <div className="relative">
+        <Input
+          ref={ref}
+          type={shown ? 'text' : 'password'}
+          className={cn('pe-11', className)}
+          {...props}
+        />
+        <button
+          type="button"
+          onClick={() => setShown((s) => !s)}
+          aria-pressed={shown}
+          aria-label={shown ? hideLabel : revealLabel}
+          title={shown ? hideLabel : revealLabel}
+          className={cn(
+            'absolute inset-y-0 end-0 flex w-11 items-center justify-center rounded-e-md text-muted-foreground',
+            'transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          )}
+        >
+          {shown ? (
+            <EyeOff className="size-4" aria-hidden="true" />
+          ) : (
+            <Eye className="size-4" aria-hidden="true" />
+          )}
+        </button>
+      </div>
+    );
+  },
+);
+PasswordInput.displayName = 'PasswordInput';
 
 export const Textarea = forwardRef<
   HTMLTextAreaElement,

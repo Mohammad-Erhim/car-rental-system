@@ -3,7 +3,15 @@
 import { stashReturnTo, takeReturnTo } from '@carrental/client';
 import { useAuth, useFormErrors } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
-import { Alert, AlertDescription, Button, ErrorSummary, Field, Input } from '@carrental/ui';
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  ErrorSummary,
+  Field,
+  Input,
+  PasswordInput,
+} from '@carrental/ui';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState, type FormEvent } from 'react';
@@ -19,7 +27,6 @@ function SignInInner() {
   const params = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const errs = useFormErrors({ email: t('auth.email'), password: t('auth.password') });
 
@@ -84,26 +91,17 @@ function SignInInner() {
             error={errs.fieldError('password')}
           >
             {({ id, describedBy, invalid }) => (
-              <div className="flex gap-2">
-                <Input
-                  id={id}
-                  aria-describedby={describedBy}
-                  invalid={invalid}
-                  type={showPw ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowPw((v) => !v)}
-                  aria-pressed={showPw}
-                >
-                  {showPw ? t('auth.hidePw') : t('auth.showPw')}
-                </Button>
-              </div>
+              <PasswordInput
+                id={id}
+                aria-describedby={describedBy}
+                invalid={invalid}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                revealLabel={t('auth.showPw')}
+                hideLabel={t('auth.hidePw')}
+              />
             )}
           </Field>
 

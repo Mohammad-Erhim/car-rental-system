@@ -5,16 +5,16 @@ import {
   Alert,
   AlertDescription,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   ErrorSummary,
   Field,
   Input,
+  PasswordInput,
 } from '@carrental/ui';
+import { LogIn, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+
+import { AuthPanel } from './auth-panel.js';
 
 /**
  * SCREEN-CUS-008 / SCREEN-OPS-001. Authenticate and return to the intended task
@@ -27,7 +27,6 @@ export function SignInPage({ audience = 'customer' as 'customer' | 'staff' }) {
   const [params] = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPw, setShowPw] = useState(false);
   const [busy, setBusy] = useState(false);
   const errs = useFormErrors({ email: t('auth.email'), password: t('auth.password') });
 
@@ -52,92 +51,83 @@ export function SignInPage({ audience = 'customer' as 'customer' | 'staff' }) {
   }
 
   return (
-    <div className="mx-auto w-full max-w-md py-8">
-      <Card>
-        <CardHeader>
-          <CardTitle>{isStaff ? t('auth.staffTitle') : t('action.signIn')}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <ErrorSummary title={t('state.validation.title')} errors={errs.summary} />
-          {errs.topLevelMessage ? (
-            <Alert variant="destructive">
-              <AlertDescription>{errs.topLevelMessage}</AlertDescription>
-            </Alert>
-          ) : null}
-
-          <form onSubmit={onSubmit} className="space-y-4" noValidate>
-            <Field
-              label={isStaff ? t('auth.staffEmail') : t('auth.email')}
-              htmlFor="field-email"
-              required
-              error={errs.fieldError('email')}
-            >
-              {({ id, describedBy, invalid }) => (
-                <Input
-                  id={id}
-                  aria-describedby={describedBy}
-                  invalid={invalid}
-                  type="email"
-                  autoComplete="username"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              )}
-            </Field>
-
-            <Field
-              label={t('auth.password')}
-              htmlFor="field-password"
-              required
-              error={errs.fieldError('password')}
-            >
-              {({ id, describedBy, invalid }) => (
-                <div className="flex gap-2">
-                  <Input
-                    id={id}
-                    aria-describedby={describedBy}
-                    invalid={invalid}
-                    type={showPw ? 'text' : 'password'}
-                    autoComplete="current-password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setShowPw((v) => !v)}
-                    aria-pressed={showPw}
-                  >
-                    {showPw ? t('auth.hidePw') : t('auth.showPw')}
-                  </Button>
-                </div>
-              )}
-            </Field>
-
-            <Button
-              type="submit"
-              className="w-full"
-              loading={busy}
-              loadingLabel={t('auth.signingIn')}
-            >
-              {t('action.signIn')}
-            </Button>
-          </form>
-
-          <div className="flex items-center justify-between text-sm">
-            <Link to="/recovery" className="text-primary underline underline-offset-4">
-              {t('auth.forgotPw')}
+    <AuthPanel
+      icon={isStaff ? <ShieldCheck className="size-6" /> : <LogIn className="size-6" />}
+      title={isStaff ? t('auth.staffTitle') : t('action.signIn')}
+      subtitle={isStaff ? t('auth.staffSubtitle') : undefined}
+      footer={
+        <div className="flex items-center justify-center gap-4">
+          <Link to="/recovery" className="font-medium text-primary hover:underline">
+            {t('auth.forgotPw')}
+          </Link>
+          {!isStaff ? (
+            <Link to="/register" className="font-medium text-primary hover:underline">
+              {t('action.register')}
             </Link>
-            {!isStaff ? (
-              <Link to="/register" className="text-primary underline underline-offset-4">
-                {t('action.register')}
-              </Link>
-            ) : null}
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+          ) : null}
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <ErrorSummary title={t('state.validation.title')} errors={errs.summary} />
+        {errs.topLevelMessage ? (
+          <Alert variant="destructive">
+            <AlertDescription>{errs.topLevelMessage}</AlertDescription>
+          </Alert>
+        ) : null}
+
+        <form onSubmit={onSubmit} className="space-y-4" noValidate>
+          <Field
+            label={isStaff ? t('auth.staffEmail') : t('auth.email')}
+            htmlFor="field-email"
+            required
+            error={errs.fieldError('email')}
+          >
+            {({ id, describedBy, invalid }) => (
+              <Input
+                id={id}
+                aria-describedby={describedBy}
+                invalid={invalid}
+                type="email"
+                autoComplete="username"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            )}
+          </Field>
+
+          <Field
+            label={t('auth.password')}
+            htmlFor="field-password"
+            required
+            error={errs.fieldError('password')}
+          >
+            {({ id, describedBy, invalid }) => (
+              <PasswordInput
+                id={id}
+                aria-describedby={describedBy}
+                invalid={invalid}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                revealLabel={t('auth.showPw')}
+                hideLabel={t('auth.hidePw')}
+              />
+            )}
+          </Field>
+
+          <Button
+            type="submit"
+            className="w-full"
+            loading={busy}
+            loadingLabel={t('auth.signingIn')}
+          >
+            {t('action.signIn')}
+          </Button>
+        </form>
+      </div>
+    </AuthPanel>
   );
 }

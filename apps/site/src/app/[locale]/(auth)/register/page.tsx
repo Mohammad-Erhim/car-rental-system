@@ -12,6 +12,7 @@ import {
   ErrorSummary,
   Field,
   Input,
+  PasswordInput,
 } from '@carrental/ui';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -180,15 +181,16 @@ export default function RegisterPage() {
               error={errs.fieldError('password')}
             >
               {({ id, describedBy, invalid }) => (
-                <Input
+                <PasswordInput
                   id={id}
                   aria-describedby={describedBy}
                   invalid={invalid}
-                  type="password"
                   autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  revealLabel={t('auth.showPw')}
+                  hideLabel={t('auth.hidePw')}
                 />
               )}
             </Field>
