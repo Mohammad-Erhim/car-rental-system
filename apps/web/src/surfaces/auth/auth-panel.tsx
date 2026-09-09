@@ -3,18 +3,16 @@ import { LayoutDashboard } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 /**
- * Full-height split auth panel for the operations console — a branded column on the left, the
- * form on the right. Used by the staff sign-in and recovery screens (design §7.1). Collapses to
- * a single column below `md`.
+ * Split auth panel for the operations console — a branded gradient column beside the form on
+ * `md+`, stacked as a gradient header above the form on mobile (so the screen never reads as a
+ * lone white card). Used by the staff sign-in and recovery screens (design §7.1).
  */
 export function AuthPanel({
-  icon,
   title,
   subtitle,
   children,
   footer,
 }: {
-  icon: ReactNode;
   title: string;
   subtitle?: string;
   children: ReactNode;
@@ -22,16 +20,16 @@ export function AuthPanel({
 }) {
   const { t } = useI18n();
   return (
-    <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center">
+    <div className="flex min-h-[calc(100vh-8rem)] items-center justify-center bg-gradient-to-br from-primary/5 to-transparent">
       <div className="grid w-full max-w-5xl overflow-hidden rounded-2xl border bg-card shadow-sm md:min-h-[34rem] md:grid-cols-2">
-        {/* brand column */}
-        <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-primary to-primary/80 p-10 text-primary-foreground md:flex">
+        {/* brand — left column on md+, gradient header on mobile */}
+        <div className="relative flex flex-col justify-between overflow-hidden bg-gradient-to-br from-primary to-primary/80 p-6 text-primary-foreground sm:p-8 md:p-10">
           <div
-            className="pointer-events-none absolute -end-16 -top-16 size-64 rounded-full bg-primary-foreground/10"
+            className="pointer-events-none absolute -end-16 -top-16 size-56 rounded-full bg-primary-foreground/10 md:size-64"
             aria-hidden="true"
           />
           <div
-            className="pointer-events-none absolute -bottom-24 -start-10 size-72 rounded-full bg-primary-foreground/5"
+            className="pointer-events-none absolute -bottom-24 -start-10 hidden size-72 rounded-full bg-primary-foreground/5 md:block"
             aria-hidden="true"
           />
           <div className="relative flex items-center gap-2 text-sm font-semibold text-primary-foreground/90">
@@ -40,13 +38,13 @@ export function AuthPanel({
             </span>
             {t('app.name')}
           </div>
-          <div className="relative">
-            <h2 className="text-3xl font-bold leading-tight">{t('app.ops.name')}</h2>
-            <p className="mt-3 max-w-xs text-sm text-primary-foreground/80">
+          <div className="relative mt-6 md:mt-0">
+            <h2 className="text-2xl font-bold leading-tight md:text-3xl">{t('app.ops.name')}</h2>
+            <p className="mt-2 max-w-xs text-sm text-primary-foreground/80 md:mt-3">
               {t('auth.opsPanelBody')}
             </p>
           </div>
-          <p className="relative text-xs text-primary-foreground/70">
+          <p className="relative mt-6 hidden text-xs text-primary-foreground/70 md:mt-0 md:block">
             © {new Date().getFullYear()} {t('app.name')}
           </p>
         </div>
@@ -55,12 +53,6 @@ export function AuthPanel({
         <div className="flex flex-col justify-center p-6 sm:p-10">
           <div className="mx-auto w-full max-w-sm">
             <div className="mb-6">
-              <span
-                className="mb-4 inline-flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary md:hidden"
-                aria-hidden="true"
-              >
-                {icon}
-              </span>
               <h1 className="text-xl font-bold tracking-tight">{title}</h1>
               {subtitle ? <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p> : null}
             </div>
