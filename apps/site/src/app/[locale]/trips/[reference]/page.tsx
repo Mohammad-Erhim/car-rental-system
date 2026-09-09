@@ -2,20 +2,10 @@
 
 import { ApiError } from '@carrental/client';
 import { useI18n } from '@carrental/i18n/react';
-import {
-  AppStateView,
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  ConfirmDialog,
-  Field,
-  Input,
-} from '@carrental/ui';
+import { AppStateView, Badge, Button, ConfirmDialog, Field, Input } from '@carrental/ui';
+import { ArrowLeft, CalendarClock, History, KeyRound, Receipt } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { RequireAuth } from '../../../../components/require-auth';
 import {
@@ -28,6 +18,28 @@ import {
   useReservationHistory,
 } from '../../../../lib/customer-hooks';
 import { useLocale } from '../../../../lib/nav';
+
+function Section({
+  icon,
+  title,
+  children,
+}: {
+  icon: ReactNode;
+  title: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="surface-card rounded-2xl p-5 sm:p-6">
+      <h2 className="mb-4 flex flex-wrap items-center gap-2.5 text-lg font-semibold text-ink">
+        <span className="icon-chip size-9 rounded-lg" aria-hidden="true">
+          {icon}
+        </span>
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
 
 /** SCREEN-CUS-015/016/019 — reservation detail: itinerary, price, cancel, modify, history. */
 function ReservationDetail() {
@@ -113,18 +125,20 @@ function ReservationDetail() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-2xl space-y-5">
       <button
         type="button"
         onClick={() => router.push(`/${locale}/trips`)}
-        className="text-sm text-primary underline underline-offset-4"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-brand hover:underline underline-offset-4"
       >
-        ← {t('reservation.allTrips')}
+        <ArrowLeft className="size-4 rtl:rotate-180" aria-hidden="true" />
+        {t('reservation.allTrips')}
       </button>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex flex-wrap items-center gap-2">
+      <Section
+        icon={<Receipt className="size-4" />}
+        title={
+          <>
             <span className="bidi-isolate font-mono">{r.reference}</span>
             <Badge
               variant={
@@ -138,62 +152,64 @@ function ReservationDetail() {
             >
               {stateLabel(r.state)}
             </Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <p>
+          </>
+        }
+      >
+        <div className="space-y-1 text-sm">
+          <p className="font-medium text-ink">
             {r.categoryCode} · {r.pickupLocationCode} → {r.returnLocationCode}
           </p>
-          <p className="text-muted-foreground">
+          <p className="text-ink-muted">
             {dt(r.pickupAt)} – {dt(r.returnAt)} (
             {t('reservation.hours', { hours: r.durationHours })})
           </p>
-          <table className="w-full" data-testid="res-lines">
-            <tbody>
-              {r.lines.map((l) => (
-                <tr key={l.code} className="border-b last:border-0">
-                  <td className="py-1.5">{l.label}</td>
-                  <td className="py-1.5 text-end">
-                    {formatMinor(l.amountMinor, r.currency, uiLocale)}
-                  </td>
-                </tr>
-              ))}
-              <tr className="font-semibold">
-                <td className="py-2">{t('reservation.total')}</td>
-                <td className="py-2 text-end" data-testid="res-total">
-                  {formatMinor(r.totalMinor, r.currency, uiLocale)}
-                </td>
-              </tr>
-              {r.refundedMinor > 0 ? (
-                <tr className="text-muted-foreground">
-                  <td className="py-1">{t('reservation.refunded')}</td>
-                  <td className="py-1 text-end" data-testid="res-refunded">
-                    −{formatMinor(r.refundedMinor, r.currency, uiLocale)}
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-          <p className="text-xs text-muted-foreground">
-            {t('reservation.drivers', {
-              names: r.drivers.map((d) => d.fullName).join(', ') || '—',
-            })}
-          </p>
-        </CardContent>
-      </Card>
+        </div>
+
+        <dl
+          className="mt-4 space-y-2 border-t border-hairline pt-4 text-sm"
+          data-testid="res-lines"
+        >
+          {r.lines.map((l) => (
+            <div key={l.code} className="flex items-center justify-between gap-3">
+              <dt className="text-ink-muted">{l.label}</dt>
+              <dd className="text-ink">{formatMinor(l.amountMinor, r.currency, uiLocale)}</dd>
+            </div>
+          ))}
+          <div className="flex items-center justify-between gap-3 border-t border-hairline pt-2 text-base font-bold text-ink">
+            <dt>{t('reservation.total')}</dt>
+            <dd data-testid="res-total">{formatMinor(r.totalMinor, r.currency, uiLocale)}</dd>
+          </div>
+          {r.refundedMinor > 0 ? (
+            <div className="flex items-center justify-between gap-3 text-ink-muted">
+              <dt>{t('reservation.refunded')}</dt>
+              <dd data-testid="res-refunded">
+                −{formatMinor(r.refundedMinor, r.currency, uiLocale)}
+              </dd>
+            </div>
+          ) : null}
+        </dl>
+
+        <p className="mt-4 text-xs text-ink-muted">
+          {t('reservation.drivers', {
+            names: r.drivers.map((d) => d.fullName).join(', ') || '—',
+          })}
+        </p>
+      </Section>
 
       {rental.data && ['active', 'overdue'].includes(rental.data.state) ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
+        <Section
+          icon={<KeyRound className="size-4" />}
+          title={
+            <>
               {t('reservation.rentalIs', { state: stateLabel(rental.data.state) })}
               <Badge variant={rental.data.state === 'active' ? 'success' : 'warning'}>
                 {rental.data.reference}
               </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
+            </>
+          }
+        >
+          <div className="space-y-3">
+            <p className="text-sm text-ink-muted">
               {t('reservation.dueBack', { datetime: dt(rental.data.scheduledReturnAt) })}
             </p>
             <Field label={t('reservation.extendTo')} htmlFor="rental-extend-to">
@@ -208,7 +224,7 @@ function ReservationDetail() {
               )}
             </Field>
             {extendMsg ? (
-              <p className="text-sm" data-testid="rental-extend-msg">
+              <p className="text-sm text-ink" data-testid="rental-extend-msg">
                 {extendMsg}
               </p>
             ) : null}
@@ -220,16 +236,13 @@ function ReservationDetail() {
             >
               {t('reservation.extendRental')}
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </Section>
       ) : null}
 
       {r.modifiable ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{t('reservation.changeReturn')}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <Section icon={<CalendarClock className="size-4" />} title={t('reservation.changeReturn')}>
+          <div className="space-y-3">
             <Field label={t('reservation.newReturn')} htmlFor="res-new-return">
               {({ id }) => (
                 <Input
@@ -242,7 +255,7 @@ function ReservationDetail() {
               )}
             </Field>
             {modifyMsg ? (
-              <p className="text-sm" data-testid="res-modify-msg">
+              <p className="text-sm text-ink" data-testid="res-modify-msg">
                 {modifyMsg}
               </p>
             ) : null}
@@ -254,47 +267,40 @@ function ReservationDetail() {
             >
               {t('reservation.updateReservation')}
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </Section>
       ) : null}
 
       {r.cancellable ? (
-        <Card>
-          <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-6">
-            <p className="text-sm text-muted-foreground">{t('reservation.cancelPolicy')}</p>
-            <Button variant="outline" onClick={() => setShowCancel(true)} data-testid="res-cancel">
-              {t('reservation.cancelReservation')}
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="surface-card flex flex-wrap items-center justify-between gap-3 rounded-2xl p-5 sm:p-6">
+          <p className="text-sm text-ink-muted">{t('reservation.cancelPolicy')}</p>
+          <Button variant="outline" onClick={() => setShowCancel(true)} data-testid="res-cancel">
+            {t('reservation.cancelReservation')}
+          </Button>
+        </div>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t('reservation.history')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {history.isLoading ? (
-            <AppStateView kind="loading" inline title={t('state.loading.title')} />
-          ) : !history.data?.length ? (
-            <AppStateView kind="empty" inline title={t('reservation.noChanges')} />
-          ) : (
-            <ol className="space-y-2 text-sm" data-testid="res-history">
-              {history.data.map((e, i) => (
-                <li key={i} className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="font-medium capitalize">{e.type.replace(/_/g, ' ')}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {dt(e.at)} · {e.actor}
-                    {e.amountDeltaMinor
-                      ? ` · ${e.amountDeltaMinor > 0 ? '+' : ''}${formatMinor(e.amountDeltaMinor, r.currency, uiLocale)}`
-                      : ''}
-                  </span>
-                </li>
-              ))}
-            </ol>
-          )}
-        </CardContent>
-      </Card>
+      <Section icon={<History className="size-4" />} title={t('reservation.history')}>
+        {history.isLoading ? (
+          <AppStateView kind="loading" inline title={t('state.loading.title')} />
+        ) : !history.data?.length ? (
+          <AppStateView kind="empty" inline title={t('reservation.noChanges')} />
+        ) : (
+          <ol className="space-y-3 text-sm" data-testid="res-history">
+            {history.data.map((e, i) => (
+              <li key={i} className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="font-medium capitalize text-ink">{e.type.replace(/_/g, ' ')}</span>
+                <span className="text-xs text-ink-muted">
+                  {dt(e.at)} · {e.actor}
+                  {e.amountDeltaMinor
+                    ? ` · ${e.amountDeltaMinor > 0 ? '+' : ''}${formatMinor(e.amountDeltaMinor, r.currency, uiLocale)}`
+                    : ''}
+                </span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </Section>
 
       <ConfirmDialog
         open={showCancel}

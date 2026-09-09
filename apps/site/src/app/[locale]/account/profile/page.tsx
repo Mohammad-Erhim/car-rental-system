@@ -6,10 +6,6 @@ import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   Checkbox,
   ErrorSummary,
   Field,
@@ -88,7 +84,7 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">{t('profile.title')}</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-ink">{t('profile.title')}</h1>
       {stale ? (
         <AppStateView
           kind="stale"
@@ -98,81 +94,77 @@ export default function ProfilePage() {
         />
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">{t('profile.identityLanguage')}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ErrorSummary title={t('state.validation.title')} errors={errs.summary} />
-          <form onSubmit={save} className="space-y-4" noValidate>
-            <Field
-              label={t('auth.fullName')}
-              htmlFor="field-fullName"
-              required
-              error={errs.fieldError('fullName')}
-            >
-              {({ id, describedBy, invalid }) => (
-                <Input
-                  id={id}
-                  aria-describedby={describedBy}
-                  invalid={invalid}
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  required
-                />
-              )}
-            </Field>
-            <Field label={t('auth.email')} htmlFor="field-email">
-              {({ id }) => (
-                <Input
-                  id={id}
-                  value={profile.email}
-                  disabled
-                  readOnly
-                  aria-describedby="email-note"
-                />
-              )}
-            </Field>
-            <p id="email-note" className="-mt-2 text-xs text-muted-foreground">
-              {t('profile.emailNote')}
-            </p>
-
-            <Field label={t('profile.language')} htmlFor="field-locale">
-              {({ id }) => (
-                <select
-                  id={id}
-                  className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  value={localeCode}
-                  onChange={(e) => setLocaleCode(e.target.value)}
-                >
-                  {SUPPORTED_LOCALE_CODES.map((code) => (
-                    <option key={code} value={code}>
-                      {LOCALES[code]?.nativeName} ({LOCALES[code]?.englishName})
-                    </option>
-                  ))}
-                </select>
-              )}
-            </Field>
-
-            <label className="flex items-start gap-2 text-sm">
-              <Checkbox
-                checked={marketingEmail}
-                onChange={(e) => setMarketingEmail(e.target.checked)}
+      <section className="surface-card rounded-2xl p-5 sm:p-6">
+        <h2 className="mb-4 text-lg font-semibold text-ink">{t('profile.identityLanguage')}</h2>
+        <ErrorSummary title={t('state.validation.title')} errors={errs.summary} />
+        <form onSubmit={save} className="space-y-4" noValidate>
+          <Field
+            label={t('auth.fullName')}
+            htmlFor="field-fullName"
+            required
+            error={errs.fieldError('fullName')}
+          >
+            {({ id, describedBy, invalid }) => (
+              <Input
+                id={id}
+                aria-describedby={describedBy}
+                invalid={invalid}
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                required
               />
-              <span>
-                {t('profile.marketingEmail')}
-                <span className="mt-0.5 block text-xs text-muted-foreground">
-                  {t('profile.operationalNote')}
-                </span>
-              </span>
-            </label>
+            )}
+          </Field>
+          <Field label={t('auth.email')} htmlFor="field-email">
+            {({ id }) => (
+              <Input
+                id={id}
+                value={profile.email}
+                disabled
+                readOnly
+                aria-describedby="email-note"
+              />
+            )}
+          </Field>
+          <p id="email-note" className="-mt-2 text-xs text-ink-muted">
+            {t('profile.emailNote')}
+          </p>
 
-            <Button type="submit" loading={update.isPending}>
-              {t('action.save')}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          <Field label={t('profile.language')} htmlFor="field-locale">
+            {({ id }) => (
+              <select
+                id={id}
+                className="flex h-11 w-full rounded-md border border-hairline bg-surface px-3 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                value={localeCode}
+                onChange={(e) => setLocaleCode(e.target.value)}
+              >
+                {SUPPORTED_LOCALE_CODES.map((code) => (
+                  <option key={code} value={code}>
+                    {LOCALES[code]?.nativeName} ({LOCALES[code]?.englishName})
+                  </option>
+                ))}
+              </select>
+            )}
+          </Field>
+
+          <label className="flex items-start gap-2 text-sm">
+            <Checkbox
+              checked={marketingEmail}
+              onChange={(e) => setMarketingEmail(e.target.checked)}
+            />
+            <span>
+              {t('profile.marketingEmail')}
+              <span className="mt-0.5 block text-xs text-ink-muted">
+                {t('profile.operationalNote')}
+              </span>
+            </span>
+          </label>
+
+          <Button type="submit" loading={update.isPending}>
+            {t('action.save')}
+          </Button>
+        </form>
+      </section>
     </div>
   );
 }
