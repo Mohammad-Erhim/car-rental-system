@@ -93,18 +93,21 @@ inputs — keep that convention rather than reading it from the actor deep in a 
 
 ## Verification map
 
-| Command                                          | What it guards                                                 | When                            |
-| ------------------------------------------------ | -------------------------------------------------------------- | ------------------------------- |
-| `pnpm verify:static`                             | prettier, eslint (incl. module boundaries), tsc, openapi drift | before every commit             |
-| `pnpm verify:unit`                               | Vitest unit/component across api + packages                    | before every commit             |
-| `pnpm verify:api`                                | integration vs real Postgres/Redis                             | before pushing API changes      |
-| `pnpm verify:migrate`                            | empty → current migration proof                                | when touching schema/migrations |
-| `pnpm verify:i18n` / `:theme` / `:seo` / `:a11y` | those subsystems                                               | when touching them              |
-| `pnpm verify:all`                                | everything                                                     | before opening a PR             |
+| Command                                          | What it guards                                                 | When                                         |
+| ------------------------------------------------ | -------------------------------------------------------------- | -------------------------------------------- |
+| `pnpm verify:static`                             | prettier, eslint (incl. module boundaries), tsc, openapi drift | before every commit                          |
+| `pnpm verify:unit`                               | Vitest unit/component across api + packages                    | before every commit                          |
+| `pnpm verify:api`                                | integration vs real Postgres/Redis                             | before pushing API changes                   |
+| `pnpm verify:migrate`                            | empty → current migration proof                                | when touching schema/migrations              |
+| `pnpm verify:i18n` / `:theme` / `:seo` / `:a11y` | those subsystems                                               | when touching them                           |
+| `pnpm verify:e2e`                                | Playwright flows across 3 viewports                            | **locally before pushing** UI / flow changes |
+| `pnpm verify:all`                                | everything                                                     | before opening a PR                          |
 
 CI (`.github/workflows/ci.yml`) runs the fast tier (static, unit, api, i18n-theme) on every PR
-and gates merge on the `CI passed` check; the slow tiers (security, e2e) run on merge to `main`
-and nightly.
+and gates merge on the `CI passed` check; `security` also runs on merge to `main` and nightly.
+The Playwright **end-to-end suite is not in CI** — it is slow, needs a browser download and the
+full stack, and its failures are noisy. Run `pnpm verify:e2e` locally before pushing changes
+that touch the UI or a user flow.
 
 ## Housekeeping
 

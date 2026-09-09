@@ -5,7 +5,7 @@ on:
   push:
     branches: [main]
   schedule:
-    # Nightly full run (03:17 UTC) so the slow tiers stay green even between merges.
+    # Nightly security run (03:17 UTC) so it stays green even between merges.
     - cron: '17 3 * * *'
 
 concurrency:
@@ -101,7 +101,11 @@ jobs:
       - run: pnpm verify:theme
 
   # -------------------------------------------------------------------------
-  # Full tier — push to main + nightly. Slow suites, not a PR gate.
+  # Extended — push to main + nightly, not a PR gate.
+  # The Playwright end-to-end suite is deliberately NOT here: it is slow, needs
+  # a browser download and the full app stack, and its failures are noisy. Run
+  # `pnpm verify:e2e` locally before pushing UI / flow changes instead
+  # (see CLAUDE.md · Verification map).
   # -------------------------------------------------------------------------
   security:
     name: Security suite
@@ -129,40 +133,6 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm build:packages
       - run: pnpm verify:security
-
-  e2e:
-    name: End-to-end (Playwright)
-    if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: carrental
-          POSTGRES_PASSWORD: carrental
-          POSTGRES_DB: carrental_test
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd "pg_isready -U carrental" --health-interval 10s
-          --health-timeout 5s --health-retries 10
-      redis:
-        image: redis:7
-        ports: ['6379:6379']
-        options: >-
-          --health-cmd "redis-cli ping" --health-interval 10s
-          --health-timeout 5s --health-retries 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/setup
-      - name: Install Playwright browsers
-        run: pnpm --filter @carrental/e2e exec playwright install --with-deps chromium
-      - run: pnpm verify:e2e
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: playwright-report
-          path: e2e/playwright-report/
-          retention-days: 7
 
   # Aggregate gate — branch protection points at this one check.
   ci-ok:
