@@ -4,6 +4,8 @@ import { useI18n } from '@carrental/i18n/react';
 import { Car } from 'lucide-react';
 import Link from 'next/link';
 
+import { openCookiePreferences } from '../lib/consent';
+
 export function SiteFooter({ locale }: { locale: string }) {
   const { t } = useI18n();
   const year = new Date().getFullYear();
@@ -30,6 +32,7 @@ export function SiteFooter({ locale }: { locale: string }) {
       links: [
         { href: `/${locale}/legal/terms`, label: t('site.footer.terms') },
         { href: `/${locale}/legal/privacy`, label: t('site.footer.privacy') },
+        { href: `/${locale}/legal/cookies`, label: t('site.footer.cookies') },
       ],
     },
   ];
@@ -74,7 +77,16 @@ export function SiteFooter({ locale }: { locale: string }) {
           <span>
             © {year} {t('app.name')}. {t('site.footer.rights')}
           </span>
-          <span>{t('site.footer.demoNote')}</span>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <button
+              type="button"
+              onClick={openCookiePreferences}
+              className="underline underline-offset-2 transition-colors hover:text-brand"
+            >
+              {t('site.footer.cookieSettings')}
+            </button>
+            <span>{t('site.footer.demoNote')}</span>
+          </div>
         </div>
       </div>
     </footer>

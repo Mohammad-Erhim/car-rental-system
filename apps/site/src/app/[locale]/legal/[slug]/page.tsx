@@ -7,8 +7,13 @@ import { ACTIVE_LOCALES, getT } from '../../../../lib/i18n';
 import { getPagesConfig, pageBlocks } from '../../../../lib/pages-config';
 import { buildMetadata } from '../../../../lib/seo';
 
-const SLUGS = ['terms', 'privacy'] as const;
+const SLUGS = ['terms', 'privacy', 'cookies'] as const;
 type Slug = (typeof SLUGS)[number];
+const PAGE_KEY_BY_SLUG: Record<Slug, 'legal-terms' | 'legal-privacy' | 'legal-cookies'> = {
+  terms: 'legal-terms',
+  privacy: 'legal-privacy',
+  cookies: 'legal-cookies',
+};
 
 export function generateStaticParams() {
   return ACTIVE_LOCALES.flatMap((locale) => SLUGS.map((slug) => ({ locale, slug })));
@@ -53,12 +58,10 @@ export default async function LegalPage({
   const preview = searchParams?.preview === '1';
   const t = await getT(locale);
   const config = await getPagesConfig();
-  const blocks = pageBlocks(config, slug === 'terms' ? 'legal-terms' : 'legal-privacy');
+  const blocks = pageBlocks(config, PAGE_KEY_BY_SLUG[slug as Slug]);
 
   if (preview) {
-    return (
-      <PreviewBridge initialBlocks={blocks} locale={locale} categories={[]} locations={[]} />
-    );
+    return <PreviewBridge initialBlocks={blocks} locale={locale} categories={[]} locations={[]} />;
   }
   return (
     <BlockRenderer

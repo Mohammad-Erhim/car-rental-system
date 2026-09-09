@@ -80,6 +80,7 @@ const PAGE_NAME_KEY: Record<PageKey, string> = {
   help: 'help',
   'legal-terms': 'legalTerms',
   'legal-privacy': 'legalPrivacy',
+  'legal-cookies': 'legalCookies',
 };
 
 const selectClass = 'h-9 w-full rounded-md border bg-background px-2 text-sm';
@@ -88,9 +89,7 @@ const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
 /** Deep-map every string value in a JSON-serialisable tree. */
 function mapStrings<T>(node: T, fn: (s: string) => string): T {
-  return JSON.parse(
-    JSON.stringify(node, (_k, v) => (typeof v === 'string' ? fn(v) : v)),
-  ) as T;
+  return JSON.parse(JSON.stringify(node, (_k, v) => (typeof v === 'string' ? fn(v) : v))) as T;
 }
 const ASSET_URL_RE = /^(?:https?:\/\/[^/]+)?\/api\/v1\/assets\/([A-Za-z0-9._/-]+)\?/;
 /** `/api/v1/assets/<key>?…` (or `obj:<key>`) → `obj:<key>`; anything else unchanged. */
@@ -1059,7 +1058,9 @@ function AnnouncementPanel({
   const base: Announcement = value ?? zAnnouncement.parse({ message: { en: '' } });
   const set = (patch: Partial<Announcement>) => onChange({ ...base, ...patch });
   const msg = (base.message as Record<string, string | undefined>)[locale] ?? '';
-  const ctaLabel = base.cta ? (base.cta.label as Record<string, string | undefined>)[locale] ?? '' : '';
+  const ctaLabel = base.cta
+    ? ((base.cta.label as Record<string, string | undefined>)[locale] ?? '')
+    : '';
 
   return (
     <Card>
@@ -1250,9 +1251,7 @@ function ColoursPanel({
                 aria-pressed={activePreset?.id === p.id}
                 title={p.description}
                 className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs ${
-                  activePreset?.id === p.id
-                    ? 'border-primary bg-primary/5'
-                    : 'hover:border-primary'
+                  activePreset?.id === p.id ? 'border-primary bg-primary/5' : 'hover:border-primary'
                 }`}
                 onClick={() => onChange({ ...value, colors: clone(p.config.colors) })}
               >

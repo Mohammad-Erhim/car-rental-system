@@ -304,10 +304,14 @@ export class ConfigVersionService {
         out.push(
           `${pageKey}: ${visible.length}/${page.blocks.length} blocks visible — ${kinds.join(', ')}`,
         );
-        out.push(`${pageKey}: translated fr ${localeCoverage('fr')}% · ar ${localeCoverage('ar')}%`);
+        out.push(
+          `${pageKey}: translated fr ${localeCoverage('fr')}% · ar ${localeCoverage('ar')}%`,
+        );
         if (!hasH1) out.push(`${pageKey}: no heading block visible — the page will have no <h1>.`);
         if (pageKey === 'home' && !kinds.includes('search-card')) {
-          out.push(`${pageKey}: the search block is hidden — customers can't start a booking here.`);
+          out.push(
+            `${pageKey}: the search block is hidden — customers can't start a booking here.`,
+          );
         }
       }
       return { examples: out };
@@ -374,7 +378,8 @@ export class ConfigVersionService {
         for (const [pageKey, page] of Object.entries(parsed.data.pages)) {
           const ids = new Set<string>();
           for (const bl of page.blocks) {
-            if (ids.has(bl.id)) issues.push({ path: `${pageKey}.${bl.id}`, code: 'duplicate_block_id' });
+            if (ids.has(bl.id))
+              issues.push({ path: `${pageKey}.${bl.id}`, code: 'duplicate_block_id' });
             ids.add(bl.id);
             if (bl.type === 'image' && !bl.hidden) {
               const p = bl.props as { src?: string; alt?: { en?: string }; decorative?: boolean };
@@ -393,9 +398,7 @@ export class ConfigVersionService {
             }
             const wantsFleet = page.blocks.some(
               (bl) =>
-                !bl.hidden &&
-                JSON.stringify(bl.props).includes('#fleet') &&
-                bl.type !== 'fleet',
+                !bl.hidden && JSON.stringify(bl.props).includes('#fleet') && bl.type !== 'fleet',
             );
             const hasFleet = page.blocks.some((bl) => bl.type === 'fleet' && !bl.hidden);
             if (wantsFleet && !hasFleet) {

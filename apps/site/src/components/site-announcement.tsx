@@ -16,7 +16,9 @@ const VARIANT_CLASS: Record<Announcement['variant'], string> = {
 };
 
 function isPreview() {
-  return typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('preview');
+  return (
+    typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('preview')
+  );
 }
 
 /**

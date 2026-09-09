@@ -3,6 +3,7 @@ export * from './errors';
 export * from './problem';
 export * from './meta';
 export * from './pages';
+export * from './consent';
 export * from './auth';
 export * from './account';
 export * from './lookup';

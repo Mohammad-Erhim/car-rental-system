@@ -38,9 +38,7 @@ export default async function HelpPage({
   const blocks = pageBlocks(config, 'help');
 
   if (preview) {
-    return (
-      <PreviewBridge initialBlocks={blocks} locale={locale} categories={[]} locations={[]} />
-    );
+    return <PreviewBridge initialBlocks={blocks} locale={locale} categories={[]} locations={[]} />;
   }
   return (
     <BlockRenderer

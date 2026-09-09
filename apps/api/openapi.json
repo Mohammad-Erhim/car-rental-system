@@ -2943,6 +2943,28 @@
         ]
       }
     },
+    "/api/v1/meta/pages": {
+      "get": {
+        "operationId": "meta_getPages",
+        "summary": "Published page-builder config for the public site",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PagesResponseDto"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "meta"
+        ]
+      }
+    },
     "/api/v1/meta/translations": {
       "get": {
         "operationId": "meta_getTranslations",
@@ -2973,6 +2995,31 @@
                 }
               }
             }
+          }
+        },
+        "tags": [
+          "meta"
+        ]
+      }
+    },
+    "/api/v1/consent": {
+      "post": {
+        "operationId": "consent_submit",
+        "summary": "Record a cookie/privacy consent choice (public)",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsentSubmitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": ""
           }
         },
         "tags": [
@@ -3538,6 +3585,2039 @@
           "updatedAt"
         ]
       },
+      "PagesResponseDto": {
+        "type": "object",
+        "properties": {
+          "config": {
+            "type": "object",
+            "properties": {
+              "version": {
+                "type": "number",
+                "minimum": 1,
+                "maximum": 1,
+                "default": 1
+              },
+              "pages": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "blocks": {
+                      "type": "array",
+                      "maxItems": 40,
+                      "items": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              "hidden": {
+                                "type": "boolean",
+                                "default": false
+                              },
+                              "tone": {
+                                "type": "string",
+                                "enum": [
+                                  "default",
+                                  "muted",
+                                  "brand"
+                                ],
+                                "default": "default"
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "hero"
+                                ]
+                              },
+                              "props": {
+                                "type": "object",
+                                "properties": {
+                                  "eyebrow": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "title": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "subtitle": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 400
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 400
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 400
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "rating": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 80
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 80
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 80
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "primaryCta": {
+                                    "type": "object",
+                                    "properties": {
+                                      "label": {
+                                        "type": "object",
+                                        "properties": {
+                                          "en": {
+                                            "type": "string",
+                                            "maxLength": 60
+                                          },
+                                          "fr": {
+                                            "type": "string",
+                                            "maxLength": 60
+                                          },
+                                          "ar": {
+                                            "type": "string",
+                                            "maxLength": 60
+                                          }
+                                        },
+                                        "required": [
+                                          "en"
+                                        ]
+                                      },
+                                      "href": {
+                                        "type": "string",
+                                        "maxLength": 300
+                                      }
+                                    },
+                                    "required": [
+                                      "label",
+                                      "href"
+                                    ]
+                                  },
+                                  "secondaryCta": {
+                                    "type": "object",
+                                    "properties": {
+                                      "label": {
+                                        "type": "object",
+                                        "properties": {
+                                          "en": {
+                                            "type": "string",
+                                            "maxLength": 60
+                                          },
+                                          "fr": {
+                                            "type": "string",
+                                            "maxLength": 60
+                                          },
+                                          "ar": {
+                                            "type": "string",
+                                            "maxLength": 60
+                                          }
+                                        },
+                                        "required": [
+                                          "en"
+                                        ]
+                                      },
+                                      "href": {
+                                        "type": "string",
+                                        "maxLength": 300
+                                      }
+                                    },
+                                    "required": [
+                                      "label",
+                                      "href"
+                                    ],
+                                    "nullable": true
+                                  },
+                                  "trustItems": {
+                                    "type": "array",
+                                    "maxItems": 4,
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "en": {
+                                          "type": "string",
+                                          "maxLength": 80
+                                        },
+                                        "fr": {
+                                          "type": "string",
+                                          "maxLength": 80
+                                        },
+                                        "ar": {
+                                          "type": "string",
+                                          "maxLength": 80
+                                        }
+                                      },
+                                      "required": [
+                                        "en"
+                                      ]
+                                    },
+                                    "default": []
+                                  },
+                                  "background": {
+                                    "type": "string",
+                                    "maxLength": 512,
+                                    "pattern": "^(obj:[A-Za-z0-9._/-]+|https:\\/\\/\\S+|\\/api\\/v1\\/assets\\/\\S+)$",
+                                    "nullable": true,
+                                    "default": null
+                                  },
+                                  "overlayOpacity": {
+                                    "type": "number",
+                                    "minimum": 0,
+                                    "exclusiveMinimum": false,
+                                    "maximum": 0.9,
+                                    "exclusiveMaximum": false,
+                                    "default": 0.4
+                                  },
+                                  "textAlign": {
+                                    "type": "string",
+                                    "enum": [
+                                      "center",
+                                      "start"
+                                    ],
+                                    "default": "center"
+                                  }
+                                },
+                                "default": {}
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              "hidden": {
+                                "type": "boolean",
+                                "default": false
+                              },
+                              "tone": {
+                                "type": "string",
+                                "enum": [
+                                  "default",
+                                  "muted",
+                                  "brand"
+                                ],
+                                "default": "default"
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "search-card"
+                                ]
+                              },
+                              "props": {
+                                "type": "object",
+                                "properties": {
+                                  "title": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "hint": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 180
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 180
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 180
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  }
+                                },
+                                "default": {}
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              "hidden": {
+                                "type": "boolean",
+                                "default": false
+                              },
+                              "tone": {
+                                "type": "string",
+                                "enum": [
+                                  "default",
+                                  "muted",
+                                  "brand"
+                                ],
+                                "default": "default"
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "trust-bar"
+                                ]
+                              },
+                              "props": {
+                                "type": "object",
+                                "properties": {
+                                  "items": {
+                                    "type": "array",
+                                    "maxItems": 6,
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "icon": {
+                                          "type": "string",
+                                          "enum": [
+                                            "BadgeCheck",
+                                            "Wallet",
+                                            "Clock",
+                                            "MapPinned",
+                                            "ShieldCheck",
+                                            "Receipt",
+                                            "Gauge",
+                                            "RefreshCw",
+                                            "Search",
+                                            "ListChecks",
+                                            "CarFront",
+                                            "Sparkles",
+                                            "CalendarCheck",
+                                            "CalendarClock",
+                                            "MapPin",
+                                            "Star",
+                                            "PhoneCall",
+                                            "LifeBuoy",
+                                            "Users",
+                                            "Briefcase",
+                                            "Cog",
+                                            "Zap",
+                                            "Gift",
+                                            "Fuel",
+                                            "Snowflake",
+                                            "Baby",
+                                            "Route",
+                                            "Headset"
+                                          ]
+                                        },
+                                        "title": {
+                                          "type": "object",
+                                          "properties": {
+                                            "en": {
+                                              "type": "string",
+                                              "maxLength": 80
+                                            },
+                                            "fr": {
+                                              "type": "string",
+                                              "maxLength": 80
+                                            },
+                                            "ar": {
+                                              "type": "string",
+                                              "maxLength": 80
+                                            }
+                                          },
+                                          "required": [
+                                            "en"
+                                          ]
+                                        },
+                                        "text": {
+                                          "type": "object",
+                                          "properties": {
+                                            "en": {
+                                              "type": "string",
+                                              "maxLength": 220
+                                            },
+                                            "fr": {
+                                              "type": "string",
+                                              "maxLength": 220
+                                            },
+                                            "ar": {
+                                              "type": "string",
+                                              "maxLength": 220
+                                            }
+                                          },
+                                          "required": [
+                                            "en"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "icon",
+                                        "title",
+                                        "text"
+                                      ]
+                                    },
+                                    "default": []
+                                  }
+                                },
+                                "default": {}
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              "hidden": {
+                                "type": "boolean",
+                                "default": false
+                              },
+                              "tone": {
+                                "type": "string",
+                                "enum": [
+                                  "default",
+                                  "muted",
+                                  "brand"
+                                ],
+                                "default": "default"
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "feature-grid"
+                                ]
+                              },
+                              "props": {
+                                "type": "object",
+                                "properties": {
+                                  "eyebrow": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "title": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "subtitle": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 320
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 320
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 320
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "columns": {
+                                    "type": "string",
+                                    "enum": [
+                                      "2",
+                                      "3",
+                                      "4"
+                                    ],
+                                    "default": "4"
+                                  },
+                                  "items": {
+                                    "type": "array",
+                                    "maxItems": 8,
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "icon": {
+                                          "type": "string",
+                                          "enum": [
+                                            "BadgeCheck",
+                                            "Wallet",
+                                            "Clock",
+                                            "MapPinned",
+                                            "ShieldCheck",
+                                            "Receipt",
+                                            "Gauge",
+                                            "RefreshCw",
+                                            "Search",
+                                            "ListChecks",
+                                            "CarFront",
+                                            "Sparkles",
+                                            "CalendarCheck",
+                                            "CalendarClock",
+                                            "MapPin",
+                                            "Star",
+                                            "PhoneCall",
+                                            "LifeBuoy",
+                                            "Users",
+                                            "Briefcase",
+                                            "Cog",
+                                            "Zap",
+                                            "Gift",
+                                            "Fuel",
+                                            "Snowflake",
+                                            "Baby",
+                                            "Route",
+                                            "Headset"
+                                          ]
+                                        },
+                                        "title": {
+                                          "type": "object",
+                                          "properties": {
+                                            "en": {
+                                              "type": "string",
+                                              "maxLength": 80
+                                            },
+                                            "fr": {
+                                              "type": "string",
+                                              "maxLength": 80
+                                            },
+                                            "ar": {
+                                              "type": "string",
+                                              "maxLength": 80
+                                            }
+                                          },
+                                          "required": [
+                                            "en"
+                                          ]
+                                        },
+                                        "text": {
+                                          "type": "object",
+                                          "properties": {
+                                            "en": {
+                                              "type": "string",
+                                              "maxLength": 260
+                                            },
+                                            "fr": {
+                                              "type": "string",
+                                              "maxLength": 260
+                                            },
+                                            "ar": {
+                                              "type": "string",
+                                              "maxLength": 260
+                                            }
+                                          },
+                                          "required": [
+                                            "en"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "icon",
+                                        "title",
+                                        "text"
+                                      ]
+                                    },
+                                    "default": []
+                                  }
+                                },
+                                "default": {}
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              "hidden": {
+                                "type": "boolean",
+                                "default": false
+                              },
+                              "tone": {
+                                "type": "string",
+                                "enum": [
+                                  "default",
+                                  "muted",
+                                  "brand"
+                                ],
+                                "default": "default"
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "steps"
+                                ]
+                              },
+                              "props": {
+                                "type": "object",
+                                "properties": {
+                                  "eyebrow": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "title": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "items": {
+                                    "type": "array",
+                                    "maxItems": 6,
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "icon": {
+                                          "type": "string",
+                                          "enum": [
+                                            "BadgeCheck",
+                                            "Wallet",
+                                            "Clock",
+                                            "MapPinned",
+                                            "ShieldCheck",
+                                            "Receipt",
+                                            "Gauge",
+                                            "RefreshCw",
+                                            "Search",
+                                            "ListChecks",
+                                            "CarFront",
+                                            "Sparkles",
+                                            "CalendarCheck",
+                                            "CalendarClock",
+                                            "MapPin",
+                                            "Star",
+                                            "PhoneCall",
+                                            "LifeBuoy",
+                                            "Users",
+                                            "Briefcase",
+                                            "Cog",
+                                            "Zap",
+                                            "Gift",
+                                            "Fuel",
+                                            "Snowflake",
+                                            "Baby",
+                                            "Route",
+                                            "Headset"
+                                          ]
+                                        },
+                                        "title": {
+                                          "type": "object",
+                                          "properties": {
+                                            "en": {
+                                              "type": "string",
+                                              "maxLength": 80
+                                            },
+                                            "fr": {
+                                              "type": "string",
+                                              "maxLength": 80
+                                            },
+                                            "ar": {
+                                              "type": "string",
+                                              "maxLength": 80
+                                            }
+                                          },
+                                          "required": [
+                                            "en"
+                                          ]
+                                        },
+                                        "text": {
+                                          "type": "object",
+                                          "properties": {
+                                            "en": {
+                                              "type": "string",
+                                              "maxLength": 260
+                                            },
+                                            "fr": {
+                                              "type": "string",
+                                              "maxLength": 260
+                                            },
+                                            "ar": {
+                                              "type": "string",
+                                              "maxLength": 260
+                                            }
+                                          },
+                                          "required": [
+                                            "en"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "icon",
+                                        "title",
+                                        "text"
+                                      ]
+                                    },
+                                    "default": []
+                                  }
+                                },
+                                "default": {}
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              "hidden": {
+                                "type": "boolean",
+                                "default": false
+                              },
+                              "tone": {
+                                "type": "string",
+                                "enum": [
+                                  "default",
+                                  "muted",
+                                  "brand"
+                                ],
+                                "default": "default"
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "stats"
+                                ]
+                              },
+                              "props": {
+                                "type": "object",
+                                "properties": {
+                                  "title": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "autoLocations": {
+                                    "type": "boolean",
+                                    "default": true
+                                  },
+                                  "items": {
+                                    "type": "array",
+                                    "maxItems": 4,
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "value": {
+                                          "type": "string",
+                                          "maxLength": 16
+                                        },
+                                        "label": {
+                                          "type": "object",
+                                          "properties": {
+                                            "en": {
+                                              "type": "string",
+                                              "maxLength": 60
+                                            },
+                                            "fr": {
+                                              "type": "string",
+                                              "maxLength": 60
+                                            },
+                                            "ar": {
+                                              "type": "string",
+                                              "maxLength": 60
+                                            }
+                                          },
+                                          "required": [
+                                            "en"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "value",
+                                        "label"
+                                      ]
+                                    },
+                                    "default": []
+                                  }
+                                },
+                                "default": {}
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              "hidden": {
+                                "type": "boolean",
+                                "default": false
+                              },
+                              "tone": {
+                                "type": "string",
+                                "enum": [
+                                  "default",
+                                  "muted",
+                                  "brand"
+                                ],
+                                "default": "default"
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "testimonials"
+                                ]
+                              },
+                              "props": {
+                                "type": "object",
+                                "properties": {
+                                  "eyebrow": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "title": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "items": {
+                                    "type": "array",
+                                    "maxItems": 6,
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "name": {
+                                          "type": "string",
+                                          "maxLength": 80
+                                        },
+                                        "role": {
+                                          "type": "object",
+                                          "properties": {
+                                            "en": {
+                                              "type": "string",
+                                              "maxLength": 80
+                                            },
+                                            "fr": {
+                                              "type": "string",
+                                              "maxLength": 80
+                                            },
+                                            "ar": {
+                                              "type": "string",
+                                              "maxLength": 80
+                                            }
+                                          },
+                                          "required": [
+                                            "en"
+                                          ]
+                                        },
+                                        "quote": {
+                                          "type": "object",
+                                          "properties": {
+                                            "en": {
+                                              "type": "string",
+                                              "maxLength": 400
+                                            },
+                                            "fr": {
+                                              "type": "string",
+                                              "maxLength": 400
+                                            },
+                                            "ar": {
+                                              "type": "string",
+                                              "maxLength": 400
+                                            }
+                                          },
+                                          "required": [
+                                            "en"
+                                          ]
+                                        },
+                                        "rating": {
+                                          "type": "integer",
+                                          "minimum": 1,
+                                          "exclusiveMinimum": false,
+                                          "maximum": 5,
+                                          "exclusiveMaximum": false,
+                                          "default": 5
+                                        }
+                                      },
+                                      "required": [
+                                        "name",
+                                        "role",
+                                        "quote"
+                                      ]
+                                    },
+                                    "default": []
+                                  }
+                                },
+                                "default": {}
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              "hidden": {
+                                "type": "boolean",
+                                "default": false
+                              },
+                              "tone": {
+                                "type": "string",
+                                "enum": [
+                                  "default",
+                                  "muted",
+                                  "brand"
+                                ],
+                                "default": "default"
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "locations"
+                                ]
+                              },
+                              "props": {
+                                "type": "object",
+                                "properties": {
+                                  "eyebrow": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "title": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "subtitle": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 320
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 320
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 320
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "ctaLabel": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 60
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 60
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 60
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "limit": {
+                                    "type": "integer",
+                                    "minimum": 1,
+                                    "exclusiveMinimum": false,
+                                    "maximum": 12,
+                                    "exclusiveMaximum": false,
+                                    "default": 8
+                                  }
+                                },
+                                "default": {}
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              "hidden": {
+                                "type": "boolean",
+                                "default": false
+                              },
+                              "tone": {
+                                "type": "string",
+                                "enum": [
+                                  "default",
+                                  "muted",
+                                  "brand"
+                                ],
+                                "default": "default"
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "faq"
+                                ]
+                              },
+                              "props": {
+                                "type": "object",
+                                "properties": {
+                                  "eyebrow": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "title": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "ctaLabel": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 60
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 60
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 60
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "ctaHref": {
+                                    "type": "string",
+                                    "maxLength": 300
+                                  },
+                                  "items": {
+                                    "type": "array",
+                                    "maxItems": 20,
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "q": {
+                                          "type": "object",
+                                          "properties": {
+                                            "en": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "fr": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            },
+                                            "ar": {
+                                              "type": "string",
+                                              "maxLength": 200
+                                            }
+                                          },
+                                          "required": [
+                                            "en"
+                                          ]
+                                        },
+                                        "a": {
+                                          "type": "object",
+                                          "properties": {
+                                            "en": {
+                                              "type": "string",
+                                              "maxLength": 1200
+                                            },
+                                            "fr": {
+                                              "type": "string",
+                                              "maxLength": 1200
+                                            },
+                                            "ar": {
+                                              "type": "string",
+                                              "maxLength": 1200
+                                            }
+                                          },
+                                          "required": [
+                                            "en"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "q",
+                                        "a"
+                                      ]
+                                    },
+                                    "default": []
+                                  }
+                                },
+                                "default": {}
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              "hidden": {
+                                "type": "boolean",
+                                "default": false
+                              },
+                              "tone": {
+                                "type": "string",
+                                "enum": [
+                                  "default",
+                                  "muted",
+                                  "brand"
+                                ],
+                                "default": "default"
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "cta"
+                                ]
+                              },
+                              "props": {
+                                "type": "object",
+                                "properties": {
+                                  "title": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "subtitle": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 400
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 400
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 400
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "primary": {
+                                    "type": "object",
+                                    "properties": {
+                                      "label": {
+                                        "type": "object",
+                                        "properties": {
+                                          "en": {
+                                            "type": "string",
+                                            "maxLength": 60
+                                          },
+                                          "fr": {
+                                            "type": "string",
+                                            "maxLength": 60
+                                          },
+                                          "ar": {
+                                            "type": "string",
+                                            "maxLength": 60
+                                          }
+                                        },
+                                        "required": [
+                                          "en"
+                                        ]
+                                      },
+                                      "href": {
+                                        "type": "string",
+                                        "maxLength": 300
+                                      }
+                                    },
+                                    "required": [
+                                      "label",
+                                      "href"
+                                    ]
+                                  },
+                                  "secondary": {
+                                    "type": "object",
+                                    "properties": {
+                                      "label": {
+                                        "type": "object",
+                                        "properties": {
+                                          "en": {
+                                            "type": "string",
+                                            "maxLength": 60
+                                          },
+                                          "fr": {
+                                            "type": "string",
+                                            "maxLength": 60
+                                          },
+                                          "ar": {
+                                            "type": "string",
+                                            "maxLength": 60
+                                          }
+                                        },
+                                        "required": [
+                                          "en"
+                                        ]
+                                      },
+                                      "href": {
+                                        "type": "string",
+                                        "maxLength": 300
+                                      }
+                                    },
+                                    "required": [
+                                      "label",
+                                      "href"
+                                    ],
+                                    "nullable": true
+                                  }
+                                },
+                                "default": {}
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              "hidden": {
+                                "type": "boolean",
+                                "default": false
+                              },
+                              "tone": {
+                                "type": "string",
+                                "enum": [
+                                  "default",
+                                  "muted",
+                                  "brand"
+                                ],
+                                "default": "default"
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "fleet"
+                                ]
+                              },
+                              "props": {
+                                "type": "object",
+                                "properties": {
+                                  "eyebrow": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "title": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "subtitle": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 320
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 320
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 320
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "emptyTitle": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "emptyText": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 260
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 260
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 260
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "ctaLabel": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 60
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 60
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 60
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "limit": {
+                                    "type": "integer",
+                                    "minimum": 3,
+                                    "exclusiveMinimum": false,
+                                    "maximum": 12,
+                                    "exclusiveMaximum": false,
+                                    "default": 9
+                                  }
+                                },
+                                "default": {}
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              "hidden": {
+                                "type": "boolean",
+                                "default": false
+                              },
+                              "tone": {
+                                "type": "string",
+                                "enum": [
+                                  "default",
+                                  "muted",
+                                  "brand"
+                                ],
+                                "default": "default"
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "rich-text"
+                                ]
+                              },
+                              "props": {
+                                "type": "object",
+                                "properties": {
+                                  "eyebrow": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 120
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "heading": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 160
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "body": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 6000
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 6000
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 6000
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "align": {
+                                    "type": "string",
+                                    "enum": [
+                                      "start",
+                                      "center"
+                                    ],
+                                    "default": "start"
+                                  },
+                                  "maxWidth": {
+                                    "type": "string",
+                                    "enum": [
+                                      "prose",
+                                      "wide"
+                                    ],
+                                    "default": "prose"
+                                  }
+                                },
+                                "required": [
+                                  "body"
+                                ],
+                                "default": {
+                                  "body": {
+                                    "en": ""
+                                  }
+                                }
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type"
+                            ]
+                          },
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 40
+                              },
+                              "hidden": {
+                                "type": "boolean",
+                                "default": false
+                              },
+                              "tone": {
+                                "type": "string",
+                                "enum": [
+                                  "default",
+                                  "muted",
+                                  "brand"
+                                ],
+                                "default": "default"
+                              },
+                              "type": {
+                                "type": "string",
+                                "enum": [
+                                  "image"
+                                ]
+                              },
+                              "props": {
+                                "type": "object",
+                                "properties": {
+                                  "src": {
+                                    "type": "string",
+                                    "maxLength": 512,
+                                    "pattern": "^(obj:[A-Za-z0-9._/-]+|https:\\/\\/\\S+|\\/api\\/v1\\/assets\\/\\S+)$"
+                                  },
+                                  "alt": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "caption": {
+                                    "type": "object",
+                                    "properties": {
+                                      "en": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                      },
+                                      "fr": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                      },
+                                      "ar": {
+                                        "type": "string",
+                                        "maxLength": 200
+                                      }
+                                    },
+                                    "required": [
+                                      "en"
+                                    ]
+                                  },
+                                  "width": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "exclusiveMinimum": true,
+                                    "nullable": true,
+                                    "default": null
+                                  },
+                                  "height": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "exclusiveMinimum": true,
+                                    "nullable": true,
+                                    "default": null
+                                  },
+                                  "maxWidth": {
+                                    "type": "string",
+                                    "enum": [
+                                      "prose",
+                                      "wide",
+                                      "full"
+                                    ],
+                                    "default": "wide"
+                                  },
+                                  "rounded": {
+                                    "type": "boolean",
+                                    "default": true
+                                  },
+                                  "decorative": {
+                                    "type": "boolean",
+                                    "default": false
+                                  }
+                                },
+                                "required": [
+                                  "src",
+                                  "alt"
+                                ],
+                                "default": {
+                                  "src": "obj:placeholder",
+                                  "alt": {
+                                    "en": ""
+                                  }
+                                }
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "type"
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "blocks"
+                  ]
+                }
+              },
+              "announcement": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "pattern": "^[A-Za-z0-9._-]+$",
+                    "default": "announcement"
+                  },
+                  "message": {
+                    "type": "object",
+                    "properties": {
+                      "en": {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "fr": {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "ar": {
+                        "type": "string",
+                        "maxLength": 200
+                      }
+                    },
+                    "required": [
+                      "en"
+                    ]
+                  },
+                  "cta": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": "object",
+                        "properties": {
+                          "en": {
+                            "type": "string",
+                            "maxLength": 60
+                          },
+                          "fr": {
+                            "type": "string",
+                            "maxLength": 60
+                          },
+                          "ar": {
+                            "type": "string",
+                            "maxLength": 60
+                          }
+                        },
+                        "required": [
+                          "en"
+                        ]
+                      },
+                      "href": {
+                        "type": "string",
+                        "maxLength": 300
+                      }
+                    },
+                    "required": [
+                      "label",
+                      "href"
+                    ],
+                    "nullable": true,
+                    "default": null
+                  },
+                  "variant": {
+                    "type": "string",
+                    "enum": [
+                      "info",
+                      "success",
+                      "warning",
+                      "critical"
+                    ],
+                    "default": "info"
+                  },
+                  "dismissible": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                },
+                "required": [
+                  "message"
+                ]
+              }
+            },
+            "required": [
+              "pages"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": false
+          },
+          "updatedAt": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "config",
+          "revision",
+          "updatedAt"
+        ]
+      },
       "HealthSummaryDto": {
         "type": "object",
         "properties": {
@@ -3580,6 +5660,69 @@
           "status",
           "checkedAt",
           "components"
+        ]
+      },
+      "ConsentSubmitDto": {
+        "type": "object",
+        "properties": {
+          "anonymousId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "accept_all",
+              "reject_all",
+              "save_preferences",
+              "withdraw"
+            ]
+          },
+          "choices": {
+            "type": "object",
+            "properties": {
+              "necessary": {
+                "type": "boolean"
+              },
+              "functional": {
+                "type": "boolean"
+              },
+              "analytics": {
+                "type": "boolean"
+              },
+              "marketing": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "necessary",
+              "functional",
+              "analytics",
+              "marketing"
+            ]
+          },
+          "policyVersion": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9999,
+            "exclusiveMaximum": false
+          },
+          "locale": {
+            "type": "string",
+            "maxLength": 12
+          },
+          "page": {
+            "type": "string",
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "anonymousId",
+          "action",
+          "choices",
+          "policyVersion",
+          "locale"
         ]
       }
     }

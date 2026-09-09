@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 
+import { CookieConsent } from '../../components/cookie-consent';
 import { Providers } from '../../components/providers';
 import { SiteAnnouncement } from '../../components/site-announcement';
 import { SiteFooter } from '../../components/site-footer';
@@ -63,6 +64,7 @@ export default async function LocaleLayout({
             {children}
           </main>
           <SiteFooter locale={locale} />
+          <CookieConsent locale={locale} />
         </Providers>
       </body>
     </html>

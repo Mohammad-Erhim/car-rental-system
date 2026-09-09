@@ -7,6 +7,7 @@ import { useState, type ReactNode } from 'react';
 
 import { AuthProvider } from '../lib/auth-context';
 import type { Branding } from '../lib/branding';
+import { ConsentProvider } from '../lib/consent';
 import type { Messages } from '../lib/i18n';
 
 /** Client providers for the public site: i18n context, theme (light/dark + brand), react-query. */
@@ -40,7 +41,9 @@ export function Providers({
         >
           <AuthProvider>
             <ToastProvider>
-              <LocalisedUiStrings>{children}</LocalisedUiStrings>
+              <ConsentProvider locale={locale}>
+                <LocalisedUiStrings>{children}</LocalisedUiStrings>
+              </ConsentProvider>
             </ToastProvider>
           </AuthProvider>
         </I18nProvider>

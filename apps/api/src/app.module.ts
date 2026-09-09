@@ -10,6 +10,7 @@ import { DatabaseModule } from './database/database.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { BookingModule } from './modules/booking/booking.module';
 import { ConfigModule as DomainConfigModule } from './modules/config/config.module';
+import { ConsentModule } from './modules/consent/consent.module';
 import { CustomerModule } from './modules/customer/customer.module';
 import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { IamModule } from './modules/iam/iam.module';
@@ -40,6 +41,7 @@ import { ObservabilityModule } from './observability/observability.module';
     ReportModule,
     SearchModule,
     MetaModule,
+    ConsentModule,
   ],
   providers: [{ provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor }],
 })

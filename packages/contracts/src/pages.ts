@@ -293,7 +293,7 @@ export const zSitePage = z.object({
 export type SitePage = z.infer<typeof zSitePage>;
 
 /** Page keys the builder manages. `home` is fully block-driven; help/legal are prose. */
-export const PAGE_KEYS = ['home', 'help', 'legal-terms', 'legal-privacy'] as const;
+export const PAGE_KEYS = ['home', 'help', 'legal-terms', 'legal-privacy', 'legal-cookies'] as const;
 export type PageKey = (typeof PAGE_KEYS)[number];
 
 /** Public route for each managed page (used by the builder's preview iframe). */
@@ -302,6 +302,7 @@ export const PAGE_ROUTES: Record<PageKey, string> = {
   help: '/help',
   'legal-terms': '/legal/terms',
   'legal-privacy': '/legal/privacy',
+  'legal-cookies': '/legal/cookies',
 };
 
 /**
@@ -400,12 +401,12 @@ export const DEFAULT_PAGES_CONFIG: PagesConfig = zPagesConfig.parse({
           'body',
           {
             en: 'Terms of Service',
-            fr: "Conditions d’utilisation",
+            fr: 'Conditions d’utilisation',
             ar: 'شروط الخدمة',
           },
           {
             en: 'This is a demo environment. The text below is placeholder content.\n\nThese terms govern your use of the demo Car Rental service. All bookings, prices, and vehicles are simulated for demonstration purposes only.',
-            fr: "Ceci est un environnement de démonstration. Le texte ci-dessous est un contenu fictif.\n\nCes conditions régissent votre utilisation du service de démonstration de location de voitures. Toutes les réservations, tous les prix et tous les véhicules sont simulés à des fins de démonstration uniquement.",
+            fr: 'Ceci est un environnement de démonstration. Le texte ci-dessous est un contenu fictif.\n\nCes conditions régissent votre utilisation du service de démonstration de location de voitures. Toutes les réservations, tous les prix et tous les véhicules sont simulés à des fins de démonstration uniquement.',
             ar: 'هذه بيئة تجريبية. النص أدناه محتوى نائب.\n\nتحكم هذه الشروط استخدامك لخدمة تأجير السيارات التجريبية. جميع الحجوزات والأسعار والمركبات محاكاة لأغراض العرض فقط.',
           },
         ),
@@ -421,9 +422,26 @@ export const DEFAULT_PAGES_CONFIG: PagesConfig = zPagesConfig.parse({
             ar: 'سياسة الخصوصية',
           },
           {
-            en: 'This is a demo environment. The text below is placeholder content.\n\nThis demo stores only the data needed to simulate a booking flow. No real personal data should be entered.',
-            fr: "Ceci est un environnement de démonstration. Le texte ci-dessous est un contenu fictif.\n\nCette démo ne stocke que les données nécessaires pour simuler un parcours de réservation. N’entrez aucune donnée personnelle réelle.",
-            ar: 'هذه بيئة تجريبية. النص أدناه محتوى نائب.\n\nتخزّن هذه النسخة التجريبية فقط البيانات اللازمة لمحاكاة مسار الحجز. لا تُدخِل بيانات شخصية حقيقية.',
+            en: 'This is a demo environment. The text below is placeholder content.\n\nThis demo stores only the data needed to simulate a booking flow. No real personal data should be entered.\n\n**What we collect.** Account details you provide (name, email), booking details you enter, and basic technical data (device, pages viewed). We do not sell personal data.\n\n**Cookies.** See the Cookie Policy for the categories we use and how to change your choice at any time.\n\n**Your rights.** You can request access to, correction of, or deletion of your data, and withdraw consent for optional cookies from the "Cookie settings" link in the footer.',
+            fr: 'Ceci est un environnement de démonstration. Le texte ci-dessous est un contenu fictif.\n\nCette démo ne stocke que les données nécessaires pour simuler un parcours de réservation. N’entrez aucune donnée personnelle réelle.\n\n**Ce que nous collectons.** Les informations de compte que vous fournissez (nom, e-mail), les détails de réservation que vous saisissez et des données techniques de base (appareil, pages consultées). Nous ne vendons pas de données personnelles.\n\n**Cookies.** Consultez la Politique relative aux cookies pour connaître les catégories utilisées et modifier votre choix à tout moment.\n\n**Vos droits.** Vous pouvez demander l’accès, la rectification ou la suppression de vos données, et retirer votre consentement aux cookies optionnels via le lien « Paramètres des cookies » en pied de page.',
+            ar: 'هذه بيئة تجريبية. النص أدناه محتوى نائب.\n\nتخزّن هذه النسخة التجريبية فقط البيانات اللازمة لمحاكاة مسار الحجز. لا تُدخِل بيانات شخصية حقيقية.\n\n**ما الذي نجمعه.** بيانات الحساب التي تقدّمها (الاسم، البريد الإلكتروني)، وتفاصيل الحجز التي تُدخلها، وبيانات تقنية أساسية (الجهاز، الصفحات المعروضة). نحن لا نبيع البيانات الشخصية.\n\n**ملفات تعريف الارتباط.** راجع سياسة ملفات تعريف الارتباط لمعرفة الفئات المستخدمة وكيفية تغيير اختيارك في أي وقت.\n\n**حقوقك.** يمكنك طلب الاطلاع على بياناتك أو تصحيحها أو حذفها، وسحب الموافقة على ملفات تعريف الارتباط الاختيارية من رابط «إعدادات ملفات تعريف الارتباط» في التذييل.',
+          },
+        ),
+      ],
+    },
+    'legal-cookies': {
+      blocks: [
+        richBlock(
+          'body',
+          {
+            en: 'Cookie Policy',
+            fr: 'Politique relative aux cookies',
+            ar: 'سياسة ملفات تعريف الارتباط',
+          },
+          {
+            en: 'This is a demo environment. The text below is placeholder content.\n\nWe use cookies and similar local storage to run the site and, with your consent, to improve it.\n\n**Strictly necessary** — sign-in, security, load balancing and remembering your cookie choice. Always on; no consent needed.\n\n**Functional** — remembers preferences such as language and recent searches.\n\n**Analytics** — anonymous, aggregated usage so we can see what to fix. Off until you allow it.\n\n**Marketing** — measures campaigns and tailors offers. Off until you allow it.\n\n**Changing your mind.** Use the "Cookie settings" link in the footer to review or withdraw consent at any time. Your choice is stored for 12 months and we ask again if this policy changes.',
+            fr: 'Ceci est un environnement de démonstration. Le texte ci-dessous est un contenu fictif.\n\nNous utilisons des cookies et un stockage local similaire pour faire fonctionner le site et, avec votre consentement, pour l’améliorer.\n\n**Strictement nécessaires** — connexion, sécurité, répartition de charge et mémorisation de votre choix de cookies. Toujours actifs ; aucun consentement requis.\n\n**Fonctionnels** — mémorisent des préférences comme la langue et les recherches récentes.\n\n**Analytiques** — usage anonyme et agrégé pour savoir quoi corriger. Désactivés tant que vous ne les autorisez pas.\n\n**Marketing** — mesurent les campagnes et personnalisent les offres. Désactivés tant que vous ne les autorisez pas.\n\n**Revenir sur votre choix.** Utilisez le lien « Paramètres des cookies » en pied de page pour revoir ou retirer votre consentement à tout moment. Votre choix est conservé 12 mois et nous vous redemandons si cette politique change.',
+            ar: 'هذه بيئة تجريبية. النص أدناه محتوى نائب.\n\nنستخدم ملفات تعريف الارتباط وتخزينًا محليًا مشابهًا لتشغيل الموقع، وبموافقتك، لتحسينه.\n\n**ضرورية للغاية** — تسجيل الدخول والأمان وتوزيع الحمل وتذكّر اختيارك لملفات تعريف الارتباط. مفعّلة دائمًا؛ لا تتطلب موافقة.\n\n**وظيفية** — تتذكّر تفضيلات مثل اللغة وعمليات البحث الأخيرة.\n\n**تحليلية** — استخدام مجهول ومجمّع لمعرفة ما ينبغي إصلاحه. معطّلة حتى تسمح بها.\n\n**تسويقية** — تقيس الحملات وتخصّص العروض. معطّلة حتى تسمح بها.\n\n**تغيير رأيك.** استخدم رابط «إعدادات ملفات تعريف الارتباط» في التذييل لمراجعة موافقتك أو سحبها في أي وقت. يُحفظ اختيارك لمدة 12 شهرًا ونسألك مجددًا إذا تغيّرت هذه السياسة.',
           },
         ),
       ],
