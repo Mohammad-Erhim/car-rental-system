@@ -40,6 +40,13 @@ export interface AuthProviderProps {
   children: ReactNode;
   /** Audience used when `signIn` is called without one. `apps/site` → 'customer'; ops → 'staff'. */
   defaultAudience?: Audience;
+  /**
+   * Push the signed-in actor's saved `localeCode` into the i18n context (FR-IAM-006). Default
+   * `true` — correct for the ops SPA, where the saved preference is the only locale source.
+   * `apps/site` sets this `false`: there the `/{locale}/…` URL segment owns the locale, and an
+   * authed customer viewing `/ar` must stay on Arabic regardless of their account default.
+   */
+  followActorLocale?: boolean;
 }
 
 /**
@@ -48,7 +55,11 @@ export interface AuthProviderProps {
  * sign-in/out sync, and following the actor's saved locale (FR-IAM-006). `apps/web` and
  * `apps/site` both mount this — only `defaultAudience` and the surrounding shell differ.
  */
-export function AuthProvider({ children, defaultAudience = 'customer' }: AuthProviderProps) {
+export function AuthProvider({
+  children,
+  defaultAudience = 'customer',
+  followActorLocale = true,
+}: AuthProviderProps) {
   const qc = useQueryClient();
   const { locale, setLocale } = useI18n();
   const [actor, setActor] = useState<Actor | null>(null);
@@ -144,7 +155,8 @@ export function AuthProvider({ children, defaultAudience = 'customer' }: AuthPro
 
   // A signed-in actor's saved locale preference follows them across sign-ins / devices
   // (FR-IAM-006). Only push when the actor's own value changes — never fight a switcher change
-  // the user made this session.
+  // the user made this session. Suppressed on surfaces where the URL owns the locale
+  // (`followActorLocale={false}` — apps/site).
   useEffect(() => {
     const next = actor?.localeCode;
     if (!next) {
@@ -153,9 +165,9 @@ export function AuthProvider({ children, defaultAudience = 'customer' }: AuthPro
     }
     if (next !== appliedActorLocale.current) {
       appliedActorLocale.current = next;
-      if (next !== locale) setLocale(next);
+      if (followActorLocale && next !== locale) setLocale(next);
     }
-  }, [actor, locale, setLocale]);
+  }, [actor, locale, setLocale, followActorLocale]);
 
   const signIn = useCallback<AuthContextValue['signIn']>(
     async ({ email, password, audience = defaultAudience }) => {

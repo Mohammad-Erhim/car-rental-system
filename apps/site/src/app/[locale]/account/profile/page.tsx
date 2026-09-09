@@ -16,6 +16,7 @@ import {
   Input,
   useToast,
 } from '@carrental/ui';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 
 import { useProfile, useUpdateProfile } from '../../../../lib/customer-hooks';
@@ -23,6 +24,7 @@ import { useProfile, useUpdateProfile } from '../../../../lib/customer-hooks';
 /** SCREEN-CUS-012 — profile & preferences (FR-IAM-006). Stale concurrent change → 409 → reload. */
 export default function ProfilePage() {
   const { t, locale, setLocale } = useI18n();
+  const router = useRouter();
   const { actor } = useAuth();
   const { data: profile, isLoading, isError, refetch } = useProfile(!!actor);
   const update = useUpdateProfile();
@@ -63,7 +65,11 @@ export default function ProfilePage() {
         patch: { fullName, localeCode, communicationPrefs: { marketingEmail } },
         version: profile!.version,
       });
-      if (next.localeCode !== locale) setLocale(next.localeCode);
+      if (next.localeCode !== locale) {
+        setLocale(next.localeCode);
+        // move the URL onto the new locale too, or a reload/Back would fall back to the old one
+        router.replace(`/${next.localeCode}/account/profile`);
+      }
       toast({ title: t('profile.saved'), description: t('profile.savedHint'), variant: 'success' });
     } catch (err) {
       if (
