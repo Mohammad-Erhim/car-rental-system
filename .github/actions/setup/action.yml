@@ -1,0 +1,18 @@
+name: Setup toolchain
+description: Checkout-adjacent setup — pnpm, Node (from .nvmrc), install with a warm store cache.
+
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+      with:
+        version: 9.15.0
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile

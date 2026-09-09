@@ -241,8 +241,18 @@ export class IamService {
     if (acc.status === 'closed') {
       throw new AppError('auth_invalid_credentials', { title: 'Email or password is incorrect' });
     }
-    if (input.audience === 'staff' && acc.kind !== 'staff') {
-      throw new AppError('forbidden', { title: 'This is not a staff account' });
+    // The surface a session is minted for must match the account kind — one email is one
+    // account of one kind, so there is no legitimate cross-surface sign-in. Rejecting both
+    // directions keeps a staff/admin account (and its permissions) off the customer site and a
+    // customer account out of the ops dashboard. The session is then always minted with an
+    // audience equal to acc.kind (see mintSession).
+    if (input.audience !== acc.kind) {
+      throw new AppError('forbidden', {
+        title:
+          input.audience === 'staff'
+            ? 'This is not a staff account. Use the customer site to sign in.'
+            : 'This is a staff account. Use the operations dashboard to sign in.',
+      });
     }
 
     // rehash if policy moved on
