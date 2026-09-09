@@ -8,6 +8,7 @@ import type { ReactNode } from 'react';
  */
 const WIDTH = {
   default: 'max-w-6xl',
+  lg: 'max-w-5xl',
   md: 'max-w-3xl',
   sm: 'max-w-md',
 } as const;

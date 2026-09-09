@@ -22,7 +22,7 @@ export async function generateMetadata({
 export default function AccountLayout({ children }: { children: ReactNode }) {
   return (
     <RequireAuth>
-      <SiteContainer size="md">
+      <SiteContainer size="lg">
         <AccountShell>{children}</AccountShell>
       </SiteContainer>
     </RequireAuth>

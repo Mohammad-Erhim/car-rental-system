@@ -1,5 +1,6 @@
 {
   "account.emailNotVerified": "البريد الإلكتروني غير مُوثَّق",
+  "account.memberLabel": "عضو",
   "account.noTripsYet": "لا توجد حجوزات بعد. ابدأ البحث من الصفحة الرئيسية.",
   "account.section.data": "طلبات البيانات وإغلاق الحساب",
   "account.section.dataHint": "الوصول والتصحيح وإغلاق الحساب",

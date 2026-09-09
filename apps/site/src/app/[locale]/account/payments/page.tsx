@@ -2,10 +2,10 @@
 
 import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
-import { AppStateView, Badge, Button, Card, CardContent } from '@carrental/ui';
-import Link from 'next/link';
+import { AppStateView, Badge } from '@carrental/ui';
 
-import { formatMinor, useMyReservations } from '../../../../lib/customer-hooks';
+import { ReservationCard } from '../../../../components/reservation-card';
+import { useMyReservations } from '../../../../lib/customer-hooks';
 import { useLocale } from '../../../../lib/nav';
 
 /** SCREEN-CUS-023 — payments & receipts: charges per booking; open a booking for the breakdown. */
@@ -17,8 +17,10 @@ export default function PaymentsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold">{t('payments.title')}</h1>
-      <p className="text-sm text-muted-foreground">{t('payments.intro')}</p>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-ink">{t('payments.title')}</h1>
+        <p className="mt-1 text-sm text-ink-muted">{t('payments.intro')}</p>
+      </div>
 
       {list.isLoading ? (
         <AppStateView kind="loading" inline title={t('state.loading.title')} />
@@ -35,31 +37,14 @@ export default function PaymentsPage() {
         <ul className="space-y-3" data-testid="payments-list">
           {list.data.map((r) => (
             <li key={r.reference}>
-              <Card>
-                <CardContent className="flex flex-wrap items-center justify-between gap-4 pt-6">
-                  <div className="space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="bidi-isolate font-mono font-semibold">{r.reference}</span>
-                      <Badge variant="neutral">{r.categoryCode}</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {new Date(r.pickupAt).toLocaleDateString(uiLocale)} –{' '}
-                      {new Date(r.returnAt).toLocaleDateString(uiLocale)}
-                    </p>
-                  </div>
-                  <div className="text-end">
-                    <p className="text-xs text-muted-foreground">{t('payments.charged')}</p>
-                    <p className="font-semibold">
-                      {formatMinor(r.totalMinor, r.currency, uiLocale)}
-                    </p>
-                    <Button asChild size="sm" variant="outline" className="mt-2">
-                      <Link href={`/${locale}/trips/${r.reference}`}>
-                        {t('payments.viewBooking')}
-                      </Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <ReservationCard
+                r={r}
+                uiLocale={uiLocale}
+                href={`/${locale}/trips/${r.reference}`}
+                actionLabel={t('payments.viewBooking')}
+                amountLabel={t('payments.charged')}
+                badge={<Badge variant="neutral">{r.categoryCode}</Badge>}
+              />
             </li>
           ))}
         </ul>

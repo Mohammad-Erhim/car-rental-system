@@ -1,5 +1,6 @@
 {
   "account.emailNotVerified": "E-mail non vérifié",
+  "account.memberLabel": "Membre",
   "account.noTripsYet": "Aucune réservation pour le moment. Lancez une recherche depuis l'accueil.",
   "account.section.data": "Demandes de données et clôture",
   "account.section.dataHint": "Accès, correction, clôture du compte",
