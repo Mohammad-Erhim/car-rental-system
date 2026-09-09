@@ -60,16 +60,21 @@ export function useFormErrors(fieldLabels: Record<string, string> = {}) {
 
   const clear = useCallback(() => setError(null), []);
 
+  // Callers pass `fieldLabels` as an inline object literal, so keying the memo on its identity
+  // would rebuild `summary` on every render — which re-fires <ErrorSummary>'s focus effect and
+  // steals the caret while the user is fixing a field. Key on its serialized value instead.
+  const labelsKey = JSON.stringify(fieldLabels);
   const summary = useMemo<FieldErrorItem[]>(() => {
     if (!error) return [];
+    const labels = JSON.parse(labelsKey) as Record<string, string>;
     if (error.fieldErrors.length) {
       return error.fieldErrors.map((f) => ({
         id: `field-${f.path.replace(/\W+/g, '-')}`,
-        message: `${fieldLabels[f.path] ?? humanize(f.path)}: ${errorText(f.code, f.params)}`,
+        message: `${labels[f.path] ?? humanize(f.path)}: ${errorText(f.code, f.params)}`,
       }));
     }
     return [{ id: 'form-error', message: error.message }];
-  }, [error, fieldLabels, errorText]);
+  }, [error, labelsKey, errorText]);
 
   const fieldError = useCallback(
     (path: string): string | null => {
