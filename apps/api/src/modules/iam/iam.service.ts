@@ -13,6 +13,7 @@ import type { Database } from '../../database/drizzle';
 import { customer } from '../../database/schema/customer';
 import { account, staffProfile } from '../../database/schema/iam';
 
+import { AccountRepo } from './account.repo';
 import { VerificationService } from './verification.service';
 
 const NEUTRAL = 'If an account matches, a message with the next step has been sent.';
@@ -34,6 +35,7 @@ export class IamService {
 
   constructor(
     @Inject(DB) private readonly db: Database,
+    private readonly accounts: AccountRepo,
     private readonly passwords: PasswordService,
     private readonly tokens: TokenService,
     private readonly sessions: SessionService,
@@ -54,11 +56,7 @@ export class IamService {
     marketingOptIn: boolean;
   }) {
     const emailNormalized = normEmail(input.email);
-    const [existing] = await this.db
-      .select({ id: account.id, kind: account.kind })
-      .from(account)
-      .where(eq(account.emailNormalized, emailNormalized))
-      .limit(1);
+    const existing = await this.accounts.findByEmailNormalized(emailNormalized);
 
     if (existing) {
       // Do not create a duplicate; route to sign-in / recovery (FR-IAM-001).
@@ -171,7 +169,7 @@ export class IamService {
   }
 
   async resendVerification(accountId: string) {
-    const [acc] = await this.db.select().from(account).where(eq(account.id, accountId)).limit(1);
+    const acc = await this.accounts.findById(accountId);
     if (!acc) throw new AppError('resource_not_found');
     if (acc.emailVerifiedAt) {
       return { message: 'Your email is already verified.', challengeId: null };
@@ -200,11 +198,7 @@ export class IamService {
     ctx: SessionCtx,
   ) {
     const emailNormalized = normEmail(input.email);
-    const [acc] = await this.db
-      .select()
-      .from(account)
-      .where(eq(account.emailNormalized, emailNormalized))
-      .limit(1);
+    const acc = await this.accounts.findByEmailNormalized(emailNormalized);
 
     // constant-ish work whether or not the account exists (no enumeration)
     const hash =
@@ -317,11 +311,7 @@ export class IamService {
 
   async startRecovery(email: string, audience: 'customer' | 'staff') {
     const emailNormalized = normEmail(email);
-    const [acc] = await this.db
-      .select()
-      .from(account)
-      .where(eq(account.emailNormalized, emailNormalized))
-      .limit(1);
+    const acc = await this.accounts.findByEmailNormalized(emailNormalized);
 
     if (acc && (audience !== 'staff' || acc.kind === 'staff') && acc.status !== 'closed') {
       const challenge = await this.verification.create({
@@ -390,7 +380,7 @@ export class IamService {
   }
 
   async changePassword(accountId: string, currentPassword: string, newPassword: string) {
-    const [acc] = await this.db.select().from(account).where(eq(account.id, accountId)).limit(1);
+    const acc = await this.accounts.findById(accountId);
     if (!acc?.passwordHash) throw new AppError('resource_not_found');
     const ok = await this.passwords.verify(acc.passwordHash, currentPassword);
     if (!ok) {
@@ -418,7 +408,7 @@ export class IamService {
    * no new tokens are minted and existing sessions are untouched.
    */
   async stepUp(accountId: string, password: string): Promise<{ ok: true }> {
-    const [acc] = await this.db.select().from(account).where(eq(account.id, accountId)).limit(1);
+    const acc = await this.accounts.findById(accountId);
     if (!acc) throw new AppError('auth_required');
     const ok = acc.passwordHash ? await this.passwords.verify(acc.passwordHash, password) : false;
     if (!ok) {
@@ -448,7 +438,7 @@ export class IamService {
   // --------------------------------------------------------------------- helpers
 
   private async mintSession(accountId: string, ctx: SessionCtx, _opts: { fullAuth: boolean }) {
-    const [acc] = await this.db.select().from(account).where(eq(account.id, accountId)).limit(1);
+    const acc = await this.accounts.findById(accountId);
     const issued = await this.sessions.issue({
       accountId,
       audience: acc!.kind as 'customer' | 'staff',
@@ -460,7 +450,7 @@ export class IamService {
   }
 
   private async buildSessionResponse(accountId: string, _issued: { refreshToken: string }) {
-    const [acc] = await this.db.select().from(account).where(eq(account.id, accountId)).limit(1);
+    const acc = await this.accounts.findById(accountId);
     if (!acc) throw new AppError('resource_not_found');
     const access = await this.tokens.signAccess({
       accountId: acc.id,

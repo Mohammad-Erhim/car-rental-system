@@ -4,8 +4,8 @@ import { eq } from 'drizzle-orm';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { customer } from '../../database/schema/customer';
-import { account } from '../../database/schema/iam';
 
+import { AccountRepo } from './account.repo';
 import { VerificationService } from './verification.service';
 
 /**
@@ -16,6 +16,7 @@ import { VerificationService } from './verification.service';
 export class IamPublic {
   constructor(
     @Inject(DB) private readonly db: Database,
+    private readonly accounts: AccountRepo,
     private readonly verification: VerificationService,
   ) {}
 
@@ -32,7 +33,7 @@ export class IamPublic {
   }
 
   async accountSummary(accountId: string) {
-    const [acc] = await this.db.select().from(account).where(eq(account.id, accountId)).limit(1);
+    const acc = await this.accounts.findById(accountId);
     if (!acc) return null;
     return {
       id: acc.id,

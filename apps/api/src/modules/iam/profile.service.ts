@@ -7,24 +7,21 @@ import type { Actor } from '../../common/auth/types';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { customer, driver, privacyRequest } from '../../database/schema/customer';
-import { account } from '../../database/schema/iam';
 
+import { AccountRepo } from './account.repo';
 import { VerificationService } from './verification.service';
 
 @Injectable()
 export class ProfileService {
   constructor(
     @Inject(DB) private readonly db: Database,
+    private readonly accounts: AccountRepo,
     private readonly audit: AuditService,
     private readonly verification: VerificationService,
   ) {}
 
   async getProfile(actor: Actor) {
-    const [acc] = await this.db
-      .select()
-      .from(account)
-      .where(eq(account.id, actor.accountId))
-      .limit(1);
+    const acc = await this.accounts.findById(actor.accountId);
     if (!acc) throw new AppError('resource_not_found');
     const [cust] = await this.db
       .select()
@@ -88,14 +85,10 @@ export class ProfileService {
       .where(eq(customer.id, cust.id));
 
     if (patch.localeCode || patch.fullName) {
-      await this.db
-        .update(account)
-        .set({
-          displayName: patch.fullName ?? undefined,
-          localeCode: patch.localeCode ?? undefined,
-          updatedAt: sql`now()`,
-        })
-        .where(eq(account.id, actor.accountId));
+      await this.accounts.update(actor.accountId, {
+        displayName: patch.fullName ?? undefined,
+        localeCode: patch.localeCode ?? undefined,
+      });
     }
 
     await this.audit.record({
