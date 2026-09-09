@@ -1,9 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { ACTIVE_LOCALES, DEFAULT_LOCALE } from './lib/i18n';
+import { ACTIVE_LOCALES, DEFAULT_LOCALE, LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE } from './lib/i18n';
 
 const PUBLIC_FILE = /\.(.*)$/;
-const LOCALE_COOKIE = 'carrental.locale';
 
 function negotiate(req: NextRequest): string {
   const cookie = req.cookies.get(LOCALE_COOKIE)?.value;
@@ -32,16 +31,25 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const hasLocale = ACTIVE_LOCALES.some(
+  const pathLocale = ACTIVE_LOCALES.find(
     (l) => pathname === `/${l}` || pathname.startsWith(`/${l}/`),
   );
-  if (hasLocale) return NextResponse.next();
+
+  // A path that already carries a locale always wins — never redirect it. Just keep the cookie
+  // in step so a later locale-less visit (`/`, a bare bookmark) resolves to the same language.
+  if (pathLocale) {
+    const res = NextResponse.next();
+    if (req.cookies.get(LOCALE_COOKIE)?.value !== pathLocale) {
+      res.cookies.set(LOCALE_COOKIE, pathLocale, { path: '/', maxAge: LOCALE_COOKIE_MAX_AGE });
+    }
+    return res;
+  }
 
   const locale = negotiate(req);
   const url = req.nextUrl.clone();
   url.pathname = `/${locale}${pathname === '/' ? '' : pathname}`;
   const res = NextResponse.redirect(url);
-  res.cookies.set(LOCALE_COOKIE, locale, { path: '/', maxAge: 60 * 60 * 24 * 365 });
+  res.cookies.set(LOCALE_COOKIE, locale, { path: '/', maxAge: LOCALE_COOKIE_MAX_AGE });
   return res;
 }
 

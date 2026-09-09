@@ -21,6 +21,18 @@ export const ACTIVE_LOCALES: string[] = Object.values(LOCALES)
 
 export type Messages = ResourceBundle;
 
+/** Visitor's last-active / preferred locale. Only decides which locale a locale-less path
+ *  (`/` → `/{loc}`) resolves to — a path that already carries a locale always wins, and the
+ *  middleware just refreshes this to match. */
+export const LOCALE_COOKIE = 'carrental.locale';
+export const LOCALE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
+
+/** Persist the visitor's locale (client-only) — mirrors what the middleware writes. */
+export function persistLocaleChoice(locale: string): void {
+  if (typeof document === 'undefined') return;
+  document.cookie = `${LOCALE_COOKIE}=${resolveLocale(locale)};path=/;max-age=${LOCALE_COOKIE_MAX_AGE};samesite=lax`;
+}
+
 /** Published translation overrides from the catalogue, merged over the bundled base. Cached. */
 async function fetchOverrides(locale: string): Promise<Record<string, string>> {
   try {

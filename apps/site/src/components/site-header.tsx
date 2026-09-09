@@ -40,7 +40,9 @@ export function SiteHeader({ locale }: { locale: string }) {
   function switchLocale(next: string) {
     setLocale(next);
     const rest = pathname.replace(new RegExp(`^/(${ACTIVE_LOCALES.join('|')})`), '');
-    router.push(`/${next}${rest || ''}`);
+    // replace, not push: the old-locale page must not linger in history where Back (or a
+    // reloaded tab) would drop the visitor straight back onto it.
+    router.replace(`/${next}${rest || ''}`);
   }
 
   return (

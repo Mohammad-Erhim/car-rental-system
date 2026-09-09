@@ -20,7 +20,7 @@
     "openapi:generate": "pnpm --filter @carrental/api openapi:generate",
     "verify:static": "pnpm build:packages && pnpm -r lint && pnpm -r typecheck && pnpm format:check && pnpm openapi:check && pnpm --filter @carrental/contracts check:drift",
     "openapi:check": "pnpm --filter @carrental/api openapi:check",
-    "verify:unit": "pnpm build:packages && pnpm -r --filter @carrental/api --filter @carrental/i18n --filter @carrental/ui --filter @carrental/contracts --filter @carrental/theme --filter @carrental/client --filter @carrental/web test:unit",
+    "verify:unit": "pnpm build:packages && pnpm -r --filter @carrental/api --filter @carrental/i18n --filter @carrental/ui --filter @carrental/contracts --filter @carrental/theme --filter @carrental/client --filter @carrental/web --filter @carrental/site test:unit",
     "verify:api": "pnpm build:packages && pnpm --filter @carrental/api test:api",
     "verify:migrate": "pnpm build:packages && pnpm --filter @carrental/api test:migrate",
     "verify:e2e": "pnpm build:packages && pnpm --filter @carrental/web build && bash scripts/verify-e2e.sh",
