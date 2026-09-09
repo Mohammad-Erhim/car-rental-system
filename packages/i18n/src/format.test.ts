@@ -2,6 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import { createFormatters, minorToMajor, minorUnitDigits } from './format';
 
+/** ASCII digits only — Intl may render `ar` amounts in Arabic-Indic digits (ICU-version dependent). */
+function asciiDigits(s: string): string {
+  return s
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/\D/g, '');
+}
+
 describe('i18n formatters (SRS-I18N-007)', () => {
   it('money uses integer minor units and the transaction currency, regardless of display locale', () => {
     const money = { amountMinor: 129900, currency: 'USD' };
@@ -15,7 +23,7 @@ describe('i18n formatters (SRS-I18N-007)', () => {
     expect(en).toMatch(/\$|USD/);
     expect(fr).toMatch(/\$US|USD/);
     expect(ar).toMatch(/US\$|USD|‏/);
-    for (const s of [en, fr, ar]) expect(s.replace(/\D/g, '')).toContain('1299');
+    for (const s of [en, fr, ar]) expect(asciiDigits(s)).toContain('1299');
   });
 
   it('handles zero-decimal and 3-decimal currencies', () => {

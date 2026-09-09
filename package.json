@@ -5,7 +5,7 @@
   "description": "Car Rental System — customer web, operations dashboard, and shared backend (also serves the deferred mobile app).",
   "packageManager": "pnpm@9.15.0",
   "engines": {
-    "node": ">=20.11.0"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "dev:up": "bash scripts/dev-up.sh",
