@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
   Field,
-  Input,
+  PasswordInput,
 } from '@carrental/ui';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
@@ -83,15 +83,16 @@ export function StepUpProvider({ children }: { children: ReactNode }) {
               error={error ?? undefined}
             >
               {({ id, invalid }) => (
-                <Input
+                <PasswordInput
                   id={id}
-                  type="password"
                   autoComplete="current-password"
                   autoFocus
                   invalid={invalid}
                   value={password}
                   onChange={(ev) => setPassword(ev.target.value)}
                   data-testid="step-up-password"
+                  revealLabel={t('auth.showPw')}
+                  hideLabel={t('auth.hidePw')}
                 />
               )}
             </Field>
