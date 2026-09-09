@@ -1,9 +1,10 @@
 /**
  * Design-token catalogue (SRS-UI-002). Single source of truth for the shadcn-style HSL CSS
- * variables consumed by `packages/ui`, `apps/web`, and `apps/site`. The default values here are
- * byte-for-byte the ones previously hand-maintained in two `styles.css` copies; the generator
- * (`scripts/gen-tokens-css.mjs`) writes them back into those files between markers so the two
- * can never drift again (checked by `verify:theme`).
+ * variables consumed by `packages/ui`, `apps/web`, and `apps/site`. The defaults here are the
+ * shipped brand (green `--primary`) — they must match what the seed publishes so there is no
+ * blue→green flash before the admin brand overlay loads. The generator
+ * (`scripts/gen-tokens-css.mjs`) writes them back into those files between markers so the copies
+ * can never drift (checked by `verify:theme`).
  *
  * A token value is an HSL triple string — `"H S% L%"` — used as `hsl(var(--x))` in CSS.
  */
@@ -44,7 +45,7 @@ export function cssVarName(token: ColorToken): string {
 
 export type ColorScale = Record<ColorToken, string>;
 
-/** Light palette — matches the pre-STAGE-009 `:root` block exactly. */
+/** Light palette — the shipped brand. */
 export const DEFAULT_LIGHT: ColorScale = {
   background: '0 0% 100%',
   foreground: '222 47% 11%',
@@ -52,7 +53,7 @@ export const DEFAULT_LIGHT: ColorScale = {
   cardForeground: '222 47% 11%',
   popover: '0 0% 100%',
   popoverForeground: '222 47% 11%',
-  primary: '222 74% 40%',
+  primary: '158 82% 26%',
   primaryForeground: '0 0% 100%',
   secondary: '210 40% 96%',
   secondaryForeground: '222 47% 11%',
@@ -68,10 +69,10 @@ export const DEFAULT_LIGHT: ColorScale = {
   warningForeground: '0 0% 100%',
   border: '214 32% 88%',
   input: '214 32% 84%',
-  ring: '222 74% 40%',
+  ring: '158 82% 26%',
 };
 
-/** Dark palette — matches the pre-STAGE-009 `.dark` block exactly. */
+/** Dark palette — the shipped brand. */
 export const DEFAULT_DARK: ColorScale = {
   background: '222 47% 8%',
   foreground: '210 40% 96%',
@@ -79,8 +80,8 @@ export const DEFAULT_DARK: ColorScale = {
   cardForeground: '210 40% 96%',
   popover: '222 44% 11%',
   popoverForeground: '210 40% 96%',
-  primary: '213 84% 66%',
-  primaryForeground: '222 47% 11%',
+  primary: '154 62% 56%',
+  primaryForeground: '158 60% 9%',
   secondary: '217 33% 18%',
   secondaryForeground: '210 40% 96%',
   muted: '217 33% 17%',
@@ -97,7 +98,7 @@ export const DEFAULT_DARK: ColorScale = {
   warningForeground: '222 47% 11%',
   border: '217 33% 24%',
   input: '217 33% 26%',
-  ring: '213 84% 66%',
+  ring: '154 62% 56%',
 };
 
 /** Radius presets (the `--radius` CSS var). Mode-independent. */

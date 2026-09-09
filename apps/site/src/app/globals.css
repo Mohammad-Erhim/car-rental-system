@@ -17,7 +17,7 @@
     --card-foreground: 222 47% 11%;
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
-    --primary: 222 74% 40%;
+    --primary: 158 82% 26%;
     --primary-foreground: 0 0% 100%;
     --secondary: 210 40% 96%;
     --secondary-foreground: 222 47% 11%;
@@ -33,7 +33,7 @@
     --warning-foreground: 0 0% 100%;
     --border: 214 32% 88%;
     --input: 214 32% 84%;
-    --ring: 222 74% 40%;
+    --ring: 158 82% 26%;
     --radius: 0.6rem;
     --font-sans: var(--font-brand, Inter), system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   }
@@ -45,8 +45,8 @@
     --card-foreground: 210 40% 96%;
     --popover: 222 44% 11%;
     --popover-foreground: 210 40% 96%;
-    --primary: 213 84% 66%;
-    --primary-foreground: 222 47% 11%;
+    --primary: 154 62% 56%;
+    --primary-foreground: 158 60% 9%;
     --secondary: 217 33% 18%;
     --secondary-foreground: 210 40% 96%;
     --muted: 217 33% 17%;
@@ -61,7 +61,7 @@
     --warning-foreground: 222 47% 11%;
     --border: 217 33% 24%;
     --input: 217 33% 26%;
-    --ring: 213 84% 66%;
+    --ring: 154 62% 56%;
   }
   /* @carrental/theme:end */
 
@@ -150,7 +150,7 @@
   --surface: var(--card);
 
   /* --- Design-system values that stay stable across a rebrand. --- */
-  --brand-strong: 224 62% 22%;
+  --brand-strong: 160 84% 17%;
   /* text + icons that sit on the brand gradient — white in BOTH themes (the gradient is always dark). */
   --on-brand: 0 0% 100%;
   --surface-muted: 216 33% 97%;
@@ -170,9 +170,9 @@
      re-derives the hue from the admin --primary while keeping every stop dark for white text. */
   --gradient-brand: linear-gradient(
     135deg,
-    hsl(224 60% 20%) 0%,
-    hsl(222 70% 30%) 55%,
-    hsl(214 70% 40%) 100%
+    hsl(160 68% 15%) 0%,
+    hsl(158 64% 23%) 55%,
+    hsl(156 56% 31%) 100%
   );
   --gradient-hero-veil: linear-gradient(
     180deg,
@@ -195,15 +195,15 @@
   :root {
     --gradient-brand: linear-gradient(
       135deg,
-      color-mix(in oklab, hsl(var(--primary)) 55%, #0b1020) 0%,
-      color-mix(in oklab, hsl(var(--primary)) 86%, #0b1020) 55%,
-      color-mix(in oklab, hsl(var(--primary)) 78%, #e8f0ff) 100%
+      color-mix(in oklab, hsl(var(--primary)) 55%, #05130d) 0%,
+      color-mix(in oklab, hsl(var(--primary)) 86%, #05130d) 55%,
+      color-mix(in oklab, hsl(var(--primary)) 78%, #e9f5ef) 100%
     );
   }
 }
 
 .dark {
-  --brand-strong: 224 44% 15%;
+  --brand-strong: 158 46% 13%;
   --surface-muted: 224 40% 10.5%;
   --surface-sunken: 223 38% 16%;
 
@@ -213,13 +213,13 @@
 
   --shadow-card: 0 1px 2px hsl(0 0% 0% / 0.4), 0 4px 14px hsl(0 0% 0% / 0.42);
   --shadow-lift: 0 2px 6px hsl(0 0% 0% / 0.42), 0 20px 46px hsl(0 0% 0% / 0.56);
-  --shadow-glow: 0 20px 55px hsl(213 90% 55% / 0.32);
+  --shadow-glow: 0 20px 55px hsl(154 62% 45% / 0.32);
 
   --gradient-brand: linear-gradient(
     135deg,
-    hsl(224 52% 12%) 0%,
-    hsl(221 58% 20%) 55%,
-    hsl(213 60% 29%) 100%
+    hsl(158 50% 10%) 0%,
+    hsl(157 52% 17%) 55%,
+    hsl(155 48% 25%) 100%
   );
   --gradient-hero-veil: linear-gradient(
     180deg,
@@ -235,9 +235,9 @@
   .dark {
     --gradient-brand: linear-gradient(
       135deg,
-      color-mix(in oklab, hsl(var(--primary)) 34%, #04060d) 0%,
-      color-mix(in oklab, hsl(var(--primary)) 55%, #04060d) 55%,
-      color-mix(in oklab, hsl(var(--primary)) 62%, #04060d) 100%
+      color-mix(in oklab, hsl(var(--primary)) 34%, #030c08) 0%,
+      color-mix(in oklab, hsl(var(--primary)) 55%, #030c08) 55%,
+      color-mix(in oklab, hsl(var(--primary)) 62%, #030c08) 100%
     );
   }
 }
