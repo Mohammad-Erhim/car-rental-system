@@ -81,6 +81,7 @@ POST   /api/v1/ops/catalogue/products/:code/deactivate
 POST   /api/v1/ops/catalogue/products/:code/restore
 GET    /api/v1/ops/config/versions
 POST   /api/v1/ops/config/versions
+DELETE /api/v1/ops/config/versions/:id
 POST   /api/v1/ops/config/versions/:id/approve
 POST   /api/v1/ops/config/versions/:id/reject
 POST   /api/v1/ops/config/versions/:id/submit

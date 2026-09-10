@@ -369,6 +369,55 @@ describe('STAGE-006 administration & reporting', () => {
       .expect(422);
   });
 
+  it('TEST-ADM-007 an unsubmitted draft can be deleted; a submitted revision cannot', async () => {
+    const d = await request(server)
+      .post('/api/v1/ops/config/versions')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ kind: 'policy', key: 'fuel_rate', payload: { minorPerPct: 175 } })
+      .expect(201);
+
+    await request(server)
+      .delete(`/api/v1/ops/config/versions/${d.body.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    // it is gone from the history
+    const list = await request(server)
+      .get('/api/v1/ops/config/versions?kind=policy&key=fuel_rate')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect((list.body as Array<{ id: string }>).some((r) => r.id === d.body.id)).toBe(false);
+
+    // a submitted (in_review) revision is part of the record — it cannot be deleted
+    const d2 = await request(server)
+      .post('/api/v1/ops/config/versions')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ kind: 'policy', key: 'fuel_rate', payload: { minorPerPct: 180 } })
+      .expect(201);
+    await request(server)
+      .post(`/api/v1/ops/config/versions/${d2.body.id}/submit`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({})
+      .expect(201);
+    await request(server)
+      .delete(`/api/v1/ops/config/versions/${d2.body.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(422);
+  });
+
+  it('TEST-ADM-008 two concurrent drafts of the same setting both succeed with distinct revisions', async () => {
+    const draftOnce = () =>
+      request(server)
+        .post('/api/v1/ops/config/versions')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ kind: 'policy', key: 'fuel_rate', payload: { minorPerPct: 190 } });
+
+    const [a, b] = await Promise.all([draftOnce(), draftOnce()]);
+    // neither is a 500 — the revision collision is retried, not leaked
+    expect([a.status, b.status].sort()).toEqual([201, 201]);
+    expect(a.body.revision).not.toBe(b.body.revision);
+  });
+
   it('TEST-RPT-001 report rows respect the operator location scope (FR-RPT-004)', async () => {
     const p1 = tuesday(30);
     const p2 = tuesday(40);

@@ -43,6 +43,10 @@ export const configVersion = pgTable(
   (t) => ({
     kindKeyRev: uniqueIndex('config_version_kind_key_rev_unq').on(t.kind, t.key, t.revision),
     currentIdx: index('config_version_current_idx').on(t.organizationId, t.kind, t.key, t.state),
+    // at most one live revision per setting — guards concurrent approvals of two drafts
+    onePublished: uniqueIndex('config_version_one_published_unq')
+      .on(t.kind, t.key)
+      .where(sql`${t.state} = 'published'`),
   }),
 );
 

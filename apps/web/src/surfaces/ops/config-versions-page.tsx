@@ -18,12 +18,13 @@ import {
   useToast,
   type DataTableColumn,
 } from '@carrental/ui';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import {
   useConfigPreview,
   useConfigVersionTransition,
   useConfigVersions,
+  useDeleteConfigVersion,
   useDraftConfigVersion,
   type ConfigState,
   type ConfigVersion,
@@ -92,6 +93,7 @@ export function ConfigVersionsPage() {
   const draft = useDraftConfigVersion();
   const preview = useConfigPreview();
   const transition = useConfigVersionTransition();
+  const removeVersion = useDeleteConfigVersion();
   const errs = useFormErrors(
     Object.fromEntries(keyDef.fields.map((f) => [f.name, fieldLabel(f.name)])) as Record<
       string,
@@ -105,6 +107,8 @@ export function ConfigVersionsPage() {
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [approving, setApproving] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const formCard = useRef<HTMLDivElement>(null);
 
   const currentPublished = useMemo(
     () => versions.data?.find((v) => v.state === 'published') ?? null,
@@ -259,6 +263,37 @@ export function ConfigVersionsPage() {
     }
   }
 
+  async function doDelete(id: string) {
+    const rev = versions.data?.find((v) => v.id === id)?.revision;
+    try {
+      await removeVersion.mutateAsync(id);
+      setDeleting(null);
+      toast({ title: t('ops.cfg.deleted', { n: rev ?? '' }), variant: 'success' });
+    } catch (err) {
+      setActionError(err instanceof ApiError ? err.message : t('ops.cfg.actionFail'));
+      setDeleting(null);
+    }
+  }
+
+  /** Prefill the draft form from an earlier revision — the way forward from a rejected one. */
+  function doRevise(v: ConfigVersion) {
+    errs.clear();
+    preview.reset();
+    setActionError(null);
+    setValues(
+      Object.fromEntries(
+        keyDef.fields.map((f) => [
+          f.name,
+          String((v.payload as Record<string, number>)[f.name] ?? ''),
+        ]),
+      ),
+    );
+    setNote('');
+    requestAnimationFrame(() =>
+      formCard.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+    );
+  }
+
   type Version = NonNullable<typeof versions.data>[number];
   const payloadCell = (v: ConfigVersion) =>
     Object.entries(v.payload)
@@ -301,14 +336,34 @@ export function ConfigVersionsPage() {
       cell: (v) => (
         <div className="flex justify-end gap-2">
           {v.state === 'draft' ? (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => act(v.id, 'submit')}
+                loading={transition.isPending}
+                data-testid={`submit-${v.revision}`}
+              >
+                {t('ops.cfg.submit')}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setDeleting(v.id)}
+                data-testid={`delete-${v.revision}`}
+              >
+                {t('ops.cfg.delete')}
+              </Button>
+            </>
+          ) : null}
+          {(v.state === 'rejected' || v.state === 'superseded') && v.key === key ? (
             <Button
               size="sm"
-              variant="outline"
-              onClick={() => act(v.id, 'submit')}
-              loading={transition.isPending}
-              data-testid={`submit-${v.revision}`}
+              variant="ghost"
+              onClick={() => doRevise(v)}
+              data-testid={`revise-${v.revision}`}
             >
-              {t('ops.cfg.submit')}
+              {t('ops.cfg.revise')}
             </Button>
           ) : null}
           {v.state === 'in_review' && canPublish ? (
@@ -454,7 +509,7 @@ export function ConfigVersionsPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card ref={formCard}>
         <CardHeader>
           <CardTitle className="text-base">{t('ops.cfg.newDraft')}</CardTitle>
         </CardHeader>
@@ -603,6 +658,16 @@ export function ConfigVersionsPage() {
           const id = rejecting!;
           return act(id, 'reject', rejectReason);
         }}
+      />
+
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(v) => !v && setDeleting(null)}
+        destructive
+        title={t('ops.cfg.deleteTitle')}
+        description={t('ops.cfg.deleteBody')}
+        confirmLabel={t('ops.cfg.delete')}
+        onConfirm={() => doDelete(deleting!)}
       />
     </div>
   );
