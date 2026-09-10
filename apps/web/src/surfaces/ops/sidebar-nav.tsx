@@ -23,23 +23,35 @@ export interface OpsNavGroup {
 export function SidebarNav({
   groups,
   onNavigate,
+  collapsed = false,
   className,
 }: {
   groups: OpsNavGroup[];
   /** Called after a link is chosen — the drawer uses it to close itself. */
   onNavigate?: () => void;
+  /** Icon-only rail: labels + group headings hidden, label moves to the native tooltip. */
+  collapsed?: boolean;
   className?: string;
 }) {
   const { t } = useI18n();
 
   return (
-    <nav aria-label={t('ops.nav.sections')} className={cn('space-y-5', className)}>
+    <nav
+      aria-label={t('ops.nav.sections')}
+      className={cn(collapsed ? 'space-y-2' : 'space-y-5', className)}
+    >
       {groups.map((g, gi) => (
         <div key={g.titleKey ?? `g${gi}`} className="space-y-1">
           {g.titleKey ? (
-            <p className="px-3 pb-1 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground/80">
-              {t(g.titleKey)}
-            </p>
+            collapsed ? (
+              gi > 0 ? (
+                <div className="mx-3 my-2 border-t" aria-hidden="true" />
+              ) : null
+            ) : (
+              <p className="px-3 pb-1 text-[0.7rem] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                {t(g.titleKey)}
+              </p>
+            )
           ) : null}
           {g.items.map(({ to, label, Icon, end }) => (
             <NavLink
@@ -47,9 +59,11 @@ export function SidebarNav({
               to={to}
               end={end}
               onClick={onNavigate}
+              title={collapsed ? t(label) : undefined}
               className={({ isActive }) =>
                 cn(
-                  'group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                  'group relative flex items-center rounded-md text-sm font-medium transition-colors',
+                  collapsed ? 'justify-center px-0 py-2.5' : 'gap-3 px-3 py-2',
                   "before:absolute before:inset-y-1.5 before:start-0 before:w-0.5 before:rounded-full before:bg-primary before:opacity-0 before:transition-opacity before:content-['']",
                   isActive
                     ? 'bg-primary/10 text-primary before:opacity-100'
@@ -68,7 +82,11 @@ export function SidebarNav({
                     )}
                     aria-hidden="true"
                   />
-                  <span className="truncate">{t(label)}</span>
+                  {collapsed ? (
+                    <span className="sr-only">{t(label)}</span>
+                  ) : (
+                    <span className="truncate">{t(label)}</span>
+                  )}
                 </>
               )}
             </NavLink>
