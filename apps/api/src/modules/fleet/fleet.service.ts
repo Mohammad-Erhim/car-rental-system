@@ -103,11 +103,15 @@ export class FleetService {
     private readonly audit: AuditService,
   ) {}
 
-  async listUnits(filter: {
-    locationCode?: string;
-    categoryCode?: string;
-    state?: string;
-  }): Promise<UnitRow[]> {
+  async listUnits(
+    actor: Actor,
+    filter: {
+      locationCode?: string;
+      categoryCode?: string;
+      state?: string;
+    },
+  ): Promise<{ count: number; total: number; results: UnitRow[] }> {
+    const scope = actor.locationScope?.length ? actor.locationScope : null;
     const rows = await this.db
       .select({
         id: vehicleUnit.id,
@@ -135,7 +139,10 @@ export class FleetService {
       ]),
     );
 
-    return rows
+    // FR-RPT-004 — a location-scoped staffer only sees units currently at their locations.
+    const inScope = rows.filter((r) => !scope || scope.includes(r.currentLocationCode));
+    const total = inScope.length;
+    const results = inScope
       .filter(
         (r) =>
           (!filter.locationCode || r.currentLocationCode === filter.locationCode) &&
@@ -156,6 +163,7 @@ export class FleetService {
         colour: r.colour,
         state: r.state,
       }));
+    return { count: results.length, total, results };
   }
 
   /**
@@ -236,6 +244,20 @@ export class FleetService {
     return u;
   }
 
+  /** A location-scoped staffer only touches units currently at one of their locations. */
+  private async assertUnitInScope(actor: Actor, currentLocationId: string) {
+    const scope = actor.locationScope ?? [];
+    if (!scope.length) return;
+    const [loc] = await this.db
+      .select({ code: location.code })
+      .from(location)
+      .where(eq(location.id, currentLocationId))
+      .limit(1);
+    if (!loc || !scope.includes(loc.code)) {
+      throw AppError.forbidden('This vehicle is outside your assigned locations');
+    }
+  }
+
   private async hasOpenRental(unitId: string): Promise<boolean> {
     const rows = await this.db
       .select({ reference: rental.reference })
@@ -263,6 +285,7 @@ export class FleetService {
     },
   ): Promise<{ id: string }> {
     const unit = await this.loadUnit(input.unitId);
+    await this.assertUnitInScope(actor, unit.currentLocationId);
     const kind = input.kind ?? 'maintenance';
     if (kind === 'maintenance' && (await this.hasOpenRental(unit.id))) {
       throw AppError.businessRule('This unit has an open rental — return it before maintenance', {
@@ -356,6 +379,7 @@ export class FleetService {
     input: { unitId: string; toLocationCode: string; note?: string },
   ): Promise<{ id: string; currentLocationCode: string; state: string }> {
     const unit = await this.loadUnit(input.unitId);
+    await this.assertUnitInScope(actor, unit.currentLocationId);
     const [dest] = await this.db
       .select({ id: location.id, code: location.code })
       .from(location)

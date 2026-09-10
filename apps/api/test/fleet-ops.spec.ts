@@ -39,13 +39,33 @@ describe('fleet operations', () => {
       .query(categoryCode ? { locationCode, categoryCode } : { locationCode })
       .set(auth(adminToken))
       .expect(200);
-    return res.body as Array<{
+    return res.body.results as Array<{
       id: string;
       plate: string;
       state: string;
       currentLocationCode: string;
     }>;
   }
+
+  it('the unit list carries count + total and filters by state server-side', async () => {
+    const all = await request(server)
+      .get('/api/v1/ops/fleet/units')
+      .set(auth(adminToken))
+      .expect(200);
+    expect(typeof all.body.total).toBe('number');
+    expect(all.body.count).toBe(all.body.results.length);
+    expect(all.body.total).toBeGreaterThanOrEqual(all.body.count);
+
+    const avail = await request(server)
+      .get('/api/v1/ops/fleet/units')
+      .query({ state: 'available' })
+      .set(auth(adminToken))
+      .expect(200);
+    expect(
+      (avail.body.results as Array<{ state: string }>).every((u) => u.state === 'available'),
+    ).toBe(true);
+    expect(avail.body.count).toBeLessThanOrEqual(all.body.count);
+  });
 
   it('a maintenance block takes an available unit out of service and release restores it', async () => {
     const before = await unitsAt('TST1', 'suv');

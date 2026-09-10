@@ -165,11 +165,12 @@ export class OpsCatalogueController {
   @Get('fleet/units')
   @Permissions('fleet.read', 'fleet.manage')
   listUnits(
+    @CurrentActor() actor: Actor,
     @Query('locationCode') locationCode?: string,
     @Query('categoryCode') categoryCode?: string,
     @Query('state') state?: string,
   ) {
-    return this.fleet.listUnits({ locationCode, categoryCode, state });
+    return this.fleet.listUnits(actor, { locationCode, categoryCode, state });
   }
 
   @Get('fleet/blocks')

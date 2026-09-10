@@ -136,7 +136,7 @@ describe('config / reference data', () => {
       .get('/api/v1/ops/fleet/units')
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
-    const unitId = (units.body as Array<{ id: string }>)[0]!.id;
+    const unitId = (units.body.results as Array<{ id: string }>)[0]!.id;
     await request(server)
       .post('/api/v1/ops/fleet/blocks')
       .set('Authorization', `Bearer ${adminToken}`)

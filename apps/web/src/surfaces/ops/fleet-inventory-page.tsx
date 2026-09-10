@@ -1,13 +1,18 @@
 import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
   Badge,
   Button,
   Card,
   CardContent,
   CardHeader,
   CardTitle,
+  ConfirmDialog,
   DataTable,
+  Field,
   Input,
   PageHeader,
   Textarea,
@@ -23,113 +28,125 @@ import {
   useAddFleetBlock,
   useFleetBlocks,
   useImportUnits,
+  useOpsCategories,
   useOpsUnits,
   useReleaseFleetBlock,
   useTransferUnit,
   type FleetBlock,
+  type OpsUnit,
   type UnitImportResult,
 } from '../../lib/ops-discovery-hooks.js';
 
 const IMPORT_HEADER = 'plate,vin,categoryCode,locationCode,year,make,model,colour';
+const UNIT_STATES = ['available', 'on_rent', 'prep', 'maintenance', 'out_of_service'];
+const BLOCK_KINDS = ['maintenance', 'damage', 'admin_block'] as const;
 
-type Unit = NonNullable<ReturnType<typeof useOpsUnits>['data']>[number];
+const selectClass =
+  'flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
+const stateVariant = (s: string) =>
+  s === 'available'
+    ? 'success'
+    : s === 'maintenance' || s === 'out_of_service'
+      ? 'warning'
+      : 'neutral';
 
 /**
- * SCREEN-OPS-013 / 017 / 018 — Fleet inventory + operations. Units by location + category +
+ * SCREEN-OPS-013 / 017 / 018 — Fleet inventory + operations. Units by location / category /
  * state (VIN / plate bidi-isolated); a `fleet.manage` holder can take a unit into maintenance
- * (which removes it from availability) and transfer it to another location.
+ * (removing it from availability) or transfer it. Confined to the actor's locations by the API.
+ * Filters are URL-backed; the state filter is applied server-side.
  */
 export function FleetInventoryPage() {
-  const { t } = useI18n();
+  const { t, fmt } = useI18n();
   const { hasPermission } = useAuth();
   const canManage = hasPermission('fleet.manage');
 
-  // Location / category / state filters are URL-backed so the dashboard fleet-readiness rows can
-  // deep-link (e.g. /fleet?state=maintenance). `state` is filtered client-side — the units
-  // endpoint has no state parameter.
   const [params, setParams] = useSearchParams();
-  const [locationCode, setLocationCode] = useState(() => params.get('location') ?? '');
-  const [categoryCode, setCategoryCode] = useState(() => params.get('category') ?? '');
+  const locationCode = params.get('location') ?? '';
+  const categoryCode = params.get('category') ?? '';
   const stateFilter = params.get('state') ?? '';
-  const setStateFilter = (v: string) =>
+  const setParam = (key: string, value: string) =>
     setParams(
       (p) => {
-        if (v) p.set('state', v);
-        else p.delete('state');
+        if (value) p.set(key, value);
+        else p.delete(key);
         return p;
       },
       { replace: true },
     );
-  const unitsQuery = useOpsUnits({
+
+  const units = useOpsUnits({
     locationCode: locationCode || undefined,
     categoryCode: categoryCode || undefined,
+    state: stateFilter || undefined,
   });
-  const units = {
-    ...unitsQuery,
-    data: stateFilter
-      ? (unitsQuery.data ?? []).filter((u) => u.state === stateFilter)
-      : unitsQuery.data,
-  };
   const locations = useLocations();
+  const categories = useOpsCategories();
   const blocks = useFleetBlocks('active');
   const addBlock = useAddFleetBlock();
   const releaseBlock = useReleaseFleetBlock();
   const transfer = useTransferUnit();
-  const [msg, setMsg] = useState<string | null>(null);
 
-  const stateVariant = (s: string) =>
-    s === 'available'
-      ? 'success'
-      : s === 'maintenance' || s === 'out_of_service'
-        ? 'warning'
-        : 'neutral';
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [blockUnit, setBlockUnit] = useState<OpsUnit | null>(null);
+  const [blockKind, setBlockKind] = useState<(typeof BLOCK_KINDS)[number]>('maintenance');
+  const [blockReason, setBlockReason] = useState('');
+  const [xferUnit, setXferUnit] = useState<OpsUnit | null>(null);
+  const [xferTo, setXferTo] = useState('');
+  const [releaseB, setReleaseB] = useState<FleetBlock | null>(null);
 
-  async function doBlock(u: Unit) {
-    const reason = window.prompt(t('ops.fleet.blockPrompt', { plate: u.plate }))?.trim();
-    if (reason === undefined || reason === '') return;
-    setMsg(null);
+  const errText = (e: unknown, fb: string) => (e instanceof ApiError ? e.message : fb);
+  const anyFilter = !!(locationCode || categoryCode || stateFilter);
+
+  const runBlock = async () => {
+    if (!blockUnit) return;
+    setResult(null);
     try {
       await addBlock.mutateAsync({
-        unitId: u.id,
-        kind: 'maintenance',
-        reasonCode: reason.slice(0, 60),
+        unitId: blockUnit.id,
+        kind: blockKind,
+        reasonCode: blockReason.trim().slice(0, 60) || undefined,
         startAt: new Date().toISOString(),
       });
-      setMsg(t('ops.fleet.blockedMsg', { plate: u.plate }));
+      setResult({ ok: true, text: t('ops.fleet.blockedMsg', { plate: blockUnit.plate }) });
     } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : t('ops.fleet.blockFail'));
+      setResult({ ok: false, text: errText(e, t('ops.fleet.blockFail')) });
+    } finally {
+      setBlockUnit(null);
+      setBlockReason('');
     }
-  }
-
-  async function doTransfer(u: Unit) {
-    const codes = (locations.data ?? [])
-      .map((l) => l.code)
-      .filter((c) => c !== u.currentLocationCode);
-    const to = window
-      .prompt(t('ops.fleet.transferPrompt', { plate: u.plate, options: codes.join(', ') }))
-      ?.trim()
-      .toUpperCase();
-    if (!to) return;
-    setMsg(null);
+  };
+  const runTransfer = async () => {
+    if (!xferUnit || !xferTo) return;
+    setResult(null);
     try {
-      const r = await transfer.mutateAsync({ unitId: u.id, toLocationCode: to });
-      setMsg(t('ops.fleet.transferredMsg', { plate: u.plate, to: r.currentLocationCode }));
+      const r = await transfer.mutateAsync({ unitId: xferUnit.id, toLocationCode: xferTo });
+      setResult({
+        ok: true,
+        text: t('ops.fleet.transferredMsg', { plate: xferUnit.plate, to: r.currentLocationCode }),
+      });
     } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : t('ops.fleet.transferFail'));
+      setResult({ ok: false, text: errText(e, t('ops.fleet.transferFail')) });
+    } finally {
+      setXferUnit(null);
+      setXferTo('');
     }
-  }
-
-  async function doRelease(b: FleetBlock) {
-    setMsg(null);
+  };
+  const runRelease = async () => {
+    if (!releaseB) return;
+    setResult(null);
     try {
-      await releaseBlock.mutateAsync(b.id);
-      setMsg(t('ops.fleet.releasedMsg', { plate: b.plate }));
+      await releaseBlock.mutateAsync(releaseB.id);
+      setResult({ ok: true, text: t('ops.fleet.releasedMsg', { plate: releaseB.plate }) });
     } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : t('ops.fleet.releaseFail'));
+      setResult({ ok: false, text: errText(e, t('ops.fleet.releaseFail')) });
+    } finally {
+      setReleaseB(null);
     }
-  }
+  };
 
-  const columns: Array<DataTableColumn<Unit>> = [
+  const columns: Array<DataTableColumn<OpsUnit>> = [
     {
       key: 'plate',
       header: t('ops.tbl.plate'),
@@ -153,7 +170,7 @@ export function FleetInventoryPage() {
     {
       key: 'state',
       header: t('ops.tbl.state'),
-      cell: (u) => <Badge variant={stateVariant(u.state)}>{u.state.replace('_', ' ')}</Badge>,
+      cell: (u) => <Badge variant={stateVariant(u.state)}>{u.state.replace(/_/g, ' ')}</Badge>,
     },
     ...(canManage
       ? [
@@ -161,13 +178,16 @@ export function FleetInventoryPage() {
             key: 'actions',
             header: '',
             className: 'text-end',
-            cell: (u: Unit) => (
+            cell: (u: OpsUnit) => (
               <span className="flex justify-end gap-2">
                 <Button
                   size="sm"
                   variant="ghost"
                   disabled={u.state === 'maintenance'}
-                  onClick={() => doBlock(u)}
+                  onClick={() => {
+                    setBlockUnit(u);
+                    setBlockKind('maintenance');
+                  }}
                   data-testid={`fleet-block-${u.id}`}
                 >
                   {t('ops.fleet.block')}
@@ -176,14 +196,17 @@ export function FleetInventoryPage() {
                   size="sm"
                   variant="ghost"
                   disabled={u.state === 'on_rent'}
-                  onClick={() => doTransfer(u)}
+                  onClick={() => {
+                    setXferUnit(u);
+                    setXferTo('');
+                  }}
                   data-testid={`fleet-transfer-${u.id}`}
                 >
                   {t('ops.fleet.transfer')}
                 </Button>
               </span>
             ),
-          } satisfies DataTableColumn<Unit>,
+          } satisfies DataTableColumn<OpsUnit>,
         ]
       : []),
   ];
@@ -195,12 +218,12 @@ export function FleetInventoryPage() {
       cell: (b) => b.plate,
       className: 'bidi-isolate font-mono text-xs',
     },
-    { key: 'kind', header: t('ops.fin.kind'), cell: (b) => b.kind, className: 'font-mono text-xs' },
+    { key: 'kind', header: t('ops.fin.kind'), cell: (b) => b.kind.replace(/_/g, ' ') },
     { key: 'reason', header: t('ops.fleet.reason'), cell: (b) => b.reasonCode ?? '—' },
     {
       key: 'since',
       header: t('ops.fleet.since'),
-      cell: (b) => new Date(b.startAt).toLocaleString(),
+      cell: (b) => fmt.dateTime(b.startAt),
       className: 'text-xs text-muted-foreground',
     },
     ...(canManage
@@ -213,7 +236,7 @@ export function FleetInventoryPage() {
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => doRelease(b)}
+                onClick={() => setReleaseB(b)}
                 data-testid={`fleet-block-release-${b.id}`}
               >
                 {t('ops.fleet.release')}
@@ -224,58 +247,97 @@ export function FleetInventoryPage() {
       : []),
   ];
 
+  const countLabel =
+    units.data && units.data.count < units.data.total
+      ? t('ops.fleet.showingOf', { shown: units.data.count, total: units.data.total })
+      : units.data
+        ? t('ops.fleet.unitCount', { n: units.data.total })
+        : null;
+
   return (
     <div className="space-y-6">
       <PageHeader title={t('ops.fleet.title')} description={t('ops.fleet.subtitle')} />
 
-      {msg ? (
-        <p className="text-sm text-muted-foreground" data-testid="fleet-msg">
-          {msg}
-        </p>
+      {result ? (
+        <Alert variant={result.ok ? 'success' : 'destructive'} data-testid="fleet-result">
+          <AlertTitle>{result.ok ? t('state.success.title') : t('state.failure.title')}</AlertTitle>
+          <AlertDescription>{result.text}</AlertDescription>
+        </Alert>
       ) : null}
 
       <Card>
         <CardHeader className="gap-3">
-          <CardTitle className="text-base">{t('ops.fleet.card')}</CardTitle>
-          <Toolbar aria-label={t('ops.fleet.card')}>
-            <Input
-              placeholder={t('ops.fleet.filterLoc')}
-              aria-label={t('ops.fleet.filterLoc')}
-              value={locationCode}
-              onChange={(e) => setLocationCode(e.target.value.toUpperCase())}
-              className="max-w-[14rem]"
-            />
-            <Input
-              placeholder={t('ops.fleet.filterCat')}
-              aria-label={t('ops.fleet.filterCat')}
-              value={categoryCode}
-              onChange={(e) => setCategoryCode(e.target.value.toLowerCase())}
-              className="max-w-[14rem]"
-            />
-            <select
-              aria-label={t('ops.fleet.filterState')}
-              className="flex h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              value={stateFilter}
-              onChange={(e) => setStateFilter(e.target.value)}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="text-base">{t('ops.fleet.card')}</CardTitle>
+            <p
+              className="text-sm text-muted-foreground"
+              aria-live="polite"
+              data-testid="fleet-count"
             >
-              <option value="">{t('ops.fleet.allStates')}</option>
-              {['available', 'on_rent', 'prep', 'maintenance', 'out_of_service'].map((s) => (
-                <option key={s} value={s}>
-                  {s.replace('_', ' ')}
+              {units.isLoading ? t('ops.st.loading') : (countLabel ?? '')}
+            </p>
+          </div>
+          <Toolbar aria-label={t('ops.fleet.card')}>
+            <select
+              aria-label={t('ops.search.location')}
+              className={selectClass}
+              value={locationCode}
+              onChange={(e) => setParam('location', e.target.value)}
+            >
+              <option value="">{t('ops.search.anyLocation')}</option>
+              {(locations.data ?? []).map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.name} ({l.code})
                 </option>
               ))}
             </select>
+            <select
+              aria-label={t('ops.fleet.filterCat')}
+              className={selectClass}
+              value={categoryCode}
+              onChange={(e) => setParam('category', e.target.value)}
+            >
+              <option value="">{t('ops.fleet.anyCategory')}</option>
+              {(categories.data ?? []).map((c) => (
+                <option key={c.code} value={c.code}>
+                  {c.displayName}
+                </option>
+              ))}
+            </select>
+            <select
+              aria-label={t('ops.fleet.filterState')}
+              className={selectClass}
+              value={stateFilter}
+              onChange={(e) => setParam('state', e.target.value)}
+            >
+              <option value="">{t('ops.fleet.allStates')}</option>
+              {UNIT_STATES.map((s) => (
+                <option key={s} value={s}>
+                  {s.replace(/_/g, ' ')}
+                </option>
+              ))}
+            </select>
+            {anyFilter ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setParams({}, { replace: true })}
+                data-testid="fleet-clear"
+              >
+                {t('ops.rent.clearFilters')}
+              </Button>
+            ) : null}
           </Toolbar>
         </CardHeader>
         <CardContent>
           <DataTable
             columns={columns}
-            rows={units.data}
+            rows={units.data?.results}
             rowKey={(u) => u.id}
             isLoading={units.isLoading}
             isError={units.isError}
             onRetry={() => units.refetch()}
-            rowProps={(u) => ({ 'data-plate': u.plate })}
+            rowProps={(u) => ({ 'data-plate': u.plate, 'data-state': u.state })}
             testid="fleet-table"
             bodyTestid="fleet-rows"
             minWidth={canManage ? '52rem' : '40rem'}
@@ -283,7 +345,7 @@ export function FleetInventoryPage() {
               loading: t('ops.st.loading'),
               loadFailTitle: t('ops.fleet.loadFail'),
               retry: t('ops.st.retry'),
-              empty: t('ops.fleet.empty'),
+              empty: anyFilter ? t('ops.fleet.emptyFiltered') : t('ops.fleet.empty'),
             }}
           />
         </CardContent>
@@ -316,6 +378,87 @@ export function FleetInventoryPage() {
       </Card>
 
       {canManage ? <ImportUnitsCard /> : null}
+
+      <ConfirmDialog
+        open={!!blockUnit}
+        onOpenChange={(v) => !v && setBlockUnit(null)}
+        destructive
+        title={t('ops.fleet.blockTitle', { plate: blockUnit?.plate ?? '' })}
+        description={
+          <div className="space-y-3">
+            <p>{t('ops.fleet.blockBody')}</p>
+            <Field label={t('ops.fin.kind')} htmlFor="fb-kind">
+              {({ id }) => (
+                <select
+                  id={id}
+                  className={selectClass}
+                  value={blockKind}
+                  onChange={(e) => setBlockKind(e.target.value as (typeof BLOCK_KINDS)[number])}
+                >
+                  {BLOCK_KINDS.map((k) => (
+                    <option key={k} value={k}>
+                      {k.replace(/_/g, ' ')}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+            <Field label={t('ops.fleet.reason')} htmlFor="fb-reason">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={blockReason}
+                  maxLength={60}
+                  onChange={(e) => setBlockReason(e.target.value)}
+                />
+              )}
+            </Field>
+          </div>
+        }
+        confirmLabel={t('ops.fleet.block')}
+        onConfirm={runBlock}
+      />
+
+      <ConfirmDialog
+        open={!!xferUnit}
+        onOpenChange={(v) => !v && setXferUnit(null)}
+        title={t('ops.fleet.transferTitle', { plate: xferUnit?.plate ?? '' })}
+        description={
+          <div className="space-y-3">
+            <p>{t('ops.fleet.transferBody')}</p>
+            <Field label={t('ops.fleet.transferTo')} htmlFor="xfer-to">
+              {({ id }) => (
+                <select
+                  id={id}
+                  className={selectClass}
+                  value={xferTo}
+                  onChange={(e) => setXferTo(e.target.value)}
+                >
+                  <option value="">{t('ops.fleet.transferPick')}</option>
+                  {(locations.data ?? [])
+                    .filter((l) => l.code !== xferUnit?.currentLocationCode)
+                    .map((l) => (
+                      <option key={l.code} value={l.code}>
+                        {l.name} ({l.code})
+                      </option>
+                    ))}
+                </select>
+              )}
+            </Field>
+          </div>
+        }
+        confirmLabel={t('ops.fleet.transfer')}
+        onConfirm={runTransfer}
+      />
+
+      <ConfirmDialog
+        open={!!releaseB}
+        onOpenChange={(v) => !v && setReleaseB(null)}
+        title={t('ops.fleet.releaseTitle', { plate: releaseB?.plate ?? '' })}
+        description={t('ops.fleet.releaseBody')}
+        confirmLabel={t('ops.fleet.release')}
+        onConfirm={runRelease}
+      />
     </div>
   );
 }
@@ -325,7 +468,7 @@ function ImportUnitsCard() {
   const importUnits = useImportUnits();
   const [csv, setCsv] = useState('');
   const [result, setResult] = useState<UnitImportResult | null>(null);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   async function run(commit: boolean) {
     setMsg(null);
@@ -333,11 +476,11 @@ function ImportUnitsCard() {
       const r = await importUnits.mutateAsync({ csv, commit });
       setResult(r);
       if (r.committed) {
-        setMsg(t('ops.fleet.importDone', { n: r.created }));
+        setMsg({ ok: true, text: t('ops.fleet.importDone', { n: r.created }) });
         setCsv('');
       }
     } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : t('ops.fleet.importFail'));
+      setMsg({ ok: false, text: e instanceof ApiError ? e.message : t('ops.fleet.importFail') });
     }
   }
 
@@ -411,8 +554,13 @@ function ImportUnitsCard() {
         </div>
 
         {msg ? (
-          <p className="text-sm text-muted-foreground" data-testid="fleet-import-msg">
-            {msg}
+          <p
+            className={`rounded-md border px-3 py-2 text-sm ${
+              msg.ok ? 'border-success/40 bg-success/10' : 'border-destructive/40 bg-destructive/10'
+            }`}
+            data-testid="fleet-import-msg"
+          >
+            {msg.text}
           </p>
         ) : null}
 
