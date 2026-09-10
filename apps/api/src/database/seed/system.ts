@@ -188,6 +188,20 @@ const CONFIGURABLE_LOOKUPS: Record<string, { label: string; values: [string, str
       ['data_request', 'Data request'],
     ],
   },
+  restriction_reason: {
+    label: 'Customer restriction reason',
+    values: [
+      ['unpaid_balance', 'Unpaid balance'],
+      ['chargeback', 'Payment chargeback'],
+      ['fraud_indicators', 'Suspected fraud'],
+      ['licence_issue', 'Licence / ID problem'],
+      ['damage_history', 'Prior damage or recovery'],
+      ['behavioural', 'Conduct or safety concern'],
+      ['complaint', 'Complaint or dispute'],
+      ['document_expired', 'Expired required document'],
+      ['other', 'Other (see evidence)'],
+    ],
+  },
   incident_type: {
     label: 'Incident type',
     values: [

@@ -265,6 +265,8 @@ test('SCREEN-OPS-022 / FR-ADM-002: create → a second manager approves → lift
   const card = page.getByTestId('cust-restrictions');
   await card.getByTestId('rstr-category').selectOption('block');
   await card.getByTestId('rstr-scope-kind').selectOption('all');
+  await expect(card.getByTestId('rstr-create')).toBeDisabled(); // a reason is required
+  await card.getByLabel(/reason/i).selectOption({ label: 'Suspected fraud' });
   await card.getByTestId('rstr-create').click();
   await expect(card).toContainText('pending review');
   // the author cannot approve their own

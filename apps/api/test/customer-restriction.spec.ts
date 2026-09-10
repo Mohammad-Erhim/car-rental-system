@@ -124,6 +124,15 @@ describe('customer eligibility restrictions (FR-ADM-002)', () => {
     await book('economy').then((r) => expect(r.status).toBe(201));
   });
 
+  it('rejects a restriction reason that is not an active restriction_reason value', async () => {
+    await request(server)
+      .post(`/api/v1/ops/customers/${customerId}/restrictions`)
+      .set('Authorization', `Bearer ${manager}`)
+      .send({ category: 'block', scope: 'all', reasonCode: 'made_up_reason' })
+      .expect(422)
+      .expect((r) => expect(r.body.fieldErrors?.[0]?.path).toBe('reasonCode'));
+  });
+
   it('a rejected restriction never becomes active and cannot be re-decided', async () => {
     const created = await request(server)
       .post(`/api/v1/ops/customers/${customerId}/restrictions`)

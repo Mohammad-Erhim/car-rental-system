@@ -4,7 +4,6 @@ import type {
   Driver,
   LocalesResponse,
   LookupType,
-  LookupValuesResponse,
   PrivacyRequest,
   Profile,
   TranslationCompleteness,
@@ -229,23 +228,9 @@ export function useLookupTypes(params?: { classification?: string; search?: stri
   });
 }
 
-export function useLookupValues(
-  typeCode: string | null,
-  opts?: { locale?: string; includeInactive?: boolean },
-) {
-  const qs = new URLSearchParams();
-  if (opts?.locale) qs.set('locale', opts.locale);
-  if (opts?.includeInactive) qs.set('includeInactive', 'true');
-  return useQuery({
-    queryKey: ['reference-data', 'values', typeCode, opts],
-    queryFn: ({ signal }) =>
-      apiFetch<LookupValuesResponse>(
-        `/reference-data/types/${typeCode}/values${qs.toString() ? `?${qs}` : ''}`,
-        { signal },
-      ),
-    enabled: !!typeCode,
-  });
-}
+// `useLookupValues` / `useLookupOptions` are shared with `apps/site` — they live in
+// `@carrental/client/react`. Re-exported here so existing ops imports keep working.
+export { useLookupValues, useLookupOptions } from '@carrental/client/react';
 
 export interface LookupUsage {
   typeCode: string;

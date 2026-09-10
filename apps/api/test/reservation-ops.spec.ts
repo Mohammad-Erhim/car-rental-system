@@ -122,10 +122,18 @@ describe('reservation operations', () => {
   it('TEST-RSV-002 modify extends the rental, charges the delta, keeps the snapshot valid', async () => {
     const r = await bookEconomyAt(server, customerToken, 50, 3);
     const before = r.totalMinor;
+
+    // a modify reason must be an active adjustment_reason value
+    await request(server)
+      .post(`/api/v1/reservations/${r.reference}/modify`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ returnAt: isoIn(55), paymentToken: 'tok_ok', reasonCode: 'not_a_reason' })
+      .expect(422);
+
     const m = await request(server)
       .post(`/api/v1/reservations/${r.reference}/modify`)
       .set('Authorization', `Bearer ${customerToken}`)
-      .send({ returnAt: isoIn(55), paymentToken: 'tok_ok' }) // 5 days instead of 3
+      .send({ returnAt: isoIn(55), paymentToken: 'tok_ok', reasonCode: 'late_return' }) // 5 days instead of 3
       .expect(201);
     expect(m.body.deltaMinor).toBeGreaterThan(0);
     expect(m.body.totalMinor).toBe(before + m.body.deltaMinor);

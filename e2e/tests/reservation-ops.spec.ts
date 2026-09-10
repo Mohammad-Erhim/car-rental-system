@@ -73,7 +73,13 @@ test.describe('customer reservation ops (APP-CWEB)', () => {
     await shot(page, testInfo, 'cweb-reservation-detail');
 
     await page.getByTestId('res-cancel').click();
-    await page.getByRole('dialog').getByRole('button', { name: 'Cancel reservation' }).click();
+    const cancelDialog = page.getByRole('dialog');
+    const cancelConfirm = cancelDialog.getByRole('button', { name: 'Cancel reservation' });
+    await expect(cancelConfirm).toBeDisabled(); // a reason is required
+    await cancelDialog
+      .getByLabel(/Why are you cancelling/i)
+      .selectOption({ label: 'Plans changed' });
+    await cancelConfirm.click();
 
     await expect(page.getByTestId('res-state')).toContainText('cancelled');
     await expect(page.getByTestId('res-refunded')).toBeVisible();
