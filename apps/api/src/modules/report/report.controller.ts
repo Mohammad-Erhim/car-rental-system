@@ -29,7 +29,11 @@ const zDraft = z.object({
   payload: z.record(z.unknown()),
   note: z.string().max(1000).optional(),
 });
-const zPreview = z.object({ kind: z.string().max(40), payload: z.record(z.unknown()) });
+const zPreview = z.object({
+  kind: z.string().max(40),
+  key: z.string().min(1).max(60).optional(),
+  payload: z.record(z.unknown()),
+});
 const zNote = z.object({ note: z.string().min(1).max(1000) });
 
 @ApiTags('admin')
@@ -128,7 +132,7 @@ export class ReportController {
   @Post('config/versions/preview')
   @Permissions('config.read', 'config.publish')
   preview(@Body(new ZodValidationPipe(zPreview)) body: z.infer<typeof zPreview>) {
-    return this.config.preview(body.kind, body.payload);
+    return this.config.preview(body.kind, body.payload, body.key);
   }
 
   @Post('config/versions/:id/submit')

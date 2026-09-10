@@ -97,7 +97,7 @@ export class ConfigVersionService {
     input: { kind: string; key: string; payload: Record<string, unknown>; note?: string },
   ) {
     if (input.kind === 'pages') input.payload = normalizePagesAssets(input.payload);
-    this.validate(input.kind, input.payload);
+    this.validate(input.kind, input.payload, input.key);
     const orgId = await this.orgId();
     const [prev] = await this.db
       .select({ v: configVersion.revision })
@@ -135,7 +135,7 @@ export class ConfigVersionService {
         reason: row.state,
       });
     }
-    this.validate(row.kind, row.payload);
+    this.validate(row.kind, row.payload, row.key);
     await this.db
       .update(configVersion)
       .set({
@@ -168,7 +168,7 @@ export class ConfigVersionService {
         params: { reason: 'author_cannot_approve' },
       });
     }
-    this.validate(row.kind, row.payload);
+    this.validate(row.kind, row.payload, row.key);
 
     await this.db.transaction(async (tx) => {
       await tx
@@ -218,34 +218,41 @@ export class ConfigVersionService {
         reason: row.state,
       });
     }
+    // keep the author's own draft note — record the reviewer's reason alongside it, don't clobber it.
+    const merged = row.note ? `${row.note}\n\n— Rejected: ${note}` : `Rejected: ${note}`;
     await this.db
       .update(configVersion)
-      .set({ state: 'rejected', note, updatedAt: sql`now()` })
+      .set({ state: 'rejected', note: merged, updatedAt: sql`now()` })
       .where(eq(configVersion.id, id));
     await this.audit.record({
       action: 'config.version.rejected',
       targetType: 'config_version',
       targetId: id,
       actor,
+      after: { reason: note },
     });
     return this.shape(await this.load(id));
   }
 
   /** Compute the customer-facing effect of a candidate payload without publishing it. */
-  preview(kind: string, payload: Record<string, unknown>) {
-    this.validate(kind, payload);
+  preview(kind: string, payload: Record<string, unknown>, key?: string) {
+    this.validate(kind, payload, key);
     if (kind === 'policy') {
       const lateFeeBps = Number(payload.lateFeeBps ?? POLICY_DEFAULTS.cancellation.lateFeeBps);
       const freeCancelHours = Number(
         payload.freeCancelHours ?? POLICY_DEFAULTS.cancellation.freeCancelHours,
       );
       const minorPerPct = Number(payload.minorPerPct ?? POLICY_DEFAULTS.fuel_rate.minorPerPct);
-      return {
-        examples: [
-          `A $100.00 booking cancelled inside ${freeCancelHours}h keeps a ${(lateFeeBps / 100).toFixed(0)}% fee = $${((10000 * lateFeeBps) / 10000 / 100).toFixed(2)}`,
-          `Returning 20% low on fuel = $${((20 * minorPerPct) / 100).toFixed(2)}`,
-        ],
-      };
+      const cancellation = `A $100.00 booking cancelled inside ${freeCancelHours}h keeps a ${(lateFeeBps / 100).toFixed(0)}% fee = $${((10000 * lateFeeBps) / 10000 / 100).toFixed(2)}`;
+      const fuel = `Returning 20% low on fuel = $${((20 * minorPerPct) / 100).toFixed(2)}`;
+      // when the caller names the key, only show the example that key drives.
+      const examples =
+        key === 'cancellation'
+          ? [cancellation]
+          : key === 'fuel_rate'
+            ? [fuel]
+            : [cancellation, fuel];
+      return { examples };
     }
     if (kind === 'branding') {
       const parsed = brandConfigSchema.parse(payload);
@@ -352,13 +359,28 @@ export class ConfigVersionService {
     return { examples: ['No preview available for this kind yet.'] };
   }
 
-  private validate(kind: string, payload: Record<string, unknown>) {
+  /** the exact numeric fields each `policy` key accepts — an unknown or missing key is a typo. */
+  private static readonly POLICY_FIELDS: Record<string, string[]> = {
+    cancellation: ['freeCancelHours', 'lateFeeBps'],
+    fuel_rate: ['minorPerPct'],
+  };
+
+  private validate(kind: string, payload: Record<string, unknown>, key?: string) {
     const issues: Array<{ path: string; code: string }> = [];
     if (kind === 'policy') {
+      const allowed = key ? ConfigVersionService.POLICY_FIELDS[key] : undefined;
+      if (key && !allowed) issues.push({ path: 'key', code: 'unknown_policy_key' });
       for (const [k, v] of Object.entries(payload)) {
+        if (allowed && !allowed.includes(k)) {
+          issues.push({ path: k, code: 'unknown_field' });
+          continue;
+        }
         if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) {
           issues.push({ path: k, code: 'must_be_non_negative_number' });
         }
+      }
+      for (const f of allowed ?? []) {
+        if (!(f in payload)) issues.push({ path: f, code: 'required' });
       }
       if ('lateFeeBps' in payload && Number(payload.lateFeeBps) > 10000) {
         issues.push({ path: 'lateFeeBps', code: 'out_of_range' });

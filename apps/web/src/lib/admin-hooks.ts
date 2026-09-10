@@ -34,7 +34,7 @@ export function useConfigVersions(kind: string, key?: string) {
 
 export function useConfigPreview() {
   return useMutation({
-    mutationFn: (body: { kind: string; payload: Record<string, number> }) =>
+    mutationFn: (body: { kind: string; key?: string; payload: Record<string, number> }) =>
       apiFetch<{ examples: string[] }>('/ops/config/versions/preview', { method: 'POST', body }),
   });
 }
