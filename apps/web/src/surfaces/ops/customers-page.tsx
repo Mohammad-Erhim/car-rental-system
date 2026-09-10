@@ -8,10 +8,12 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  ConfirmDialog,
   Input,
   PageHeader,
 } from '@carrental/ui';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import {
   useCreateRestriction,
@@ -22,7 +24,17 @@ import {
   useUnmergeCustomer,
   type CustomerRecord,
 } from '../../lib/admin-hooks.js';
-import { formatMinor } from '../../lib/discovery-hooks.js';
+import { ApiError } from '../../lib/api.js';
+
+/** Debounce a fast-changing value (search box) to one API call per pause. */
+function useDebounced<T>(value: T, ms = 300) {
+  const [v, setV] = useState(value);
+  useEffect(() => {
+    const id = setTimeout(() => setV(value), ms);
+    return () => clearTimeout(id);
+  }, [value, ms]);
+  return v;
+}
 
 /**
  * SCREEN-OPS-021 / SCREEN-OPS-022 · FR-ADM-001 — customer record search + consolidated view
@@ -35,8 +47,9 @@ export function CustomersPage() {
   const { t, fmt } = useI18n();
   const [q, setQ] = useState('');
   const [sel, setSel] = useState<string | null>(null);
+  const debouncedQ = useDebounced(q);
 
-  const search = useCustomerSearch(q);
+  const search = useCustomerSearch(debouncedQ);
   const record = useCustomerRecord(sel);
   const r = record.data;
 
@@ -126,7 +139,10 @@ export function CustomersPage() {
                   <div>
                     {t('ops.cust.balance')}:{' '}
                     <span className={r.balance.minor > 0 ? 'font-semibold text-destructive' : ''}>
-                      {formatMinor(r.balance.minor, r.balance.currency)}
+                      {fmt.money({
+                        amountMinor: r.balance.minor,
+                        currency: r.balance.currency,
+                      })}
                     </span>
                   </div>
                   <div>
@@ -151,8 +167,13 @@ export function CustomersPage() {
                       <p className="text-muted-foreground">{t('ops.cust.none')}</p>
                     ) : (
                       r.reservations.slice(0, 10).map((x) => (
-                        <div key={x.reference} className="flex justify-between">
-                          <span className="tabular-nums">{x.reference}</span>
+                        <div key={x.reference} className="flex justify-between gap-2">
+                          <Link
+                            to={`/work/${encodeURIComponent(x.reference)}`}
+                            className="bidi-isolate font-mono text-xs text-primary hover:underline"
+                          >
+                            {x.reference}
+                          </Link>
                           <span>
                             <Badge variant="neutral">{x.state}</Badge> {fmt.date(x.pickupAt)}
                           </span>
@@ -192,15 +213,20 @@ export function CustomersPage() {
                   </CardHeader>
                   <CardContent className="space-y-1 text-sm">
                     {r.rentals.map((x) => (
-                      <div key={x.reference} className="flex justify-between">
-                        <span className="tabular-nums">{x.reference}</span>
+                      <div key={x.reference} className="flex justify-between gap-2">
+                        <Link
+                          to={`/rentals/${encodeURIComponent(x.reference)}`}
+                          className="bidi-isolate font-mono text-xs text-primary hover:underline"
+                        >
+                          {x.reference}
+                        </Link>
                         <Badge variant="neutral">{x.state}</Badge>
                       </div>
                     ))}
                     {r.openCases.map((x) => (
                       <div key={x.id} className="flex justify-between text-destructive">
-                        <span>{x.kind}</span>
-                        <span>{x.subjectRef}</span>
+                        <span>{x.kind.replace(/_/g, ' ')}</span>
+                        <span className="bidi-isolate font-mono text-xs">{x.subjectRef}</span>
                       </div>
                     ))}
                   </CardContent>
@@ -226,9 +252,24 @@ function RestrictionsCard({ customerId, record }: { customerId: string; record: 
   const decide = useRestrictionDecision(customerId);
   const [form, setForm] = useState({ category: 'block', scope: 'all', reasonCode: '' });
   const [error, setError] = useState<string | null>(null);
+  const [confirm, setConfirm] = useState<null | {
+    rid: string;
+    action: 'approve' | 'lift';
+  }>(null);
 
   const rows = record.restrictions;
   const hasActive = rows.some((x) => x.status === 'active');
+
+  const runDecision = async (rid: string, action: 'approve' | 'reject' | 'lift') => {
+    setError(null);
+    try {
+      await decide.mutateAsync({ rid, action });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('ops.cust.rstrFail'));
+    } finally {
+      setConfirm(null);
+    }
+  };
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -286,7 +327,8 @@ function RestrictionsCard({ customerId, record }: { customerId: string; record: 
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => decide.mutate({ rid: x.id, action: 'approve' })}
+                      loading={decide.isPending}
+                      onClick={() => setConfirm({ rid: x.id, action: 'approve' })}
                       data-testid={`rstr-approve-${x.id}`}
                     >
                       {t('ops.cust.rstrApprove')}
@@ -299,7 +341,8 @@ function RestrictionsCard({ customerId, record }: { customerId: string; record: 
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => decide.mutate({ rid: x.id, action: 'reject' })}
+                    loading={decide.isPending}
+                    onClick={() => runDecision(x.id, 'reject')}
                   >
                     {t('ops.cust.rstrReject')}
                   </Button>
@@ -309,7 +352,8 @@ function RestrictionsCard({ customerId, record }: { customerId: string; record: 
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={() => decide.mutate({ rid: x.id, action: 'lift' })}
+                  loading={decide.isPending}
+                  onClick={() => setConfirm({ rid: x.id, action: 'lift' })}
                   data-testid={`rstr-lift-${x.id}`}
                 >
                   {t('ops.cust.rstrLift')}
@@ -356,8 +400,22 @@ function RestrictionsCard({ customerId, record }: { customerId: string; record: 
             </Button>
           </form>
         ) : null}
-        {error ? <p className="text-destructive">{error}</p> : null}
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
       </CardContent>
+
+      <ConfirmDialog
+        open={!!confirm}
+        onOpenChange={(v) => !v && setConfirm(null)}
+        destructive={confirm?.action === 'lift'}
+        title={confirm?.action === 'lift' ? t('ops.cust.liftTitle') : t('ops.cust.approveTitle')}
+        description={
+          confirm?.action === 'lift' ? t('ops.cust.liftBody') : t('ops.cust.approveBody')
+        }
+        confirmLabel={
+          confirm?.action === 'lift' ? t('ops.cust.rstrLift') : t('ops.cust.rstrApprove')
+        }
+        onConfirm={() => (confirm ? runDecision(confirm.rid, confirm.action) : undefined)}
+      />
     </Card>
   );
 }
@@ -376,6 +434,21 @@ function MergeCard({ record }: { record: CustomerRecord }) {
   const [intoId, setIntoId] = useState('');
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [confirmUnmerge, setConfirmUnmerge] = useState(false);
+
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const intoValid = UUID.test(intoId.trim());
+
+  const runUnmerge = async () => {
+    setError(null);
+    try {
+      await unmerge.mutateAsync();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t('ops.cust.mergeFail'));
+    } finally {
+      setConfirmUnmerge(false);
+    }
+  };
 
   if (!canManage) return null;
   const isMerged = record.status === 'merged';
@@ -394,7 +467,7 @@ function MergeCard({ record }: { record: CustomerRecord }) {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => unmerge.mutate()}
+              onClick={() => setConfirmUnmerge(true)}
               data-testid="cust-unmerge"
             >
               {t('ops.cust.undoMerge')}
@@ -414,7 +487,7 @@ function MergeCard({ record }: { record: CustomerRecord }) {
                 setIntoId('');
                 setReason('');
               } catch (err) {
-                setError(err instanceof Error ? err.message : t('ops.cust.mergeFail'));
+                setError(err instanceof ApiError ? err.message : t('ops.cust.mergeFail'));
               }
             }}
           >
@@ -425,8 +498,14 @@ function MergeCard({ record }: { record: CustomerRecord }) {
                 value={intoId}
                 onChange={(e) => setIntoId(e.target.value)}
                 placeholder={t('ops.cust.mergeIntoHint')}
+                aria-invalid={intoId.trim().length > 0 && !intoValid}
                 data-testid="cust-merge-into"
               />
+              {intoId.trim().length > 0 && !intoValid ? (
+                <span className="mt-1 block text-xs text-destructive">
+                  {t('ops.cust.mergeIntoInvalid')}
+                </span>
+              ) : null}
             </label>
             <label className="text-xs">
               {t('ops.cust.mergeReason')}
@@ -439,7 +518,7 @@ function MergeCard({ record }: { record: CustomerRecord }) {
             <Button
               type="submit"
               size="sm"
-              disabled={!intoId.trim() || merge.isPending}
+              disabled={!intoValid || merge.isPending}
               data-testid="cust-merge-go"
             >
               {t('ops.cust.mergeGo')}
@@ -465,14 +544,24 @@ function MergeCard({ record }: { record: CustomerRecord }) {
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => unmerge.mutate()}
+            onClick={() => setConfirmUnmerge(true)}
             data-testid="cust-unmerge"
           >
             {t('ops.cust.undoLastMerge')}
           </Button>
         ) : null}
-        {error ? <p className="text-destructive">{error}</p> : null}
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
       </CardContent>
+
+      <ConfirmDialog
+        open={confirmUnmerge}
+        onOpenChange={setConfirmUnmerge}
+        destructive
+        title={t('ops.cust.unmergeTitle')}
+        description={t('ops.cust.unmergeBody')}
+        confirmLabel={t('ops.cust.undoMerge')}
+        onConfirm={runUnmerge}
+      />
     </Card>
   );
 }
