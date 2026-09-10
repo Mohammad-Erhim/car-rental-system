@@ -507,6 +507,12 @@ export class RentalService {
         reason: row.state,
       });
     }
+    if (row.odometerOutKm != null && input.odometerKm < row.odometerOutKm) {
+      throw AppError.validation(
+        [{ path: 'odometerKm', code: 'min' }],
+        `The return odometer (${input.odometerKm} km) cannot be below the pickup reading (${row.odometerOutKm} km)`,
+      );
+    }
 
     const findings = input.findings ?? [];
     const damageMinor = findings.reduce((a, f) => a + Math.max(0, f.chargeMinor ?? 0), 0);
@@ -597,24 +603,48 @@ export class RentalService {
     return { ...(await this.detail(reference)), adjustmentMinor, fuelMinor, damageMinor };
   }
 
-  /** Readiness check — moves a returned (`prep`) unit back to `available`. */
+  /**
+   * Readiness check (FR-RNT-013) — after a return, the unit sits in `prep` and is not bookable
+   * until this passes. A pass returns it to `available`; a fail sends it to `maintenance`. Only
+   * runs on a `closed` rental, so it can never move an in-service (`on_rent`) unit.
+   */
   async runReadiness(reference: string, actor: Actor, passed: boolean) {
     this.staffOnly(actor);
     const row = await this.load(reference);
     this.assertInScope(actor, row.pickupLocationCode);
-    if (!row.unitId) return this.detail(reference);
-    await this.db
-      .update(vehicleUnit)
-      .set({ state: passed ? 'available' : 'maintenance', updatedAt: sql`now()` })
-      .where(eq(vehicleUnit.id, row.unitId));
-    await this.db.insert(rentalEvent).values({
-      rentalId: row.id,
-      reference,
-      type: 'readiness',
-      note: passed ? 'passed' : 'sent to maintenance',
-      actorType: 'staff',
-      actorId: actor.accountId,
-      actorLabel: actor.displayName,
+    if (row.state !== 'closed') {
+      throw AppError.businessRule(
+        `Readiness runs on a returned rental — this one is ${row.state}`,
+        { reason: row.state },
+      );
+    }
+    if (!row.unitId) {
+      throw AppError.businessRule('This rental has no vehicle to check', { reason: 'no_unit' });
+    }
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(vehicleUnit)
+        .set({ state: passed ? 'available' : 'maintenance', updatedAt: sql`now()` })
+        .where(eq(vehicleUnit.id, row.unitId!));
+      await tx
+        .update(rental)
+        .set({ version: row.version + 1, updatedAt: sql`now()`, updatedBy: actor.accountId })
+        .where(eq(rental.id, row.id));
+      await tx.insert(rentalEvent).values({
+        rentalId: row.id,
+        reference,
+        type: 'readiness',
+        note: passed ? 'passed' : 'sent to maintenance',
+        actorType: 'staff',
+        actorId: actor.accountId,
+        actorLabel: actor.displayName,
+      });
+    });
+    await this.audit.record({
+      action: passed ? 'rental.readiness.passed' : 'rental.readiness.failed',
+      targetType: 'rental',
+      targetId: row.id,
+      actor,
     });
     return this.detail(reference);
   }
