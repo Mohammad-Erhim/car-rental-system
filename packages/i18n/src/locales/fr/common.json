@@ -190,6 +190,7 @@
   "ops.branding.contrastFail": "{n} paire(s) de couleurs échouent à WCAG AA — corrigez avant d’enregistrer.",
   "ops.branding.contrastOk": "Toutes les paires de couleurs respectent WCAG AA dans ce mode.",
   "ops.branding.density": "Densité",
+  "ops.branding.draftSaved": "Brouillon enregistré.",
   "ops.branding.font": "Police",
   "ops.branding.history": "Versions",
   "ops.branding.presets": "Partir d’un préréglage",

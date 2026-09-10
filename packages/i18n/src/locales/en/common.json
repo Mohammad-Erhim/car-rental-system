@@ -190,6 +190,7 @@
   "ops.branding.contrastFail": "{n} colour pair(s) fail WCAG AA — fix before saving.",
   "ops.branding.contrastOk": "All colour pairs clear WCAG AA in this mode.",
   "ops.branding.density": "Density",
+  "ops.branding.draftSaved": "Draft saved.",
   "ops.branding.font": "Font",
   "ops.branding.history": "Versions",
   "ops.branding.presets": "Start from a preset",

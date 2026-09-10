@@ -190,6 +190,7 @@
   "ops.branding.contrastFail": "{n} من أزواج الألوان لا تحقق WCAG AA — صحّحها قبل الحفظ.",
   "ops.branding.contrastOk": "جميع أزواج الألوان تحقق معيار WCAG AA في هذا الوضع.",
   "ops.branding.density": "الكثافة",
+  "ops.branding.draftSaved": "تم حفظ المسودة.",
   "ops.branding.font": "الخط",
   "ops.branding.history": "الإصدارات",
   "ops.branding.presets": "ابدأ من نمط جاهز",
