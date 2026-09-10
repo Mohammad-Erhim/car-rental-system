@@ -16,14 +16,21 @@ export function storeLocale(locale: string): void {
   }
 }
 
-/** First-visit locale: stored choice → browser preference → null (provider falls back to default). */
-export function detectInitialLocale(supported: string[]): string | null {
+/**
+ * First-visit locale: stored choice → browser preference → null. When `supported` is given the
+ * result is restricted to it; otherwise any non-empty candidate is returned and the i18n
+ * provider clamps it against the runtime locale list once `/meta/locales` loads.
+ */
+export function detectInitialLocale(supported?: string[]): string | null {
+  const ok = (c: string | null | undefined): c is string =>
+    !!c && (!supported || supported.includes(c));
+
   const stored = getStoredLocale();
-  if (stored && supported.includes(stored)) return stored;
+  if (ok(stored)) return stored;
   if (typeof navigator !== 'undefined') {
     for (const lang of navigator.languages ?? [navigator.language]) {
       const base = lang?.split('-')[0];
-      if (base && supported.includes(base)) return base;
+      if (ok(base)) return base ?? null;
     }
   }
   return null;

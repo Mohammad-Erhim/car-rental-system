@@ -1,6 +1,7 @@
-import { useAuth } from '@carrental/client/react';
+import { useAuth, useFormErrors } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
+  Alert,
   Badge,
   Button,
   Card,
@@ -8,8 +9,12 @@ import {
   CardHeader,
   CardTitle,
   ConfirmDialog,
+  ErrorSummary,
+  Field,
   Input,
   PageHeader,
+  Select,
+  useToast,
 } from '@carrental/ui';
 import { Check, Globe, Star } from 'lucide-react';
 import { useState } from 'react';
@@ -21,41 +26,152 @@ import {
   useTranslationCompleteness,
   useUpsertLocale,
 } from '../../lib/api-hooks.js';
+import { ApiError } from '../../lib/api.js';
 
 /**
- * SCREEN-OPS — Languages (SRS-I18N-001, FR-GBL-002, DEC-024). Add / activate / order a locale;
- * set the default; jump to the translation catalogue to fill it in. Adding a language and
- * publishing its strings needs no code change.
+ * SCREEN-OPS — Languages (SRS-I18N-001, FR-GBL-002, DEC-024). Add / edit / order / activate a
+ * locale and set the default; jump to the translation catalogue to fill it in. Adding a language
+ * and publishing its strings needs no code change — the switcher and the runtime locale list are
+ * driven by `GET /meta/locales`.
  */
+const BCP47 = /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/i;
+
+const emptyForm = () => ({
+  code: '',
+  nativeName: '',
+  englishName: '',
+  direction: 'ltr' as 'ltr' | 'rtl',
+  sortOrder: '',
+});
+
 export function LanguagesPage() {
   const { t } = useI18n();
+  const { toast } = useToast();
   const canManage = useAuth().hasPermission('config.publish');
 
   const locales = useAdminLocales();
   const completeness = useTranslationCompleteness();
   const upsert = useUpsertLocale();
   const act = useLocaleAction();
+  const errs = useFormErrors({
+    code: t('ops.languages.code'),
+    nativeName: t('ops.languages.nativeName'),
+    englishName: t('ops.languages.englishName'),
+    direction: t('ops.languages.direction'),
+    sortOrder: t('ops.languages.order'),
+  });
+
+  const [form, setForm] = useState(emptyForm);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [pending, setPending] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<null | { code: string; action: 'deactivate' | 'default' }>(
     null,
   );
 
-  const doAct = (code: string, action: 'activate' | 'deactivate' | 'default') =>
-    act.mutate({ code, action }, { onSettled: () => setConfirm(null) });
-
-  const [form, setForm] = useState({
-    code: '',
-    nativeName: '',
-    englishName: '',
-    direction: 'ltr' as 'ltr' | 'rtl',
-  });
-
-  const coverage = (code: string) => {
+  const coverage = (code: string): number | null => {
     const rows = (completeness.data?.rows ?? []).filter((r) => r.locale === code);
     if (!rows.length) return null;
     const total = rows.reduce((a, b) => a + b.total, 0);
     const published = rows.reduce((a, b) => a + b.published, 0);
     return total ? Math.round((published / total) * 100) : 100;
   };
+
+  function resetForm() {
+    setForm(emptyForm());
+    setEditing(null);
+    errs.clear();
+  }
+
+  function edit(l: NonNullable<typeof locales.data>[number]) {
+    setEditing(l.code);
+    setForm({
+      code: l.code,
+      nativeName: l.nativeName,
+      englishName: l.englishName,
+      direction: l.direction,
+      sortOrder: String(l.sortOrder),
+    });
+    errs.clear();
+  }
+
+  function validate(): boolean {
+    const local: Array<{ path: string; code: string }> = [];
+    if (!form.code.trim()) local.push({ path: 'code', code: 'required' });
+    else if (!BCP47.test(form.code.trim())) local.push({ path: 'code', code: 'invalid' });
+    if (!form.nativeName.trim()) local.push({ path: 'nativeName', code: 'required' });
+    if (!form.englishName.trim()) local.push({ path: 'englishName', code: 'required' });
+    if (form.sortOrder.trim()) {
+      const n = Number(form.sortOrder);
+      if (!Number.isInteger(n) || n < 0 || n > 999) {
+        local.push({ path: 'sortOrder', code: 'out_of_range' });
+      }
+    }
+    if (local.length) {
+      errs.setLocal(local);
+      return false;
+    }
+    return true;
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    errs.clear();
+    if (!validate()) return;
+    try {
+      await upsert.mutateAsync({
+        code: form.code.trim().toLowerCase(),
+        nativeName: form.nativeName.trim(),
+        englishName: form.englishName.trim(),
+        direction: form.direction,
+        sortOrder: form.sortOrder.trim() ? Number(form.sortOrder) : undefined,
+      });
+      toast({
+        title: editing ? t('ops.languages.saved') : t('ops.languages.added', { code: form.code }),
+        variant: 'success',
+      });
+      resetForm();
+    } catch (err) {
+      errs.fromError(err);
+    }
+  }
+
+  async function doAct(code: string, action: 'activate' | 'deactivate' | 'default', force = false) {
+    setPending(code);
+    try {
+      const res = await act.mutateAsync({ code, action, force });
+      setConfirm(null);
+      const key =
+        action === 'activate'
+          ? 'ops.languages.activated'
+          : action === 'deactivate'
+            ? 'ops.languages.deactivated'
+            : 'ops.languages.defaulted';
+      toast({
+        title: t(key, {
+          code,
+          n: (res as { reassigned?: number }).reassigned ?? 0,
+        }),
+        variant: 'success',
+      });
+    } catch (err) {
+      if (
+        action === 'default' &&
+        err instanceof ApiError &&
+        err.problem.params?.reason === 'default_locale_untranslated'
+      ) {
+        // the confirm dialog already carries the warning — the user confirmed, retry with force
+        return doAct(code, 'default', true);
+      }
+      toast({
+        title: err instanceof ApiError ? err.message : t('ops.languages.actionFail'),
+      });
+      setConfirm(null);
+    } finally {
+      setPending(null);
+    }
+  }
+
+  const confirmCoverage = confirm ? coverage(confirm.code) : null;
 
   return (
     <div className="space-y-6">
@@ -67,7 +183,7 @@ export function LanguagesPage() {
         </CardHeader>
         <CardContent className="space-y-2">
           {locales.isLoading ? (
-            <p className="text-sm text-muted-foreground">…</p>
+            <p className="text-sm text-muted-foreground">{t('ops.st.loading')}</p>
           ) : (
             (locales.data ?? []).map((l) => {
               const pct = coverage(l.code);
@@ -75,6 +191,7 @@ export function LanguagesPage() {
                 <div
                   key={l.code}
                   className="flex flex-wrap items-center gap-3 rounded-md border p-3 text-sm"
+                  data-testid={`lang-row-${l.code}`}
                 >
                   <Globe className="size-4 text-muted-foreground" aria-hidden="true" />
                   <span className="font-medium">
@@ -102,7 +219,9 @@ export function LanguagesPage() {
                     >
                       {t('ops.languages.coverage', { pct })}
                     </span>
-                  ) : null}
+                  ) : (
+                    <span className="text-xs text-warning">{t('ops.languages.noStrings')}</span>
+                  )}
 
                   <span className="ms-auto flex flex-wrap gap-1">
                     <Button size="sm" variant="ghost" asChild>
@@ -110,28 +229,39 @@ export function LanguagesPage() {
                         {t('ops.languages.edit')}
                       </Link>
                     </Button>
-                    {canManage && !l.isDefault ? (
+                    {canManage ? (
                       <>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          loading={act.isPending}
-                          onClick={() =>
-                            l.isActive
-                              ? setConfirm({ code: l.code, action: 'deactivate' })
-                              : doAct(l.code, 'activate')
-                          }
-                        >
-                          {l.isActive ? t('ops.languages.deactivate') : t('ops.languages.activate')}
+                        <Button size="sm" variant="ghost" onClick={() => edit(l)}>
+                          {t('ops.languages.editDetails')}
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          loading={act.isPending}
-                          onClick={() => setConfirm({ code: l.code, action: 'default' })}
-                        >
-                          {t('ops.languages.makeDefault')}
-                        </Button>
+                        {!l.isDefault ? (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              loading={pending === l.code}
+                              disabled={!!pending}
+                              onClick={() =>
+                                l.isActive
+                                  ? setConfirm({ code: l.code, action: 'deactivate' })
+                                  : doAct(l.code, 'activate')
+                              }
+                            >
+                              {l.isActive
+                                ? t('ops.languages.deactivate')
+                                : t('ops.languages.activate')}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              loading={pending === l.code}
+                              disabled={!!pending}
+                              onClick={() => setConfirm({ code: l.code, action: 'default' })}
+                            >
+                              {t('ops.languages.makeDefault')}
+                            </Button>
+                          </>
+                        ) : null}
                       </>
                     ) : null}
                   </span>
@@ -145,71 +275,104 @@ export function LanguagesPage() {
       {canManage ? (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">{t('ops.languages.add')}</CardTitle>
+            <CardTitle className="text-base">
+              {editing ? t('ops.languages.editTitle', { code: editing }) : t('ops.languages.add')}
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <form
-              className="grid gap-3 sm:grid-cols-4"
-              onSubmit={(e) => {
-                e.preventDefault();
-                upsert.mutate(form, {
-                  onSuccess: () =>
-                    setForm({ code: '', nativeName: '', englishName: '', direction: 'ltr' }),
-                });
-              }}
-            >
-              <label className="space-y-1 text-sm">
-                <span className="font-medium text-muted-foreground">{t('ops.languages.code')}</span>
-                <Input
-                  required
-                  placeholder="de"
-                  value={form.code}
-                  onChange={(e) => setForm({ ...form, code: e.target.value })}
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="font-medium text-muted-foreground">
-                  {t('ops.languages.nativeName')}
-                </span>
-                <Input
-                  required
-                  placeholder="Deutsch"
-                  value={form.nativeName}
-                  onChange={(e) => setForm({ ...form, nativeName: e.target.value })}
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="font-medium text-muted-foreground">
-                  {t('ops.languages.englishName')}
-                </span>
-                <Input
-                  required
-                  placeholder="German"
-                  value={form.englishName}
-                  onChange={(e) => setForm({ ...form, englishName: e.target.value })}
-                />
-              </label>
-              <label className="space-y-1 text-sm">
-                <span className="font-medium text-muted-foreground">
-                  {t('ops.languages.direction')}
-                </span>
-                <select
-                  className="h-10 w-full rounded-md border bg-background px-3 text-sm"
-                  value={form.direction}
-                  onChange={(e) => setForm({ ...form, direction: e.target.value as 'ltr' | 'rtl' })}
-                >
-                  <option value="ltr">ltr</option>
-                  <option value="rtl">rtl</option>
-                </select>
-              </label>
-              <div className="sm:col-span-4">
+            <ErrorSummary title={t('ops.languages.checkFields')} errors={errs.summary} />
+            <form className="grid gap-3 sm:grid-cols-5" onSubmit={submit} noValidate>
+              <Field
+                label={t('ops.languages.code')}
+                hint={t('ops.languages.codeHint')}
+                required
+                error={errs.fieldError('code')}
+              >
+                {({ id, invalid }) => (
+                  <Input
+                    id={id}
+                    invalid={invalid}
+                    placeholder="de"
+                    value={form.code}
+                    disabled={!!editing}
+                    onChange={(e) => setForm({ ...form, code: e.target.value })}
+                  />
+                )}
+              </Field>
+              <Field
+                label={t('ops.languages.nativeName')}
+                required
+                error={errs.fieldError('nativeName')}
+              >
+                {({ id, invalid }) => (
+                  <Input
+                    id={id}
+                    invalid={invalid}
+                    placeholder="Deutsch"
+                    value={form.nativeName}
+                    onChange={(e) => setForm({ ...form, nativeName: e.target.value })}
+                  />
+                )}
+              </Field>
+              <Field
+                label={t('ops.languages.englishName')}
+                required
+                error={errs.fieldError('englishName')}
+              >
+                {({ id, invalid }) => (
+                  <Input
+                    id={id}
+                    invalid={invalid}
+                    placeholder="German"
+                    value={form.englishName}
+                    onChange={(e) => setForm({ ...form, englishName: e.target.value })}
+                  />
+                )}
+              </Field>
+              <Field label={t('ops.languages.direction')} error={errs.fieldError('direction')}>
+                {({ id }) => (
+                  <Select
+                    id={id}
+                    value={form.direction}
+                    onChange={(e) =>
+                      setForm({ ...form, direction: e.target.value as 'ltr' | 'rtl' })
+                    }
+                  >
+                    <option value="ltr">{t('ops.languages.ltr')}</option>
+                    <option value="rtl">{t('ops.languages.rtl')}</option>
+                  </Select>
+                )}
+              </Field>
+              <Field
+                label={t('ops.languages.order')}
+                hint={t('ops.languages.orderHint')}
+                error={errs.fieldError('sortOrder')}
+              >
+                {({ id, invalid }) => (
+                  <Input
+                    id={id}
+                    invalid={invalid}
+                    inputMode="numeric"
+                    placeholder="99"
+                    value={form.sortOrder}
+                    onChange={(e) => setForm({ ...form, sortOrder: e.target.value })}
+                  />
+                )}
+              </Field>
+              <div className="flex items-center gap-3 sm:col-span-5">
                 <Button type="submit" loading={upsert.isPending}>
                   <Check className="size-4" aria-hidden="true" />
-                  {t('ops.languages.addAction')}
+                  {editing ? t('ops.languages.save') : t('ops.languages.addAction')}
                 </Button>
-                <span className="ms-3 text-xs text-muted-foreground">
-                  {t('ops.languages.addHint')}
-                </span>
+                {editing ? (
+                  <Button type="button" variant="ghost" onClick={resetForm}>
+                    {t('action.cancel')}
+                  </Button>
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    {t('ops.languages.addHint')}
+                  </span>
+                )}
               </div>
             </form>
           </CardContent>
@@ -226,16 +389,30 @@ export function LanguagesPage() {
             : t('ops.languages.deactivateTitle', { code: confirm?.code ?? '' })
         }
         description={
-          confirm?.action === 'default'
-            ? t('ops.languages.defaultBody')
-            : t('ops.languages.deactivateBody')
+          <div className="space-y-2">
+            <p>
+              {confirm?.action === 'default'
+                ? t('ops.languages.defaultBody')
+                : t('ops.languages.deactivateBody')}
+            </p>
+            {confirm?.action === 'default' && (confirmCoverage == null || confirmCoverage < 100) ? (
+              <Alert variant="warning">
+                {confirmCoverage == null
+                  ? t('ops.languages.defaultUntranslated')
+                  : t('ops.languages.defaultPartial', { pct: confirmCoverage })}
+              </Alert>
+            ) : null}
+          </div>
         }
         confirmLabel={
           confirm?.action === 'default'
             ? t('ops.languages.makeDefault')
             : t('ops.languages.deactivate')
         }
-        onConfirm={() => (confirm ? doAct(confirm.code, confirm.action) : undefined)}
+        confirmDisabled={!!pending}
+        onConfirm={() =>
+          confirm ? doAct(confirm.code, confirm.action, confirm.action === 'default') : undefined
+        }
       />
     </div>
   );

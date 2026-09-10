@@ -1,11 +1,12 @@
 import { createQueryClient } from '@carrental/client';
 import { AuthProvider } from '@carrental/client/react';
-import { BASE_RESOURCES, SUPPORTED_LOCALE_CODES } from '@carrental/i18n';
+import type { ResourceBundle } from '@carrental/i18n';
 import { I18nProvider, useI18n } from '@carrental/i18n/react';
 import { ThemeProvider, ToastProvider, UiStringsProvider } from '@carrental/ui';
 import { QueryClientProvider } from '@tanstack/react-query';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 
+import { useMetaLocales, usePublishedCommonTranslations } from '../lib/api-hooks.js';
 import { usePublishedBranding } from '../lib/branding-hooks.js';
 import { detectInitialLocale, storeLocale } from '../lib/locale-storage.js';
 import { StepUpProvider } from '../lib/step-up.js';
@@ -30,27 +31,68 @@ function LocalisedUiStrings({ children }: { children: ReactNode }) {
   );
 }
 
+/**
+ * Feeds the runtime locale list (`/meta/locales`) and published `common` translation overrides
+ * (`/meta/translations`) into the shared I18nProvider — so a language added from the dashboard is
+ * switchable, and a string published from the Translations screen shows up here, with no code
+ * change (DEC-024). Before those load, the provider uses its built-in three.
+ */
+function I18nBoundary({ children }: { children: ReactNode }) {
+  const meta = useMetaLocales();
+  const initialLocale = useMemo(() => detectInitialLocale() ?? undefined, []);
+  const [activeLocale, setActiveLocale] = useState(() => detectInitialLocale() ?? 'en');
+  const overrides = usePublishedCommonTranslations(activeLocale);
+
+  const availableLocales = useMemo(
+    () =>
+      meta.data?.locales.map((l) => ({
+        code: l.code,
+        nativeName: l.nativeName,
+        englishName: l.englishName,
+        direction: l.direction,
+      })),
+    [meta.data],
+  );
+
+  const resources = useMemo<ResourceBundle | undefined>(() => {
+    const o = overrides.data;
+    return o && Object.keys(o).length ? { [activeLocale]: o } : undefined;
+  }, [overrides.data, activeLocale]);
+
+  const onLocaleChange = useCallback((loc: string) => {
+    storeLocale(loc);
+    setActiveLocale(loc);
+  }, []);
+
+  return (
+    <I18nProvider
+      initialLocale={initialLocale}
+      availableLocales={availableLocales}
+      defaultLocale={meta.data?.defaultLocale}
+      resources={resources}
+      onLocaleChange={onLocaleChange}
+      onMissingKey={({ key, locale }) => {
+        const id = `${locale}:${key}`;
+        if (!MISSING_KEYS.has(id)) {
+          MISSING_KEYS.add(id);
+          // Observable to developers/operators (SRS-I18N-005) without breaking the UI.
+
+          console.warn(`[i18n] missing key "${key}" for locale "${locale}"`);
+        }
+      }}
+    >
+      {children}
+    </I18nProvider>
+  );
+}
+
 export function AppProviders({ children }: { children: ReactNode }) {
   const [queryClient] = useState(createQueryClient);
-  const initialLocale = useMemo(() => detectInitialLocale(SUPPORTED_LOCALE_CODES) ?? undefined, []);
 
   return (
     <QueryClientProvider client={queryClient}>
       <BrandedThemeProvider>
-        <I18nProvider
-          initialLocale={initialLocale}
-          resources={BASE_RESOURCES}
-          onLocaleChange={storeLocale}
-          onMissingKey={({ key, locale }) => {
-            const id = `${locale}:${key}`;
-            if (!MISSING_KEYS.has(id)) {
-              MISSING_KEYS.add(id);
-              // Observable to developers/operators (SRS-I18N-005) without breaking the UI.
-
-              console.warn(`[i18n] missing key "${key}" for locale "${locale}"`);
-            }
-          }}
-        >
+        <I18nBoundary>
           <LocalisedUiStrings>
             <AuthProvider>
               <ToastProvider>
@@ -58,7 +100,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
               </ToastProvider>
             </AuthProvider>
           </LocalisedUiStrings>
-        </I18nProvider>
+        </I18nBoundary>
       </BrandedThemeProvider>
     </QueryClientProvider>
   );

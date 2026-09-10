@@ -38,6 +38,10 @@ export const locale = pgTable(
   (t) => ({
     codeUnq: uniqueIndex('locale_code_unq').on(t.code),
     activeIdx: index('locale_active_idx').on(t.isActive),
+    // exactly one default locale — guards a race between two "make default" calls.
+    oneDefaultUnq: uniqueIndex('locale_one_default_unq')
+      .on(t.isDefault)
+      .where(sql`${t.isDefault}`),
   }),
 );
 

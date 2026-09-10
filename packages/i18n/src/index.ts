@@ -4,6 +4,7 @@ export {
   SUPPORTED_LOCALE_CODES,
   isSupportedLocale,
   resolveLocale,
+  resolveLocaleWithin,
   fallbackChain,
   directionOf,
   getLocaleDefinition,

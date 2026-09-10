@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "locale_one_default_unq" ON "locale" USING btree ("is_default") WHERE "locale"."is_default";
