@@ -1,4 +1,4 @@
-import { useAuth, useFormErrors } from '@carrental/client/react';
+import { useAuth, useDebounced, useFormErrors } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
@@ -34,8 +34,9 @@ export function ReferenceDataPage() {
   const { hasPermission } = useAuth();
   const canManage = hasPermission('lookup.manage');
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounced(search.trim());
   const [selected, setSelected] = useState<string | null>('cancel_reason');
-  const types = useLookupTypes(search ? { search } : undefined);
+  const types = useLookupTypes(debouncedSearch ? { search: debouncedSearch } : undefined);
 
   return (
     <div className="space-y-6">
@@ -102,7 +103,7 @@ export function ReferenceDataPage() {
         </Card>
 
         {selected ? (
-          <LookupTypeDetail typeCode={selected} canManage={canManage} />
+          <LookupTypeDetail key={selected} typeCode={selected} canManage={canManage} />
         ) : (
           <Card>
             <CardContent className="py-12">
@@ -130,14 +131,18 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
   const inUse = (usage.data?.totalReferences ?? 0) > 0;
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['reference-data'] });
+  const { toast } = useToast();
+  const onMutError = (e: unknown) =>
+    toast({ title: e instanceof Error ? e.message : t('ops.ref.actionFail') });
 
   const create = useMutation({
     mutationFn: () =>
       apiFetch(`/reference-data/types/${typeCode}/values`, {
         method: 'POST',
-        body: { code: newCode, label: newLabel },
+        body: { code: newCode, label: newLabel.trim() },
       }),
     onSuccess: () => {
+      toast({ title: t('ops.ref.created', { code: newCode }), variant: 'success' });
       setNewCode('');
       setNewLabel('');
       errs.clear();
@@ -145,10 +150,6 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
     },
     onError: (e) => errs.fromError(e),
   });
-
-  const { toast } = useToast();
-  const onMutError = (e: unknown) =>
-    toast({ title: e instanceof Error ? e.message : t('ops.ref.actionFail') });
 
   const setActive = useMutation({
     mutationFn: (input: { id: string; active: boolean; force?: boolean }) =>
@@ -158,17 +159,27 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
         }`,
         { method: 'POST' },
       ),
-    onSuccess: () => void invalidate(),
+    onSuccess: (_d, input) => {
+      toast({
+        title: input.active ? t('ops.ref.restored') : t('ops.ref.deactivated'),
+        variant: 'success',
+      });
+      void invalidate();
+    },
     onError: onMutError,
   });
 
   const editLabel = useMutation({
-    mutationFn: (input: { id: string; label: string }) =>
+    mutationFn: (input: { id: string; label: string; version: number }) =>
       apiFetch(`/reference-data/types/${typeCode}/values/${input.id}`, {
         method: 'POST',
         body: { label: input.label },
+        ifMatch: input.version,
       }),
-    onSuccess: () => void invalidate(),
+    onSuccess: () => {
+      toast({ title: t('ops.ref.labelSaved'), variant: 'success' });
+      void invalidate();
+    },
     onError: onMutError,
   });
 
@@ -186,18 +197,25 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
         readOnly || v.systemManaged ? (
           v.label
         ) : (
-          <InlineLabel value={v.label} onSave={(label) => editLabel.mutate({ id: v.id, label })} />
+          <InlineLabel
+            value={v.label}
+            onSave={(label) => editLabel.mutateAsync({ id: v.id, label, version: v.version })}
+          />
         ),
     },
     {
       key: 'state',
       header: t('ops.tbl.state'),
-      cell: (v) =>
-        v.isActive ? (
-          <Badge variant="success">{t('ops.ref.active')}</Badge>
-        ) : (
-          <Badge variant="neutral">{t('ops.ref.inactive')}</Badge>
-        ),
+      cell: (v) => (
+        <span className="flex flex-wrap items-center gap-1">
+          {v.isActive ? (
+            <Badge variant="success">{t('ops.ref.active')}</Badge>
+          ) : (
+            <Badge variant="neutral">{t('ops.ref.inactive')}</Badge>
+          )}
+          {v.isDefault ? <Badge variant="neutral">{t('ops.ref.default')}</Badge> : null}
+        </span>
+      ),
     },
     {
       key: 'actions',
@@ -313,7 +331,12 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
                 )}
               </Field>
             </div>
-            <Button type="submit" size="sm" loading={create.isPending}>
+            <Button
+              type="submit"
+              size="sm"
+              loading={create.isPending}
+              disabled={!newCode || !newLabel.trim()}
+            >
               {t('ops.ref.add')}
             </Button>
           </form>
@@ -326,25 +349,39 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
         title={t('ops.ref.deactivateQ')}
         description={
           usage.isLoading
-            ? t('ops.st.loading')
-            : inUse
-              ? t('ops.ref.deactivateInUse', { n: usage.data!.totalReferences })
-              : t('ops.ref.deactivateBody')
+            ? t('ops.ref.checkingUsage')
+            : usage.isError
+              ? t('ops.ref.usageUnknown')
+              : inUse
+                ? t('ops.ref.deactivateInUse', { n: usage.data!.totalReferences })
+                : t('ops.ref.deactivateBody')
         }
         confirmLabel={t('ops.ref.deactivate')}
         destructive
-        onConfirm={() => {
-          if (deactivate) setActive.mutate({ id: deactivate.id, active: false, force: inUse });
+        confirmDisabled={usage.isLoading}
+        onConfirm={async () => {
+          if (deactivate)
+            await setActive.mutateAsync({ id: deactivate.id, active: false, force: inUse });
         }}
       />
     </Card>
   );
 }
 
-function InlineLabel({ value, onSave }: { value: string; onSave: (v: string) => void }) {
+function InlineLabel({
+  value,
+  onSave,
+}: {
+  value: string;
+  onSave: (v: string) => Promise<unknown>;
+}) {
   const { t } = useI18n();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
+  const [busy, setBusy] = useState(false);
+  const trimmed = draft.trim();
+  const unchanged = trimmed === value;
+
   if (!editing) {
     return (
       <button
@@ -359,25 +396,43 @@ function InlineLabel({ value, onSave }: { value: string; onSave: (v: string) => 
       </button>
     );
   }
+
+  const submit = async () => {
+    if (!trimmed || unchanged || busy) return;
+    setBusy(true);
+    try {
+      await onSave(trimmed);
+      setEditing(false); // only close once the save actually landed
+    } catch {
+      // stay in edit mode so the typed value isn't lost; the mutation toasts the reason
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <span className="flex gap-1">
       <Input
         className="h-8"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void submit();
+          if (e.key === 'Escape') setEditing(false);
+        }}
         aria-label={t('ops.ref.editLabel')}
         autoFocus
+        disabled={busy}
       />
       <Button
         size="sm"
-        onClick={() => {
-          onSave(draft);
-          setEditing(false);
-        }}
+        loading={busy}
+        disabled={!trimmed || unchanged}
+        onClick={() => void submit()}
       >
         {t('ops.st.save')}
       </Button>
-      <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+      <Button size="sm" variant="ghost" disabled={busy} onClick={() => setEditing(false)}>
         {t('ops.st.cancel')}
       </Button>
     </span>

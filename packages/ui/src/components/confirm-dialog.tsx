@@ -23,6 +23,7 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel = 'Cancel',
   destructive,
+  confirmDisabled,
   onConfirm,
 }: {
   open: boolean;
@@ -32,6 +33,8 @@ export function ConfirmDialog({
   confirmLabel: string;
   cancelLabel?: string;
   destructive?: boolean;
+  /** disable the confirm button (e.g. while a "where used" lookup is still loading) */
+  confirmDisabled?: boolean;
   onConfirm: () => void | Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
@@ -51,11 +54,15 @@ export function ConfirmDialog({
           <Button
             variant={destructive ? 'destructive' : 'default'}
             loading={busy}
+            disabled={confirmDisabled}
             onClick={async () => {
               setBusy(true);
               try {
                 await onConfirm();
                 onOpenChange(false);
+              } catch {
+                // onConfirm rejected on purpose (validation failed / action errored) — keep the
+                // dialog open so the user can retry; the caller surfaces the reason.
               } finally {
                 setBusy(false);
               }

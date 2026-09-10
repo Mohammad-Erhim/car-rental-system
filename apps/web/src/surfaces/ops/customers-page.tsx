@@ -1,4 +1,4 @@
-import { useAuth } from '@carrental/client/react';
+import { useAuth, useDebounced } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
@@ -13,7 +13,7 @@ import {
   PageHeader,
   useToast,
 } from '@carrental/ui';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import {
@@ -26,16 +26,6 @@ import {
   type CustomerRecord,
 } from '../../lib/admin-hooks.js';
 import { ApiError } from '../../lib/api.js';
-
-/** Debounce a fast-changing value (search box) to one API call per pause. */
-function useDebounced<T>(value: T, ms = 300) {
-  const [v, setV] = useState(value);
-  useEffect(() => {
-    const id = setTimeout(() => setV(value), ms);
-    return () => clearTimeout(id);
-  }, [value, ms]);
-  return v;
-}
 
 /**
  * SCREEN-OPS-021 / SCREEN-OPS-022 · FR-ADM-001/002 — customer record search + consolidated view.
