@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, isNull, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
@@ -9,6 +9,8 @@ import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { organization } from '../../database/schema/org';
 import { quote, quoteLine, ratePlan, rateTier } from '../../database/schema/pricing';
+import { CatalogueService } from '../catalogue/catalogue.service';
+import { ConfigPublic } from '../config/config.public';
 
 import { computeQuote, isQuoteError, type QuoteComputation } from './quote.calculator';
 
@@ -27,6 +29,8 @@ export class PricingService {
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
     private readonly outbox: OutboxService,
+    private readonly catalogue: CatalogueService,
+    private readonly config: ConfigPublic,
   ) {}
 
   private async orgId(): Promise<string> {
@@ -252,11 +256,28 @@ export class PricingService {
 
   async listPlans() {
     const orgId = await this.orgId();
-    return this.db
+    const plans = await this.db
       .select()
       .from(ratePlan)
       .where(eq(ratePlan.organizationId, orgId))
       .orderBy(asc(ratePlan.categoryCode), asc(ratePlan.effectiveFrom));
+    if (!plans.length) return [];
+    const tiers = await this.db
+      .select()
+      .from(rateTier)
+      .where(
+        inArray(
+          rateTier.ratePlanId,
+          plans.map((p) => p.id),
+        ),
+      )
+      .orderBy(asc(rateTier.minHours));
+    return plans.map((p) => ({
+      ...p,
+      tiers: tiers
+        .filter((t) => t.ratePlanId === p.id)
+        .map((t) => ({ minHours: t.minHours, dayMinor: t.dayMinor })),
+    }));
   }
 
   async upsertPlan(
@@ -280,6 +301,7 @@ export class PricingService {
   ) {
     const orgId = await this.orgId();
     this.validatePlan(input);
+    await this.assertScope(input);
     const values = {
       organizationId: orgId,
       categoryCode: input.categoryCode,
@@ -342,6 +364,37 @@ export class PricingService {
     return this.db.select().from(ratePlan).where(eq(ratePlan.id, id)).limit(1);
   }
 
+  /**
+   * A rate plan only ever prices a rental if its category / location / currency line up with a
+   * real catalogue entry — validate that at write time so a typo fails loudly instead of
+   * producing a plan that silently never applies.
+   */
+  private async assertScope(input: {
+    categoryCode: string;
+    locationCode?: string | null;
+    currency?: string;
+  }) {
+    const issues: Array<{ path: string; code: string }> = [];
+
+    const cats = await this.catalogue.listCategories({});
+    if (!cats.some((c) => c.code === input.categoryCode)) {
+      issues.push({ path: 'categoryCode', code: 'unsupported' });
+    }
+    if (input.locationCode) {
+      const orgId = await this.orgId();
+      const locs = await this.config.listLocations(orgId);
+      if (!locs.some((l) => l.code === input.locationCode)) {
+        issues.push({ path: 'locationCode', code: 'unsupported' });
+      }
+    }
+    if (issues.length) throw AppError.validation(issues, 'Rate plan scope is not valid');
+
+    if (input.currency) {
+      // `currency` is a constrained reference-data set (ISO-4217 subset)
+      await this.config.assertLookupCode('currency', input.currency, 'currency');
+    }
+  }
+
   private validatePlan(input: {
     baseDayMinor: number;
     minDurationHours?: number;
@@ -370,11 +423,44 @@ export class PricingService {
     if (issues.length) throw AppError.validation(issues, 'Rate plan is not valid');
   }
 
+  /** Published plans for the same scope whose effective range overlaps `plan` (open ends = ±∞). */
+  private async overlappingPublished(plan: typeof ratePlan.$inferSelect) {
+    const FAR = '9999-12-31';
+    return this.db
+      .select()
+      .from(ratePlan)
+      .where(
+        and(
+          eq(ratePlan.organizationId, plan.organizationId),
+          eq(ratePlan.categoryCode, plan.categoryCode),
+          plan.locationCode
+            ? eq(ratePlan.locationCode, plan.locationCode)
+            : isNull(ratePlan.locationCode),
+          eq(ratePlan.status, 'published'),
+          sql`${ratePlan.id} <> ${plan.id}`,
+          // A.from ≤ B.to  AND  B.from ≤ A.to
+          sql`${ratePlan.effectiveFrom} <= ${plan.effectiveTo ?? FAR}`,
+          sql`${plan.effectiveFrom} <= coalesce(${ratePlan.effectiveTo}, ${FAR})`,
+        ),
+      );
+  }
+
   async publishPlan(actor: Actor, id: string) {
     const [existing] = await this.db.select().from(ratePlan).where(eq(ratePlan.id, id)).limit(1);
     if (!existing) throw AppError.notFound('rate plan');
     if (existing.status === 'published') return existing;
+    if (existing.status === 'retired') {
+      throw AppError.businessRule('A retired rate plan cannot be published — clone it', {
+        reason: 'retired_immutable',
+      });
+    }
     this.validatePlan(existing);
+    await this.assertScope(existing);
+
+    // only supersede published plans this one actually overlaps in time — a future/seasonal plan
+    // for the same scope keeps its own window.
+    const superseded = await this.overlappingPublished(existing);
+
     await this.db
       .update(ratePlan)
       .set({
@@ -386,26 +472,23 @@ export class PricingService {
         updatedAt: sql`now()`,
       })
       .where(eq(ratePlan.id, id));
-    // retire other published plans for the same exact scope
-    await this.db
-      .update(ratePlan)
-      .set({ status: 'retired', updatedAt: sql`now()` })
-      .where(
-        and(
-          eq(ratePlan.organizationId, existing.organizationId),
-          eq(ratePlan.categoryCode, existing.categoryCode),
-          existing.locationCode
-            ? eq(ratePlan.locationCode, existing.locationCode)
-            : isNull(ratePlan.locationCode),
-          eq(ratePlan.status, 'published'),
-          sql`${ratePlan.id} <> ${id}`,
-        ),
-      );
+    if (superseded.length) {
+      await this.db
+        .update(ratePlan)
+        .set({ status: 'retired', updatedAt: sql`now()`, updatedBy: actor.accountId })
+        .where(
+          inArray(
+            ratePlan.id,
+            superseded.map((p) => p.id),
+          ),
+        );
+    }
     await this.audit.record({
       action: 'pricing.rate_plan.published',
       targetType: 'rate_plan',
       targetId: id,
       actor,
+      after: { name: existing.name, superseded: superseded.map((p) => p.name) },
     });
     await this.outbox.emit({
       type: 'pricing.rate_plan.published.v1',
@@ -414,5 +497,26 @@ export class PricingService {
       payload: { categoryCode: existing.categoryCode, locationCode: existing.locationCode },
     });
     return this.db.select().from(ratePlan).where(eq(ratePlan.id, id)).limit(1);
+  }
+
+  /** Delete a draft rate plan (and its tiers). Published / retired plans are immutable history. */
+  async deletePlan(actor: Actor, id: string) {
+    const [existing] = await this.db.select().from(ratePlan).where(eq(ratePlan.id, id)).limit(1);
+    if (!existing) throw AppError.notFound('rate plan');
+    if (existing.status !== 'draft' && existing.status !== 'in_review') {
+      throw AppError.businessRule('Only a draft rate plan can be deleted', {
+        reason: 'not_a_draft',
+      });
+    }
+    await this.db.delete(rateTier).where(eq(rateTier.ratePlanId, id));
+    await this.db.delete(ratePlan).where(eq(ratePlan.id, id));
+    await this.audit.record({
+      action: 'pricing.rate_plan.deleted',
+      targetType: 'rate_plan',
+      targetId: id,
+      actor,
+      after: { name: existing.name, category: existing.categoryCode },
+    });
+    return { id, deleted: true };
   }
 }

@@ -121,6 +121,7 @@ POST   /api/v1/ops/payments/reconciliation/:id/resolve
 POST   /api/v1/ops/payments/reconciliation/run
 GET    /api/v1/ops/pricing/rate-plans
 POST   /api/v1/ops/pricing/rate-plans
+DELETE /api/v1/ops/pricing/rate-plans/:id
 POST   /api/v1/ops/pricing/rate-plans/:id/publish
 GET    /api/v1/ops/rentals
 POST   /api/v1/ops/rentals/:reference/incident

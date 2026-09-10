@@ -1828,6 +1828,29 @@
         ]
       }
     },
+    "/api/v1/ops/pricing/rate-plans/{id}": {
+      "delete": {
+        "operationId": "OpsCatalogueController_deletePlan",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
     "/api/v1/ops/availability/holds": {
       "get": {
         "operationId": "OpsCatalogueController_listHolds",
