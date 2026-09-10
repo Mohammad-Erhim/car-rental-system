@@ -1071,6 +1071,8 @@
   "ops.rp.cancelEdit": "إلغاء التعديل",
   "ops.rp.card": "الخطط",
   "ops.rp.category": "الفئة",
+  "ops.rp.clearForm": "مسح",
+  "ops.rp.clone": "استنساخ",
   "ops.rp.chooseCategory": "اختر فئة…",
   "ops.rp.createDraft": "إنشاء مسودة",
   "ops.rp.created": "تم إنشاء المسودة.",

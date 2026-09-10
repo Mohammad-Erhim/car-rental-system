@@ -54,6 +54,70 @@ describe('rate plans', () => {
       effectiveFrom: '2020-01-01',
       baseDayMinor: 0,
     }).expect(422);
+
+    // a negative "fee" (a discount hack) is rejected
+    await create({
+      ...base,
+      name: 'neg fee',
+      effectiveFrom: '2020-01-01',
+      fees: [{ code: 'credit', label: 'Credit', amountMinor: -500 }],
+    }).expect(422);
+  });
+
+  it('a draft edit needs a matching If-Match; a stale one conflicts (409)', async () => {
+    const draft = (
+      await create({ ...base, name: `concur ${Date.now()}`, effectiveFrom: '2099-01-01' }).expect(
+        201,
+      )
+    ).body[0];
+    // fetch its current version
+    const list = (
+      await request(server).get('/api/v1/ops/pricing/rate-plans').set(auth()).expect(200)
+    ).body as Array<{ id: string; version: number }>;
+    const version = list.find((p) => p.id === draft.id)!.version;
+
+    await request(server)
+      .post('/api/v1/ops/pricing/rate-plans')
+      .set(auth())
+      .set('If-Match', String(version + 5))
+      .send({ ...base, id: draft.id, name: 'stale', effectiveFrom: '2099-01-01' })
+      .expect(409);
+
+    await request(server)
+      .post('/api/v1/ops/pricing/rate-plans')
+      .set(auth())
+      .set('If-Match', String(version))
+      .send({ ...base, id: draft.id, name: 'fresh', effectiveFrom: '2099-01-01' })
+      .expect(201);
+
+    // clean up
+    await request(server).delete(`/api/v1/ops/pricing/rate-plans/${draft.id}`).set(auth());
+  });
+
+  it('a retired plan cannot be edited via its id', async () => {
+    const a = (
+      await create({ ...base, name: `ret-a ${Date.now()}`, effectiveFrom: '2098-01-01' }).expect(
+        201,
+      )
+    ).body[0];
+    const b = (
+      await create({ ...base, name: `ret-b ${Date.now()}`, effectiveFrom: '2098-01-01' }).expect(
+        201,
+      )
+    ).body[0];
+    for (const p of [a, b]) {
+      await request(server)
+        .post(`/api/v1/ops/pricing/rate-plans/${p.id}/publish`)
+        .set(auth())
+        .expect(201);
+    }
+    // b overlaps a → a is retired; editing a via id now fails
+    await request(server)
+      .post('/api/v1/ops/pricing/rate-plans')
+      .set(auth())
+      .send({ ...base, id: a.id, name: 'nope', effectiveFrom: '2098-01-01' })
+      .expect(422)
+      .expect((r) => expect(r.body.params?.reason).toBe('plan_immutable'));
   });
 
   it('publishing supersedes an overlapping plan but keeps a non-overlapping (seasonal) one', async () => {

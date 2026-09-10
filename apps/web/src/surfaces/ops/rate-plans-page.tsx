@@ -46,8 +46,9 @@ const num = (s: string) => (s.trim() === '' ? NaN : Number(s));
 const toMinor = (s: string) => Math.round(num(s) * 100);
 const fromMinor = (m: number) => (m / 100).toFixed(2);
 
-const EMPTY: FormState = {
+const emptyForm = (): FormState => ({
   id: null,
+  version: null,
   categoryCode: '',
   name: '',
   scope: '',
@@ -61,10 +62,12 @@ const EMPTY: FormState = {
   maxDuration: '',
   fees: [],
   tiers: [],
-};
+});
 
 interface FormState {
   id: string | null;
+  /** the plan's `version` when editing an existing draft — sent as `If-Match` */
+  version: number | null;
   categoryCode: string;
   name: string;
   scope: string; // '' = all locations, else a locationCode
@@ -80,9 +83,15 @@ interface FormState {
   tiers: Array<{ minHours: string; day: string }>;
 }
 
+/** a published/retired plan copied into a fresh draft — same terms, new identity + start date */
+function clonePlan(p: RatePlan): FormState {
+  return { ...planToForm(p), id: null, version: null, effectiveFrom: today(), effectiveTo: '' };
+}
+
 function planToForm(p: RatePlan): FormState {
   return {
     id: p.id,
+    version: p.version,
     categoryCode: p.categoryCode,
     name: p.name,
     scope: p.locationCode ?? '',
@@ -123,7 +132,7 @@ export function RatePlansPage() {
     maxDurationHours: t('ops.rp.maxDuration'),
   });
 
-  const [form, setForm] = useState<FormState>(EMPTY);
+  const [form, setForm] = useState<FormState>(emptyForm());
   const [showRetired, setShowRetired] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [confirmPublish, setConfirmPublish] = useState<RatePlan | null>(null);
@@ -188,21 +197,24 @@ export function RatePlansPage() {
       if (!Number.isFinite(max) || max < min)
         local.push({ path: 'maxDurationHours', code: 'less_than_min' });
     }
+    const feeCodes = new Set<string>();
     form.fees.forEach((fee, i) => {
-      if (
-        (fee.code.trim() || fee.label.trim() || fee.amount.trim()) &&
-        (!fee.code.trim() || !fee.label.trim() || !Number.isFinite(num(fee.amount)))
-      )
+      const touched = fee.code.trim() || fee.label.trim() || fee.amount.trim();
+      if (touched && (!fee.code.trim() || !fee.label.trim() || !Number.isFinite(num(fee.amount))))
         local.push({ path: `fees.${i}`, code: 'incomplete' });
+      else if (touched && num(fee.amount) < 0)
+        local.push({ path: `fees.${i}`, code: 'must_be_positive' });
+      else if (fee.code.trim() && feeCodes.has(fee.code.trim()))
+        local.push({ path: `fees.${i}`, code: 'duplicate' });
+      if (fee.code.trim()) feeCodes.add(fee.code.trim());
     });
+    const tierMins = new Set<number>();
     form.tiers.forEach((tier, i) => {
-      if (
-        !Number.isFinite(num(tier.minHours)) ||
-        num(tier.minHours) < 1 ||
-        !Number.isFinite(num(tier.day)) ||
-        num(tier.day) <= 0
-      )
+      const mh = num(tier.minHours);
+      if (!Number.isFinite(mh) || mh < 1 || !Number.isFinite(num(tier.day)) || num(tier.day) <= 0)
         local.push({ path: `tiers.${i}`, code: 'invalid' });
+      else if (tierMins.has(mh)) local.push({ path: `tiers.${i}`, code: 'duplicate' });
+      if (Number.isFinite(mh)) tierMins.add(mh);
     });
     if (local.length) {
       errs.setLocal(local);
@@ -241,9 +253,12 @@ export function RatePlansPage() {
         .map((t) => ({ minHours: Math.round(num(t.minHours)), dayMinor: toMinor(t.day) })),
     };
     try {
-      await save.mutateAsync(body);
+      await save.mutateAsync({
+        ...body,
+        ifMatch: form.id && form.version != null ? form.version : undefined,
+      });
       toast({ title: form.id ? t('ops.rp.updated') : t('ops.rp.created'), variant: 'success' });
-      setForm(EMPTY);
+      setForm(emptyForm());
     } catch (err) {
       errs.fromError(err);
     }
@@ -265,7 +280,7 @@ export function RatePlansPage() {
     try {
       await del.mutateAsync(confirmDelete.id);
       toast({ title: t('ops.rp.deleted'), variant: 'success' });
-      if (form.id === confirmDelete.id) setForm(EMPTY);
+      if (form.id === confirmDelete.id) setForm(emptyForm());
     } catch (err) {
       toast({ title: err instanceof ApiError ? err.message : t('ops.rp.actionFail') });
       throw err;
@@ -368,7 +383,19 @@ export function RatePlansPage() {
                 {t('ops.rp.publish')}
               </Button>
             </>
-          ) : null}
+          ) : (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setForm(clonePlan(p));
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+              }}
+              data-testid={`rp-clone-${p.id}`}
+            >
+              {t('ops.rp.clone')}
+            </Button>
+          )}
         </span>
       ),
     },
@@ -378,7 +405,7 @@ export function RatePlansPage() {
     <div className="space-y-6">
       <PageHeader title={t('ops.rp.title')} description={t('ops.rp.subtitle')} />
 
-      {unpriced.length ? (
+      {plans.data && cats.data && unpriced.length ? (
         <Alert variant="warning" data-testid="rp-unpriced">
           <AlertTitle>{t('ops.rp.unpricedTitle')}</AlertTitle>
           <AlertDescription>
@@ -461,9 +488,16 @@ export function RatePlansPage() {
           <CardTitle className="text-base">
             {form.id ? t('ops.rp.editing', { name: form.name }) : t('ops.rp.newDraft')}
           </CardTitle>
-          {form.id ? (
-            <Button size="sm" variant="ghost" onClick={() => setForm(EMPTY)}>
-              {t('ops.rp.cancelEdit')}
+          {form.id || form.name.trim() || form.baseDay.trim() ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setForm(emptyForm());
+                errs.clear();
+              }}
+            >
+              {form.id ? t('ops.rp.cancelEdit') : t('ops.rp.clearForm')}
             </Button>
           ) : null}
         </CardHeader>

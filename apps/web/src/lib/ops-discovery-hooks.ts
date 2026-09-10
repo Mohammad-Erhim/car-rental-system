@@ -154,6 +154,7 @@ export interface RatePlan {
   tiers: RatePlanTier[];
   status: 'draft' | 'in_review' | 'published' | 'retired';
   publishedVersion: number;
+  version: number;
 }
 
 export interface RatePlanInput {
@@ -183,8 +184,8 @@ export function useRatePlans() {
 export function useSaveRatePlan() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: RatePlanInput) =>
-      apiFetch<RatePlan[]>('/ops/pricing/rate-plans', { method: 'POST', body }),
+    mutationFn: ({ ifMatch, ...body }: RatePlanInput & { ifMatch?: number }) =>
+      apiFetch<RatePlan[]>('/ops/pricing/rate-plans', { method: 'POST', body, ifMatch }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ops', 'rate-plans'] }),
   });
 }
