@@ -19,10 +19,11 @@ import { reservation } from '../../database/schema/reservation';
 /**
  * SCREEN-OPS-021 / SCREEN-OPS-022 · FR-ADM-001 — customer record search + consolidated view
  * (read side). Staff search by a permitted identifier and open one consolidated record: contact,
- * preferences, consent, saved drivers, reservations, rentals, balance, open cases, and active
- * eligibility restrictions (FR-ADM-002, read-only here). Duplicate-merge and the restriction
- * create/approve workflow (write side) are a documented follow-up — see
- * `05-system-validation/decision-list.md` D-2.
+ * preferences, consent, saved drivers, reservations, rentals, balance, open cases, and
+ * eligibility restrictions. The restriction create/approve workflow (FR-ADM-002) and the
+ * reversible duplicate merge (FR-ADM-001) live in `customer-restriction.service` /
+ * `customer-merge.service`. Both `search` and `detail` are PII accesses on the audit trail
+ * (SRS-SEC-016).
  */
 function maskEmail(e: string | null): string | null {
   if (!e || !e.includes('@')) return e;
@@ -184,10 +185,27 @@ export class CustomerService {
           .where(and(inArray(recoveryCase.subjectRef, resRefs), eq(recoveryCase.state, 'open')))
       : [];
 
-    const balanceMinor = reservations.reduce(
-      (a, r) => a + Math.max(0, r.totalMinor - r.paidMinor),
-      0,
-    );
+    // outstanding balance per currency — never sum minor units across currencies. The record
+    // surfaces the largest single-currency debt (or the newest reservation's currency at zero).
+    const owedByCurrency = new Map<string, number>();
+    for (const res of reservations) {
+      const owed = Math.max(0, res.totalMinor - res.paidMinor);
+      if (owed > 0)
+        owedByCurrency.set(res.currency, (owedByCurrency.get(res.currency) ?? 0) + owed);
+    }
+    const [balanceCurrency, balanceMinor] = [...owedByCurrency.entries()].sort(
+      (a, b) => b[1] - a[1],
+    )[0] ?? [reservations[0]?.currency ?? 'USD', 0];
+
+    // Opening a customer's consolidated record exposes unmasked contact detail, licence numbers
+    // and address — a PII access that must be on the audit trail (SRS-SEC-016), like the search.
+    await this.audit.record({
+      action: 'customer.viewed',
+      targetType: 'customer',
+      targetId: id,
+      actor,
+      outcome: 'accepted',
+    });
 
     return {
       id: c.id,
@@ -237,7 +255,7 @@ export class CustomerService {
         isActive: r.isActive,
       })),
       openCases,
-      balance: { currency: reservations[0]?.currency ?? 'USD', minor: balanceMinor },
+      balance: { currency: balanceCurrency, minor: balanceMinor },
     };
   }
 }

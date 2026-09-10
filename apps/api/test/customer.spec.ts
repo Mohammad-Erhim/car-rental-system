@@ -112,8 +112,21 @@ describe('customer records (SCREEN-OPS-021/022 / FR-ADM-001)', () => {
     expect(rec.body.email).toBe('test-customer@example.test'); // full, deliberate open
     expect(rec.body.reservations.length).toBeGreaterThanOrEqual(1);
     expect(rec.body.balance).toHaveProperty('minor');
+    expect(rec.body.balance).toHaveProperty('currency');
+    expect(Number.isInteger(rec.body.balance.minor)).toBe(true);
     expect(Array.isArray(rec.body.restrictions)).toBe(true);
     expect(Array.isArray(rec.body.drivers)).toBe(true);
+
+    // opening the full record is itself a PII access — on the audit trail (SRS-SEC-016)
+    const audit = await request(server)
+      .get('/api/v1/ops/audit?action=customer.viewed')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(
+      (audit.body as Array<{ action: string; targetId: string }>).some(
+        (a) => a.action === 'customer.viewed' && a.targetId === id,
+      ),
+    ).toBe(true);
   });
 
   it('finance staff (no customer.read) is 403', async () => {
