@@ -740,9 +740,10 @@ export function useOpsLocationImpact(code: string | null) {
     queryKey: [...LOC_KEY, code, 'impact'],
     enabled: !!code,
     queryFn: ({ signal }) =>
-      apiFetch<{ code: string; futureReservations: number }>(`/ops/locations/${code}/impact`, {
-        signal,
-      }),
+      apiFetch<{ code: string; futureReservations: number; openRentals: number }>(
+        `/ops/locations/${code}/impact`,
+        { signal },
+      ),
   });
 }
 

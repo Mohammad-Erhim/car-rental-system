@@ -21,6 +21,7 @@ import {
 import { useRef, useState } from 'react';
 
 import { LookupSelect } from '../../components/lookup-select.js';
+import { ScopeGroup } from '../../components/scope-group.js';
 import {
   useCatalogueProducts,
   useSetProductActive,
@@ -253,37 +254,6 @@ export function ProductsPage() {
     },
   ];
 
-  const ScopeGroup = ({
-    label,
-    options,
-    selected,
-    onToggle,
-    allLabel,
-    testid,
-  }: {
-    label: string;
-    options: Array<{ code: string; name: string }>;
-    selected: string[];
-    onToggle: (code: string) => void;
-    allLabel: string;
-    testid: string;
-  }) => (
-    <fieldset className="sm:col-span-2">
-      <legend className="text-sm font-medium">{label}</legend>
-      <p className="mb-2 text-xs text-muted-foreground">
-        {selected.length === 0 ? allLabel : t('ops.prod.scopeSome', { n: selected.length })}
-      </p>
-      <div className="flex flex-wrap gap-x-4 gap-y-1" data-testid={testid}>
-        {options.map((o) => (
-          <label key={o.code} className="flex items-center gap-1.5 text-sm">
-            <Checkbox checked={selected.includes(o.code)} onChange={() => onToggle(o.code)} />
-            {o.name}
-          </label>
-        ))}
-      </div>
-    </fieldset>
-  );
-
   return (
     <div className="space-y-6">
       <PageHeader title={t('ops.prod.title')} description={t('ops.prod.subtitle')} />
@@ -476,6 +446,7 @@ export function ProductsPage() {
                   })
                 }
                 allLabel={t('ops.prod.allCategories')}
+                someLabel={(n) => t('ops.prod.scopeSome', { n })}
                 testid="product-category-scope"
               />
               <ScopeGroup
@@ -490,6 +461,7 @@ export function ProductsPage() {
                   })
                 }
                 allLabel={t('ops.prod.allLocations')}
+                someLabel={(n) => t('ops.prod.scopeSome', { n })}
                 testid="product-location-scope"
               />
 
