@@ -1,5 +1,5 @@
 import { zUpsertVehicleCategory } from '@carrental/contracts';
-import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { z } from 'zod';
@@ -26,7 +26,7 @@ const zRatePlan = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .nullable()
     .optional(),
-  baseDayMinor: z.number().int(),
+  baseDayMinor: z.number().int().positive(),
   hourMinor: z.number().int().min(0).optional(),
   minDurationHours: z.number().int().min(1).optional(),
   maxDurationHours: z.number().int().min(1).nullable().optional(),
@@ -243,6 +243,12 @@ export class OpsCatalogueController {
   @Permissions('config.publish')
   publishPlan(@Param('id') id: string, @CurrentActor() actor: Actor) {
     return this.pricing.publishPlan(actor, id);
+  }
+
+  @Delete('pricing/rate-plans/:id')
+  @Permissions('config.publish')
+  deletePlan(@Param('id') id: string, @CurrentActor() actor: Actor) {
+    return this.pricing.deletePlan(actor, id);
   }
 
   // --- holds admin (SCREEN-OPS-028) ---
