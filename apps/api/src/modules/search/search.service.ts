@@ -305,7 +305,7 @@ export class SearchService {
       currency: r.currency,
       totalMinor: r.totalMinor,
       paidMinor: r.paidMinor,
-      href: `/rentals?ref=${encodeURIComponent(r.reference)}`,
+      href: `/rentals/${encodeURIComponent(r.reference)}`,
     }));
     return { hits, total: countRow?.total ?? hits.length };
   }

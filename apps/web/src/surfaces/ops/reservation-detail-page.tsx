@@ -167,7 +167,7 @@ export function ReservationDetailPage() {
         description={
           d.assignedRentalRef ? (
             <Link
-              to={`/rentals?ref=${encodeURIComponent(d.assignedRentalRef)}`}
+              to={`/rentals/${encodeURIComponent(d.assignedRentalRef)}`}
               className="text-primary hover:underline"
             >
               {t('ops.queue.openRental')} → {d.assignedRentalRef}

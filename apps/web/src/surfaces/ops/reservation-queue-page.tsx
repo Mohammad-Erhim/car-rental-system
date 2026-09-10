@@ -169,7 +169,7 @@ export function ReservationQueuePage() {
       cell: (r) =>
         r.assignedRentalRef ? (
           <Link
-            to={`/rentals?ref=${encodeURIComponent(r.assignedRentalRef)}`}
+            to={`/rentals/${encodeURIComponent(r.assignedRentalRef)}`}
             className="text-xs font-medium text-primary hover:underline"
           >
             {t('ops.queue.openRental')} →
@@ -378,7 +378,7 @@ export function ReservationQueuePage() {
                   <div className="mt-2">
                     {r.assignedRentalRef ? (
                       <Link
-                        to={`/rentals?ref=${encodeURIComponent(r.assignedRentalRef)}`}
+                        to={`/rentals/${encodeURIComponent(r.assignedRentalRef)}`}
                         className="text-xs font-medium text-primary hover:underline"
                       >
                         {t('ops.queue.openRental')} → {r.assignedRentalRef}

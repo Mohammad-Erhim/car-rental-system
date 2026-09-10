@@ -15,7 +15,7 @@ import {
   Toolbar,
 } from '@carrental/ui';
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import { ApiError } from '../../lib/api.js';
 import { useLocations } from '../../lib/discovery-hooks.js';
@@ -338,7 +338,12 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
     >
       <CardHeader className="gap-2">
         <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-          <span className="bidi-isolate font-mono text-sm">{r.reference}</span>
+          <Link
+            to={`/rentals/${encodeURIComponent(r.reference)}`}
+            className="bidi-isolate font-mono text-sm text-primary hover:underline"
+          >
+            {r.reference}
+          </Link>
           <Badge
             variant={
               showOverdue

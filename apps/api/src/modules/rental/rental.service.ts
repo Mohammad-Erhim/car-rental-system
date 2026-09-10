@@ -756,7 +756,50 @@ export class RentalService {
   }
 
   async detail(reference: string) {
-    return this.detailTx(this.db, reference);
+    const base = await this.detailTx(this.db, reference);
+    const [ctx] = await this.db
+      .select({
+        plate: vehicleUnit.plate,
+        year: vehicleUnit.year,
+        make: vehicleUnit.make,
+        model: vehicleUnit.model,
+        categoryCode: reservation.categoryCode,
+        driverName: reservationDriver.fullName,
+        customerName: account.displayName,
+      })
+      .from(rental)
+      .leftJoin(vehicleUnit, eq(vehicleUnit.id, rental.unitId))
+      .leftJoin(reservation, eq(reservation.reference, rental.reservationReference))
+      .leftJoin(
+        reservationDriver,
+        and(
+          eq(reservationDriver.reservationId, reservation.id),
+          eq(reservationDriver.role, 'primary_renter'),
+        ),
+      )
+      .leftJoin(account, eq(account.id, reservation.accountId))
+      .where(eq(rental.reference, reference))
+      .limit(1);
+    const findings = await this.db
+      .select({
+        area: inspectionFinding.area,
+        severity: inspectionFinding.severity,
+        description: inspectionFinding.description,
+        chargeMinor: inspectionFinding.chargeMinor,
+      })
+      .from(inspectionFinding)
+      .innerJoin(inspection, eq(inspection.id, inspectionFinding.inspectionId))
+      .innerJoin(rental, eq(rental.id, inspection.rentalId))
+      .where(eq(rental.reference, reference));
+    return {
+      ...base,
+      plate: ctx?.plate ?? null,
+      vehicle: [ctx?.year, ctx?.make, ctx?.model].filter(Boolean).join(' ') || null,
+      categoryCode: ctx?.categoryCode ?? null,
+      driverName: ctx?.driverName ?? null,
+      customerName: ctx?.customerName ?? null,
+      findings,
+    };
   }
 
   private async detailTx(db: Database, reference: string) {
@@ -819,7 +862,9 @@ export class RentalService {
 
   async detailForActor(reference: string, actor: Actor) {
     const row = await this.load(reference);
-    if (actor.kind !== 'staff') {
+    if (actor.kind === 'staff') {
+      this.assertInScope(actor, row.pickupLocationCode);
+    } else {
       const [res] = await this.db
         .select({ accountId: reservation.accountId })
         .from(reservation)
