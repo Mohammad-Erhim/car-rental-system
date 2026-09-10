@@ -177,9 +177,8 @@ export function LocationsPage() {
                 size="sm"
                 className="mt-2 w-full"
                 onClick={() => {
-                  const code = window.prompt(t('ops.loc.newCodePrompt'))?.trim();
-                  if (!code) return;
-                  setCreating({ code });
+                  setCreating({ code: '' });
+                  setSel(null);
                   syncedFor.current = null;
                   setForm({
                     name: '',
@@ -203,9 +202,7 @@ export function LocationsPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base">
-              {creating
-                ? t('ops.loc.newTitle', { code: creating.code })
-                : (d?.name ?? t('ops.loc.pick'))}
+              {creating ? t('ops.loc.newTitle') : (d?.name ?? t('ops.loc.pick'))}
             </CardTitle>
             {d && !creating ? (
               <p className="text-xs text-muted-foreground">
@@ -219,6 +216,29 @@ export function LocationsPage() {
             ) : (
               <>
                 <div className="grid gap-4 sm:grid-cols-2">
+                  {creating ? (
+                    <Field
+                      label={t('ops.loc.code')}
+                      hint={t('ops.loc.codeHint')}
+                      error={
+                        creating.code && !/^[A-Z0-9]{2,20}$/.test(creating.code)
+                          ? t('ops.loc.codeInvalid')
+                          : undefined
+                      }
+                    >
+                      {({ id }) => (
+                        <Input
+                          id={id}
+                          value={creating.code}
+                          onChange={(e) =>
+                            setCreating({ code: e.target.value.toUpperCase().replace(/\s/g, '') })
+                          }
+                          maxLength={20}
+                          data-testid="loc-new-code"
+                        />
+                      )}
+                    </Field>
+                  ) : null}
                   <Field label={t('ops.loc.name')}>
                     {({ id }) => (
                       <Input
@@ -359,7 +379,13 @@ export function LocationsPage() {
                 <div className="flex flex-wrap gap-2">
                   <Button
                     onClick={save}
-                    disabled={!canPublish || upsert.isPending}
+                    loading={upsert.isPending}
+                    disabled={
+                      !canPublish ||
+                      upsert.isPending ||
+                      (!!creating && !/^[A-Z0-9]{2,20}$/.test(creating.code)) ||
+                      (!!creating && !form.name.trim())
+                    }
                     data-testid="loc-save"
                   >
                     {creating ? t('ops.loc.create') : t('ops.loc.save')}
