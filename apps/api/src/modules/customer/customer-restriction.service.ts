@@ -7,6 +7,7 @@ import type { Actor } from '../../common/auth/types';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { customer, customerRestriction } from '../../database/schema/customer';
+import { ConfigPublic } from '../config/config.public';
 
 /**
  * FR-ADM-002 — customer eligibility restrictions, write side + enforcement. A free-text note
@@ -30,6 +31,7 @@ export class CustomerRestrictionService {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
+    private readonly refData: ConfigPublic,
   ) {}
 
   private async customerRow(customerId: string) {
@@ -53,6 +55,9 @@ export class CustomerRestrictionService {
     const scope = input.scope ?? 'all';
     if (!/^(all|category:[a-z0-9_-]+|location:[A-Za-z0-9_-]+)$/.test(scope)) {
       throw AppError.validation([{ path: 'scope', code: 'invalid_string' }]);
+    }
+    if (input.reasonCode) {
+      await this.refData.assertLookupCode('restriction_reason', input.reasonCode, 'reasonCode');
     }
     if (input.effectiveFrom && input.effectiveTo && input.effectiveFrom >= input.effectiveTo) {
       throw AppError.businessRule('The restriction end must be after its start', {

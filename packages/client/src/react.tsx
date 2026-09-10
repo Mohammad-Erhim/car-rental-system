@@ -6,3 +6,8 @@
 export { AuthProvider, useAuth, type AuthContextValue, type AuthProviderProps } from './react/auth';
 export { useFormErrors } from './react/use-form-errors';
 export { useDebounced } from './react/use-debounced';
+export {
+  useLookupValues,
+  useLookupOptions,
+  type LookupValuesQuery,
+} from './react/use-lookup-values';

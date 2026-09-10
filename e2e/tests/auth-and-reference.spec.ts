@@ -183,6 +183,23 @@ test.describe('operations foundation (APP-OPS)', () => {
     const other = body.values.find((v: { code: string }) => v.code === 'other');
     expect(other.label).toBe(newLabel);
 
+    // reorder: move the first value down, the list order changes and persists
+    const rowsBefore = await page
+      .locator('[data-testid="lookup-value-rows"] tr')
+      .evaluateAll((trs) => trs.map((el) => el.getAttribute('data-code')));
+    await page
+      .locator('[data-testid="lookup-value-rows"] tr')
+      .first()
+      .getByLabel('Move down')
+      .click();
+    await expect
+      .poll(() =>
+        page
+          .locator('[data-testid="lookup-value-rows"] tr')
+          .evaluateAll((trs) => trs.map((el) => el.getAttribute('data-code'))),
+      )
+      .not.toEqual(rowsBefore);
+
     // FR-ADM-008 usage check: deactivating a value opens a confirm that reports "where used"
     // (this configurable value has no references in the seed → the plain body shows, no crash)
     await page.getByTestId('deactivate-other').click();

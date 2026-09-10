@@ -16,6 +16,7 @@ import {
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
+import { LookupSelect } from '../../components/lookup-select.js';
 import {
   useCreateRestriction,
   useCustomerRecord,
@@ -313,7 +314,7 @@ function RestrictionsCard({ customerId, record }: { customerId: string; record: 
       await create.mutateAsync({
         category: form.category as 'review' | 'block',
         scope: composedScope,
-        reasonCode: form.reasonCode.trim() || undefined,
+        reasonCode: form.reasonCode || undefined,
       });
       setForm(emptyForm);
       toast({ title: t('ops.cust.rstrCreated'), variant: 'success' });
@@ -450,17 +451,18 @@ function RestrictionsCard({ customerId, record }: { customerId: string; record: 
             ) : null}
             <label className="text-xs">
               {t('ops.cust.rstrReason')}
-              <Input
-                className="mt-1 h-9 w-40"
+              <LookupSelect
+                typeCode="restriction_reason"
+                className="mt-1 h-9 w-48"
                 value={form.reasonCode}
-                onChange={(e) => setForm((f) => ({ ...f, reasonCode: e.target.value }))}
+                onChange={(code) => setForm((f) => ({ ...f, reasonCode: code }))}
               />
             </label>
             <Button
               type="submit"
               size="sm"
               loading={create.isPending}
-              disabled={!scopeValueValid}
+              disabled={!scopeValueValid || !form.reasonCode}
               data-testid="rstr-create"
             >
               {t('ops.cust.rstrAdd')}

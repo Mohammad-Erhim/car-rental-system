@@ -29,6 +29,7 @@ export {
 } from './components/input.js';
 export { Label } from './components/label.js';
 export { Field, type FieldProps } from './components/field.js';
+export { Select, LookupSelect, type SelectProps, type LookupOption } from './components/select.js';
 export { ErrorSummary, type FieldErrorItem } from './components/error-summary.js';
 export { Checkbox } from './components/checkbox.js';
 export { RadioGroup, RadioGroupItem, RadioCardOption } from './components/radio-group.js';

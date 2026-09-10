@@ -317,6 +317,9 @@ export class ReservationOpsService {
         reason: 'not_modifiable',
       });
     }
+    if (input.reasonCode) {
+      await this.refData.assertLookupCode('adjustment_reason', input.reasonCode, 'reasonCode');
+    }
 
     const pickupAt = new Date(input.pickupAt ?? row.pickupAt);
     const returnAt = new Date(input.returnAt ?? row.returnAt);

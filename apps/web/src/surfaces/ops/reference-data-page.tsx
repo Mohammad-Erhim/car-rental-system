@@ -26,7 +26,7 @@ import {
 } from '@carrental/ui';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ChevronDown, ChevronRight, ChevronUp, Lock, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import {
   useLookupTypes,
@@ -147,7 +147,8 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
   const rows = values.data?.values ?? [];
   const type = values.data?.type;
   const readOnly = type?.editability === 'read_only';
-  const editable = canManage && !readOnly;
+  // edit affordances only once the list has actually loaded — never over a failed/loading fetch
+  const editable = canManage && !readOnly && !!values.data;
 
   const usage = useLookupUsage(typeCode, deactivate?.code ?? null);
   const inUse = (usage.data?.totalReferences ?? 0) > 0;
@@ -353,7 +354,7 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
 
       {editor ? (
         <ValueEditor
-          key={`${editor.mode === 'edit' ? editor.value.id : 'new'}:${locales.map((l) => l.code).join(',')}`}
+          key={editor.mode === 'edit' ? editor.value.id : 'new'}
           typeCode={typeCode}
           locales={locales}
           existingCodes={rows.map((r) => r.code)}
@@ -384,7 +385,12 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
         confirmDisabled={usage.isLoading}
         onConfirm={async () => {
           if (deactivate)
-            await setActive.mutateAsync({ id: deactivate.id, active: false, force: inUse });
+            await setActive.mutateAsync({
+              id: deactivate.id,
+              active: false,
+              // force when the value is in use, or when we couldn't check (don't trap the user)
+              force: inUse || usage.isError,
+            });
         }}
       />
     </Card>
@@ -405,7 +411,9 @@ function LocaleCoverage({
       {locales.map((l) => (
         <span
           key={l.code}
-          className={translations[l.code]?.trim() ? 'font-medium text-foreground/70' : 'opacity-50'}
+          className={
+            translations?.[l.code]?.trim() ? 'font-medium text-foreground/70' : 'opacity-50'
+          }
         >
           {l.code}
         </span>
@@ -446,6 +454,22 @@ function ValueEditor({
   });
   const [isDefault, setIsDefault] = useState(value?.isDefault ?? false);
 
+  // active locales can arrive after the dialog mounts (slow `/meta/locales`) — add the missing
+  // fields without dropping anything already typed.
+  useEffect(() => {
+    setLabels((s) => {
+      let changed = false;
+      const next = { ...s };
+      for (const l of locales) {
+        if (!(l.code in next)) {
+          next[l.code] = value?.translations?.[l.code] ?? '';
+          changed = true;
+        }
+      }
+      return changed ? next : s;
+    });
+  }, [locales, value]);
+
   const enLabel = (labels.en ?? '').trim();
   const codeValid = /^[a-z0-9_]+$/.test(code);
   const dupCode = !isEdit && existingCodes.includes(code);
@@ -475,9 +499,16 @@ function ValueEditor({
       });
       onSaved();
     },
-    // <ErrorSummary> renders field errors, or the API's top-level message (conflict / forbidden /
-    // stale version) as a single line — so no separate toast is needed here.
-    onError: (e) => errs.fromError(e),
+    onError: (e) => {
+      // <ErrorSummary> renders field errors, or the API's top-level message (conflict / forbidden
+      // / stale version) as a single line. `fromError` rethrows a non-API error — fall back to a
+      // toast so a transport failure is never silent.
+      try {
+        errs.fromError(e);
+      } catch {
+        toast({ title: t('ops.ref.actionFail') });
+      }
+    },
   });
 
   return (

@@ -7,6 +7,7 @@ import { ArrowLeft, CalendarClock, History, KeyRound, Receipt } from 'lucide-rea
 import { useParams, useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 
+import { LookupSelect } from '../../../../components/lookup-select';
 import { RequireAuth } from '../../../../components/require-auth';
 import {
   formatMinor,
@@ -58,6 +59,7 @@ function ReservationDetail() {
   const extend = useExtendRental(rental.data?.reference ?? '');
 
   const [showCancel, setShowCancel] = useState(false);
+  const [cancelReason, setCancelReason] = useState('');
   const [newReturn, setNewReturn] = useState('');
   const [modifyMsg, setModifyMsg] = useState<string | null>(null);
   const [extendReturn, setExtendReturn] = useState('');
@@ -306,10 +308,30 @@ function ReservationDetail() {
         open={showCancel}
         onOpenChange={setShowCancel}
         title={t('reservation.cancelConfirmTitle')}
-        description={t('reservation.cancelConfirmBody')}
+        description={
+          <div className="space-y-3">
+            <p>{t('reservation.cancelConfirmBody')}</p>
+            <Field label={t('reservation.cancelReasonLabel')} htmlFor="cancel-reason" required>
+              {({ id, describedBy, invalid }) => (
+                <LookupSelect
+                  typeCode="cancel_reason"
+                  id={id}
+                  describedBy={describedBy}
+                  invalid={invalid}
+                  value={cancelReason}
+                  onChange={setCancelReason}
+                />
+              )}
+            </Field>
+          </div>
+        }
         confirmLabel={t('reservation.cancelReservation')}
         destructive
-        onConfirm={() => cancel.mutate({ reasonCode: 'plans_changed' })}
+        confirmDisabled={!cancelReason}
+        onConfirm={async () => {
+          if (!cancelReason) throw new Error('reason required');
+          await cancel.mutateAsync({ reasonCode: cancelReason });
+        }}
       />
     </div>
   );

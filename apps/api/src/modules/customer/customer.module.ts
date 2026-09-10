@@ -6,6 +6,7 @@ import { CurrentActor } from '../../common/auth/auth.guard';
 import { Permissions } from '../../common/auth/permissions.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
+import { ConfigModule as DomainConfigModule } from '../config/config.module';
 
 import { CustomerMergeService } from './customer-merge.service';
 import { CustomerRestrictionService } from './customer-restriction.service';
@@ -126,6 +127,7 @@ class CustomerController {
 
 @Module({
   controllers: [CustomerController],
+  imports: [DomainConfigModule],
   providers: [CustomerService, CustomerRestrictionService, CustomerMergeService],
   exports: [CustomerRestrictionService],
 })
