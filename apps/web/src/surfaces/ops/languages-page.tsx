@@ -2,6 +2,7 @@ import { useAuth, useFormErrors } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   Alert,
+  AlertDescription,
   Badge,
   Button,
   Card,
@@ -22,11 +23,15 @@ import { Link } from 'react-router-dom';
 
 import {
   useAdminLocales,
+  useDeleteLocale,
   useLocaleAction,
   useTranslationCompleteness,
   useUpsertLocale,
 } from '../../lib/api-hooks.js';
 import { ApiError } from '../../lib/api.js';
+
+/** Languages that are conventionally right-to-left — a mismatched direction is a footgun. */
+const RTL_LANGS = new Set(['ar', 'he', 'fa', 'ur', 'ps', 'sd', 'dv', 'yi', 'ckb', 'ug']);
 
 /**
  * SCREEN-OPS — Languages (SRS-I18N-001, FR-GBL-002, DEC-024). Add / edit / order / activate a
@@ -53,6 +58,7 @@ export function LanguagesPage() {
   const completeness = useTranslationCompleteness();
   const upsert = useUpsertLocale();
   const act = useLocaleAction();
+  const del = useDeleteLocale();
   const errs = useFormErrors({
     code: t('ops.languages.code'),
     nativeName: t('ops.languages.nativeName'),
@@ -67,6 +73,11 @@ export function LanguagesPage() {
   const [confirm, setConfirm] = useState<null | { code: string; action: 'deactivate' | 'default' }>(
     null,
   );
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const editingDefault = !!editing && !!locales.data?.find((l) => l.code === editing)?.isDefault;
+  const dirMismatch =
+    RTL_LANGS.has(form.code.trim().toLowerCase().split('-')[0] ?? '') && form.direction === 'ltr';
 
   const coverage = (code: string): number | null => {
     const rows = (completeness.data?.rows ?? []).filter((r) => r.locale === code);
@@ -171,6 +182,18 @@ export function LanguagesPage() {
     }
   }
 
+  async function doDelete(code: string) {
+    try {
+      await del.mutateAsync(code);
+      setDeleting(null);
+      if (editing === code) resetForm();
+      toast({ title: t('ops.languages.deleted', { code }), variant: 'success' });
+    } catch (err) {
+      toast({ title: err instanceof ApiError ? err.message : t('ops.languages.actionFail') });
+      setDeleting(null);
+    }
+  }
+
   const confirmCoverage = confirm ? coverage(confirm.code) : null;
 
   return (
@@ -260,6 +283,18 @@ export function LanguagesPage() {
                             >
                               {t('ops.languages.makeDefault')}
                             </Button>
+                            {!l.isActive && !['en', 'fr', 'ar'].includes(l.code) ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                loading={del.isPending && deleting === l.code}
+                                disabled={del.isPending}
+                                onClick={() => setDeleting(l.code)}
+                                data-testid={`lang-delete-${l.code}`}
+                              >
+                                {t('action.delete')}
+                              </Button>
+                            ) : null}
                           </>
                         ) : null}
                       </>
@@ -329,11 +364,23 @@ export function LanguagesPage() {
                   />
                 )}
               </Field>
-              <Field label={t('ops.languages.direction')} error={errs.fieldError('direction')}>
+              <Field
+                label={t('ops.languages.direction')}
+                error={errs.fieldError('direction')}
+                hint={
+                  editingDefault
+                    ? t('ops.languages.dirLocked')
+                    : dirMismatch
+                      ? t('ops.languages.dirMismatch')
+                      : undefined
+                }
+              >
                 {({ id }) => (
                   <Select
                     id={id}
                     value={form.direction}
+                    disabled={editingDefault}
+                    invalid={dirMismatch}
                     onChange={(e) =>
                       setForm({ ...form, direction: e.target.value as 'ltr' | 'rtl' })
                     }
@@ -397,9 +444,11 @@ export function LanguagesPage() {
             </p>
             {confirm?.action === 'default' && (confirmCoverage == null || confirmCoverage < 100) ? (
               <Alert variant="warning">
-                {confirmCoverage == null
-                  ? t('ops.languages.defaultUntranslated')
-                  : t('ops.languages.defaultPartial', { pct: confirmCoverage })}
+                <AlertDescription>
+                  {confirmCoverage == null
+                    ? t('ops.languages.defaultUntranslated')
+                    : t('ops.languages.defaultPartial', { pct: confirmCoverage })}
+                </AlertDescription>
               </Alert>
             ) : null}
           </div>
@@ -413,6 +462,17 @@ export function LanguagesPage() {
         onConfirm={() =>
           confirm ? doAct(confirm.code, confirm.action, confirm.action === 'default') : undefined
         }
+      />
+
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(v) => !v && setDeleting(null)}
+        destructive
+        title={t('ops.languages.deleteTitle', { code: deleting ?? '' })}
+        description={t('ops.languages.deleteBody')}
+        confirmLabel={t('action.delete')}
+        confirmDisabled={del.isPending}
+        onConfirm={() => (deleting ? doDelete(deleting) : undefined)}
       />
     </div>
   );

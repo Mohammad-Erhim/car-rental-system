@@ -2,6 +2,7 @@ import { useAuth, useFormErrors } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   Alert,
+  AlertDescription,
   AppStateView,
   Badge,
   Button,
@@ -344,7 +345,9 @@ export function LocationsPage() {
             ) : (
               <>
                 {archived && !creating ? (
-                  <Alert variant="warning">{t('ops.loc.archivedBanner')}</Alert>
+                  <Alert variant="warning">
+                    <AlertDescription>{t('ops.loc.archivedBanner')}</AlertDescription>
+                  </Alert>
                 ) : null}
                 <ErrorSummary title={t('ops.loc.checkFields')} errors={errs.summary} />
                 <div className="grid gap-4 sm:grid-cols-2">

@@ -34,6 +34,7 @@ GET    /api/v1/catalogue/products
 POST   /api/v1/config/branding/assets
 GET    /api/v1/config/locales
 POST   /api/v1/config/locales
+DELETE /api/v1/config/locales/:code
 POST   /api/v1/config/locales/:code/activate
 POST   /api/v1/config/locales/:code/deactivate
 POST   /api/v1/config/locales/:code/default

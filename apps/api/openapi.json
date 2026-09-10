@@ -838,6 +838,21 @@
         ]
       }
     },
+    "/api/v1/config/locales/{code}": {
+      "delete": {
+        "operationId": "config_removeLocale",
+        "summary": "Delete an unused locale",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "config"
+        ]
+      }
+    },
     "/api/v1/config/locales/{code}/activate": {
       "post": {
         "operationId": "TranslationController_activateLocale",
