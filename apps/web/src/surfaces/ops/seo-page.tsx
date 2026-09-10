@@ -2,7 +2,6 @@ import { useAuth } from '@carrental/client/react';
 import { DEFAULT_SEO_CONFIG, seoConfigSchema, type SeoConfig } from '@carrental/contracts';
 import { useI18n } from '@carrental/i18n/react';
 import {
-  Badge,
   Button,
   Card,
   CardContent,
@@ -23,6 +22,8 @@ import {
   useSeoTransition,
   useSeoVersions,
 } from '../../lib/seo-hooks.js';
+
+import { ConfigWorkflowHistory } from './config-workflow-history.js';
 
 /**
  * SCREEN-OPS — SEO configuration (SRS-ADM-006, technical-SEO mandate). Edits the `seo`
@@ -350,52 +351,14 @@ export function SeoPage() {
             <CardHeader>
               <CardTitle className="text-base">{t('ops.branding.history')}</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {versions.isLoading ? (
-                <p className="text-sm text-muted-foreground">{t('ops.st.loading')}</p>
-              ) : !versions.data?.length ? (
-                <p className="text-sm text-muted-foreground">{t('ops.st.none')}</p>
-              ) : (
-                versions.data.slice(0, 8).map((v) => (
-                  <div key={v.id} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="flex items-center gap-2">
-                      r{v.revision}
-                      <Badge
-                        variant={
-                          v.state === 'published'
-                            ? 'success'
-                            : v.state === 'in_review'
-                              ? 'warning'
-                              : v.state === 'rejected'
-                                ? 'destructive'
-                                : 'neutral'
-                        }
-                      >
-                        {v.state}
-                      </Badge>
-                    </span>
-                    <span className="flex gap-1">
-                      {v.state === 'draft' ? (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => transition.mutate({ id: v.id, action: 'submit' })}
-                        >
-                          {t('ops.cfg.submit')}
-                        </Button>
-                      ) : null}
-                      {v.state === 'in_review' && canPublish ? (
-                        <Button
-                          size="sm"
-                          onClick={() => transition.mutate({ id: v.id, action: 'approve' })}
-                        >
-                          {t('ops.cfg.approve')}
-                        </Button>
-                      ) : null}
-                    </span>
-                  </div>
-                ))
-              )}
+            <CardContent>
+              <ConfigWorkflowHistory
+                versions={versions.data}
+                isLoading={versions.isLoading}
+                canPublish={canPublish}
+                pending={transition.isPending}
+                onAction={transition.mutateAsync}
+              />
             </CardContent>
           </Card>
         </div>

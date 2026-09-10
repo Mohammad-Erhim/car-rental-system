@@ -34,6 +34,8 @@ import {
   useUploadBrandAsset,
 } from '../../lib/branding-hooks.js';
 
+import { ConfigWorkflowHistory } from './config-workflow-history.js';
+
 /**
  * SCREEN-OPS — Branding & theme (DEC-025). Curated controls → design tokens, versioned through
  * the same draft → submit → approve workflow as policy config (a different reviewer publishes),
@@ -458,52 +460,14 @@ export function BrandingPage() {
             <CardHeader>
               <CardTitle className="text-base">{t('ops.branding.history')}</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {versions.isLoading ? (
-                <p className="text-sm text-muted-foreground">…</p>
-              ) : !versions.data?.length ? (
-                <p className="text-sm text-muted-foreground">{t('state.empty.title')}</p>
-              ) : (
-                versions.data.slice(0, 8).map((v) => (
-                  <div key={v.id} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="flex items-center gap-2">
-                      r{v.revision}
-                      <Badge
-                        variant={
-                          v.state === 'published'
-                            ? 'success'
-                            : v.state === 'in_review'
-                              ? 'warning'
-                              : v.state === 'rejected'
-                                ? 'destructive'
-                                : 'neutral'
-                        }
-                      >
-                        {v.state}
-                      </Badge>
-                    </span>
-                    <span className="flex gap-1">
-                      {v.state === 'draft' ? (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => transition.mutate({ id: v.id, action: 'submit' })}
-                        >
-                          {t('ops.branding.submit')}
-                        </Button>
-                      ) : null}
-                      {v.state === 'in_review' && canPublish ? (
-                        <Button
-                          size="sm"
-                          onClick={() => transition.mutate({ id: v.id, action: 'approve' })}
-                        >
-                          {t('ops.branding.approve')}
-                        </Button>
-                      ) : null}
-                    </span>
-                  </div>
-                ))
-              )}
+            <CardContent>
+              <ConfigWorkflowHistory
+                versions={versions.data}
+                isLoading={versions.isLoading}
+                canPublish={canPublish}
+                pending={transition.isPending}
+                onAction={transition.mutateAsync}
+              />
             </CardContent>
           </Card>
         </div>

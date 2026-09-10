@@ -68,6 +68,7 @@ import {
   usePublishedPages,
   useUploadPageAsset,
 } from '../../../lib/pages-hooks.js';
+import { ConfigWorkflowHistory } from '../config-workflow-history.js';
 
 import { BLOCK_DEFS, BLOCK_ORDER, ICON_OPTIONS, type FieldDef } from './block-defs.js';
 
@@ -562,52 +563,14 @@ export function PagesPage() {
             <CardHeader>
               <CardTitle className="text-base">{t('ops.pages.history')}</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {versions.isLoading ? (
-                <p className="text-sm text-muted-foreground">…</p>
-              ) : !versions.data?.length ? (
-                <p className="text-sm text-muted-foreground">{t('ops.pages.noVersions')}</p>
-              ) : (
-                versions.data.slice(0, 8).map((v) => (
-                  <div key={v.id} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="flex items-center gap-2">
-                      r{v.revision}
-                      <Badge
-                        variant={
-                          v.state === 'published'
-                            ? 'success'
-                            : v.state === 'in_review'
-                              ? 'warning'
-                              : v.state === 'rejected'
-                                ? 'destructive'
-                                : 'neutral'
-                        }
-                      >
-                        {v.state}
-                      </Badge>
-                    </span>
-                    <span className="flex gap-1">
-                      {v.state === 'draft' ? (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => transition.mutate({ id: v.id, action: 'submit' })}
-                        >
-                          {t('ops.pages.submit')}
-                        </Button>
-                      ) : null}
-                      {v.state === 'in_review' && canPublish ? (
-                        <Button
-                          size="sm"
-                          onClick={() => transition.mutate({ id: v.id, action: 'approve' })}
-                        >
-                          {t('ops.pages.approve')}
-                        </Button>
-                      ) : null}
-                    </span>
-                  </div>
-                ))
-              )}
+            <CardContent>
+              <ConfigWorkflowHistory
+                versions={versions.data}
+                isLoading={versions.isLoading}
+                canPublish={canPublish}
+                pending={transition.isPending}
+                onAction={transition.mutateAsync}
+              />
             </CardContent>
           </Card>
         </div>
@@ -1334,46 +1297,14 @@ function ColoursPanel({
         </div>
 
         {brandVersions.data?.length ? (
-          <div className="space-y-1.5 border-t pt-2">
-            {brandVersions.data.slice(0, 4).map((v) => (
-              <div key={v.id} className="flex items-center justify-between gap-2 text-xs">
-                <span className="flex items-center gap-1.5">
-                  r{v.revision}
-                  <Badge
-                    variant={
-                      v.state === 'published'
-                        ? 'success'
-                        : v.state === 'in_review'
-                          ? 'warning'
-                          : v.state === 'rejected'
-                            ? 'destructive'
-                            : 'neutral'
-                    }
-                  >
-                    {v.state}
-                  </Badge>
-                </span>
-                <span className="flex gap-1">
-                  {v.state === 'draft' ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => brandTransition.mutate({ id: v.id, action: 'submit' })}
-                    >
-                      {t('ops.pages.submit')}
-                    </Button>
-                  ) : null}
-                  {v.state === 'in_review' && canPublish ? (
-                    <Button
-                      size="sm"
-                      onClick={() => brandTransition.mutate({ id: v.id, action: 'approve' })}
-                    >
-                      {t('ops.pages.approve')}
-                    </Button>
-                  ) : null}
-                </span>
-              </div>
-            ))}
+          <div className="border-t pt-2">
+            <ConfigWorkflowHistory
+              versions={brandVersions.data}
+              canPublish={canPublish}
+              pending={brandTransition.isPending}
+              limit={4}
+              onAction={brandTransition.mutateAsync}
+            />
           </div>
         ) : null}
       </CardContent>

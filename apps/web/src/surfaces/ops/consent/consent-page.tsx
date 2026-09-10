@@ -31,6 +31,7 @@ import {
   useDraftConsent,
   usePublishedConsent,
 } from '../../../lib/consent-hooks.js';
+import { ConfigWorkflowHistory } from '../config-workflow-history.js';
 
 const LOCALES = ['en', 'fr', 'ar'] as const;
 type EditLocale = (typeof LOCALES)[number];
@@ -537,50 +538,14 @@ export function ConsentPage() {
             <CardHeader>
               <CardTitle className="text-base">{t('ops.consent.history')}</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {!versions.data?.length ? (
-                <p className="text-sm text-muted-foreground">{t('ops.consent.noVersions')}</p>
-              ) : (
-                versions.data.slice(0, 8).map((v) => (
-                  <div key={v.id} className="flex items-center justify-between gap-2 text-sm">
-                    <span className="flex items-center gap-2">
-                      r{v.revision}
-                      <Badge
-                        variant={
-                          v.state === 'published'
-                            ? 'success'
-                            : v.state === 'in_review'
-                              ? 'warning'
-                              : v.state === 'rejected'
-                                ? 'destructive'
-                                : 'neutral'
-                        }
-                      >
-                        {v.state}
-                      </Badge>
-                    </span>
-                    <span className="flex gap-1">
-                      {v.state === 'draft' ? (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => transition.mutate({ id: v.id, action: 'submit' })}
-                        >
-                          {t('ops.consent.submit')}
-                        </Button>
-                      ) : null}
-                      {v.state === 'in_review' && canPublish ? (
-                        <Button
-                          size="sm"
-                          onClick={() => transition.mutate({ id: v.id, action: 'approve' })}
-                        >
-                          {t('ops.consent.approve')}
-                        </Button>
-                      ) : null}
-                    </span>
-                  </div>
-                ))
-              )}
+            <CardContent>
+              <ConfigWorkflowHistory
+                versions={versions.data}
+                isLoading={versions.isLoading}
+                canPublish={canPublish}
+                pending={transition.isPending}
+                onAction={transition.mutateAsync}
+              />
             </CardContent>
           </Card>
         </div>
