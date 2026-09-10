@@ -52,11 +52,14 @@
     "@carrental/i18n": "workspace:*",
     "@carrental/ui": "workspace:*",
     "@tanstack/react-query": "5.51.23",
+    "@testing-library/react": "16.0.0",
     "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
     "eslint": "9.9.0",
     "globals": "15.9.0",
     "jsdom": "24.1.1",
     "react": "18.3.1",
+    "react-dom": "18.3.1",
     "typescript": "5.5.4",
     "vitest": "2.0.5"
   }
