@@ -72,8 +72,23 @@ export class RentalController {
 
   @Get('ops/rentals')
   @Permissions('rental.read', 'rental.pickup')
-  list(@Query('state') state?: string, @Query('locationCode') locationCode?: string) {
-    return this.rentals.list({ state, locationCode });
+  list(
+    @CurrentActor() actor: Actor,
+    @Query('state') state?: string,
+    @Query('locationCode') locationCode?: string,
+    @Query('flow') flow?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.rentals.list(actor, {
+      state,
+      locationCode,
+      flow: flow === 'pickup' || flow === 'return' ? flow : undefined,
+      from,
+      to,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Post('ops/reservations/:reservationReference/assign')
