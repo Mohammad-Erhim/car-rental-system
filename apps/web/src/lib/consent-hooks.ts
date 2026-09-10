@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { ConfigVersion } from './admin-hooks.js';
 import { apiFetch } from './api.js';
+import { useWorkflowError } from './use-workflow-error.js';
 
 /** The `consent` config-version rides the generic draft → submit → approve workflow. */
 export const CONSENT_KIND = 'consent';
@@ -53,7 +54,9 @@ export function useConsentPreview() {
 
 export function useConsentTransition() {
   const qc = useQueryClient();
+  const onError = useWorkflowError();
   return useMutation({
+    onError,
     mutationFn: ({
       id,
       action,

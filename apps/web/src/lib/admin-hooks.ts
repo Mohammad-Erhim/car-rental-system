@@ -1,6 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiFetch, getAccessToken } from './api.js';
+import { useWorkflowError } from './use-workflow-error.js';
 
 const BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api/v1';
 
@@ -53,7 +54,9 @@ export function useDraftConfigVersion() {
 
 export function useConfigVersionTransition() {
   const qc = useQueryClient();
+  const onError = useWorkflowError();
   return useMutation({
+    onError,
     mutationFn: ({
       id,
       action,
@@ -359,7 +362,9 @@ export function useSaveTemplateDraft() {
 
 export function useTemplateTransition() {
   const qc = useQueryClient();
+  const onError = useWorkflowError();
   return useMutation({
+    onError,
     mutationFn: ({ id, action }: { id: string; action: 'submit' | 'publish' }) =>
       apiFetch<TemplateDetail>(`/ops/templates/${id}/${action}`, { method: 'POST' }),
     onSuccess: () => {
