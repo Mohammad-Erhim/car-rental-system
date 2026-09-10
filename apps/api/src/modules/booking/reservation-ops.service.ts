@@ -8,6 +8,7 @@ import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { organization } from '../../database/schema/org';
+import { rental } from '../../database/schema/rental';
 import {
   reconciliationException,
   reservation,
@@ -50,8 +51,19 @@ export class ReservationOpsService {
     return row;
   }
 
-  private assertOwnerOrStaff(row: { accountId: string | null }, actor: Actor) {
-    if (actor.kind === 'staff') return;
+  private assertOwnerOrStaff(
+    row: { accountId: string | null; pickupLocationCode?: string },
+    actor: Actor,
+  ) {
+    if (actor.kind === 'staff') {
+      // a location-scoped staffer can only touch reservations for their pickup locations
+      // (FR-RPT-004) — the same boundary the queue and reports apply.
+      const scope = actor.locationScope ?? [];
+      if (scope.length && row.pickupLocationCode && !scope.includes(row.pickupLocationCode)) {
+        throw AppError.forbidden('This reservation is outside your assigned locations');
+      }
+      return;
+    }
     if (row.accountId && row.accountId === actor.accountId) return;
     throw AppError.forbidden('This reservation belongs to another account');
   }
@@ -463,6 +475,7 @@ export class ReservationOpsService {
   async markNoShow(reference: string, actor: Actor, note?: string) {
     const row = await this.load(reference);
     if (actor.kind !== 'staff') throw AppError.forbidden();
+    this.assertOwnerOrStaff(row, actor); // location-scope guard for staff
     if (row.state !== 'confirmed') {
       throw AppError.businessRule('Only a confirmed reservation can be marked no-show', {
         reason: 'not_confirmed',
@@ -512,10 +525,16 @@ export class ReservationOpsService {
       .from(reservationDriver)
       .where(eq(reservationDriver.reservationId, row.id));
     const intent = await this.payments.intentFor(reference, 'booking');
+    const [assignedRental] = await this.db
+      .select({ reference: rental.reference })
+      .from(rental)
+      .where(eq(rental.reservationReference, reference))
+      .limit(1);
     return {
       reference: row.reference,
       state: row.state,
       channel: row.channel,
+      assignedRentalRef: assignedRental?.reference ?? null,
       categoryCode: row.categoryCode,
       pickupLocationCode: row.pickupLocationCode,
       returnLocationCode: row.returnLocationCode,

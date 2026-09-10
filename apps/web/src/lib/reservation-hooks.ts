@@ -29,6 +29,7 @@ export interface ReservationDetail {
   drivers: Array<{ role: string; fullName: string; email: string | null }>;
   cancellable: boolean;
   modifiable: boolean;
+  assignedRentalRef: string | null;
 }
 
 export interface ReservationEvent {
@@ -57,6 +58,12 @@ export function useReservationHistory(reference: string | null) {
   });
 }
 
+function invalidateReservation(qc: ReturnType<typeof useQueryClient>, reference: string) {
+  void qc.invalidateQueries({ queryKey: ['reservation', reference] });
+  void qc.invalidateQueries({ queryKey: ['booking', 'mine'] });
+  void qc.invalidateQueries({ queryKey: ['ops', 'reservations'] });
+}
+
 export function useCancelReservation(reference: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -65,10 +72,20 @@ export function useCancelReservation(reference: string) {
         `/reservations/${reference}/cancel`,
         { method: 'POST', body },
       ),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['reservation', reference] });
-      void qc.invalidateQueries({ queryKey: ['booking', 'mine'] });
-    },
+    onSuccess: () => invalidateReservation(qc, reference),
+  });
+}
+
+/** Staff-only: mark a confirmed reservation as a no-show (SCREEN-OPS-004). */
+export function useNoShowReservation(reference: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { note?: string } = {}) =>
+      apiFetch<ReservationDetail>(`/ops/reservations/${reference}/no-show`, {
+        method: 'POST',
+        body,
+      }),
+    onSuccess: () => invalidateReservation(qc, reference),
   });
 }
 
@@ -86,7 +103,7 @@ export function useModifyReservation(reference: string) {
         method: 'POST',
         body,
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['reservation', reference] }),
+    onSuccess: () => invalidateReservation(qc, reference),
   });
 }
 

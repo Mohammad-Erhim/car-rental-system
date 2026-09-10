@@ -45,6 +45,14 @@ export class RentalService {
     if (actor.kind !== 'staff') throw AppError.forbidden('Staff only');
   }
 
+  /** A location-scoped staffer only acts on rentals / reservations for their pickup locations. */
+  private assertInScope(actor: Actor, pickupLocationCode: string) {
+    const scope = actor.locationScope ?? [];
+    if (scope.length && !scope.includes(pickupLocationCode)) {
+      throw AppError.forbidden('This record is outside your assigned locations');
+    }
+  }
+
   // ---------------------------------------------------------- assign + pickup
 
   async assign(reservationReference: string, actor: Actor, input: { unitId?: string } = {}) {
@@ -55,6 +63,7 @@ export class RentalService {
       .where(eq(reservation.reference, reservationReference))
       .limit(1);
     if (!res) throw AppError.notFound('reservation');
+    this.assertInScope(actor, res.pickupLocationCode);
     if (res.state !== 'confirmed') {
       throw AppError.businessRule(`Cannot assign a ${res.state} reservation`, {
         reason: res.state,
@@ -151,6 +160,7 @@ export class RentalService {
   ) {
     this.staffOnly(actor);
     const row = await this.load(reference);
+    this.assertInScope(actor, row.pickupLocationCode);
     if (row.state !== 'awaiting_pickup') {
       throw AppError.businessRule(`Rental is ${row.state}, not awaiting pickup`, {
         reason: row.state,
@@ -231,6 +241,7 @@ export class RentalService {
     input: { newReturnAt: string; paymentToken?: string },
   ) {
     const row = await this.load(reference);
+    this.assertInScope(actor, row.pickupLocationCode);
     if (!['active', 'overdue'].includes(row.state)) {
       throw AppError.businessRule(`A ${row.state} rental cannot be extended`, {
         reason: row.state,
@@ -338,6 +349,7 @@ export class RentalService {
   ) {
     this.staffOnly(actor);
     const row = await this.load(reference);
+    this.assertInScope(actor, row.pickupLocationCode);
     if (!['active', 'overdue'].includes(row.state)) {
       throw AppError.businessRule(`A ${row.state} rental has no vehicle in service`, {
         reason: row.state,
@@ -488,6 +500,7 @@ export class RentalService {
   ) {
     this.staffOnly(actor);
     const row = await this.load(reference);
+    this.assertInScope(actor, row.pickupLocationCode);
     if (!['active', 'overdue'].includes(row.state)) {
       throw AppError.businessRule(`A ${row.state} rental cannot be returned`, {
         reason: row.state,
@@ -587,6 +600,7 @@ export class RentalService {
   async runReadiness(reference: string, actor: Actor, passed: boolean) {
     this.staffOnly(actor);
     const row = await this.load(reference);
+    this.assertInScope(actor, row.pickupLocationCode);
     if (!row.unitId) return this.detail(reference);
     await this.db
       .update(vehicleUnit)

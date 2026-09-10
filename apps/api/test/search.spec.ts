@@ -112,7 +112,7 @@ describe('unified reservation + rental search (FR-ADM-003)', () => {
       (h) => h.kind === 'reservation' && h.reference === resRef,
     );
     expect(hit).toBeTruthy();
-    expect(hit!.href).toContain('/work?ref=');
+    expect(hit!.href).toContain('/work/');
   });
 
   it('finds both the reservation and the rental by the shared driver name', async () => {

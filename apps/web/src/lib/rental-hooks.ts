@@ -46,9 +46,10 @@ export function useAssignVehicle() {
         method: 'POST',
         body: {},
       }),
-    onSuccess: () => {
+    onSuccess: (_data, reservationReference) => {
       void qc.invalidateQueries({ queryKey: ['ops', 'rentals'] });
       void qc.invalidateQueries({ queryKey: ['ops', 'reservations'] });
+      void qc.invalidateQueries({ queryKey: ['reservation', reservationReference] });
     },
   });
 }
