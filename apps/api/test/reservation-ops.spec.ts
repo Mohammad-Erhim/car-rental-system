@@ -51,11 +51,12 @@ async function bookEconomyAt(
 
 describe('reservation operations', () => {
   let server: ReturnType<typeof httpServer>;
+  let app: Awaited<ReturnType<typeof getTestApp>>;
   let adminToken: string;
   let customerToken: string;
 
   beforeAll(async () => {
-    const app = await getTestApp();
+    app = await getTestApp();
     server = httpServer(app);
     adminToken = (await signIn(app, 'test-admin@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
@@ -323,5 +324,76 @@ describe('reservation operations', () => {
       .post(`/api/v1/ops/cases/${kase.id}/retry`)
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(422);
+  });
+
+  describe('the staff reservation queue (GET /ops/reservations)', () => {
+    it('view=queue is the actionable set: confirmed, no rental yet, with a true total', async () => {
+      const a = await bookEconomyAt(server, customerToken, 110);
+      const b = await bookEconomyAt(server, customerToken, 118);
+      // assign a vehicle to `a` — it should drop out of the queue
+      await request(server)
+        .post(`/api/v1/ops/reservations/${a.reference}/assign`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({})
+        .expect(201);
+
+      const res = await request(server)
+        .get('/api/v1/ops/reservations') // default view = queue
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      const refs = (res.body.results as Array<{ reference: string; state: string }>).map(
+        (r) => r.reference,
+      );
+      expect(res.body.view).toBe('queue');
+      expect(refs).toContain(b.reference);
+      expect(refs).not.toContain(a.reference); // has a rental now
+      expect(
+        (res.body.results as Array<{ state: string; assignedRentalRef: string | null }>).every(
+          (r) => r.state === 'confirmed' && r.assignedRentalRef === null,
+        ),
+      ).toBe(true);
+      expect(res.body.total).toBe(res.body.count); // not truncated at this size
+      expect(typeof res.body.total).toBe('number');
+    });
+
+    it('view=all applies the state filter and returns cancelled rows too', async () => {
+      const r = await bookEconomyAt(server, customerToken, 126);
+      await request(server)
+        .post(`/api/v1/reservations/${r.reference}/cancel`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ reasonCode: 'goodwill' })
+        .expect(201);
+
+      const res = await request(server)
+        .get('/api/v1/ops/reservations?view=all&state=cancelled')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      const rows = res.body.results as Array<{ reference: string; state: string }>;
+      expect(rows.every((x) => x.state === 'cancelled')).toBe(true);
+      expect(rows.some((x) => x.reference === r.reference)).toBe(true);
+    });
+
+    it('a bad date filter is a 422, not a 500', async () => {
+      await request(server)
+        .get('/api/v1/ops/reservations?view=all&from=not-a-date')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(422);
+    });
+
+    it('a location-scoped actor only sees their own locations (FR-RPT-004)', async () => {
+      const scoped = (await signIn(app, 'test-scoped@example.test', 'Test-Passw0rd!', 'staff'))
+        .accessToken;
+      // scoped user has reservation.read + reservation.modify via finance_staff, confined to TST1;
+      // every fixture books at TST1, so they see rows — the exclusion side is proven in search.spec
+      const res = await request(server)
+        .get('/api/v1/ops/reservations?view=all')
+        .set('Authorization', `Bearer ${scoped}`)
+        .expect(200);
+      expect(
+        (res.body.results as Array<{ pickupLocationCode: string }>).every(
+          (r) => r.pickupLocationCode === 'TST1',
+        ),
+      ).toBe(true);
+    });
   });
 });

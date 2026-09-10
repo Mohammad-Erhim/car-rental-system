@@ -184,7 +184,7 @@ export function OpsDashboard() {
               ) : null}
               {d.assignQueue > 0 ? (
                 <li>
-                  <Link to="/work?state=confirmed" className="font-medium text-primary underline">
+                  <Link to="/work" className="font-medium text-primary underline">
                     {t('ops.dash.urgent.assign', { n: d.assignQueue })}
                   </Link>
                 </li>
@@ -198,7 +198,7 @@ export function OpsDashboard() {
         <StatCard
           label={t('ops.dash.assignQueue')}
           value={d?.assignQueue ?? 0}
-          to="/work?state=confirmed"
+          to="/work"
           tone="alert"
           zeroLabel={t('ops.dash.zero.assignQueue')}
           error={err}
@@ -265,7 +265,7 @@ export function OpsDashboard() {
         <StatCard
           label={t('ops.dash.cancellations')}
           value={d?.cancellationsToday ?? 0}
-          to="/work?state=cancelled"
+          to="/work?view=all&state=cancelled"
           tone="alert"
           zeroLabel={t('ops.dash.zero.cancellations')}
           error={err}

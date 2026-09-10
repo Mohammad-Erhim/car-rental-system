@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
@@ -58,29 +58,113 @@ export class ReservationOpsService {
 
   // --------------------------------------------------------------- staff queue
 
-  async list(filter: { state?: string; locationCode?: string; limit?: number }) {
-    const where = [] as ReturnType<typeof eq>[];
-    if (filter.state) where.push(eq(reservation.state, filter.state));
-    if (filter.locationCode) where.push(eq(reservation.pickupLocationCode, filter.locationCode));
-    const rows = await this.db
-      .select()
+  private parseDate(v: string | undefined, field: string): Date | null {
+    if (!v) return null;
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) {
+      throw AppError.validation([{ path: field, code: 'invalid_string' }]);
+    }
+    return d;
+  }
+
+  /**
+   * The staff reservation queue (SCREEN-OPS-004). `view: 'queue'` is the actionable set —
+   * confirmed reservations that don't yet have a rental, soonest pickup first (an overdue,
+   * still-unassigned booking floats to the top). `view: 'all'` is the browsable list with the
+   * state / date filters. Confined to the actor's pickup locations (FR-RPT-004). The response
+   * carries the true `total` so the UI never silently hides rows.
+   */
+  async list(
+    actor: Actor,
+    filter: {
+      view: 'queue' | 'all';
+      state?: string;
+      locationCode?: string;
+      from?: string;
+      to?: string;
+      limit?: number;
+    },
+  ) {
+    const scope = actor.locationScope?.length ? actor.locationScope : null;
+    const noRental = sql`not exists (select 1 from rental r where r.reservation_reference = ${reservation.reference})`;
+
+    const where: Array<ReturnType<typeof eq> | typeof noRental> = [];
+    if (scope) where.push(inArray(reservation.pickupLocationCode, scope));
+    if (filter.locationCode) {
+      where.push(eq(reservation.pickupLocationCode, filter.locationCode));
+    }
+    if (filter.view === 'queue') {
+      where.push(eq(reservation.state, 'confirmed'));
+      where.push(noRental);
+    } else if (filter.state) {
+      where.push(eq(reservation.state, filter.state));
+    }
+    const from = this.parseDate(filter.from, 'from');
+    const to = this.parseDate(filter.to, 'to');
+    if (from) where.push(gte(reservation.pickupAt, from.toISOString()));
+    if (to) where.push(lte(reservation.pickupAt, to.toISOString()));
+    const whereSql = where.length ? and(...where) : sql`true`;
+
+    const rawLimit = Number(filter.limit);
+    const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 100, 1), 200);
+
+    const [countRow] = await this.db
+      .select({ total: sql<number>`count(*)::int` })
       .from(reservation)
-      .where(where.length ? and(...where) : sql`true`)
+      .where(whereSql);
+
+    const rows = await this.db
+      .select({
+        reference: reservation.reference,
+        state: reservation.state,
+        channel: reservation.channel,
+        categoryCode: reservation.categoryCode,
+        pickupLocationCode: reservation.pickupLocationCode,
+        returnLocationCode: reservation.returnLocationCode,
+        pickupAt: reservation.pickupAt,
+        returnAt: reservation.returnAt,
+        currency: reservation.currency,
+        totalMinor: reservation.totalMinor,
+        paidMinor: reservation.paidMinor,
+        driverName: reservationDriver.fullName,
+        assignedRentalRef: sql<
+          string | null
+        >`(select r.reference from rental r where r.reservation_reference = ${reservation.reference} limit 1)`,
+      })
+      .from(reservation)
+      .leftJoin(
+        reservationDriver,
+        and(
+          eq(reservationDriver.reservationId, reservation.id),
+          eq(reservationDriver.role, 'primary_renter'),
+        ),
+      )
+      .where(whereSql)
       .orderBy(asc(reservation.pickupAt))
-      .limit(Math.min(filter.limit ?? 100, 200));
-    return rows.map((r) => ({
-      reference: r.reference,
-      state: r.state,
-      channel: r.channel,
-      categoryCode: r.categoryCode,
-      pickupLocationCode: r.pickupLocationCode,
-      returnLocationCode: r.returnLocationCode,
-      pickupAt: new Date(r.pickupAt).toISOString(),
-      returnAt: new Date(r.returnAt).toISOString(),
-      currency: r.currency,
-      totalMinor: r.totalMinor,
-      paidMinor: r.paidMinor,
-    }));
+      .limit(limit);
+
+    const total = countRow?.total ?? rows.length;
+    return {
+      view: filter.view,
+      count: rows.length,
+      total,
+      truncated: total > rows.length,
+      results: rows.map((r) => ({
+        reference: r.reference,
+        state: r.state,
+        channel: r.channel,
+        categoryCode: r.categoryCode,
+        pickupLocationCode: r.pickupLocationCode,
+        returnLocationCode: r.returnLocationCode,
+        pickupAt: new Date(r.pickupAt).toISOString(),
+        returnAt: new Date(r.returnAt).toISOString(),
+        currency: r.currency,
+        totalMinor: r.totalMinor,
+        paidMinor: r.paidMinor,
+        driverName: r.driverName,
+        assignedRentalRef: r.assignedRentalRef,
+      })),
+    };
   }
 
   async history(reference: string, actor: Actor) {

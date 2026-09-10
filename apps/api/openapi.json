@@ -2062,6 +2062,14 @@
         "operationId": "ReservationController_list",
         "parameters": [
           {
+            "name": "view",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "state",
             "required": true,
             "in": "query",
@@ -2071,6 +2079,22 @@
           },
           {
             "name": "locationCode",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
             "required": true,
             "in": "query",
             "schema": {

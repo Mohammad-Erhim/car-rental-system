@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiFetch } from './api.js';
 
@@ -90,26 +90,48 @@ export function useModifyReservation(reference: string) {
   });
 }
 
-export function useOpsReservations(filter: { state?: string; locationCode?: string }) {
+export interface OpsReservationRow {
+  reference: string;
+  state: string;
+  channel: string;
+  categoryCode: string;
+  pickupLocationCode: string;
+  returnLocationCode: string;
+  pickupAt: string;
+  returnAt: string;
+  currency: string;
+  totalMinor: number;
+  paidMinor: number;
+  driverName: string | null;
+  /** the rental this reservation was turned into, if any */
+  assignedRentalRef: string | null;
+}
+
+export interface OpsReservationList {
+  view: 'queue' | 'all';
+  count: number;
+  total: number;
+  truncated: boolean;
+  results: OpsReservationRow[];
+}
+
+export function useOpsReservations(filter: {
+  view?: 'queue' | 'all';
+  state?: string;
+  locationCode?: string;
+  from?: string;
+  to?: string;
+}) {
   const qs = new URLSearchParams();
+  if (filter.view) qs.set('view', filter.view);
   if (filter.state) qs.set('state', filter.state);
   if (filter.locationCode) qs.set('locationCode', filter.locationCode);
+  if (filter.from) qs.set('from', filter.from);
+  if (filter.to) qs.set('to', filter.to);
   return useQuery({
     queryKey: ['ops', 'reservations', filter],
+    placeholderData: keepPreviousData,
     queryFn: ({ signal }) =>
-      apiFetch<
-        Array<{
-          reference: string;
-          state: string;
-          channel: string;
-          categoryCode: string;
-          pickupLocationCode: string;
-          pickupAt: string;
-          returnAt: string;
-          currency: string;
-          totalMinor: number;
-          paidMinor: number;
-        }>
-      >(`/ops/reservations${qs.toString() ? `?${qs}` : ''}`, { signal }),
+      apiFetch<OpsReservationList>(`/ops/reservations${qs.toString() ? `?${qs}` : ''}`, { signal }),
   });
 }

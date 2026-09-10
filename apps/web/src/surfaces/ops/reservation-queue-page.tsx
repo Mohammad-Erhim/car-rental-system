@@ -4,119 +4,178 @@ import {
   Button,
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
   DataTable,
+  Field,
   Input,
   PageHeader,
-  Toolbar,
+  useToast,
   type DataTableColumn,
 } from '@carrental/ui';
-import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
-import { formatMinor } from '../../lib/discovery-hooks.js';
+import { useLocations } from '../../lib/discovery-hooks.js';
 import { useAssignVehicle } from '../../lib/rental-hooks.js';
-import { useOpsReservations } from '../../lib/reservation-hooks.js';
-
-type Row = NonNullable<ReturnType<typeof useOpsReservations>['data']>[number];
+import { useOpsReservations, type OpsReservationRow } from '../../lib/reservation-hooks.js';
 
 /**
- * SCREEN-OPS-004 — reservation queue. Filter by state / pickup location; read-only list for the
- * agent, with an inline "assign vehicle" action on confirmed rows.
+ * SCREEN-OPS-004 — the staff reservation queue. Two views: "Needs action" (the actionable
+ * default — confirmed reservations with no rental yet, soonest pickup first) and "All" (the
+ * browsable list with state / location / date filters). Confined to the actor's pickup
+ * locations by the API. Every filter is URL-backed so a view is shareable and survives a refresh.
  */
+
+const RESERVATION_STATES = ['pending', 'confirmed', 'cancelled', 'no_show', 'fulfilled'];
+
+const selectClass =
+  'flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
+const stateVariant = (s: string) =>
+  s === 'confirmed'
+    ? 'success'
+    : s === 'cancelled'
+      ? 'neutral'
+      : s === 'no_show'
+        ? 'destructive'
+        : s === 'fulfilled'
+          ? 'neutral'
+          : 'warning';
+
 export function ReservationQueuePage() {
-  const { t } = useI18n();
-  // Filters live in the URL so the operational-dashboard cards can deep-link into a
-  // pre-filtered queue (e.g. /work?state=confirmed) and the view stays shareable.
+  const { t, fmt } = useI18n();
+  const { toast } = useToast();
+  const locations = useLocations();
   const [params, setParams] = useSearchParams();
+
+  const view: 'queue' | 'all' = params.get('view') === 'all' ? 'all' : 'queue';
   const state = params.get('state') ?? '';
-  const setState = (v: string) =>
-    setParams(
-      (p) => {
-        if (v) p.set('state', v);
-        else p.delete('state');
-        return p;
-      },
-      { replace: true },
-    );
-  const [locationCode, setLocationCode] = useState(() => params.get('location') ?? '');
-  // A `ref` param (from the unified search) pins the queue to one reservation.
+  const locationCode = params.get('location') ?? '';
+  const from = params.get('from') ?? '';
+  const to = params.get('to') ?? '';
   const focusRef = params.get('ref') ?? '';
-  const clearFocus = () =>
+
+  const setParam = (key: string, value: string) =>
     setParams(
       (p) => {
-        p.delete('ref');
+        if (value) p.set(key, value);
+        else p.delete(key);
         return p;
       },
       { replace: true },
     );
-  const rows = useOpsReservations({
-    state: state || undefined,
-    locationCode: locationCode || undefined,
+  const setView = (v: 'queue' | 'all') =>
+    setParams(
+      (p) => {
+        if (v === 'all') p.set('view', 'all');
+        else {
+          p.delete('view');
+          p.delete('state');
+          p.delete('location');
+          p.delete('from');
+          p.delete('to');
+        }
+        return p;
+      },
+      { replace: true },
+    );
+
+  const list = useOpsReservations({
+    view,
+    state: view === 'all' && state ? state : undefined,
+    locationCode: view === 'all' && locationCode ? locationCode : undefined,
+    from: view === 'all' && from ? from : undefined,
+    to: view === 'all' && to ? to : undefined,
   });
-  const visibleRows = focusRef
-    ? (rows.data ?? []).filter((r) => r.reference === focusRef)
-    : rows.data;
+
+  const rows = focusRef
+    ? (list.data?.results ?? []).filter((r) => r.reference === focusRef)
+    : list.data?.results;
+
   const assign = useAssignVehicle();
-  const [assignMsg, setAssignMsg] = useState<string | null>(null);
+  const runAssign = async (r: OpsReservationRow) => {
+    try {
+      const rental = await assign.mutateAsync(r.reference);
+      toast({
+        title: t('ops.queue.assigned', { ref: r.reference }),
+        description: t('ops.queue.assignedTo', { rental: rental.reference }),
+        variant: 'success',
+      });
+    } catch {
+      toast({ title: t('ops.queue.assignFail', { ref: r.reference }) });
+    }
+  };
 
-  const selectClass =
-    'flex h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+  const money = (m: number, c: string) => fmt.money({ amountMinor: m, currency: c });
 
-  const columns: Array<DataTableColumn<Row>> = [
+  const columns: Array<DataTableColumn<OpsReservationRow>> = [
     {
       key: 'reference',
       header: t('ops.tbl.reference'),
-      cell: (r) => r.reference,
-      className: 'bidi-isolate font-mono text-xs',
+      cell: (r) => (
+        <div className="bidi-isolate font-mono text-xs">
+          {r.reference}
+          {r.assignedRentalRef ? (
+            <div className="text-muted-foreground">→ {r.assignedRentalRef}</div>
+          ) : null}
+        </div>
+      ),
     },
     {
       key: 'state',
       header: t('ops.tbl.state'),
-      cell: (r) => (
-        <Badge
-          variant={
-            r.state === 'confirmed' ? 'success' : r.state === 'cancelled' ? 'neutral' : 'warning'
-          }
-        >
-          {r.state}
-        </Badge>
-      ),
+      cell: (r) => <Badge variant={stateVariant(r.state)}>{r.state.replace(/_/g, ' ')}</Badge>,
     },
-    { key: 'channel', header: t('ops.tbl.channel'), cell: (r) => r.channel },
-    { key: 'category', header: t('ops.tbl.category'), cell: (r) => r.categoryCode },
+    { key: 'driver', header: t('ops.search.driver'), cell: (r) => r.driverName ?? '—' },
+    {
+      key: 'category',
+      header: t('ops.tbl.category'),
+      cell: (r) => `${r.categoryCode} · ${r.channel}`,
+    },
     {
       key: 'pickup',
       header: t('ops.tbl.pickup'),
-      cell: (r) => new Date(r.pickupAt).toLocaleString(),
+      cell: (r) => (
+        <span className="text-xs">
+          {fmt.dateTime(r.pickupAt)}
+          <br />
+          <span className="text-muted-foreground">
+            {r.pickupLocationCode}
+            {r.returnLocationCode !== r.pickupLocationCode ? ` → ${r.returnLocationCode}` : ''}
+          </span>
+        </span>
+      ),
     },
     {
       key: 'total',
       header: t('ops.tbl.total'),
-      cell: (r) => formatMinor(r.totalMinor, r.currency),
+      cell: (r) => (
+        <span className="text-xs">
+          {money(r.totalMinor, r.currency)}
+          <br />
+          <span className="text-muted-foreground">
+            {t('ops.queue.paidOf', { paid: money(r.paidMinor, r.currency) })}
+          </span>
+        </span>
+      ),
     },
-    { key: 'paid', header: t('ops.tbl.paid'), cell: (r) => formatMinor(r.paidMinor, r.currency) },
     {
       key: 'actions',
       header: '',
       className: 'text-end',
       cell: (r) =>
-        r.state === 'confirmed' ? (
+        r.assignedRentalRef ? (
+          <Link
+            to={`/rentals?ref=${encodeURIComponent(r.assignedRentalRef)}`}
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            {t('ops.queue.openRental')} →
+          </Link>
+        ) : r.state === 'confirmed' ? (
           <Button
             size="sm"
             variant="ghost"
             loading={assign.isPending}
             data-testid={`assign-${r.reference}`}
-            onClick={async () => {
-              setAssignMsg(null);
-              try {
-                await assign.mutateAsync(r.reference);
-                setAssignMsg(t('ops.queue.assigned', { ref: r.reference }));
-              } catch {
-                setAssignMsg(t('ops.queue.assignFail', { ref: r.reference }));
-              }
-            }}
+            onClick={() => runAssign(r)}
           >
             {t('ops.queue.assign')}
           </Button>
@@ -124,75 +183,216 @@ export function ReservationQueuePage() {
     },
   ];
 
+  const countLabel = list.data
+    ? list.data.truncated
+      ? t('ops.search.showingOf', { shown: list.data.count, total: list.data.total })
+      : t('ops.search.count', { n: list.data.total })
+    : null;
+
+  const tab = (id: 'queue' | 'all', label: string) => (
+    <button
+      type="button"
+      onClick={() => setView(id)}
+      aria-pressed={view === id}
+      className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+        view === id
+          ? 'bg-background text-foreground shadow-sm'
+          : 'text-muted-foreground hover:text-foreground'
+      }`}
+      data-testid={`ops-queue-tab-${id}`}
+    >
+      {label}
+    </button>
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader title={t('ops.queue.title')} description={t('ops.queue.subtitle')} />
 
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex gap-1 rounded-lg bg-muted p-1">
+          {tab('queue', t('ops.queue.tabQueue'))}
+          {tab('all', t('ops.queue.tabAll'))}
+        </div>
+        <p
+          className="text-sm text-muted-foreground"
+          aria-live="polite"
+          data-testid="ops-queue-count"
+        >
+          {list.isLoading ? t('ops.st.loading') : (countLabel ?? '')}
+        </p>
+      </div>
+
+      {view === 'all' ? (
+        <Card>
+          <CardContent className="grid gap-3 pt-6 sm:grid-cols-2 lg:grid-cols-4">
+            <Field label={t('ops.tbl.state')} htmlFor="ops-queue-state">
+              {({ id }) => (
+                <select
+                  id={id}
+                  className={selectClass}
+                  value={state}
+                  onChange={(e) => setParam('state', e.target.value)}
+                  data-testid="ops-queue-state"
+                >
+                  <option value="">{t('ops.queue.allStates')}</option>
+                  {RESERVATION_STATES.map((s) => (
+                    <option key={s} value={s}>
+                      {s.replace(/_/g, ' ')}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+            <Field label={t('ops.search.location')} htmlFor="ops-queue-loc">
+              {({ id }) => (
+                <select
+                  id={id}
+                  className={selectClass}
+                  value={locationCode}
+                  onChange={(e) => setParam('location', e.target.value)}
+                >
+                  <option value="">{t('ops.search.anyLocation')}</option>
+                  {(locations.data ?? []).map((l) => (
+                    <option key={l.code} value={l.code}>
+                      {l.name} ({l.code})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
+            <Field label={t('ops.search.from')} htmlFor="ops-queue-from">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  type="date"
+                  value={from}
+                  max={to || undefined}
+                  onChange={(e) => setParam('from', e.target.value)}
+                />
+              )}
+            </Field>
+            <Field label={t('ops.search.to')} htmlFor="ops-queue-to">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  type="date"
+                  value={to}
+                  min={from || undefined}
+                  onChange={(e) => setParam('to', e.target.value)}
+                />
+              )}
+            </Field>
+          </CardContent>
+        </Card>
+      ) : null}
+
       <Card>
-        <CardHeader className="gap-3">
-          <CardTitle className="text-base">{t('ops.queue.card')}</CardTitle>
-          <Toolbar aria-label={t('ops.queue.card')}>
-            <select
-              aria-label={t('ops.queue.filterState')}
-              className={selectClass}
-              value={state}
-              onChange={(e) => setState(e.target.value)}
-            >
-              <option value="">{t('ops.queue.allStates')}</option>
-              {['pending', 'confirmed', 'cancelled', 'no_show', 'fulfilled'].map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <Input
-              placeholder={t('ops.queue.locPlaceholder')}
-              aria-label={t('ops.queue.filterLoc')}
-              value={locationCode}
-              onChange={(e) => setLocationCode(e.target.value.toUpperCase())}
-              className="max-w-[14rem]"
-            />
-          </Toolbar>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3 pt-6">
           {focusRef ? (
             <p
-              className="mb-3 flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm"
+              className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm"
               data-testid="ops-queue-focus"
             >
               <span className="bidi-isolate font-mono text-xs">{focusRef}</span>
               <button
                 type="button"
-                onClick={clearFocus}
+                onClick={() => setParam('ref', '')}
                 className="text-xs font-medium text-primary hover:underline"
               >
                 {t('ops.queue.showAll')}
               </button>
             </p>
           ) : null}
-          <DataTable
-            columns={columns}
-            rows={visibleRows}
-            rowKey={(r) => r.reference}
-            isLoading={rows.isLoading}
-            isError={rows.isError}
-            onRetry={() => rows.refetch()}
-            rowProps={(r) => ({ 'data-ref': r.reference })}
-            testid="ops-res-table"
-            bodyTestid="ops-res-rows"
-            minWidth="44rem"
-            labels={{
-              loading: t('ops.st.loading'),
-              loadFailTitle: t('ops.queue.loadFail'),
-              retry: t('ops.st.retry'),
-              empty: focusRef ? t('ops.queue.focusMiss') : t('ops.queue.empty'),
-            }}
-          />
-          {assignMsg ? (
-            <p className="mt-2 text-sm text-muted-foreground" data-testid="assign-msg">
-              {assignMsg}
+
+          {list.data?.truncated ? (
+            <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
+              {t('ops.search.narrowHint')}
             </p>
           ) : null}
+
+          <div className="hidden sm:block">
+            <DataTable
+              columns={columns}
+              rows={rows}
+              rowKey={(r) => r.reference}
+              isLoading={list.isLoading}
+              isError={list.isError}
+              onRetry={() => list.refetch()}
+              rowProps={(r) => ({ 'data-ref': r.reference, 'data-state': r.state })}
+              testid="ops-res-table"
+              bodyTestid="ops-res-rows"
+              minWidth="48rem"
+              labels={{
+                loading: t('ops.st.loading'),
+                loadFailTitle: t('ops.queue.loadFail'),
+                retry: t('ops.st.retry'),
+                empty: focusRef
+                  ? t('ops.queue.focusMiss')
+                  : view === 'queue'
+                    ? t('ops.queue.queueClear')
+                    : t('ops.queue.empty'),
+              }}
+            />
+          </div>
+          <ul className="space-y-2 sm:hidden" data-testid="ops-res-cards">
+            {list.isError ? (
+              <li className="rounded-md border p-4 text-sm">
+                {t('ops.queue.loadFail')}{' '}
+                <button className="text-primary underline" onClick={() => list.refetch()}>
+                  {t('ops.st.retry')}
+                </button>
+              </li>
+            ) : !list.isLoading && !rows?.length ? (
+              <li className="rounded-md border p-4 text-sm text-muted-foreground">
+                {view === 'queue' ? t('ops.queue.queueClear') : t('ops.queue.empty')}
+              </li>
+            ) : (
+              (rows ?? []).map((r) => (
+                <li
+                  key={r.reference}
+                  className="rounded-lg border p-3"
+                  data-ref={r.reference}
+                  data-state={r.state}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="bidi-isolate font-mono text-xs font-medium">
+                      {r.reference}
+                    </span>
+                    <Badge variant={stateVariant(r.state)}>{r.state.replace(/_/g, ' ')}</Badge>
+                  </div>
+                  <p className="mt-1 text-sm">{r.driverName ?? '—'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {r.categoryCode} · {r.channel} · {fmt.dateTime(r.pickupAt)} ·{' '}
+                    {r.pickupLocationCode}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {money(r.totalMinor, r.currency)} ·{' '}
+                    {t('ops.queue.paidOf', { paid: money(r.paidMinor, r.currency) })}
+                  </p>
+                  <div className="mt-2">
+                    {r.assignedRentalRef ? (
+                      <Link
+                        to={`/rentals?ref=${encodeURIComponent(r.assignedRentalRef)}`}
+                        className="text-xs font-medium text-primary hover:underline"
+                      >
+                        {t('ops.queue.openRental')} → {r.assignedRentalRef}
+                      </Link>
+                    ) : r.state === 'confirmed' ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        loading={assign.isPending}
+                        onClick={() => runAssign(r)}
+                      >
+                        {t('ops.queue.assign')}
+                      </Button>
+                    ) : null}
+                  </div>
+                </li>
+              ))
+            )}
+          </ul>
         </CardContent>
       </Card>
     </div>
