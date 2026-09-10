@@ -11,8 +11,10 @@ import {
   Input,
   PageHeader,
   Textarea,
+  Toolbar,
 } from '@carrental/ui';
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import { ApiError } from '../../lib/api.js';
 import { formatMinor } from '../../lib/discovery-hooks.js';
@@ -33,12 +35,93 @@ const INCIDENT_CATEGORIES = ['breakdown', 'accident', 'damage', 'other'] as cons
  * odometer/fuel out), return an active one (odometer/fuel in → fuel/damage settlement), and run
  * the readiness check so the unit becomes bookable again.
  */
+const RENTAL_STATES = ['awaiting_pickup', 'active', 'overdue', 'closed'] as const;
+const isToday = (iso: string) => {
+  const d = new Date(iso);
+  const now = new Date();
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
+};
+
 export function RentalBoardPage() {
   const { t } = useI18n();
-  const rentals = useOpsRentals({});
+  // Filters live in the URL so the dashboard can deep-link (e.g. /rentals?state=overdue or
+  // /rentals?flow=pickup&due=today). `state` is served by the API; `flow`/`due` filter client-side.
+  const [params, setParams] = useSearchParams();
+  const state = params.get('state') ?? '';
+  const flow = params.get('flow') ?? '';
+  const dueToday = params.get('due') === 'today';
+  const setParam = (key: string, value: string) =>
+    setParams(
+      (p) => {
+        if (value) p.set(key, value);
+        else p.delete(key);
+        return p;
+      },
+      { replace: true },
+    );
+
+  const rentals = useOpsRentals({ state: state || undefined });
+  const rows = (rentals.data ?? []).filter((r) => {
+    if (flow === 'pickup' && dueToday && !isToday(r.scheduledPickupAt)) return false;
+    if (flow === 'return' && dueToday && !isToday(r.scheduledReturnAt)) return false;
+    if (dueToday && !flow && !isToday(r.scheduledPickupAt) && !isToday(r.scheduledReturnAt))
+      return false;
+    return true;
+  });
+  const filtered = state || flow || dueToday;
+
   return (
     <div className="space-y-6">
       <PageHeader title={t('ops.rent.title')} description={t('ops.rent.subtitle')} />
+
+      <Toolbar aria-label={t('ops.rent.filters')}>
+        <select
+          aria-label={t('ops.rent.filterState')}
+          className="flex h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          value={state}
+          onChange={(e) => setParam('state', e.target.value)}
+        >
+          <option value="">{t('ops.rent.allStates')}</option>
+          {RENTAL_STATES.map((s) => (
+            <option key={s} value={s}>
+              {s.replace('_', ' ')}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label={t('ops.rent.filterFlow')}
+          className="flex h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          value={flow}
+          onChange={(e) => setParam('flow', e.target.value)}
+        >
+          <option value="">{t('ops.rent.anyFlow')}</option>
+          <option value="pickup">{t('ops.rent.flowPickup')}</option>
+          <option value="return">{t('ops.rent.flowReturn')}</option>
+        </select>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="size-4"
+            checked={dueToday}
+            onChange={(e) => setParam('due', e.target.checked ? 'today' : '')}
+          />
+          {t('ops.rent.dueToday')}
+        </label>
+        {filtered ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setParams({}, { replace: true })}
+            data-testid="rental-clear-filters"
+          >
+            {t('ops.rent.clearFilters')}
+          </Button>
+        ) : null}
+      </Toolbar>
 
       {rentals.isLoading ? (
         <AppStateView kind="loading" inline title={t('ops.st.loading')} />
@@ -49,15 +132,23 @@ export function RentalBoardPage() {
           title={t('ops.rent.loadFail')}
           primaryAction={{ label: t('ops.st.retry'), onClick: () => rentals.refetch() }}
         />
-      ) : !rentals.data?.length ? (
+      ) : !rows.length ? (
         <AppStateView
           kind="empty"
-          title={t('ops.rent.empty')}
-          description={t('ops.rent.emptyBody')}
+          title={filtered ? t('ops.rent.emptyFiltered') : t('ops.rent.empty')}
+          description={filtered ? t('ops.rent.emptyFilteredBody') : t('ops.rent.emptyBody')}
+          primaryAction={
+            filtered
+              ? {
+                  label: t('ops.rent.clearFilters'),
+                  onClick: () => setParams({}, { replace: true }),
+                }
+              : undefined
+          }
         />
       ) : (
         <ul className="space-y-3" data-testid="rental-list">
-          {rentals.data.map((r) => (
+          {rows.map((r) => (
             <li key={r.reference}>
               <RentalRow rental={r} />
             </li>

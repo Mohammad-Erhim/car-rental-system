@@ -428,6 +428,8 @@ describe('STAGE-006 administration & reporting', () => {
       returnsToday: { total: number; done: number };
       overdue: number;
       assignQueue: number;
+      cancellationsToday: number;
+      revenueToday: { minor: number; currency: string };
       financeExceptions: { recoveryCases: number; reconciliation: number; total: number };
       fleet: {
         available: number;
@@ -436,6 +438,8 @@ describe('STAGE-006 administration & reporting', () => {
         maintenance: number;
         other: number;
       };
+      fleetTotal: number;
+      utilisation: number | null;
     };
     expect(typeof b.checkedAt).toBe('string');
     expect(b.scopeNote).toBe('All locations');
@@ -446,6 +450,7 @@ describe('STAGE-006 administration & reporting', () => {
       b.returnsToday.done,
       b.overdue,
       b.assignQueue,
+      b.cancellationsToday,
       b.financeExceptions.total,
       b.fleet.available,
       b.fleet.on_rent,
@@ -453,6 +458,8 @@ describe('STAGE-006 administration & reporting', () => {
       expect(Number.isInteger(n)).toBe(true);
       expect(n).toBeGreaterThanOrEqual(0);
     }
+    expect(typeof b.revenueToday.currency).toBe('string');
+    expect(Number.isInteger(b.revenueToday.minor)).toBe(true);
     // done never exceeds total
     expect(b.pickupsToday.done).toBeLessThanOrEqual(b.pickupsToday.total);
     expect(b.returnsToday.done).toBeLessThanOrEqual(b.returnsToday.total);
@@ -464,6 +471,11 @@ describe('STAGE-006 administration & reporting', () => {
     const fleetSum =
       b.fleet.available + b.fleet.on_rent + b.fleet.prep + b.fleet.maintenance + b.fleet.other;
     expect(fleetSum).toBeGreaterThan(0);
+    expect(b.fleetTotal).toBe(fleetSum);
+    // utilisation is a 0..100 percentage derived from the fleet (never null once units exist)
+    expect(b.utilisation).not.toBeNull();
+    expect(b.utilisation).toBeGreaterThanOrEqual(0);
+    expect(b.utilisation).toBeLessThanOrEqual(100);
 
     // FR-RPT-004 — the rental/reservation counts run through `scopeCodes(actor)` (the same
     // location-scope filter proven by TEST-RPT-001); an org-wide actor gets "All locations".

@@ -12,7 +12,7 @@ import { reportDefinition, reportRun, reportSchedule } from '../../database/sche
 import { vehicleUnit } from '../../database/schema/fleet';
 import { account, staffProfile } from '../../database/schema/iam';
 import { organization } from '../../database/schema/org';
-import { paymentIntent, recoveryCase } from '../../database/schema/payment';
+import { payment, paymentIntent, recoveryCase } from '../../database/schema/payment';
 import { rental } from '../../database/schema/rental';
 import { reservation, reconciliationException } from '../../database/schema/reservation';
 
@@ -233,6 +233,45 @@ export class ReportService {
       if (r.state in fleet) fleet[r.state as keyof typeof fleet] = r.n;
       else fleet.other += r.n;
     }
+    const fleetTotal =
+      fleet.available + fleet.on_rent + fleet.prep + fleet.maintenance + fleet.other;
+    // fleet utilisation = share of the fleet currently on rent, 0..100 (null when there are no units)
+    const utilisation = fleetTotal > 0 ? Math.round((fleet.on_rent / fleetTotal) * 100) : null;
+
+    // net cash captured today — successful captures minus refunds from the payment ledger (the
+    // per-transaction source of truth), org-wide (payments carry no location). Reported in the
+    // org's default currency.
+    const [org] = await this.db
+      .select({ currency: organization.defaultCurrency })
+      .from(organization)
+      .where(eq(organization.id, orgId))
+      .limit(1);
+    const [revenue] = await this.db
+      .select({
+        minor: sql<number>`coalesce(sum(${payment.amountMinor}) filter (where ${payment.type} = 'capture'), 0)::int
+          - coalesce(sum(${payment.amountMinor}) filter (where ${payment.type} = 'refund'), 0)::int`,
+      })
+      .from(payment)
+      .innerJoin(paymentIntent, eq(paymentIntent.id, payment.intentId))
+      .where(
+        and(
+          eq(paymentIntent.organizationId, orgId),
+          eq(payment.outcome, 'succeeded'),
+          sql`${payment.createdAt}::date = current_date`,
+        ),
+      );
+
+    // reservations cancelled or marked no-show today (location-scoped like the other counts)
+    const [cancellations] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(reservation)
+      .where(
+        and(
+          inArray(reservation.state, ['cancelled', 'no_show']),
+          sql`coalesce(${reservation.cancelledAt}, ${reservation.updatedAt})::date = current_date`,
+          inResPickup,
+        ),
+      );
 
     return {
       checkedAt: new Date().toISOString(),
@@ -241,12 +280,16 @@ export class ReportService {
       returnsToday: { total: returns?.total ?? 0, done: returns?.done ?? 0 },
       overdue: overdue?.n ?? 0,
       assignQueue: queue?.n ?? 0,
+      cancellationsToday: cancellations?.n ?? 0,
+      revenueToday: { minor: revenue?.minor ?? 0, currency: org?.currency ?? 'USD' },
       financeExceptions: {
         recoveryCases: cases?.n ?? 0,
         reconciliation: exc?.n ?? 0,
         total: (cases?.n ?? 0) + (exc?.n ?? 0),
       },
       fleet,
+      fleetTotal,
+      utilisation,
     };
   }
 

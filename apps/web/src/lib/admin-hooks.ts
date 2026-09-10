@@ -240,6 +240,8 @@ export interface OpsDashboard {
   returnsToday: { total: number; done: number };
   overdue: number;
   assignQueue: number;
+  cancellationsToday: number;
+  revenueToday: { minor: number; currency: string };
   financeExceptions: { recoveryCases: number; reconciliation: number; total: number };
   fleet: {
     available: number;
@@ -248,6 +250,9 @@ export interface OpsDashboard {
     maintenance: number;
     other: number;
   };
+  fleetTotal: number;
+  /** share of the fleet on rent, 0..100; null when no units exist */
+  utilisation: number | null;
 }
 
 export function useOpsDashboard() {
