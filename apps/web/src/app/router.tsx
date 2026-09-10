@@ -25,6 +25,7 @@ import { RatePlansPage } from '../surfaces/ops/rate-plans-page.js';
 import { ReferenceDataPage } from '../surfaces/ops/reference-data-page.js';
 import { RentalBoardPage } from '../surfaces/ops/rental-board-page.js';
 import { ReportsPage } from '../surfaces/ops/reports-page.js';
+import { ReservationDetailPage } from '../surfaces/ops/reservation-detail-page.js';
 import { ReservationQueuePage } from '../surfaces/ops/reservation-queue-page.js';
 import { SearchPage } from '../surfaces/ops/search-page.js';
 import { SeoPage } from '../surfaces/ops/seo-page.js';
@@ -131,6 +132,10 @@ export const router = createBrowserRouter(
         {
           path: 'work',
           element: perm(['reservation.read', 'reservation.modify'], <ReservationQueuePage />),
+        },
+        {
+          path: 'work/:reference',
+          element: perm(['reservation.read', 'reservation.modify'], <ReservationDetailPage />),
         },
         { path: 'fleet', element: perm(['fleet.read', 'fleet.manage'], <FleetInventoryPage />) },
         {

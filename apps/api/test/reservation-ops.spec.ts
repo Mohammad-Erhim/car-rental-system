@@ -396,4 +396,57 @@ describe('reservation operations', () => {
       ).toBe(true);
     });
   });
+
+  describe('the reservation detail + staff lifecycle actions', () => {
+    it('detail carries assignedRentalRef; it is null until a vehicle is assigned', async () => {
+      const r = await bookEconomyAt(server, customerToken, 132);
+      const before = await request(server)
+        .get(`/api/v1/reservations/${r.reference}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(before.body.assignedRentalRef).toBeNull();
+
+      const assigned = await request(server)
+        .post(`/api/v1/ops/reservations/${r.reference}/assign`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({})
+        .expect(201);
+      const after = await request(server)
+        .get(`/api/v1/reservations/${r.reference}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(after.body.assignedRentalRef).toBe(assigned.body.reference);
+    });
+
+    it('mark no-show: confirmed → no_show, writes history, only from confirmed', async () => {
+      const r = await bookEconomyAt(server, customerToken, 138);
+      const ns = await request(server)
+        .post(`/api/v1/ops/reservations/${r.reference}/no-show`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ note: 'Desk waited 30 min' })
+        .expect(201);
+      expect(ns.body.state).toBe('no_show');
+
+      const history = await request(server)
+        .get(`/api/v1/reservations/${r.reference}/history`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(history.body.some((e: { type: string }) => e.type === 'no_show')).toBe(true);
+
+      // a second no-show is rejected (not confirmed any more)
+      await request(server)
+        .post(`/api/v1/ops/reservations/${r.reference}/no-show`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({})
+        .expect(422);
+    });
+
+    it('a customer cannot mark a no-show', async () => {
+      const r = await bookEconomyAt(server, customerToken, 144);
+      await request(server)
+        .post(`/api/v1/ops/reservations/${r.reference}/no-show`)
+        .set('Authorization', `Bearer ${customerToken}`)
+        .expect(403);
+    });
+  });
 });

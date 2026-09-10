@@ -112,7 +112,12 @@ export function ReservationQueuePage() {
       header: t('ops.tbl.reference'),
       cell: (r) => (
         <div className="bidi-isolate font-mono text-xs">
-          {r.reference}
+          <Link
+            to={`/work/${encodeURIComponent(r.reference)}`}
+            className="font-medium text-primary hover:underline"
+          >
+            {r.reference}
+          </Link>
           {r.assignedRentalRef ? (
             <div className="text-muted-foreground">→ {r.assignedRentalRef}</div>
           ) : null}
