@@ -1,6 +1,9 @@
 import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
   AppStateView,
   Badge,
   Button,
@@ -8,6 +11,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  ConfirmDialog,
   DataTable,
   Field,
   Input,
@@ -33,8 +37,15 @@ import { ApiError } from '../../lib/api.js';
  * limited to the operator's location scope (FR-RPT-004); the scope in force is shown with every
  * result. A completed run can be exported as CSV or scheduled for recurring delivery.
  */
+const CRON_PRESETS: Array<{ value: string; labelKey: string }> = [
+  { value: '0 7 * * 1', labelKey: 'ops.rpt.cronWeekly' },
+  { value: '0 7 * * *', labelKey: 'ops.rpt.cronDaily' },
+  { value: '0 7 1 * *', labelKey: 'ops.rpt.cronMonthly' },
+];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export function ReportsPage() {
-  const { t } = useI18n();
+  const { t, fmt } = useI18n();
   const { hasPermission } = useAuth();
   const canSchedule = hasPermission('report.export');
 
@@ -44,17 +55,26 @@ export function ReportsPage() {
   const run = useRunReport();
   const schedule = useScheduleReport();
   const sendSchedule = useSendReportSchedule();
-  const [scheduleMsg, setScheduleMsg] = useState<string | null>(null);
+  const [scheduleMsg, setScheduleMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [confirmSend, setConfirmSend] = useState<string | null>(null);
 
   async function doSendSchedule(id: string) {
     setScheduleMsg(null);
     try {
       const r = await sendSchedule.mutateAsync(id);
-      setScheduleMsg(
-        r.sent ? t('ops.rpt.sentNow', { n: r.recipients.length }) : t(`ops.rpt.skip.${r.reason}`),
-      );
+      setScheduleMsg({
+        ok: r.sent,
+        text: r.sent
+          ? t('ops.rpt.sentNow', { n: r.recipients.length })
+          : t(`ops.rpt.skip.${r.reason}`),
+      });
     } catch (e) {
-      setScheduleMsg(e instanceof ApiError ? e.message : t('ops.rpt.sendFail'));
+      setScheduleMsg({
+        ok: false,
+        text: e instanceof ApiError ? e.message : t('ops.rpt.sendFail'),
+      });
+    } finally {
+      setConfirmSend(null);
     }
   }
 
@@ -99,10 +119,16 @@ export function ReportsPage() {
     {
       key: 'when',
       header: t('ops.rpt.thWhen'),
-      cell: (r) => new Date(r.createdAt).toLocaleString(),
+      cell: (r) => fmt.dateTime(r.createdAt),
       className: 'text-xs text-muted-foreground',
     },
   ];
+
+  const recipientList = sched.recipients
+    .split(/[\s,;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const recipientsValid = recipientList.length > 0 && recipientList.every((r) => EMAIL_RE.test(r));
 
   async function doRun() {
     setRunError(null);
@@ -137,12 +163,16 @@ export function ReportsPage() {
   async function submitSchedule(e: React.FormEvent) {
     e.preventDefault();
     setSchedError(null);
-    const recipients = sched.recipients
-      .split(/[\s,;]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
+    if (!recipientsValid) {
+      setSchedError(t('ops.rpt.recipientsInvalid'));
+      return;
+    }
     try {
-      await schedule.mutateAsync({ definitionCode: code, cron: sched.cron, recipients });
+      await schedule.mutateAsync({
+        definitionCode: code,
+        cron: sched.cron,
+        recipients: recipientList,
+      });
       setSched((s) => ({ ...s, recipients: '' }));
     } catch (err) {
       setSchedError(err instanceof ApiError ? err.message : t('ops.rpt.scheduleFail'));
@@ -320,7 +350,7 @@ export function ReportsPage() {
                           size="sm"
                           variant="ghost"
                           loading={sendSchedule.isPending}
-                          onClick={() => doSendSchedule(s.id)}
+                          onClick={() => setConfirmSend(s.id)}
                           data-testid={`schedule-send-${s.id}`}
                         >
                           {t('ops.rpt.sendNow')}
@@ -332,27 +362,55 @@ export function ReportsPage() {
               </ul>
             )}
             {scheduleMsg ? (
-              <p className="text-sm text-muted-foreground" data-testid="schedule-msg">
-                {scheduleMsg}
-              </p>
+              <Alert variant={scheduleMsg.ok ? 'success' : 'warning'} data-testid="schedule-msg">
+                <AlertTitle>
+                  {scheduleMsg.ok ? t('state.success.title') : t('ops.rpt.notSent')}
+                </AlertTitle>
+                <AlertDescription>{scheduleMsg.text}</AlertDescription>
+              </Alert>
             ) : null}
 
             {canSchedule ? (
               <form onSubmit={submitSchedule} className="space-y-3" noValidate>
                 <Field label={t('ops.rpt.cron')} htmlFor="sch-cron" hint={t('ops.rpt.cronHint')}>
                   {({ id }) => (
-                    <Input
-                      id={id}
-                      value={sched.cron}
-                      onChange={(e) => setSched((s) => ({ ...s, cron: e.target.value }))}
-                      className="font-mono"
-                    />
+                    <div className="flex flex-wrap gap-2">
+                      <select
+                        aria-label={t('ops.rpt.cronPreset')}
+                        className="h-11 rounded-md border border-input bg-background px-3 text-sm"
+                        value={
+                          CRON_PRESETS.some((p) => p.value === sched.cron) ? sched.cron : 'custom'
+                        }
+                        onChange={(e) => {
+                          if (e.target.value !== 'custom')
+                            setSched((s) => ({ ...s, cron: e.target.value }));
+                        }}
+                      >
+                        {CRON_PRESETS.map((p) => (
+                          <option key={p.value} value={p.value}>
+                            {t(p.labelKey)}
+                          </option>
+                        ))}
+                        <option value="custom">{t('ops.rpt.cronCustom')}</option>
+                      </select>
+                      <Input
+                        id={id}
+                        value={sched.cron}
+                        onChange={(e) => setSched((s) => ({ ...s, cron: e.target.value }))}
+                        className="max-w-[10rem] font-mono"
+                      />
+                    </div>
                   )}
                 </Field>
                 <Field
                   label={t('ops.rpt.recipients')}
                   htmlFor="sch-to"
                   hint={t('ops.rpt.recipientsHint')}
+                  error={
+                    sched.recipients.trim() && !recipientsValid
+                      ? t('ops.rpt.recipientsInvalid')
+                      : undefined
+                  }
                 >
                   {({ id }) => (
                     <Input
@@ -367,6 +425,7 @@ export function ReportsPage() {
                 <Button
                   type="submit"
                   size="sm"
+                  disabled={!recipientsValid}
                   loading={schedule.isPending}
                   data-testid="report-schedule"
                 >
@@ -386,6 +445,15 @@ export function ReportsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <ConfirmDialog
+        open={!!confirmSend}
+        onOpenChange={(v) => !v && setConfirmSend(null)}
+        title={t('ops.rpt.sendNowTitle')}
+        description={t('ops.rpt.sendNowBody')}
+        confirmLabel={t('ops.rpt.sendNow')}
+        onConfirm={() => (confirmSend ? doSendSchedule(confirmSend) : undefined)}
+      />
     </div>
   );
 }
