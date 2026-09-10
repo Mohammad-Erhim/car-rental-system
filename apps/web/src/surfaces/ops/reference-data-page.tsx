@@ -1,4 +1,5 @@
 import { useAuth, useDebounced, useFormErrors } from '@carrental/client/react';
+import type { LookupValue } from '@carrental/contracts';
 import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
@@ -8,8 +9,14 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  Checkbox,
   ConfirmDialog,
   DataTable,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
   ErrorSummary,
   Field,
   Input,
@@ -18,16 +25,22 @@ import {
   type DataTableColumn,
 } from '@carrental/ui';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, Lock } from 'lucide-react';
+import { ChevronDown, ChevronRight, ChevronUp, Lock, Plus } from 'lucide-react';
 import { useState } from 'react';
 
-import { useLookupTypes, useLookupUsage, useLookupValues } from '../../lib/api-hooks.js';
+import {
+  useLookupTypes,
+  useLookupUsage,
+  useLookupValues,
+  useMetaLocales,
+} from '../../lib/api-hooks.js';
 import { apiFetch } from '../../lib/api.js';
 
 /**
  * SCREEN-OPS-030 (catalogue) + SCREEN-OPS-031 (type & values management) combined.
- * Dynamic selectors, editable configurable values, deactivate/restore, read-only system types
- * with reason shown (FR-GBL-004, FR-ADM-008, SRS-LKP-*).
+ * Dynamic selectors, editable configurable values (label per locale, default, order),
+ * deactivate/restore, read-only system types with reason shown (FR-GBL-004, FR-ADM-008,
+ * SRS-LKP-*).
  */
 export function ReferenceDataPage() {
   const { t } = useI18n();
@@ -116,40 +129,44 @@ export function ReferenceDataPage() {
   );
 }
 
+interface ActiveLocale {
+  code: string;
+  englishName: string;
+}
+
 function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage: boolean }) {
   const { t } = useI18n();
   const qc = useQueryClient();
   const values = useLookupValues(typeCode, { locale: 'en', includeInactive: true });
-  const errs = useFormErrors({ code: t('ops.tbl.code'), label: t('ops.tbl.label') });
-  const [newCode, setNewCode] = useState('');
-  const [newLabel, setNewLabel] = useState('');
+  const localesQuery = useMetaLocales();
   const [deactivate, setDeactivate] = useState<{ id: string; code: string } | null>(null);
+  const [editor, setEditor] = useState<
+    { mode: 'create' } | { mode: 'edit'; value: LookupValue } | null
+  >(null);
 
+  const rows = values.data?.values ?? [];
   const type = values.data?.type;
   const readOnly = type?.editability === 'read_only';
+  const editable = canManage && !readOnly;
+
   const usage = useLookupUsage(typeCode, deactivate?.code ?? null);
   const inUse = (usage.data?.totalReferences ?? 0) > 0;
+
+  // en first, then the other active launch locales; drop test-only locales
+  const locales: ActiveLocale[] = (() => {
+    const all = (localesQuery.data?.locales ?? [])
+      .filter((l) => !l.testOnly)
+      .map((l) => ({ code: l.code, englishName: l.englishName }));
+    if (!all.some((l) => l.code === 'en')) all.unshift({ code: 'en', englishName: 'English' });
+    return [...all].sort((a, b) =>
+      a.code === 'en' ? -1 : b.code === 'en' ? 1 : a.code.localeCompare(b.code),
+    );
+  })();
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['reference-data'] });
   const { toast } = useToast();
   const onMutError = (e: unknown) =>
     toast({ title: e instanceof Error ? e.message : t('ops.ref.actionFail') });
-
-  const create = useMutation({
-    mutationFn: () =>
-      apiFetch(`/reference-data/types/${typeCode}/values`, {
-        method: 'POST',
-        body: { code: newCode, label: newLabel.trim() },
-      }),
-    onSuccess: () => {
-      toast({ title: t('ops.ref.created', { code: newCode }), variant: 'success' });
-      setNewCode('');
-      setNewLabel('');
-      errs.clear();
-      void invalidate();
-    },
-    onError: (e) => errs.fromError(e),
-  });
 
   const setActive = useMutation({
     mutationFn: (input: { id: string; active: boolean; force?: boolean }) =>
@@ -169,22 +186,59 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
     onError: onMutError,
   });
 
-  const editLabel = useMutation({
-    mutationFn: (input: { id: string; label: string; version: number }) =>
-      apiFetch(`/reference-data/types/${typeCode}/values/${input.id}`, {
-        method: 'POST',
-        body: { label: input.label },
-        ifMatch: input.version,
-      }),
+  const reorder = useMutation({
+    mutationFn: (order: Array<{ id: string; sortOrder: number }>) =>
+      apiFetch(`/reference-data/types/${typeCode}/reorder`, { method: 'POST', body: { order } }),
     onSuccess: () => {
-      toast({ title: t('ops.ref.labelSaved'), variant: 'success' });
+      toast({ title: t('ops.ref.reordered'), variant: 'success' });
       void invalidate();
     },
     onError: onMutError,
   });
 
-  type LookupValue = NonNullable<typeof values.data>['values'][number];
+  const move = (index: number, dir: -1 | 1) => {
+    const to = index + dir;
+    if (to < 0 || to >= rows.length || reorder.isPending) return;
+    const next = [...rows];
+    [next[index], next[to]] = [next[to]!, next[index]!];
+    reorder.mutate(next.map((v, i) => ({ id: v.id, sortOrder: i })));
+  };
+
   const columns: Array<DataTableColumn<LookupValue>> = [
+    ...(editable
+      ? [
+          {
+            key: 'order',
+            header: '',
+            className: 'w-12',
+            cell: (v: LookupValue) => {
+              const i = rows.findIndex((r) => r.id === v.id);
+              return (
+                <span className="flex flex-col">
+                  <button
+                    type="button"
+                    className="rounded p-0.5 text-muted-foreground hover:bg-accent disabled:opacity-30"
+                    aria-label={t('ops.ref.moveUp')}
+                    disabled={i <= 0 || reorder.isPending}
+                    onClick={() => move(i, -1)}
+                  >
+                    <ChevronUp className="size-4" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded p-0.5 text-muted-foreground hover:bg-accent disabled:opacity-30"
+                    aria-label={t('ops.ref.moveDown')}
+                    disabled={i < 0 || i >= rows.length - 1 || reorder.isPending}
+                    onClick={() => move(i, 1)}
+                  >
+                    <ChevronDown className="size-4" aria-hidden="true" />
+                  </button>
+                </span>
+              );
+            },
+          },
+        ]
+      : []),
     {
       key: 'code',
       header: t('ops.tbl.code'),
@@ -193,15 +247,12 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
     {
       key: 'labelEn',
       header: t('ops.ref.labelEn'),
-      cell: (v) =>
-        readOnly || v.systemManaged ? (
-          v.label
-        ) : (
-          <InlineLabel
-            value={v.label}
-            onSave={(label) => editLabel.mutateAsync({ id: v.id, label, version: v.version })}
-          />
-        ),
+      cell: (v) => (
+        <span>
+          <span className="block">{v.label}</span>
+          <LocaleCoverage translations={v.translations} locales={locales} />
+        </span>
+      ),
     },
     {
       key: 'state',
@@ -222,25 +273,35 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
       header: '',
       className: 'text-end',
       cell: (v) =>
-        canManage && !readOnly && !v.systemManaged ? (
-          v.isActive ? (
+        editable ? (
+          <span className="flex justify-end gap-1">
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => setDeactivate({ id: v.id, code: v.code })}
-              data-testid={`deactivate-${v.code}`}
+              onClick={() => setEditor({ mode: 'edit', value: v })}
+              data-testid={`edit-${v.code}`}
             >
-              {t('ops.ref.deactivate')}
+              {t('ops.ref.edit')}
             </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setActive.mutate({ id: v.id, active: true })}
-            >
-              {t('ops.ref.restore')}
-            </Button>
-          )
+            {v.systemManaged ? null : v.isActive ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setDeactivate({ id: v.id, code: v.code })}
+                data-testid={`deactivate-${v.code}`}
+              >
+                {t('ops.ref.deactivate')}
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setActive.mutate({ id: v.id, active: true })}
+              >
+                {t('ops.ref.restore')}
+              </Button>
+            )}
+          </span>
         ) : null,
     },
   ];
@@ -248,18 +309,27 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-          {typeCode}
-          {type ? <Badge variant="neutral">{type.classification}</Badge> : null}
-          {readOnly ? (
-            <Badge variant="warning">
-              <Lock className="size-3" aria-hidden="true" /> {t('ops.ref.readOnly')}
-            </Badge>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="space-y-1">
+            <CardTitle className="flex flex-wrap items-center gap-2 text-base">
+              {typeCode}
+              {type ? <Badge variant="neutral">{type.classification}</Badge> : null}
+              {readOnly ? (
+                <Badge variant="warning">
+                  <Lock className="size-3" aria-hidden="true" /> {t('ops.ref.readOnly')}
+                </Badge>
+              ) : null}
+            </CardTitle>
+            {readOnly && type?.lockReason ? (
+              <p className="text-sm text-muted-foreground">{type.lockReason}</p>
+            ) : null}
+          </div>
+          {editable ? (
+            <Button size="sm" onClick={() => setEditor({ mode: 'create' })} data-testid="add-value">
+              <Plus className="size-4" aria-hidden="true" /> {t('ops.ref.addValueBtn')}
+            </Button>
           ) : null}
-        </CardTitle>
-        {readOnly && type?.lockReason ? (
-          <p className="text-sm text-muted-foreground">{type.lockReason}</p>
-        ) : null}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <DataTable
@@ -270,9 +340,8 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
           isError={values.isError}
           onRetry={() => values.refetch()}
           rowProps={(v) => ({ 'data-code': v.code, 'data-active': String(v.isActive) })}
-          rowClassName="align-top"
           bodyTestid="lookup-value-rows"
-          minWidth="30rem"
+          minWidth="34rem"
           labels={{
             loading: t('ops.st.loading'),
             loadFailTitle: t('ops.ref.loadValuesFail'),
@@ -280,68 +349,22 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
             empty: t('ops.ref.noValues'),
           }}
         />
-
-        {canManage && !readOnly ? (
-          <form
-            className="space-y-3 border-t pt-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              create.mutate();
-            }}
-          >
-            <p className="text-sm font-medium">{t('ops.ref.addValue')}</p>
-            <ErrorSummary title={t('state.validation.title')} errors={errs.summary} />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field
-                label={t('ops.ref.stableCode')}
-                htmlFor="field-code"
-                required
-                error={errs.fieldError('code')}
-                hint={t('ops.ref.codeHint')}
-              >
-                {({ id, describedBy, invalid }) => (
-                  <Input
-                    id={id}
-                    aria-describedby={describedBy}
-                    invalid={invalid}
-                    value={newCode}
-                    onChange={(e) =>
-                      setNewCode(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))
-                    }
-                    placeholder={t('ops.ref.codePlaceholder')}
-                    required
-                  />
-                )}
-              </Field>
-              <Field
-                label={t('ops.ref.labelEn')}
-                htmlFor="field-label"
-                required
-                error={errs.fieldError('label')}
-              >
-                {({ id, describedBy, invalid }) => (
-                  <Input
-                    id={id}
-                    aria-describedby={describedBy}
-                    invalid={invalid}
-                    value={newLabel}
-                    onChange={(e) => setNewLabel(e.target.value)}
-                    required
-                  />
-                )}
-              </Field>
-            </div>
-            <Button
-              type="submit"
-              size="sm"
-              loading={create.isPending}
-              disabled={!newCode || !newLabel.trim()}
-            >
-              {t('ops.ref.add')}
-            </Button>
-          </form>
-        ) : null}
       </CardContent>
+
+      {editor ? (
+        <ValueEditor
+          key={`${editor.mode === 'edit' ? editor.value.id : 'new'}:${locales.map((l) => l.code).join(',')}`}
+          typeCode={typeCode}
+          locales={locales}
+          existingCodes={rows.map((r) => r.code)}
+          value={editor.mode === 'edit' ? editor.value : null}
+          onSaved={() => {
+            setEditor(null);
+            void invalidate();
+          }}
+          onClose={() => setEditor(null)}
+        />
+      ) : null}
 
       <ConfirmDialog
         open={!!deactivate}
@@ -368,73 +391,192 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
   );
 }
 
-function InlineLabel({
-  value,
-  onSave,
+/** small "en · fr · —" line under a label showing which locales have their own translation */
+function LocaleCoverage({
+  translations,
+  locales,
 }: {
-  value: string;
-  onSave: (v: string) => Promise<unknown>;
+  translations: Record<string, string>;
+  locales: ActiveLocale[];
+}) {
+  if (locales.length <= 1) return null;
+  return (
+    <span className="mt-0.5 flex flex-wrap gap-1 text-[0.7rem] uppercase text-muted-foreground">
+      {locales.map((l) => (
+        <span
+          key={l.code}
+          className={translations[l.code]?.trim() ? 'font-medium text-foreground/70' : 'opacity-50'}
+        >
+          {l.code}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function ValueEditor({
+  typeCode,
+  locales,
+  existingCodes,
+  value,
+  onSaved,
+  onClose,
+}: {
+  typeCode: string;
+  locales: ActiveLocale[];
+  existingCodes: string[];
+  value: LookupValue | null;
+  onSaved: () => void;
+  onClose: () => void;
 }) {
   const { t } = useI18n();
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const [busy, setBusy] = useState(false);
-  const trimmed = draft.trim();
-  const unchanged = trimmed === value;
+  const { toast } = useToast();
+  const isEdit = !!value;
+  const errs = useFormErrors({
+    code: t('ops.ref.stableCode'),
+    label: t('ops.ref.labelEn'),
+  });
 
-  if (!editing) {
-    return (
-      <button
-        type="button"
-        className="rounded px-1 text-start hover:bg-accent"
-        onClick={() => {
-          setDraft(value);
-          setEditing(true);
-        }}
-      >
-        {value}
-      </button>
-    );
-  }
+  const [code, setCode] = useState(value?.code ?? '');
+  const [labels, setLabels] = useState<Record<string, string>>(() => {
+    const seed: Record<string, string> = {};
+    for (const l of locales) seed[l.code] = value?.translations?.[l.code] ?? '';
+    if (value && !seed.en) seed.en = value.label;
+    return seed;
+  });
+  const [isDefault, setIsDefault] = useState(value?.isDefault ?? false);
 
-  const submit = async () => {
-    if (!trimmed || unchanged || busy) return;
-    setBusy(true);
-    try {
-      await onSave(trimmed);
-      setEditing(false); // only close once the save actually landed
-    } catch {
-      // stay in edit mode so the typed value isn't lost; the mutation toasts the reason
-    } finally {
-      setBusy(false);
-    }
-  };
+  const enLabel = (labels.en ?? '').trim();
+  const codeValid = /^[a-z0-9_]+$/.test(code);
+  const dupCode = !isEdit && existingCodes.includes(code);
+  const canSubmit = enLabel.length > 0 && (isEdit || (codeValid && !dupCode));
+
+  const save = useMutation({
+    mutationFn: () => {
+      const translations: Record<string, string> = {};
+      for (const l of locales)
+        if (l.code !== 'en') translations[l.code] = (labels[l.code] ?? '').trim();
+      if (isEdit) {
+        return apiFetch(`/reference-data/types/${typeCode}/values/${value!.id}`, {
+          method: 'POST',
+          body: { label: enLabel, translations, isDefault },
+          ifMatch: value!.version,
+        });
+      }
+      return apiFetch(`/reference-data/types/${typeCode}/values`, {
+        method: 'POST',
+        body: { code, label: enLabel, translations, isDefault },
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: isEdit ? t('ops.ref.valueSaved') : t('ops.ref.created', { code }),
+        variant: 'success',
+      });
+      onSaved();
+    },
+    // <ErrorSummary> renders field errors, or the API's top-level message (conflict / forbidden /
+    // stale version) as a single line — so no separate toast is needed here.
+    onError: (e) => errs.fromError(e),
+  });
 
   return (
-    <span className="flex gap-1">
-      <Input
-        className="h-8"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') void submit();
-          if (e.key === 'Escape') setEditing(false);
-        }}
-        aria-label={t('ops.ref.editLabel')}
-        autoFocus
-        disabled={busy}
-      />
-      <Button
-        size="sm"
-        loading={busy}
-        disabled={!trimmed || unchanged}
-        onClick={() => void submit()}
-      >
-        {t('ops.st.save')}
-      </Button>
-      <Button size="sm" variant="ghost" disabled={busy} onClick={() => setEditing(false)}>
-        {t('ops.st.cancel')}
-      </Button>
-    </span>
+    <Dialog open onOpenChange={(o) => !o && !save.isPending && onClose()}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{isEdit ? t('ops.ref.editValue') : t('ops.ref.newValue')}</DialogTitle>
+          <DialogDescription>{t('ops.ref.editorHint')}</DialogDescription>
+        </DialogHeader>
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (canSubmit) save.mutate();
+          }}
+        >
+          <ErrorSummary title={t('state.validation.title')} errors={errs.summary} />
+
+          {isEdit ? (
+            <div className="text-sm">
+              <span className="text-muted-foreground">{t('ops.ref.stableCode')}: </span>
+              <span className="bidi-isolate font-mono">{value!.code}</span>
+            </div>
+          ) : (
+            <Field
+              label={t('ops.ref.stableCode')}
+              htmlFor="rd-code"
+              required
+              hint={t('ops.ref.codeHint')}
+              error={
+                errs.fieldError('code') ??
+                (code && !codeValid
+                  ? t('ops.ref.codeInvalid')
+                  : dupCode
+                    ? t('ops.ref.codeDup')
+                    : null)
+              }
+            >
+              {({ id, describedBy, invalid }) => (
+                <Input
+                  id={id}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                  placeholder={t('ops.ref.codePlaceholder')}
+                  autoFocus
+                />
+              )}
+            </Field>
+          )}
+
+          {locales.map((l) => (
+            <Field
+              key={l.code}
+              label={t('ops.ref.labelForLocale', { locale: l.englishName })}
+              htmlFor={`rd-label-${l.code}`}
+              required={l.code === 'en'}
+              error={l.code === 'en' ? errs.fieldError('label') : null}
+              hint={l.code === 'en' ? undefined : t('ops.ref.localeFallbackHint')}
+            >
+              {({ id, describedBy, invalid }) => (
+                <Input
+                  id={id}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                  dir="auto"
+                  value={labels[l.code] ?? ''}
+                  onChange={(e) => setLabels((s) => ({ ...s, [l.code]: e.target.value }))}
+                  data-testid={`label-${l.code}`}
+                />
+              )}
+            </Field>
+          ))}
+
+          <label className="flex items-start gap-2 text-sm">
+            <Checkbox
+              checked={isDefault}
+              onChange={(e) => setIsDefault(e.target.checked)}
+              data-testid="value-default"
+            />
+            <span>
+              <span className="font-medium">{t('ops.ref.setDefault')}</span>
+              <span className="block text-xs text-muted-foreground">
+                {t('ops.ref.setDefaultHint')}
+              </span>
+            </span>
+          </label>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="ghost" onClick={onClose} disabled={save.isPending}>
+              {t('ops.st.cancel')}
+            </Button>
+            <Button type="submit" loading={save.isPending} disabled={!canSubmit}>
+              {t('ops.st.save')}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

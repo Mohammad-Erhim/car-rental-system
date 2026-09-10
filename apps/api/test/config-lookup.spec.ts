@@ -75,6 +75,8 @@ describe('config / reference data', () => {
     const fr = afterCreate.body.values.find((v: { code: string }) => v.code === code);
     expect(fr.label).toBe('Mauvais temps');
     expect(fr.labelLocale).toBe('fr');
+    // the full per-locale label map is on every value (for the ops editor)
+    expect(fr.translations).toMatchObject({ en: 'Bad weather', fr: 'Mauvais temps' });
 
     // edit the label
     await request(server)
@@ -99,9 +101,16 @@ describe('config / reference data', () => {
       .expect(200);
     expect(afterDeact.body.values.find((v: { code: string }) => v.code === code)).toBeUndefined();
 
-    // ...but still resolvable for historical records
+    // an anonymous caller only ever sees the live option set — `includeInactive` is ignored
+    const anonInactive = await request(server)
+      .get(`/api/v1/reference-data/types/${type}/values?includeInactive=true`)
+      .expect(200);
+    expect(anonInactive.body.values.find((v: { code: string }) => v.code === code)).toBeUndefined();
+
+    // ...but an authenticated caller can still resolve it for historical records
     const withInactive = await request(server)
       .get(`/api/v1/reference-data/types/${type}/values?includeInactive=true`)
+      .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
     expect(withInactive.body.values.find((v: { code: string }) => v.code === code).isActive).toBe(
       false,

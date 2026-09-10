@@ -4,7 +4,7 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { z } from 'zod';
 
-import { CurrentActor, OptionalAuth } from '../../common/auth/auth.guard';
+import { CurrentActor, MaybeCurrentActor, OptionalAuth } from '../../common/auth/auth.guard';
 import { Permissions } from '../../common/auth/permissions.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
@@ -40,11 +40,17 @@ export class LookupController {
   @Get('types/:code/values')
   @OptionalAuth()
   @ApiOperation({ operationId: 'lookup_getValues', summary: 'Dynamic option list for a type' })
-  async getValues(@Req() req: Request, @Query() q: Record<string, string>) {
+  async getValues(
+    @Req() req: Request,
+    @Query() q: Record<string, string>,
+    @MaybeCurrentActor() actor?: Actor,
+  ) {
     const res = await this.lookups.getValues(req.params.code!, {
       scopeKey: q.scopeKey,
       locale: q.locale,
-      includeInactive: q.includeInactive === 'true',
+      // deprecated/inactive values are only listed for an authenticated caller — an anonymous
+      // consumer sees the live option set only.
+      includeInactive: q.includeInactive === 'true' && !!actor,
       activeAt: q.activeAt,
       search: q.search,
     });

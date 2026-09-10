@@ -10,6 +10,8 @@ export const zLookupValue = z.object({
   label: z.string(),
   /** locale the label resolved from (for fallback badges) */
   labelLocale: z.string().optional(),
+  /** every published locale label for this value, keyed by locale code (always includes `en`) */
+  translations: z.record(z.string()),
   sortOrder: z.number().int(),
   isDefault: z.boolean(),
   isActive: z.boolean(),
