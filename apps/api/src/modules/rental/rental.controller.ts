@@ -14,7 +14,8 @@ const zPickup = z.object({
   odometerKm: z.number().int().min(0),
   fuelPct: z.number().int().min(0).max(100),
   driverName: z.string().min(1).max(200),
-  licenceNumber: z.string().max(80).optional(),
+  // a driving-licence number is required at pickup (also enforced in the service)
+  licenceNumber: z.string().min(1).max(80),
 });
 const zExtend = z.object({
   newReturnAt: z.string().datetime({ offset: true }),
@@ -71,7 +72,7 @@ export class RentalController {
   // ---- ops (rental lifecycle) ----
 
   @Get('ops/rentals')
-  @Permissions('rental.read', 'rental.pickup')
+  @Permissions('rental.read', 'rental.pickup', 'rental.return')
   list(
     @CurrentActor() actor: Actor,
     @Query('state') state?: string,

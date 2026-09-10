@@ -307,6 +307,66 @@ describe('rental lifecycle', () => {
       .expect(403);
   });
 
+  it('a return odometer below the pickup reading is refused (422)', async () => {
+    const resRef = await book(server, customerToken, 'compact', 118, 3);
+    const assigned = await request(server)
+      .post(`/api/v1/ops/reservations/${resRef}/assign`)
+      .set(auth(agentToken))
+      .send({})
+      .expect(201);
+    const ref = assigned.body.reference as string;
+    await request(server)
+      .post(`/api/v1/ops/rentals/${ref}/pickup`)
+      .set(auth(agentToken))
+      .send({ odometerKm: 20000, fuelPct: 100, driverName: 'Rex Renter', licenceNumber: 'D-9' })
+      .expect(201);
+    const bad = await request(server)
+      .post(`/api/v1/ops/rentals/${ref}/return`)
+      .set(auth(agentToken))
+      .send({ odometerKm: 19990, fuelPct: 100 })
+      .expect(422);
+    expect(JSON.stringify(bad.body)).toMatch(/odometer/i);
+    // a reading equal-or-above the pickup value is fine
+    await request(server)
+      .post(`/api/v1/ops/rentals/${ref}/return`)
+      .set(auth(agentToken))
+      .send({ odometerKm: 20000, fuelPct: 100 })
+      .expect(201);
+  });
+
+  it('readiness only runs on a returned rental — it cannot un-rent an in-service vehicle', async () => {
+    const resRef = await book(server, customerToken, 'compact', 126, 3);
+    const assigned = await request(server)
+      .post(`/api/v1/ops/reservations/${resRef}/assign`)
+      .set(auth(agentToken))
+      .send({})
+      .expect(201);
+    const ref = assigned.body.reference as string;
+    const unitId = assigned.body.unitId as string;
+    await request(server)
+      .post(`/api/v1/ops/rentals/${ref}/pickup`)
+      .set(auth(agentToken))
+      .send({ odometerKm: 5000, fuelPct: 100, driverName: 'Rex Renter', licenceNumber: 'D-7' })
+      .expect(201);
+
+    // the rental is active — readiness must be refused, and the unit stays on_rent
+    await request(server)
+      .post(`/api/v1/ops/rentals/${ref}/readiness`)
+      .set(auth(agentToken))
+      .send({ passed: true })
+      .expect(422);
+
+    const board = await request(server)
+      .get('/api/v1/ops/rentals?state=active')
+      .set(auth(adminToken))
+      .expect(200);
+    expect(
+      board.body.results.some(
+        (r: { reference: string; unitId: string }) => r.reference === ref && r.unitId === unitId,
+      ),
+    ).toBe(true);
+  });
+
   it('TEST-RNT-003 the overdue sweep runs (staff only) and reports a count (FR-RNT-014)', async () => {
     // the worker runs this on its housekeeping tick; the endpoint is the manual trigger
     const swept = await request(server)
