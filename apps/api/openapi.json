@@ -2732,6 +2732,29 @@
         ]
       }
     },
+    "/api/v1/ops/config/versions/{id}": {
+      "delete": {
+        "operationId": "ReportController_removeVersion",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/ops/config/versions/{id}/submit": {
       "post": {
         "operationId": "ReportController_submit",
