@@ -8,6 +8,7 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
+  ConfirmDialog,
   DataTable,
   ErrorSummary,
   Field,
@@ -48,7 +49,7 @@ const emptyForm = {
 };
 
 export function ProductsPage() {
-  const { t } = useI18n();
+  const { t, fmt } = useI18n();
   const { hasPermission } = useAuth();
   const canManage = hasPermission('catalogue.manage');
 
@@ -62,8 +63,9 @@ export function ProductsPage() {
   });
   const [form, setForm] = useState(emptyForm);
   const [toggleError, setToggleError] = useState<string | null>(null);
+  const [confirmOff, setConfirmOff] = useState<CatalogueProduct | null>(null);
 
-  const money = (m: number, c: string) => `${(m / 100).toFixed(2)} ${c}`;
+  const money = (m: number, c: string) => fmt.money({ amountMinor: m, currency: c });
 
   function editRow(p: CatalogueProduct) {
     setForm({
@@ -161,7 +163,7 @@ export function ProductsPage() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => toggle(p)}
+              onClick={() => (p.active ? setConfirmOff(p) : toggle(p))}
               data-testid={`product-toggle-${p.code}`}
             >
               {p.active ? t('ops.prod.deactivate') : t('ops.prod.restore')}
@@ -357,6 +359,18 @@ export function ProductsPage() {
           </CardContent>
         </Card>
       ) : null}
+
+      <ConfirmDialog
+        open={!!confirmOff}
+        onOpenChange={(v) => !v && setConfirmOff(null)}
+        destructive
+        title={t('ops.prod.deactivateTitle', { name: confirmOff?.name ?? '' })}
+        description={t('ops.prod.deactivateBody')}
+        confirmLabel={t('ops.prod.deactivate')}
+        onConfirm={async () => {
+          if (confirmOff) await toggle(confirmOff);
+        }}
+      />
     </div>
   );
 }

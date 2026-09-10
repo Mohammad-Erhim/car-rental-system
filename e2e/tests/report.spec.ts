@@ -219,8 +219,9 @@ test('SCREEN-OPS-027 / FR-ADM-006: add an extra to the catalogue, then deactivat
   await expect(row).toHaveAttribute('data-active', 'true');
   await shot(page, testInfo, 'ops-products');
 
-  // deactivate it — it drops out of what a customer can pick
+  // deactivate it — it drops out of what a customer can pick (confirmed first)
   await page.getByTestId(`product-toggle-${code}`).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Deactivate' }).click();
   await expect(page.locator(`[data-code="${code}"]`)).toHaveAttribute('data-active', 'false');
 
   guards.assertClean();
