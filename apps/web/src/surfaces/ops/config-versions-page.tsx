@@ -27,6 +27,7 @@ import {
   useDraftConfigVersion,
   type ConfigState,
   type ConfigVersion,
+  type PolicyPreview,
 } from '../../lib/admin-hooks.js';
 import { ApiError } from '../../lib/api.js';
 
@@ -126,6 +127,14 @@ export function ConfigVersionsPage() {
         .filter((d) => d.from !== d.to)
     : [];
 
+  // sane upper bounds — mirror of the API's POLICY_FIELD_BOUNDS; a value past these is a
+  // fat-finger that would mis-price a customer.
+  const FIELD_MAX: Record<string, number> = {
+    freeCancelHours: 8760,
+    lateFeeBps: 10000,
+    minorPerPct: 100000,
+  };
+
   /** Client-side check: every field must be an explicit, non-negative number (blank ≠ 0). */
   function validate(): Record<string, number> | null {
     const local: Array<{ path: string; code: string }> = [];
@@ -141,7 +150,7 @@ export function ConfigVersionsPage() {
         local.push({ path: f.name, code: 'must_be_non_negative_number' });
         continue;
       }
-      if (f.name === 'lateFeeBps' && n > 10000) {
+      if (FIELD_MAX[f.name] != null && n > FIELD_MAX[f.name]!) {
         local.push({ path: f.name, code: 'out_of_range' });
         continue;
       }
@@ -152,6 +161,35 @@ export function ConfigVersionsPage() {
       return null;
     }
     return payload;
+  }
+
+  const money = (m: number, c: string) => fmt.money({ amountMinor: m, currency: c });
+
+  /** Localised worked-example lines from the API's structured policy projection. */
+  function policyPreviewLines(pp: PolicyPreview): string[] {
+    const out: string[] = [];
+    const showCancel = pp.key === 'cancellation' || pp.key == null;
+    const showFuel = pp.key === 'fuel_rate' || pp.key == null;
+    if (showCancel) {
+      out.push(
+        t('ops.cfg.pv.cancelFee', {
+          hours: fmt.number(pp.freeCancelHours),
+          pct: fmt.percent(pp.lateFeeBps / 10000, { maximumFractionDigits: 2 }),
+          fee: money(pp.lateFeeMinor, pp.currency),
+          sample: money(pp.sampleTotalMinor, pp.currency),
+        }),
+      );
+      out.push(t('ops.cfg.pv.cancelFree', { hours: fmt.number(pp.freeCancelHours) }));
+    }
+    if (showFuel) {
+      out.push(
+        t('ops.cfg.pv.fuel', {
+          pct: fmt.number(pp.sampleFuelDeficitPct),
+          charge: money(pp.fuelChargeMinor, pp.currency),
+        }),
+      );
+    }
+    return out;
   }
 
   async function doPreview() {
@@ -477,7 +515,10 @@ export function ConfigVersionsPage() {
               >
                 <p className="mb-1 font-medium">{t('ops.cfg.previewOut')}</p>
                 <ul className="list-disc space-y-1 ps-5 text-muted-foreground">
-                  {preview.data.examples.map((ex, i) => (
+                  {(preview.data.policy
+                    ? policyPreviewLines(preview.data.policy)
+                    : preview.data.examples
+                  ).map((ex, i) => (
                     <li key={i}>{ex}</li>
                   ))}
                 </ul>
@@ -517,6 +558,7 @@ export function ConfigVersionsPage() {
                 <Alert variant="warning">{t('ops.cfg.diffNone')}</Alert>
               )
             ) : null}
+            <p className="text-xs text-muted-foreground">{t('ops.cfg.appliesToNew')}</p>
           </div>
         }
         confirmLabel={t('ops.cfg.approve')}

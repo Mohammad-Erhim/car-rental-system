@@ -183,6 +183,11 @@ export class RentalService {
       );
     }
 
+    // Lock the fuel-recharge rate the customer accepts in the agreement now — a later
+    // Configuration → Policy change to `fuel_rate` must not re-rate a car already on the road
+    // (FR-PAY-007).
+    const fuelPolicy = { minorPerPct: await this.config.policy('fuel_rate', 'minorPerPct') };
+
     await this.db.transaction(async (tx) => {
       await tx
         .update(rental)
@@ -191,6 +196,7 @@ export class RentalService {
           pickedUpAt: sql`now()`,
           odometerOutKm: input.odometerKm,
           fuelOutPct: input.fuelPct,
+          fuelPolicy,
           agreementVersion: AGREEMENT_VERSION,
           agreementAcceptedAt: sql`now()`,
           version: row.version + 1,
@@ -516,7 +522,9 @@ export class RentalService {
 
     const findings = input.findings ?? [];
     const damageMinor = findings.reduce((a, f) => a + Math.max(0, f.chargeMinor ?? 0), 0);
-    const fuelMinorPerPct = await this.config.policy('fuel_rate', 'minorPerPct');
+    // the rate locked in the agreement at pickup; live policy only for pre-snapshot rentals.
+    const fuelMinorPerPct =
+      row.fuelPolicy?.minorPerPct ?? (await this.config.policy('fuel_rate', 'minorPerPct'));
     const fuelDeficitPct = Math.max(0, (row.fuelOutPct ?? 100) - input.fuelPct);
     const fuelMinor = fuelDeficitPct * fuelMinorPerPct;
     const adjustmentMinor = damageMinor + fuelMinor;

@@ -19,6 +19,7 @@ import {
   reservationLine,
 } from '../../database/schema/reservation';
 import { ProductService } from '../catalogue/product.service';
+import { ConfigVersionService } from '../config/config-version.service';
 import { CustomerRestrictionService } from '../customer/customer-restriction.service';
 import { NotifyService } from '../notify/notify.service';
 import { PaymentService } from '../payment/payment.service';
@@ -65,6 +66,7 @@ export class BookingService {
     private readonly notify: NotifyService,
     private readonly audit: AuditService,
     private readonly outbox: OutboxService,
+    private readonly config: ConfigVersionService,
   ) {}
 
   private async orgId(): Promise<string> {
@@ -184,6 +186,14 @@ export class BookingService {
     const taxMinor = quote.taxMinor + extrasTaxMinor;
     const totalMinor = subtotalMinor + taxMinor;
 
+    // Snapshot the cancellation terms in force right now, exactly like the priced lines above:
+    // a later Configuration → Policy change applies to new bookings, never re-prices this one
+    // (FR-PAY-006 — the refund is computed from the preserved booking terms).
+    const cancelPolicy = {
+      freeCancelHours: await this.config.policy('cancellation', 'freeCancelHours'),
+      lateFeeBps: await this.config.policy('cancellation', 'lateFeeBps'),
+    };
+
     // ---- authorize + capture (idempotent on the reservation reference) ----
     const pay = await this.payments.authorizeAndCapture({
       organizationId: orgId,
@@ -241,6 +251,7 @@ export class BookingService {
             paidMinor: totalMinor,
             channel: input.actor?.kind === 'staff' ? 'staff' : input.actor ? 'customer' : 'guest',
             confirmedAt: sql`now()`,
+            cancelPolicy,
             createdBy: input.actor?.accountId ?? null,
           })
           .returning();

@@ -56,6 +56,17 @@ export const reservation = pgTable(
     confirmedAt: timestamp('confirmed_at', { withTimezone: true, mode: 'string' }),
     cancelledAt: timestamp('cancelled_at', { withTimezone: true, mode: 'string' }),
     cancelReasonCode: text('cancel_reason_code'),
+
+    /**
+     * The cancellation terms in force when this reservation was confirmed, snapshotted like the
+     * priced lines so a later Configuration → Policy change never re-prices a past agreement
+     * (FR-PAY-006). Null only for reservations confirmed before this column existed — `cancel()`
+     * falls back to the live policy for those.
+     */
+    cancelPolicy: jsonb('cancel_policy').$type<{
+      freeCancelHours: number;
+      lateFeeBps: number;
+    }>(),
   },
   (t) => ({
     refUnq: uniqueIndex('reservation_reference_unq').on(t.reference),

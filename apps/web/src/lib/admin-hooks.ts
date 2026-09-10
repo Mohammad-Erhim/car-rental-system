@@ -32,10 +32,26 @@ export function useConfigVersions(kind: string, key?: string) {
   });
 }
 
+/** Structured projection of a candidate `policy` payload — the ops UI localises the sentences. */
+export interface PolicyPreview {
+  key: string | null;
+  currency: string;
+  freeCancelHours: number;
+  lateFeeBps: number;
+  minorPerPct: number;
+  sampleTotalMinor: number;
+  lateFeeMinor: number;
+  sampleFuelDeficitPct: number;
+  fuelChargeMinor: number;
+}
+
 export function useConfigPreview() {
   return useMutation({
     mutationFn: (body: { kind: string; key?: string; payload: Record<string, number> }) =>
-      apiFetch<{ examples: string[] }>('/ops/config/versions/preview', { method: 'POST', body }),
+      apiFetch<{ examples: string[]; policy?: PolicyPreview }>('/ops/config/versions/preview', {
+        method: 'POST',
+        body,
+      }),
   });
 }
 

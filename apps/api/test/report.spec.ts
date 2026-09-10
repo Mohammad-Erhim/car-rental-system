@@ -286,6 +286,89 @@ describe('STAGE-006 administration & reporting', () => {
     expect(rejected.body.note).toContain('too aggressive for Q3');
   });
 
+  it('TEST-ADM-005 a published policy change does not re-price a reservation already booked under the old terms', async () => {
+    const publishPolicy = async (payload: { freeCancelHours: number; lateFeeBps: number }) => {
+      const d = await request(server)
+        .post('/api/v1/ops/config/versions')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ kind: 'policy', key: 'cancellation', payload })
+        .expect(201);
+      await request(server)
+        .post(`/api/v1/ops/config/versions/${d.body.id}/submit`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({})
+        .expect(201);
+      await request(server)
+        .post(`/api/v1/ops/config/versions/${d.body.id}/approve`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .send({})
+        .expect(201);
+    };
+
+    // terms in force when the customer books: a 25% late-cancel fee
+    await publishPolicy({ freeCancelHours: 1000, lateFeeBps: 2500 });
+    const pickupAt = tuesday(15);
+    const bookedUnderOld = await book(server, customerToken, {
+      pickupLocationCode: 'TST1',
+      categoryCode: 'compact',
+      pickupAt,
+      returnAt: plus(pickupAt, 3),
+    });
+    const detail = await request(server)
+      .get(`/api/v1/reservations/${bookedUnderOld}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(200);
+    const total = detail.body.totalMinor as number;
+
+    // ops later slashes the fee to 5% and publishes it
+    await publishPolicy({ freeCancelHours: 1000, lateFeeBps: 500 });
+
+    // the existing reservation is still charged the 25% it was booked under (FR-PAY-006)
+    const cancelledOld = await request(server)
+      .post(`/api/v1/reservations/${bookedUnderOld}/cancel`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ reasonCode: 'plans_changed' })
+      .expect(201);
+    expect(cancelledOld.body.feeMinor).toBe(Math.round((total * 2500) / 10_000));
+
+    // a booking made *after* the change gets the new 5%
+    const bookedUnderNew = await book(server, customerToken, {
+      pickupLocationCode: 'TST1',
+      categoryCode: 'compact',
+      pickupAt: tuesday(16),
+      returnAt: plus(tuesday(16), 3),
+    });
+    const detailNew = await request(server)
+      .get(`/api/v1/reservations/${bookedUnderNew}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(200);
+    const cancelledNew = await request(server)
+      .post(`/api/v1/reservations/${bookedUnderNew}/cancel`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ reasonCode: 'plans_changed' })
+      .expect(201);
+    expect(cancelledNew.body.feeMinor).toBe(
+      Math.round(((detailNew.body.totalMinor as number) * 500) / 10_000),
+    );
+  });
+
+  it('TEST-ADM-006 an out-of-range policy value is refused (fat-finger guard)', async () => {
+    await request(server)
+      .post('/api/v1/ops/config/versions')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ kind: 'policy', key: 'fuel_rate', payload: { minorPerPct: 250000 } })
+      .expect(422);
+    await request(server)
+      .post('/api/v1/ops/config/versions')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        kind: 'policy',
+        key: 'cancellation',
+        payload: { freeCancelHours: 99999, lateFeeBps: 2000 },
+      })
+      .expect(422);
+  });
+
   it('TEST-RPT-001 report rows respect the operator location scope (FR-RPT-004)', async () => {
     const p1 = tuesday(30);
     const p2 = tuesday(40);

@@ -223,8 +223,12 @@ export class ReservationOpsService {
       await this.refData.assertLookupCode('cancel_reason', input.reasonCode, 'reasonCode');
     }
 
-    const freeCancelHours = await this.config.policy('cancellation', 'freeCancelHours');
-    const lateFeeBps = await this.config.policy('cancellation', 'lateFeeBps');
+    // Use the terms snapshotted when the reservation was confirmed (FR-PAY-006); fall back to the
+    // live policy only for reservations booked before the snapshot column existed.
+    const snap = row.cancelPolicy;
+    const freeCancelHours =
+      snap?.freeCancelHours ?? (await this.config.policy('cancellation', 'freeCancelHours'));
+    const lateFeeBps = snap?.lateFeeBps ?? (await this.config.policy('cancellation', 'lateFeeBps'));
     const hoursToPickup = (new Date(row.pickupAt).getTime() - Date.now()) / 3_600_000;
     const feeMinor =
       actor.kind === 'staff' && input.reasonCode === 'goodwill'

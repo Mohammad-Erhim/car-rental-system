@@ -53,6 +53,13 @@ export const rental = pgTable(
 
     agreementVersion: text('agreement_version'),
     agreementAcceptedAt: timestamp('agreement_accepted_at', { withTimezone: true, mode: 'string' }),
+    /**
+     * The fuel-recharge rate disclosed in the rental agreement, snapshotted at pickup alongside
+     * `agreementVersion`. A later Configuration → Policy change to `fuel_rate` never re-rates a
+     * rental already on the road (FR-PAY-007). Null for rentals picked up before this column
+     * existed — `return()` falls back to the live policy for those.
+     */
+    fuelPolicy: jsonb('fuel_policy').$type<{ minorPerPct: number }>(),
   },
   (t) => ({
     refUnq: uniqueIndex('rental_reference_unq').on(t.reference),
