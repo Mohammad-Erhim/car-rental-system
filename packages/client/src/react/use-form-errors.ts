@@ -20,8 +20,14 @@ function codeKey(code: string): string {
       return 'error.field.invalid';
     case 'must_be_positive':
       return 'error.field.mustBePositive';
+    case 'must_be_non_negative_number':
+      return 'error.field.mustBeNonNegative';
     case 'out_of_range':
       return 'error.field.outOfRange';
+    case 'unknown_field':
+      return 'error.field.unknownField';
+    case 'unknown_policy_key':
+      return 'error.field.unknownKey';
     case 'before_from':
       return 'error.field.beforeFrom';
     case 'less_than_min':

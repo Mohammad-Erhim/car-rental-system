@@ -1,6 +1,7 @@
 import { useAuth, useFormErrors } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
+  Alert,
   Badge,
   Button,
   Card,
@@ -14,6 +15,7 @@ import {
   Input,
   PageHeader,
   Textarea,
+  useToast,
   type DataTableColumn,
 } from '@carrental/ui';
 import { useMemo, useState } from 'react';
@@ -24,6 +26,7 @@ import {
   useConfigVersions,
   useDraftConfigVersion,
   type ConfigState,
+  type ConfigVersion,
 } from '../../lib/admin-hooks.js';
 import { ApiError } from '../../lib/api.js';
 
@@ -62,6 +65,7 @@ const STATE_VARIANT: Record<ConfigState, 'success' | 'warning' | 'neutral' | 'de
 
 export function ConfigVersionsPage() {
   const { t, fmt } = useI18n();
+  const { toast } = useToast();
   const { hasPermission } = useAuth();
   const canPublish = hasPermission('config.publish');
 
@@ -72,6 +76,16 @@ export function ConfigVersionsPage() {
 
   const fieldLabel = (name: string) => t(`ops.cfg.field.${name}`);
   const fieldHint = (name: string) => t(`ops.cfg.field.${name}Hint`);
+  const shortLabel = (name: string) => t(`ops.cfg.short.${name}`);
+
+  /** A human reading of a raw stored value — bps as a percentage, hours as hours, etc. */
+  const fmtValue = (name: string, v: number): string => {
+    if (!Number.isFinite(v)) return String(v);
+    if (name === 'lateFeeBps') return fmt.percent(v / 10000, { maximumFractionDigits: 2 });
+    if (name === 'freeCancelHours') return t('ops.cfg.fmt.hours', { n: fmt.number(v) });
+    if (name === 'minorPerPct') return t('ops.cfg.fmt.minorPerPct', { n: fmt.number(v) });
+    return fmt.number(v);
+  };
 
   const versions = useConfigVersions(kind, key);
   const draft = useDraftConfigVersion();
@@ -95,17 +109,58 @@ export function ConfigVersionsPage() {
     () => versions.data?.find((v) => v.state === 'published') ?? null,
     [versions.data],
   );
+  const approvingRow = useMemo(
+    () => versions.data?.find((v) => v.id === approving) ?? null,
+    [versions.data, approving],
+  );
 
-  function payloadFromForm(): Record<string, number> {
-    return Object.fromEntries(
-      keyDef.fields.map((f) => [f.name, Number(values[f.name] ?? '')]),
-    ) as Record<string, number>;
+  /** Fields that carry a real value change against the currently published revision. */
+  const diffRows = approvingRow
+    ? Object.entries(approvingRow.payload)
+        .map(([k, to]) => ({
+          k,
+          label: shortLabel(k),
+          from: currentPublished ? (currentPublished.payload[k] as number | undefined) : undefined,
+          to: to as number,
+        }))
+        .filter((d) => d.from !== d.to)
+    : [];
+
+  /** Client-side check: every field must be an explicit, non-negative number (blank ≠ 0). */
+  function validate(): Record<string, number> | null {
+    const local: Array<{ path: string; code: string }> = [];
+    const payload: Record<string, number> = {};
+    for (const f of keyDef.fields) {
+      const raw = (values[f.name] ?? '').trim();
+      if (raw === '') {
+        local.push({ path: f.name, code: 'required' });
+        continue;
+      }
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n < 0) {
+        local.push({ path: f.name, code: 'must_be_non_negative_number' });
+        continue;
+      }
+      if (f.name === 'lateFeeBps' && n > 10000) {
+        local.push({ path: f.name, code: 'out_of_range' });
+        continue;
+      }
+      payload[f.name] = n;
+    }
+    if (local.length) {
+      errs.setLocal(local);
+      return null;
+    }
+    return payload;
   }
 
   async function doPreview() {
     setActionError(null);
+    errs.clear();
+    const payload = validate();
+    if (!payload) return;
     try {
-      await preview.mutateAsync({ kind, payload: payloadFromForm() });
+      await preview.mutateAsync({ kind, key, payload });
     } catch (err) {
       setActionError(err instanceof ApiError ? err.message : t('ops.cfg.previewFail'));
     }
@@ -115,13 +170,16 @@ export function ConfigVersionsPage() {
     e.preventDefault();
     errs.clear();
     setActionError(null);
+    const payload = validate();
+    if (!payload) return;
     try {
-      await draft.mutateAsync({
+      const created = await draft.mutateAsync({
         kind,
         key,
-        payload: payloadFromForm(),
+        payload,
         note: note.trim() || undefined,
       });
+      toast({ title: t('ops.cfg.drafted', { n: created.revision }), variant: 'success' });
       setValues({});
       setNote('');
       preview.reset();
@@ -137,10 +195,19 @@ export function ConfigVersionsPage() {
       setRejecting(id);
       return;
     }
+    const rev = versions.data?.find((v) => v.id === id)?.revision;
     try {
       await transition.mutateAsync({ id, action, note: reason?.trim() });
       setRejecting(null);
       setRejectReason('');
+      setApproving(null);
+      const key3 =
+        action === 'submit'
+          ? 'ops.cfg.submitted'
+          : action === 'approve'
+            ? 'ops.cfg.approved'
+            : 'ops.cfg.rejected';
+      toast({ title: t(key3, { n: rev ?? '' }), variant: 'success' });
     } catch (err) {
       setActionError(
         err instanceof ApiError
@@ -150,30 +217,37 @@ export function ConfigVersionsPage() {
           : t('ops.cfg.actionFail'),
       );
       setRejecting(null);
+      setApproving(null);
     }
   }
 
   type Version = NonNullable<typeof versions.data>[number];
+  const payloadCell = (v: ConfigVersion) =>
+    Object.entries(v.payload)
+      .map(([k, val]) =>
+        keyDef.fields.some((f) => f.name === k)
+          ? `${shortLabel(k)} ${fmtValue(k, val as number)}`
+          : `${k}=${val}`,
+      )
+      .join(' · ');
+
   const columns: Array<DataTableColumn<Version>> = [
     { key: 'rev', header: t('ops.tbl.rev'), cell: (v) => v.revision, className: 'font-mono' },
     {
       key: 'state',
       header: t('ops.tbl.state'),
-      cell: (v) => <Badge variant={STATE_VARIANT[v.state]}>{v.state}</Badge>,
+      cell: (v) => <Badge variant={STATE_VARIANT[v.state]}>{t(`ops.cfg.state.${v.state}`)}</Badge>,
     },
     {
       key: 'payload',
       header: t('ops.tbl.payload'),
-      cell: (v) =>
-        Object.entries(v.payload)
-          .map(([k, val]) => `${k}=${val}`)
-          .join(', '),
-      className: 'font-mono text-xs',
+      cell: (v) => payloadCell(v),
+      className: 'text-xs',
     },
     {
       key: 'note',
       header: t('ops.tbl.note'),
-      cell: (v) => v.note ?? '—',
+      cell: (v) => (v.note ? <span className="whitespace-pre-line">{v.note}</span> : '—'),
       className: 'text-muted-foreground',
     },
     {
@@ -193,6 +267,7 @@ export function ConfigVersionsPage() {
               size="sm"
               variant="outline"
               onClick={() => act(v.id, 'submit')}
+              loading={transition.isPending}
               data-testid={`submit-${v.revision}`}
             >
               {t('ops.cfg.submit')}
@@ -238,6 +313,8 @@ export function ConfigVersionsPage() {
                 const nk = KINDS.find((k) => k.kind === e.target.value) ?? KINDS[0]!;
                 setKey(nk.keys[0]!.key);
                 setValues({});
+                errs.clear();
+                preview.reset();
               }}
             >
               {KINDS.map((k) => (
@@ -258,6 +335,8 @@ export function ConfigVersionsPage() {
               onChange={(e) => {
                 setKey(e.target.value);
                 setValues({});
+                errs.clear();
+                preview.reset();
               }}
             >
               {kindDef.keys.map((k) => (
@@ -279,7 +358,34 @@ export function ConfigVersionsPage() {
             })}
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          <div
+            className="rounded-md border bg-muted/40 p-3 text-sm"
+            data-testid="config-current-published"
+          >
+            <p className="mb-1 font-medium">{t('ops.cfg.currentValues')}</p>
+            {currentPublished ? (
+              <dl className="flex flex-wrap gap-x-6 gap-y-1 text-muted-foreground">
+                {keyDef.fields.map((f) => (
+                  <div key={f.name} className="flex gap-2">
+                    <dt>{shortLabel(f.name)}:</dt>
+                    <dd className="font-medium text-foreground">
+                      {fmtValue(f.name, currentPublished.payload[f.name] as number)}
+                    </dd>
+                  </div>
+                ))}
+                <div className="text-xs">
+                  {t('ops.cfg.rev', { n: currentPublished.revision })}
+                  {currentPublished.effectiveFrom
+                    ? ` · ${fmt.dateTime(currentPublished.effectiveFrom)}`
+                    : ''}
+                </div>
+              </dl>
+            ) : (
+              <p className="text-muted-foreground">{t('ops.cfg.noPublished')}</p>
+            )}
+          </div>
+
           <DataTable
             columns={columns}
             rows={versions.data}
@@ -303,7 +409,7 @@ export function ConfigVersionsPage() {
             }}
           />
           {actionError ? (
-            <p className="mt-3 text-sm text-destructive" data-testid="config-action-error">
+            <p className="text-sm text-destructive" data-testid="config-action-error">
               {actionError}
             </p>
           ) : null}
@@ -385,7 +491,34 @@ export function ConfigVersionsPage() {
         open={!!approving}
         onOpenChange={(v) => !v && setApproving(null)}
         title={t('ops.cfg.approveTitle')}
-        description={t('ops.cfg.approveBody')}
+        description={
+          <div className="space-y-3">
+            <p>{t('ops.cfg.approveBody')}</p>
+            {approvingRow ? (
+              diffRows.length ? (
+                <div className="rounded-md border bg-muted/40 p-3 text-sm">
+                  <p className="mb-1 font-medium">{t('ops.cfg.diffTitle')}</p>
+                  <ul className="space-y-1" data-testid="config-approve-diff">
+                    {diffRows.map((d) => (
+                      <li key={d.k} className="flex flex-wrap gap-2">
+                        <span className="text-muted-foreground">{d.label}:</span>
+                        <span>
+                          {d.from === undefined
+                            ? t('ops.cfg.builtInDefault')
+                            : fmtValue(d.k, d.from)}
+                        </span>
+                        <span aria-hidden>→</span>
+                        <span className="font-medium">{fmtValue(d.k, d.to)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <Alert variant="warning">{t('ops.cfg.diffNone')}</Alert>
+              )
+            ) : null}
+          </div>
+        }
         confirmLabel={t('ops.cfg.approve')}
         onConfirm={() => act(approving!, 'approve')}
       />

@@ -100,6 +100,19 @@ describe('STAGE-006 administration & reporting', () => {
     expect(Array.isArray(preview.body.examples)).toBe(true);
     expect(preview.body.examples.join(' ')).toContain('24h');
 
+    // with a key named, the projection is scoped to that key's effect only
+    const scoped = await request(server)
+      .post('/api/v1/ops/config/versions/preview')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        kind: 'policy',
+        key: 'cancellation',
+        payload: { freeCancelHours: 24, lateFeeBps: 3000 },
+      })
+      .expect(201);
+    expect(scoped.body.examples).toHaveLength(1);
+    expect(scoped.body.examples[0]).toContain('24h');
+
     // submit for review
     const submitted = await request(server)
       .post(`/api/v1/ops/config/versions/${id}/submit`)
@@ -189,13 +202,88 @@ describe('STAGE-006 administration & reporting', () => {
     await request(server)
       .post('/api/v1/ops/config/versions')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ kind: 'policy', key: 'cancellation', payload: { lateFeeBps: 20000 } })
+      .send({
+        kind: 'policy',
+        key: 'cancellation',
+        payload: { freeCancelHours: 24, lateFeeBps: 20000 },
+      })
       .expect(422);
     await request(server)
       .post('/api/v1/ops/config/versions')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ kind: 'policy', key: 'cancellation', payload: { freeCancelHours: -4 } })
+      .send({
+        kind: 'policy',
+        key: 'cancellation',
+        payload: { freeCancelHours: -4, lateFeeBps: 0 },
+      })
       .expect(422);
+
+    // a typo'd field name would previously be persisted and silently ignored — now it is rejected
+    const typo = await request(server)
+      .post('/api/v1/ops/config/versions')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        kind: 'policy',
+        key: 'cancellation',
+        payload: { freeCancelHours: 24, lateFeeBps: 2000, freeCancelHoursTypo: 12 },
+      })
+      .expect(422);
+    expect(typo.body.fieldErrors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: 'freeCancelHoursTypo', code: 'unknown_field' }),
+      ]),
+    );
+
+    // a missing required field is rejected too (a blank input must not become an implicit 0)
+    const missing = await request(server)
+      .post('/api/v1/ops/config/versions')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ kind: 'policy', key: 'cancellation', payload: { freeCancelHours: 24 } })
+      .expect(422);
+    expect(missing.body.fieldErrors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: 'lateFeeBps', code: 'required' })]),
+    );
+
+    // an unknown policy key is rejected
+    await request(server)
+      .post('/api/v1/ops/config/versions')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ kind: 'policy', key: 'made_up_policy', payload: { foo: 1 } })
+      .expect(422);
+  });
+
+  it('TEST-ADM-004 rejecting a draft keeps the author note and records the reviewer reason', async () => {
+    const draft = await request(server)
+      .post('/api/v1/ops/config/versions')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        kind: 'policy',
+        key: 'fuel_rate',
+        payload: { minorPerPct: 500 },
+        note: 'bump the refuel rate',
+      })
+      .expect(201);
+    await request(server)
+      .post(`/api/v1/ops/config/versions/${draft.body.id}/submit`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({})
+      .expect(201);
+
+    // a reject with no reason is refused
+    await request(server)
+      .post(`/api/v1/ops/config/versions/${draft.body.id}/reject`)
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({})
+      .expect(422);
+
+    const rejected = await request(server)
+      .post(`/api/v1/ops/config/versions/${draft.body.id}/reject`)
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({ note: 'too aggressive for Q3' })
+      .expect(201);
+    expect(rejected.body.state).toBe('rejected');
+    expect(rejected.body.note).toContain('bump the refuel rate');
+    expect(rejected.body.note).toContain('too aggressive for Q3');
   });
 
   it('TEST-RPT-001 report rows respect the operator location scope (FR-RPT-004)', async () => {
