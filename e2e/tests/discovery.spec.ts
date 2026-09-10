@@ -160,8 +160,10 @@ test.describe('operations pricing & fleet (APP-OPS)', () => {
     await expect(page.getByTestId('fleet-table')).toBeVisible();
     const rows = page.locator('[data-testid="fleet-rows"] tr');
     expect(await rows.count()).toBeGreaterThan(5);
-    await page.getByLabel('Filter by location code').fill('JFK');
+    // the location filter is a dropdown (option values are the location codes)
+    await page.getByLabel('Location', { exact: true }).selectOption('JFK');
     await expect(rows.first()).toContainText('JFK');
+    await expect(page).toHaveURL(/[?&]location=JFK/);
     await shot(page, testInfo, 'ops-fleet-inventory');
     guards.assertClean();
   });

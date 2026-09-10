@@ -51,6 +51,21 @@ const stateVariant = (s: string) =>
       ? 'warning'
       : 'neutral';
 
+const KNOWN_UNIT_STATES = new Set([
+  'available',
+  'on_rent',
+  'prep',
+  'maintenance',
+  'out_of_service',
+  'in_transit',
+]);
+const unitStateLabel = (t: (k: string) => string, s: string) =>
+  KNOWN_UNIT_STATES.has(s) ? t(`ops.fleet.unitState.${s}`) : s.replace(/_/g, ' ');
+const blockKindLabel = (t: (k: string) => string, k: string) =>
+  BLOCK_KINDS.includes(k as (typeof BLOCK_KINDS)[number])
+    ? t(`ops.fleet.blockKind.${k}`)
+    : k.replace(/_/g, ' ');
+
 /**
  * SCREEN-OPS-013 / 017 / 018 — Fleet inventory + operations. Units by location / category /
  * state (VIN / plate bidi-isolated); a `fleet.manage` holder can take a unit into maintenance
@@ -99,6 +114,14 @@ export function FleetInventoryPage() {
   const errText = (e: unknown, fb: string) => (e instanceof ApiError ? e.message : fb);
   const anyFilter = !!(locationCode || categoryCode || stateFilter);
 
+  // active blocks keyed by unit — a `damage` / `admin_block` doesn't change the unit's state, so
+  // the row can read "available" while the vehicle is actually held out of bookings.
+  const blocksByUnit = new Map<string, string[]>();
+  for (const b of blocks.data ?? []) {
+    if (b.status === 'active')
+      blocksByUnit.set(b.unitId, [...(blocksByUnit.get(b.unitId) ?? []), b.kind]);
+  }
+
   const runBlock = async () => {
     if (!blockUnit) return;
     setResult(null);
@@ -109,7 +132,13 @@ export function FleetInventoryPage() {
         reasonCode: blockReason.trim().slice(0, 60) || undefined,
         startAt: new Date().toISOString(),
       });
-      setResult({ ok: true, text: t('ops.fleet.blockedMsg', { plate: blockUnit.plate }) });
+      setResult({
+        ok: true,
+        text: t(
+          blockKind === 'maintenance' ? 'ops.fleet.blockedMsg' : 'ops.fleet.blockedMsgOther',
+          { plate: blockUnit.plate },
+        ),
+      });
     } catch (e) {
       setResult({ ok: false, text: errText(e, t('ops.fleet.blockFail')) });
     } finally {
@@ -170,7 +199,21 @@ export function FleetInventoryPage() {
     {
       key: 'state',
       header: t('ops.tbl.state'),
-      cell: (u) => <Badge variant={stateVariant(u.state)}>{u.state.replace(/_/g, ' ')}</Badge>,
+      cell: (u) => {
+        const held = blocksByUnit.get(u.id) ?? [];
+        return (
+          <span className="flex flex-wrap items-center gap-1">
+            <Badge variant={stateVariant(u.state)}>{unitStateLabel(t, u.state)}</Badge>
+            {held.length ? (
+              <Badge variant="warning" data-testid={`fleet-held-${u.id}`}>
+                {t('ops.fleet.heldBadge', {
+                  kind: [...new Set(held)].map((k) => blockKindLabel(t, k)).join(', '),
+                })}
+              </Badge>
+            ) : null}
+          </span>
+        );
+      },
     },
     ...(canManage
       ? [
@@ -218,7 +261,7 @@ export function FleetInventoryPage() {
       cell: (b) => b.plate,
       className: 'bidi-isolate font-mono text-xs',
     },
-    { key: 'kind', header: t('ops.fin.kind'), cell: (b) => b.kind.replace(/_/g, ' ') },
+    { key: 'kind', header: t('ops.fin.kind'), cell: (b) => blockKindLabel(t, b.kind) },
     { key: 'reason', header: t('ops.fleet.reason'), cell: (b) => b.reasonCode ?? '—' },
     {
       key: 'since',
@@ -313,7 +356,7 @@ export function FleetInventoryPage() {
               <option value="">{t('ops.fleet.allStates')}</option>
               {UNIT_STATES.map((s) => (
                 <option key={s} value={s}>
-                  {s.replace(/_/g, ' ')}
+                  {unitStateLabel(t, s)}
                 </option>
               ))}
             </select>
@@ -386,7 +429,16 @@ export function FleetInventoryPage() {
         title={t('ops.fleet.blockTitle', { plate: blockUnit?.plate ?? '' })}
         description={
           <div className="space-y-3">
-            <p>{t('ops.fleet.blockBody')}</p>
+            <p>
+              {blockKind === 'maintenance'
+                ? t('ops.fleet.blockBodyMaintenance')
+                : t('ops.fleet.blockBodyOther')}
+            </p>
+            {blockUnit && (blocksByUnit.get(blockUnit.id)?.length ?? 0) > 0 ? (
+              <p className="text-sm text-warning">
+                {t('ops.fleet.alreadyHeld', { n: blocksByUnit.get(blockUnit.id)!.length })}
+              </p>
+            ) : null}
             <Field label={t('ops.fin.kind')} htmlFor="fb-kind">
               {({ id }) => (
                 <select
@@ -397,7 +449,7 @@ export function FleetInventoryPage() {
                 >
                   {BLOCK_KINDS.map((k) => (
                     <option key={k} value={k}>
-                      {k.replace(/_/g, ' ')}
+                      {blockKindLabel(t, k)}
                     </option>
                   ))}
                 </select>
