@@ -19,6 +19,7 @@ const isoIn = (days: number, hour = 15) => {
 describe('customer records (SCREEN-OPS-021/022 / FR-ADM-001)', () => {
   let server: ReturnType<typeof httpServer>;
   let agentToken: string; // rental_agent — has customer.read
+  let adminToken: string; // administrator — for the audit viewer
   let financeToken: string; // finance_staff — no customer.read
   let customerToken: string;
 
@@ -26,6 +27,8 @@ describe('customer records (SCREEN-OPS-021/022 / FR-ADM-001)', () => {
     const app = await getTestApp();
     server = httpServer(app);
     agentToken = (await signIn(app, 'test-agent@example.test', 'Test-Passw0rd!', 'staff'))
+      .accessToken;
+    adminToken = (await signIn(app, 'test-admin@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
     financeToken = (await signIn(app, 'test-finance@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
@@ -80,6 +83,17 @@ describe('customer records (SCREEN-OPS-021/022 / FR-ADM-001)', () => {
     );
     expect(hit).toBeTruthy();
     expect(hit!.email).toMatch(/\*\*\*@/); // masked
+
+    // the lookup is a PII access — it is on the audit trail
+    const audit = await request(server)
+      .get('/api/v1/ops/audit?action=customer.searched')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(
+      (audit.body as Array<{ action: string; after?: { query?: string } }>).some(
+        (a) => a.action === 'customer.searched' && a.after?.query === 'Test',
+      ),
+    ).toBe(true);
   });
 
   it('consolidates the record: contact in full, reservation + balance present', async () => {

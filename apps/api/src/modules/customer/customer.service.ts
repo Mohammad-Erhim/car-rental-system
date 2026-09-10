@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
+import { AuditService } from '../../common/audit/audit.service';
 import type { Actor } from '../../common/auth/types';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
@@ -35,7 +36,10 @@ function maskPhone(p: string | null): string | null {
 
 @Injectable()
 export class CustomerService {
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    private readonly audit: AuditService,
+  ) {}
 
   /**
    * Search by name / email / phone fragment. Requires a query (no "list every customer"
@@ -89,6 +93,15 @@ export class CustomerService {
           ).map((r) => r.customerId),
         )
       : new Set<string>();
+
+    // A customer lookup is a PII access — record who searched for what (SRS-SEC-016).
+    await this.audit.record({
+      action: 'customer.searched',
+      targetType: 'customer',
+      actor,
+      outcome: 'accepted',
+      after: { query: term, hits: rows.length },
+    });
 
     return {
       query: term,
