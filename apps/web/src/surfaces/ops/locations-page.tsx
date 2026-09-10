@@ -180,9 +180,14 @@ export function LocationsPage() {
     if (ta === '' || !Number.isInteger(taN) || taN < 0 || taN > 1440) {
       local.push({ path: 'turnaroundMinutes', code: 'out_of_range' });
     }
-    for (const coord of ['latitude', 'longitude'] as const) {
+    for (const [coord, limit] of [
+      ['latitude', 90],
+      ['longitude', 180],
+    ] as const) {
       const v = form[coord].trim();
-      if (v && Number.isNaN(Number(v))) local.push({ path: coord, code: 'invalid' });
+      if (v && (!Number.isFinite(Number(v)) || Math.abs(Number(v)) > limit)) {
+        local.push({ path: coord, code: 'out_of_range' });
+      }
     }
     if (local.length) {
       errs.setLocal(local);
