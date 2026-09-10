@@ -204,7 +204,6 @@ export class LookupService {
           scopeKey: r.scopeKey,
           label: label?.value ?? r.defaultLabel,
           labelLocale: label?.locale,
-          description: null as string | null,
           sortOrder: r.sortOrder,
           isDefault: r.isDefault,
           isActive: r.isActive,
@@ -227,6 +226,34 @@ export class LookupService {
 
   // ------------------------------------------------------------------ management
 
+  /**
+   * A scope may have at most one default value. Demote whatever is currently default before a
+   * create/update marks a new one — bumping their version so a client holding a stale copy gets
+   * a conflict rather than silently overwriting.
+   */
+  private async demoteDefaults(
+    typeCode: string,
+    scopeKey: string,
+    actor: Actor,
+    exceptId?: string,
+  ) {
+    const where = [
+      eq(lookupValue.typeCode, typeCode),
+      eq(lookupValue.scopeKey, scopeKey),
+      eq(lookupValue.isDefault, true),
+    ];
+    if (exceptId) where.push(ne(lookupValue.id, exceptId));
+    await this.db
+      .update(lookupValue)
+      .set({
+        isDefault: false,
+        version: sql`${lookupValue.version} + 1`,
+        updatedAt: sql`now()`,
+        updatedBy: actor.accountId,
+      })
+      .where(and(...where));
+  }
+
   private assertEditable(type: Awaited<ReturnType<LookupService['getType']>>) {
     if (type.editability === 'read_only') {
       throw new AppError('forbidden', {
@@ -243,7 +270,6 @@ export class LookupService {
       code: string;
       scopeKey?: string;
       label: string;
-      description?: string;
       sortOrder?: number;
       isDefault?: boolean;
       attributes?: Record<string, unknown>;
@@ -268,6 +294,8 @@ export class LookupService {
     if (dupe) {
       throw new AppError('state_conflict', { title: `Code "${input.code}" already exists here` });
     }
+
+    if (input.isDefault) await this.demoteDefaults(typeCode, scopeKey, actor);
 
     const [row] = await this.db
       .insert(lookupValue)
@@ -305,7 +333,6 @@ export class LookupService {
     valueId: string,
     input: {
       label?: string;
-      description?: string | null;
       sortOrder?: number;
       isDefault?: boolean;
       attributes?: Record<string, unknown>;
@@ -330,12 +357,7 @@ export class LookupService {
       throw AppError.conflict(row.version);
     }
 
-    if (input.isDefault) {
-      await this.db
-        .update(lookupValue)
-        .set({ isDefault: false, updatedAt: sql`now()` })
-        .where(and(eq(lookupValue.typeCode, typeCode), eq(lookupValue.scopeKey, row.scopeKey)));
-    }
+    if (input.isDefault) await this.demoteDefaults(typeCode, row.scopeKey, actor, valueId);
 
     await this.db
       .update(lookupValue)
@@ -418,12 +440,14 @@ export class LookupService {
   async reorder(actor: Actor, typeCode: string, order: Array<{ id: string; sortOrder: number }>) {
     const type = await this.getType(typeCode);
     this.assertEditable(type);
-    for (const o of order) {
-      await this.db
-        .update(lookupValue)
-        .set({ sortOrder: o.sortOrder, updatedAt: sql`now()` })
-        .where(and(eq(lookupValue.id, o.id), eq(lookupValue.typeCode, typeCode)));
-    }
+    await this.db.transaction(async (tx) => {
+      for (const o of order) {
+        await tx
+          .update(lookupValue)
+          .set({ sortOrder: o.sortOrder, updatedAt: sql`now()`, updatedBy: actor.accountId })
+          .where(and(eq(lookupValue.id, o.id), eq(lookupValue.typeCode, typeCode)));
+      }
+    });
     await this.afterMutation(actor, typeCode, 'lookup.reordered', typeCode, {
       count: order.length,
     });

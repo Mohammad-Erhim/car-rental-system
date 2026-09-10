@@ -10,7 +10,6 @@ export const zLookupValue = z.object({
   label: z.string(),
   /** locale the label resolved from (for fallback badges) */
   labelLocale: z.string().optional(),
-  description: z.string().nullable(),
   sortOrder: z.number().int(),
   isDefault: z.boolean(),
   isActive: z.boolean(),
@@ -60,7 +59,6 @@ export const zCreateLookupValueRequest = z.object({
     .regex(/^[a-z0-9_]+$/, 'lowercase letters, digits, underscore'),
   scopeKey: z.string().default('global'),
   label: z.string().min(1).max(200),
-  description: z.string().max(500).optional(),
   sortOrder: z.number().int().default(0),
   isDefault: z.boolean().default(false),
   attributes: z.record(z.unknown()).default({}),
@@ -70,7 +68,6 @@ export const zCreateLookupValueRequest = z.object({
 
 export const zUpdateLookupValueRequest = z.object({
   label: z.string().min(1).max(200).optional(),
-  description: z.string().max(500).nullable().optional(),
   sortOrder: z.number().int().optional(),
   isDefault: z.boolean().optional(),
   attributes: z.record(z.unknown()).optional(),

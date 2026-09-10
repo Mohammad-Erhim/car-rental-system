@@ -185,6 +185,39 @@ describe('config / reference data', () => {
       .expect(201);
   });
 
+  it('setting a value as default demotes the previous default (and bumps its version)', async () => {
+    const type = 'cancel_reason';
+    const mk = async (code: string) =>
+      (
+        await request(server)
+          .post(`/api/v1/reference-data/types/${type}/values`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .send({ code, label: code, isDefault: true })
+          .expect(201)
+      ).body;
+
+    const a = await mk(`def_a_${Date.now()}`);
+    const b = await mk(`def_b_${Date.now()}`);
+
+    const list = await request(server)
+      .get(`/api/v1/reference-data/types/${type}/values?includeInactive=true`)
+      .expect(200);
+    const rows = list.body.values as Array<{ id: string; isDefault: boolean; version: number }>;
+    const rowA = rows.find((v) => v.id === a.id)!;
+    const rowB = rows.find((v) => v.id === b.id)!;
+
+    expect(rowB.isDefault).toBe(true);
+    expect(rowA.isDefault).toBe(false); // demoted
+    expect(rowA.version).toBeGreaterThan(a.version); // demotion bumped its version
+
+    // cleanup
+    for (const id of [a.id, b.id]) {
+      await request(server)
+        .post(`/api/v1/reference-data/types/${type}/values/${id}/deactivate?force=true`)
+        .set('Authorization', `Bearer ${adminToken}`);
+    }
+  });
+
   it('TEST-LKP-012 integrity check surfaces in /health/ready (no drift)', async () => {
     const health = await request(server).get('/health/ready').expect(200);
     expect(health.body.checks.lookups.status).toBe('ok');
