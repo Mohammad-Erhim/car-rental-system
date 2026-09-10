@@ -127,6 +127,16 @@ export function useImportUnits() {
   });
 }
 
+export interface RatePlanFee {
+  code: string;
+  label: string;
+  amountMinor: number;
+  taxable?: boolean;
+}
+export interface RatePlanTier {
+  minHours: number;
+  dayMinor: number;
+}
 export interface RatePlan {
   id: string;
   categoryCode: string;
@@ -140,9 +150,27 @@ export interface RatePlan {
   minDurationHours: number;
   maxDurationHours: number | null;
   taxBps: number;
-  fees: Array<{ code: string; label: string; amountMinor: number; taxable?: boolean }>;
+  fees: RatePlanFee[];
+  tiers: RatePlanTier[];
   status: 'draft' | 'in_review' | 'published' | 'retired';
   publishedVersion: number;
+}
+
+export interface RatePlanInput {
+  id?: string;
+  categoryCode: string;
+  locationCode?: string | null;
+  currency?: string;
+  name: string;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  baseDayMinor: number;
+  hourMinor?: number;
+  minDurationHours?: number;
+  maxDurationHours?: number | null;
+  taxBps?: number;
+  fees?: RatePlanFee[];
+  tiers?: RatePlanTier[];
 }
 
 export function useRatePlans() {
@@ -152,24 +180,11 @@ export function useRatePlans() {
   });
 }
 
-export function useCreateRatePlan() {
+export function useSaveRatePlan() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: {
-      categoryCode: string;
-      locationCode?: string | null;
-      currency?: string;
-      name: string;
-      effectiveFrom: string;
-      effectiveTo?: string | null;
-      baseDayMinor: number;
-      hourMinor?: number;
-      minDurationHours?: number;
-      maxDurationHours?: number | null;
-      taxBps?: number;
-      fees?: Array<{ code: string; label: string; amountMinor: number; taxable?: boolean }>;
-      tiers?: Array<{ minHours: number; dayMinor: number }>;
-    }) => apiFetch<RatePlan[]>('/ops/pricing/rate-plans', { method: 'POST', body }),
+    mutationFn: (body: RatePlanInput) =>
+      apiFetch<RatePlan[]>('/ops/pricing/rate-plans', { method: 'POST', body }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ops', 'rate-plans'] }),
   });
 }
@@ -179,6 +194,14 @@ export function usePublishRatePlan() {
   return useMutation({
     mutationFn: (id: string) =>
       apiFetch(`/ops/pricing/rate-plans/${id}/publish`, { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ops', 'rate-plans'] }),
+  });
+}
+
+export function useDeleteRatePlan() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch(`/ops/pricing/rate-plans/${id}`, { method: 'DELETE' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['ops', 'rate-plans'] }),
   });
 }
