@@ -46,8 +46,11 @@ describe('Breadcrumbs (STAGE-012)', () => {
     expect(screen.getByRole('link', { name: 'Configuration' })).toHaveAttribute('href', '/config');
   });
 
-  it('falls back to the last path segment for an unmapped route', () => {
+  it('links a detail route back to its list page and shows the id as current', () => {
     at('/work/RES-12345');
+    const nav = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(nav).toHaveTextContent(/Dashboard.*Reservations.*RES-12345/);
+    expect(screen.getByRole('link', { name: 'Reservations' })).toHaveAttribute('href', '/work');
     expect(screen.getByText('RES-12345')).toHaveAttribute('aria-current', 'page');
   });
 });
