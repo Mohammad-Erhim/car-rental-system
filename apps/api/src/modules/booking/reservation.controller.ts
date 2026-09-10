@@ -67,11 +67,22 @@ export class ReservationController {
   @Get('ops/reservations')
   @Permissions('reservation.read', 'reservation.modify')
   list(
+    @CurrentActor() actor: Actor,
+    @Query('view') view?: string,
     @Query('state') state?: string,
     @Query('locationCode') locationCode?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
     @Query('limit') limit?: string,
   ) {
-    return this.ops.list({ state, locationCode, limit: limit ? Number(limit) : undefined });
+    return this.ops.list(actor, {
+      view: view === 'all' ? 'all' : 'queue',
+      state,
+      locationCode,
+      from,
+      to,
+      limit: limit ? Number(limit) : undefined,
+    });
   }
 
   @Post('ops/reservations/:reference/no-show')
