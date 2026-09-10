@@ -167,6 +167,7 @@ export class BookingService {
       categoryCode: quote.categoryCode,
       pickupLocationCode: quote.pickupLocationCode,
       currency: quote.currency,
+      durationHours: quote.durationHours,
     });
     const extrasTaxableMinor = extras
       .filter((e) => e.taxable)

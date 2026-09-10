@@ -1,0 +1,1 @@
+ALTER TABLE "product" ADD COLUMN "pricing_unit" text DEFAULT 'per_rental' NOT NULL;

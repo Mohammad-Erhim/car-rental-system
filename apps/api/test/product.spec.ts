@@ -70,6 +70,41 @@ describe('extras & protection products (FR-ADM-006)', () => {
       .expect(403);
   });
 
+  it('rejects a category / location scope or currency that is not in the catalogue', async () => {
+    await request(server)
+      .post('/api/v1/ops/catalogue/products')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({
+        code: 'bad_scope',
+        name: 'X',
+        kind: 'extra',
+        unitPriceMinor: 100,
+        categoryScope: ['nope'],
+      })
+      .expect(422)
+      .expect((r) => expect(r.body.fieldErrors?.[0]?.path).toBe('categoryScope.0'));
+
+    await request(server)
+      .post('/api/v1/ops/catalogue/products')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({
+        code: 'bad_scope',
+        name: 'X',
+        kind: 'extra',
+        unitPriceMinor: 100,
+        locationScope: ['ZZZZ'],
+      })
+      .expect(422)
+      .expect((r) => expect(r.body.fieldErrors?.[0]?.path).toBe('locationScope.0'));
+
+    await request(server)
+      .post('/api/v1/ops/catalogue/products')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({ code: 'bad_ccy', name: 'X', kind: 'extra', unitPriceMinor: 100, currency: 'ZZZ' })
+      .expect(422)
+      .expect((r) => expect(r.body.fieldErrors?.[0]?.path).toBe('currency'));
+  });
+
   it('a manager can create, reprice, and deactivate a product', async () => {
     const created = await request(server)
       .post('/api/v1/ops/catalogue/products')
@@ -135,11 +170,16 @@ describe('extras & protection products (FR-ADM-006)', () => {
       unitMinor: number;
       amountMinor: number;
     }>;
+    // additional_driver is priced per billable day (seed: $9/day); the quote is a 3-day rental
     const addDriver = lines.find((l) => l.kind === 'extra' && l.code === 'additional_driver')!;
     expect(addDriver.quantity).toBe(2);
-    expect(addDriver.unitMinor).toBe(900);
-    expect(addDriver.amountMinor).toBe(1800);
-    expect(lines.some((l) => l.kind === 'extra' && l.code === 'child_seat')).toBe(true);
+    expect(addDriver.unitMinor).toBe(2700); // 900 × 3 days
+    expect(addDriver.amountMinor).toBe(5400); // × 2 drivers
+    // child_seat is a one-off (per_rental)
+    const childSeat = lines.find((l) => l.kind === 'extra' && l.code === 'child_seat')!;
+    expect(childSeat).toBeTruthy();
+    expect(childSeat.unitMinor).toBe(700);
+    expect(childSeat.amountMinor).toBe(700);
 
     const sum = lines.reduce((a, l) => a + l.amountMinor, 0);
     expect(sum).toBe(res.body.totalMinor); // lines still sum to the total

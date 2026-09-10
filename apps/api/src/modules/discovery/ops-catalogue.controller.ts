@@ -84,6 +84,7 @@ const zProduct = z.object({
   kind: z.enum(['extra', 'protection']),
   unitPriceMinor: z.number().int().min(0),
   currency: z.string().length(3).optional(),
+  pricingUnit: z.enum(['per_rental', 'per_day']).optional(),
   taxable: z.boolean().optional(),
   maxQuantity: z.number().int().min(1).max(20).optional(),
   categoryScope: z.array(z.string().max(40)).max(50).optional(),

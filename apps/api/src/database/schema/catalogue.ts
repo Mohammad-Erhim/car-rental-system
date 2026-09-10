@@ -95,6 +95,8 @@ export const product = pgTable(
     kind: text('kind').notNull(), // extra | protection
     unitPriceMinor: integer('unit_price_minor').notNull(),
     currency: text('currency').notNull().default('USD'),
+    /** how `unit_price_minor` is applied: once per rental, or per billable day */
+    pricingUnit: text('pricing_unit').notNull().default('per_rental'), // per_rental | per_day
     taxable: boolean('taxable').notNull().default(true),
     maxQuantity: integer('max_quantity').notNull().default(1),
     /** [] = every category; else the category codes this product applies to */
