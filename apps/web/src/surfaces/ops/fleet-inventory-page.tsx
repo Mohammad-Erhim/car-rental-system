@@ -15,6 +15,7 @@ import {
   type DataTableColumn,
 } from '@carrental/ui';
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import { ApiError } from '../../lib/api.js';
 import { useLocations } from '../../lib/discovery-hooks.js';
@@ -43,12 +44,32 @@ export function FleetInventoryPage() {
   const { hasPermission } = useAuth();
   const canManage = hasPermission('fleet.manage');
 
-  const [locationCode, setLocationCode] = useState('');
-  const [categoryCode, setCategoryCode] = useState('');
-  const units = useOpsUnits({
+  // Location / category / state filters are URL-backed so the dashboard fleet-readiness rows can
+  // deep-link (e.g. /fleet?state=maintenance). `state` is filtered client-side — the units
+  // endpoint has no state parameter.
+  const [params, setParams] = useSearchParams();
+  const [locationCode, setLocationCode] = useState(() => params.get('location') ?? '');
+  const [categoryCode, setCategoryCode] = useState(() => params.get('category') ?? '');
+  const stateFilter = params.get('state') ?? '';
+  const setStateFilter = (v: string) =>
+    setParams(
+      (p) => {
+        if (v) p.set('state', v);
+        else p.delete('state');
+        return p;
+      },
+      { replace: true },
+    );
+  const unitsQuery = useOpsUnits({
     locationCode: locationCode || undefined,
     categoryCode: categoryCode || undefined,
   });
+  const units = {
+    ...unitsQuery,
+    data: stateFilter
+      ? (unitsQuery.data ?? []).filter((u) => u.state === stateFilter)
+      : unitsQuery.data,
+  };
   const locations = useLocations();
   const blocks = useFleetBlocks('active');
   const addBlock = useAddFleetBlock();
@@ -231,6 +252,19 @@ export function FleetInventoryPage() {
               onChange={(e) => setCategoryCode(e.target.value.toLowerCase())}
               className="max-w-[14rem]"
             />
+            <select
+              aria-label={t('ops.fleet.filterState')}
+              className="flex h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              value={stateFilter}
+              onChange={(e) => setStateFilter(e.target.value)}
+            >
+              <option value="">{t('ops.fleet.allStates')}</option>
+              {['available', 'on_rent', 'prep', 'maintenance', 'out_of_service'].map((s) => (
+                <option key={s} value={s}>
+                  {s.replace('_', ' ')}
+                </option>
+              ))}
+            </select>
           </Toolbar>
         </CardHeader>
         <CardContent>

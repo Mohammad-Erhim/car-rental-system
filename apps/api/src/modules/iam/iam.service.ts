@@ -462,6 +462,7 @@ export class IamService {
     let permissions: string[] = [];
     let roleCodes: string[] = [];
     let organizationId: string | undefined;
+    let organizationName: string | undefined;
     let locationScope: string[] = [];
     if (acc.kind === 'staff') {
       const [profile] = await this.db
@@ -474,6 +475,13 @@ export class IamService {
         organizationId = profile.organizationId;
         locationScope = profile.locationScope;
         permissions = await this.rbac.resolvePermissions(profile.roleCodes);
+        const { organization } = await import('../../database/schema/org');
+        const [org] = await this.db
+          .select({ name: organization.name })
+          .from(organization)
+          .where(eq(organization.id, profile.organizationId))
+          .limit(1);
+        organizationName = org?.name;
       }
     }
 
@@ -489,6 +497,7 @@ export class IamService {
         permissions,
         roleCodes,
         organizationId,
+        organizationName,
         locationScope,
       },
     };

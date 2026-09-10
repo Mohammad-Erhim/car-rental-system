@@ -13,6 +13,7 @@ import {
   type DataTableColumn,
 } from '@carrental/ui';
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import { formatMinor } from '../../lib/discovery-hooks.js';
 import { useAssignVehicle } from '../../lib/rental-hooks.js';
@@ -26,8 +27,20 @@ type Row = NonNullable<ReturnType<typeof useOpsReservations>['data']>[number];
  */
 export function ReservationQueuePage() {
   const { t } = useI18n();
-  const [state, setState] = useState('');
-  const [locationCode, setLocationCode] = useState('');
+  // Filters live in the URL so the operational-dashboard cards can deep-link into a
+  // pre-filtered queue (e.g. /work?state=confirmed) and the view stays shareable.
+  const [params, setParams] = useSearchParams();
+  const state = params.get('state') ?? '';
+  const setState = (v: string) =>
+    setParams(
+      (p) => {
+        if (v) p.set('state', v);
+        else p.delete('state');
+        return p;
+      },
+      { replace: true },
+    );
+  const [locationCode, setLocationCode] = useState(() => params.get('location') ?? '');
   const rows = useOpsReservations({
     state: state || undefined,
     locationCode: locationCode || undefined,

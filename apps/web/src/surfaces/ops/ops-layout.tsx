@@ -286,7 +286,9 @@ export function OpsLayout() {
           <div className="hidden min-w-0 items-center gap-2 text-sm sm:flex">
             <span className="rounded bg-muted px-2 py-1 font-medium">
               {actor?.organizationId
-                ? t('ops.header.scope', { name: 'Demo Rental Co.' })
+                ? t('ops.header.scope', {
+                    name: actor.organizationName ?? t('ops.header.org'),
+                  })
                 : t('ops.header.console')}
             </span>
             {authed ? (

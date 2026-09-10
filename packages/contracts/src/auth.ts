@@ -34,6 +34,7 @@ export const zSessionResponse = z.object({
     permissions: z.array(z.string()),
     roleCodes: z.array(z.string()),
     organizationId: zId.optional(),
+    organizationName: z.string().optional(),
     locationScope: z.array(z.string()),
   }),
 });
