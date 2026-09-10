@@ -13,6 +13,7 @@ import {
   PageHeader,
   Textarea,
   Toolbar,
+  useToast,
 } from '@carrental/ui';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -240,6 +241,7 @@ export function RentalBoardPage() {
 
 function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
   const { t, fmt } = useI18n();
+  const { toast } = useToast();
   const pickup = usePickup(r.reference);
   const ret = useReturnRental(r.reference);
   const readiness = useReadiness(r.reference);
@@ -299,6 +301,11 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
   const fuelDeficit =
     numOk(fuel) && r.fuelOutPct != null ? Math.max(0, r.fuelOutPct - Number(fuel)) : 0;
 
+  // success confirmations go through a toast — the card often leaves the current filter view
+  // (awaiting → active, active → closed) so an inline message would unmount with it. Errors stay
+  // inline because the row is still there.
+  const ok = (title: string) => toast({ title, variant: 'success' });
+
   async function doIncident() {
     setMsg(null);
     try {
@@ -307,12 +314,11 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
         note: incNote.trim() || undefined,
         replacementUnitId: incReplacement || undefined,
       });
-      setMsg({
-        ok: true,
-        text: incReplacement
+      ok(
+        incReplacement
           ? t('ops.rent.incidentSwapped', { ref: r.reference })
           : t('ops.rent.incidentLogged', { ref: r.reference }),
-      });
+      );
       setIncOpen(false);
       setIncNote('');
       setIncReplacement('');
@@ -331,7 +337,7 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
         licenceNumber: licence.trim(),
       });
       setOpen(false);
-      setMsg({ ok: true, text: t('ops.rent.pickupDone', { ref: r.reference }) });
+      ok(t('ops.rent.pickupDone', { ref: r.reference }));
     } catch (e) {
       setMsg({ ok: false, text: err(e, t('ops.rent.pickupFail')) });
     }
@@ -341,7 +347,7 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
     setMsg(null);
     try {
       await readiness.mutateAsync(true);
-      setMsg({ ok: true, text: t('ops.rent.readyDoneBoard', { ref: r.reference }) });
+      ok(t('ops.rent.readyDoneBoard', { ref: r.reference }));
     } catch (e) {
       setMsg({ ok: false, text: err(e, t('ops.rent.readyFailBoard')) });
     }
@@ -355,13 +361,12 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
         fuelPct: Number(fuel),
         findings: preparedFindings.length ? preparedFindings : undefined,
       });
-      setMsg({
-        ok: true,
-        text: t('ops.rent.returnedMsg', {
+      ok(
+        t('ops.rent.returnedMsg', {
           total: money(res.adjustmentMinor, r.currency),
           fuel: money(res.fuelMinor, r.currency),
         }),
-      });
+      );
       setOpen(false);
       setFindings([]);
     } catch (e) {
