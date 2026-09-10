@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiFetch } from './api.js';
 
@@ -27,14 +27,36 @@ export interface Rental {
   }>;
 }
 
-export function useOpsRentals(filter: { state?: string; locationCode?: string }) {
+export interface RentalBoardRow extends Rental {
+  overdue: boolean;
+  plate: string | null;
+  vehicle: string | null;
+  categoryCode: string | null;
+  driverName: string | null;
+  customerName: string | null;
+}
+
+export interface RentalBoardList {
+  count: number;
+  total: number;
+  truncated: boolean;
+  results: RentalBoardRow[];
+}
+
+export function useOpsRentals(filter: {
+  state?: string;
+  locationCode?: string;
+  flow?: 'pickup' | 'return';
+  from?: string;
+  to?: string;
+}) {
   const qs = new URLSearchParams();
-  if (filter.state) qs.set('state', filter.state);
-  if (filter.locationCode) qs.set('locationCode', filter.locationCode);
+  for (const [k, v] of Object.entries(filter)) if (v) qs.set(k, v);
   return useQuery({
     queryKey: ['ops', 'rentals', filter],
+    placeholderData: keepPreviousData,
     queryFn: ({ signal }) =>
-      apiFetch<Rental[]>(`/ops/rentals${qs.toString() ? `?${qs}` : ''}`, { signal }),
+      apiFetch<RentalBoardList>(`/ops/rentals${qs.toString() ? `?${qs}` : ''}`, { signal }),
   });
 }
 

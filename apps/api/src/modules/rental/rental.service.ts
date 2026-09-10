@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, sql, type SQL } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
@@ -11,9 +11,10 @@ import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { vehicleCategory } from '../../database/schema/catalogue';
 import { vehicleBlock, vehicleUnit } from '../../database/schema/fleet';
+import { account } from '../../database/schema/iam';
 import { location, organization } from '../../database/schema/org';
 import { inspection, inspectionFinding, rental, rentalEvent } from '../../database/schema/rental';
-import { reservation } from '../../database/schema/reservation';
+import { reservation, reservationDriver } from '../../database/schema/reservation';
 import { ConfigVersionService } from '../config/config-version.service';
 import { PaymentService } from '../payment/payment.service';
 import { PricingService } from '../pricing/pricing.service';
@@ -639,17 +640,119 @@ export class RentalService {
     return row;
   }
 
-  async list(filter: { state?: string; locationCode?: string }) {
-    const where = [];
-    if (filter.state) where.push(eq(rental.state, filter.state));
+  private parseDate(v: string | undefined, field: string): Date | null {
+    if (!v) return null;
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) {
+      throw AppError.validation([{ path: field, code: 'invalid_string' }]);
+    }
+    return d;
+  }
+
+  /**
+   * The rental board (SCREEN-OPS-009/012/016). Confined to the actor's pickup locations
+   * (FR-RPT-004). Each row carries the vehicle (plate + description), the driver and customer
+   * names, and a *live* `overdue` flag — an `active` rental past its scheduled return reads as
+   * overdue immediately, without waiting for the sweep job. The true `total` is returned so the
+   * board never silently hides rows.
+   */
+  async list(
+    actor: Actor,
+    filter: {
+      state?: string;
+      locationCode?: string;
+      flow?: 'pickup' | 'return';
+      from?: string;
+      to?: string;
+      limit?: number;
+    },
+  ) {
+    const scope = actor.locationScope?.length ? actor.locationScope : null;
+    const liveOverdue = sql`(${rental.state} = 'active' and ${rental.scheduledReturnAt} < now())`;
+
+    const where: SQL[] = [];
+    if (scope) where.push(inArray(rental.pickupLocationCode, scope));
     if (filter.locationCode) where.push(eq(rental.pickupLocationCode, filter.locationCode));
-    const rows = await this.db
-      .select()
+    if (filter.state === 'overdue') {
+      where.push(sql`(${rental.state} = 'overdue' or ${liveOverdue})`);
+    } else if (filter.state) {
+      where.push(eq(rental.state, filter.state));
+    }
+    const from = this.parseDate(filter.from, 'from');
+    const to = this.parseDate(filter.to, 'to');
+    const dateCol =
+      filter.flow === 'return'
+        ? rental.scheduledReturnAt
+        : filter.flow === 'pickup'
+          ? rental.scheduledPickupAt
+          : null;
+    if (from) {
+      where.push(
+        dateCol
+          ? gte(dateCol, from.toISOString())
+          : sql`(${rental.scheduledPickupAt} >= ${from.toISOString()} or ${rental.scheduledReturnAt} >= ${from.toISOString()})`,
+      );
+    }
+    if (to) {
+      where.push(
+        dateCol
+          ? lte(dateCol, to.toISOString())
+          : sql`(${rental.scheduledPickupAt} <= ${to.toISOString()} or ${rental.scheduledReturnAt} <= ${to.toISOString()})`,
+      );
+    }
+    const whereSql = where.length ? and(...where) : sql`true`;
+
+    const rawLimit = Number(filter.limit);
+    const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 100, 1), 200);
+
+    const [countRow] = await this.db
+      .select({ total: sql<number>`count(*)::int` })
       .from(rental)
-      .where(where.length ? and(...where) : sql`true`)
+      .where(whereSql);
+
+    const rows = await this.db
+      .select({
+        r: rental,
+        plate: vehicleUnit.plate,
+        year: vehicleUnit.year,
+        make: vehicleUnit.make,
+        model: vehicleUnit.model,
+        categoryCode: reservation.categoryCode,
+        driverName: reservationDriver.fullName,
+        customerName: account.displayName,
+      })
+      .from(rental)
+      .leftJoin(vehicleUnit, eq(vehicleUnit.id, rental.unitId))
+      .leftJoin(reservation, eq(reservation.reference, rental.reservationReference))
+      .leftJoin(
+        reservationDriver,
+        and(
+          eq(reservationDriver.reservationId, reservation.id),
+          eq(reservationDriver.role, 'primary_renter'),
+        ),
+      )
+      .leftJoin(account, eq(account.id, reservation.accountId))
+      .where(whereSql)
       .orderBy(asc(rental.scheduledPickupAt))
-      .limit(200);
-    return rows.map((r) => this.shape(r));
+      .limit(limit);
+
+    const now = Date.now();
+    const results = rows.map((row) => {
+      const overdue =
+        row.r.state === 'overdue' ||
+        (row.r.state === 'active' && new Date(row.r.scheduledReturnAt).getTime() < now);
+      return {
+        ...this.shape(row.r),
+        overdue,
+        plate: row.plate ?? null,
+        vehicle: [row.year, row.make, row.model].filter(Boolean).join(' ') || null,
+        categoryCode: row.categoryCode ?? null,
+        driverName: row.driverName ?? null,
+        customerName: row.customerName ?? null,
+      };
+    });
+    const total = countRow?.total ?? results.length;
+    return { count: results.length, total, truncated: total > results.length, results };
   }
 
   async detail(reference: string) {

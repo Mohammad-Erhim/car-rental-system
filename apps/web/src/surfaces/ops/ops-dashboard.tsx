@@ -127,6 +127,7 @@ export function OpsDashboard() {
   const d = dash.data;
   const err = dash.isError;
   const fleet = d?.fleet;
+  const today = new Date().toISOString().slice(0, 10);
 
   const ageMin = dash.dataUpdatedAt ? Math.round((now - dash.dataUpdatedAt) / 60_000) : 0;
   const updatedLabel =
@@ -214,7 +215,7 @@ export function OpsDashboard() {
                 })
               : undefined
           }
-          to="/rentals?flow=pickup&due=today"
+          to={`/rentals?flow=pickup&from=${today}&to=${today}`}
           error={err}
         />
         <StatCard
@@ -228,7 +229,7 @@ export function OpsDashboard() {
                 })
               : undefined
           }
-          to="/rentals?flow=return&due=today"
+          to={`/rentals?flow=return&from=${today}&to=${today}`}
           error={err}
         />
         <StatCard

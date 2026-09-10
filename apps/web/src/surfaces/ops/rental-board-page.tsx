@@ -7,6 +7,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  ConfirmDialog,
   Field,
   Input,
   PageHeader,
@@ -17,7 +18,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import { ApiError } from '../../lib/api.js';
-import { formatMinor } from '../../lib/discovery-hooks.js';
+import { useLocations } from '../../lib/discovery-hooks.js';
 import { useOpsUnits } from '../../lib/ops-discovery-hooks.js';
 import {
   usePickup,
@@ -25,36 +26,36 @@ import {
   useReadiness,
   useReturnRental,
   useOpsRentals,
-  type Rental,
+  type RentalBoardRow,
 } from '../../lib/rental-hooks.js';
 
 const INCIDENT_CATEGORIES = ['breakdown', 'accident', 'damage', 'other'] as const;
+const RENTAL_STATES = ['awaiting_pickup', 'active', 'overdue', 'closed'] as const;
+
+const selectClass =
+  'flex h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+
+const today = () => new Date().toISOString().slice(0, 10);
 
 /**
- * SCREEN-OPS-009/012/016 — rental board. Pickup a rental that's awaiting pickup (agreement +
- * odometer/fuel out), return an active one (odometer/fuel in → fuel/damage settlement), and run
- * the readiness check so the unit becomes bookable again.
+ * SCREEN-OPS-009/012/016 — the rental board. Pick up an awaiting-pickup rental (agreement +
+ * odometer/fuel out), return an active one (odometer/fuel in → fuel/damage settlement), report
+ * an incident, and run the readiness check. Confined to the actor's pickup locations by the API;
+ * an `active` rental past its return time is flagged overdue live, without the sweep. Filters are
+ * URL-backed and applied server-side.
  */
-const RENTAL_STATES = ['awaiting_pickup', 'active', 'overdue', 'closed'] as const;
-const isToday = (iso: string) => {
-  const d = new Date(iso);
-  const now = new Date();
-  return (
-    d.getFullYear() === now.getFullYear() &&
-    d.getMonth() === now.getMonth() &&
-    d.getDate() === now.getDate()
-  );
-};
-
 export function RentalBoardPage() {
   const { t } = useI18n();
-  // Filters live in the URL so the dashboard can deep-link (e.g. /rentals?state=overdue or
-  // /rentals?flow=pickup&due=today). `state` is served by the API; `flow`/`due` filter client-side.
+  const locations = useLocations();
   const [params, setParams] = useSearchParams();
+
   const state = params.get('state') ?? '';
   const flow = params.get('flow') ?? '';
-  const dueToday = params.get('due') === 'today';
-  const focusRef = params.get('ref') ?? ''; // pin to one rental (from the unified search)
+  const locationCode = params.get('location') ?? '';
+  const from = params.get('from') ?? '';
+  const to = params.get('to') ?? '';
+  const focusRef = params.get('ref') ?? '';
+
   const setParam = (key: string, value: string) =>
     setParams(
       (p) => {
@@ -65,65 +66,114 @@ export function RentalBoardPage() {
       { replace: true },
     );
 
-  const rentals = useOpsRentals({ state: state || undefined });
-  const rows = (rentals.data ?? []).filter((r) => {
-    if (focusRef) return r.reference === focusRef;
-    if (flow === 'pickup' && dueToday && !isToday(r.scheduledPickupAt)) return false;
-    if (flow === 'return' && dueToday && !isToday(r.scheduledReturnAt)) return false;
-    if (dueToday && !flow && !isToday(r.scheduledPickupAt) && !isToday(r.scheduledReturnAt))
-      return false;
-    return true;
+  const list = useOpsRentals({
+    state: state || undefined,
+    locationCode: locationCode || undefined,
+    flow: flow === 'pickup' || flow === 'return' ? flow : undefined,
+    from: from || undefined,
+    to: to || undefined,
   });
-  const filtered = state || flow || dueToday || focusRef;
+
+  const rows = focusRef
+    ? (list.data?.results ?? []).filter((r) => r.reference === focusRef)
+    : list.data?.results;
+  const anyFilter = !!(state || flow || locationCode || from || to || focusRef);
+
+  const countLabel = list.data
+    ? list.data.truncated
+      ? t('ops.search.showingOf', { shown: list.data.count, total: list.data.total })
+      : t('ops.search.count', { n: list.data.total })
+    : null;
 
   return (
     <div className="space-y-6">
       <PageHeader title={t('ops.rent.title')} description={t('ops.rent.subtitle')} />
 
-      <Toolbar aria-label={t('ops.rent.filters')}>
-        <select
-          aria-label={t('ops.rent.filterState')}
-          className="flex h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          value={state}
-          onChange={(e) => setParam('state', e.target.value)}
-        >
-          <option value="">{t('ops.rent.allStates')}</option>
-          {RENTAL_STATES.map((s) => (
-            <option key={s} value={s}>
-              {s.replace('_', ' ')}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label={t('ops.rent.filterFlow')}
-          className="flex h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          value={flow}
-          onChange={(e) => setParam('flow', e.target.value)}
-        >
-          <option value="">{t('ops.rent.anyFlow')}</option>
-          <option value="pickup">{t('ops.rent.flowPickup')}</option>
-          <option value="return">{t('ops.rent.flowReturn')}</option>
-        </select>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="checkbox"
-            className="size-4"
-            checked={dueToday}
-            onChange={(e) => setParam('due', e.target.checked ? 'today' : '')}
-          />
-          {t('ops.rent.dueToday')}
-        </label>
-        {filtered ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setParams({}, { replace: true })}
-            data-testid="rental-clear-filters"
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Toolbar aria-label={t('ops.rent.filters')}>
+          <select
+            aria-label={t('ops.rent.filterState')}
+            className={selectClass}
+            value={state}
+            onChange={(e) => setParam('state', e.target.value)}
           >
-            {t('ops.rent.clearFilters')}
+            <option value="">{t('ops.rent.allStates')}</option>
+            {RENTAL_STATES.map((s) => (
+              <option key={s} value={s}>
+                {s.replace(/_/g, ' ')}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label={t('ops.rent.filterFlow')}
+            className={selectClass}
+            value={flow}
+            onChange={(e) => setParam('flow', e.target.value)}
+          >
+            <option value="">{t('ops.rent.anyFlow')}</option>
+            <option value="pickup">{t('ops.rent.flowPickup')}</option>
+            <option value="return">{t('ops.rent.flowReturn')}</option>
+          </select>
+          <select
+            aria-label={t('ops.search.location')}
+            className={selectClass}
+            value={locationCode}
+            onChange={(e) => setParam('location', e.target.value)}
+          >
+            <option value="">{t('ops.search.anyLocation')}</option>
+            {(locations.data ?? []).map((l) => (
+              <option key={l.code} value={l.code}>
+                {l.name} ({l.code})
+              </option>
+            ))}
+          </select>
+          <Input
+            type="date"
+            aria-label={t('ops.search.from')}
+            value={from}
+            max={to || undefined}
+            onChange={(e) => setParam('from', e.target.value)}
+            className="max-w-[10rem]"
+          />
+          <Input
+            type="date"
+            aria-label={t('ops.search.to')}
+            value={to}
+            min={from || undefined}
+            onChange={(e) => setParam('to', e.target.value)}
+            className="max-w-[10rem]"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setParams(
+                (p) => {
+                  p.set('from', today());
+                  p.set('to', today());
+                  return p;
+                },
+                { replace: true },
+              );
+            }}
+          >
+            {t('ops.rent.today')}
           </Button>
-        ) : null}
-      </Toolbar>
+          {anyFilter ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setParams({}, { replace: true })}
+              data-testid="rental-clear-filters"
+            >
+              {t('ops.rent.clearFilters')}
+            </Button>
+          ) : null}
+        </Toolbar>
+        <p className="text-sm text-muted-foreground" aria-live="polite" data-testid="rental-count">
+          {list.isLoading ? t('ops.st.loading') : (countLabel ?? '')}
+        </p>
+      </div>
 
       {focusRef ? (
         <p
@@ -133,7 +183,7 @@ export function RentalBoardPage() {
           <span className="bidi-isolate font-mono text-xs">{focusRef}</span>
           <button
             type="button"
-            onClick={() => setParams({}, { replace: true })}
+            onClick={() => setParam('ref', '')}
             className="text-xs font-medium text-primary hover:underline"
           >
             {t('ops.queue.showAll')}
@@ -141,34 +191,28 @@ export function RentalBoardPage() {
         </p>
       ) : null}
 
-      {rentals.isLoading ? (
+      {list.data?.truncated ? (
+        <p className="rounded-md border border-warning/40 bg-warning/10 px-3 py-2 text-xs">
+          {t('ops.search.narrowHint')}
+        </p>
+      ) : null}
+
+      {list.isLoading ? (
         <AppStateView kind="loading" inline title={t('ops.st.loading')} />
-      ) : rentals.isError ? (
+      ) : list.isError ? (
         <AppStateView
           kind="failure"
           inline
           title={t('ops.rent.loadFail')}
-          primaryAction={{ label: t('ops.st.retry'), onClick: () => rentals.refetch() }}
+          primaryAction={{ label: t('ops.st.retry'), onClick: () => list.refetch() }}
         />
-      ) : !rows.length ? (
+      ) : !rows?.length ? (
         <AppStateView
           kind="empty"
-          title={
-            focusRef
-              ? t('ops.rent.emptyFiltered')
-              : filtered
-                ? t('ops.rent.emptyFiltered')
-                : t('ops.rent.empty')
-          }
-          description={
-            focusRef
-              ? t('ops.rent.focusMiss')
-              : filtered
-                ? t('ops.rent.emptyFilteredBody')
-                : t('ops.rent.emptyBody')
-          }
+          title={anyFilter ? t('ops.rent.emptyFiltered') : t('ops.rent.empty')}
+          description={anyFilter ? t('ops.rent.emptyFilteredBody') : t('ops.rent.emptyBody')}
           primaryAction={
-            filtered
+            anyFilter
               ? {
                   label: t('ops.rent.clearFilters'),
                   onClick: () => setParams({}, { replace: true }),
@@ -189,14 +233,15 @@ export function RentalBoardPage() {
   );
 }
 
-function RentalRow({ rental: r }: { rental: Rental }) {
-  const { t } = useI18n();
+function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
+  const { t, fmt } = useI18n();
   const pickup = usePickup(r.reference);
   const ret = useReturnRental(r.reference);
   const readiness = useReadiness(r.reference);
   const incident = useRaiseIncident(r.reference);
   const [open, setOpen] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [confirmReturn, setConfirmReturn] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const [odo, setOdo] = useState('');
   const [fuel, setFuel] = useState('100');
@@ -215,6 +260,17 @@ function RentalRow({ rental: r }: { rental: Rental }) {
     (u) => u.state === 'available' && u.id !== undefined,
   );
 
+  const money = (m: number, c: string) => fmt.money({ amountMinor: m, currency: c });
+  const err = (e: unknown, fb: string) => (e instanceof ApiError ? e.message : fb);
+
+  // client-side guards for the odometer/fuel inputs — a clear message before the round trip
+  const numOk = (v: string) => /^\d+$/.test(v.trim());
+  const pctOk = (v: string) => numOk(v) && Number(v) >= 0 && Number(v) <= 100;
+  const pickupValid =
+    numOk(odo) && pctOk(fuel) && driver.trim().length > 0 && licence.trim().length > 0;
+  const returnOdoTooLow = numOk(odo) && r.odometerOutKm != null && Number(odo) < r.odometerOutKm;
+  const returnValid = numOk(odo) && pctOk(fuel) && !returnOdoTooLow;
+
   async function doIncident() {
     setMsg(null);
     try {
@@ -223,16 +279,17 @@ function RentalRow({ rental: r }: { rental: Rental }) {
         note: incNote.trim() || undefined,
         replacementUnitId: incReplacement || undefined,
       });
-      setMsg(
-        incReplacement
+      setMsg({
+        ok: true,
+        text: incReplacement
           ? t('ops.rent.incidentSwapped', { ref: r.reference })
           : t('ops.rent.incidentLogged', { ref: r.reference }),
-      );
+      });
       setIncOpen(false);
       setIncNote('');
       setIncReplacement('');
     } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : t('ops.rent.incidentFail'));
+      setMsg({ ok: false, text: err(e, t('ops.rent.incidentFail')) });
     }
   }
 
@@ -240,35 +297,38 @@ function RentalRow({ rental: r }: { rental: Rental }) {
     setMsg(null);
     try {
       await pickup.mutateAsync({
-        odometerKm: Number(odo || 0),
-        fuelPct: Number(fuel || 100),
-        driverName: driver,
-        licenceNumber: licence,
+        odometerKm: Number(odo),
+        fuelPct: Number(fuel),
+        driverName: driver.trim(),
+        licenceNumber: licence.trim(),
       });
       setOpen(false);
+      setMsg({ ok: true, text: t('ops.rent.pickupDone', { ref: r.reference }) });
     } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : t('ops.rent.pickupFail'));
+      setMsg({ ok: false, text: err(e, t('ops.rent.pickupFail')) });
     }
   }
 
   async function doReturn() {
     setMsg(null);
     try {
-      const res = await ret.mutateAsync({
-        odometerKm: Number(odo || 0),
-        fuelPct: Number(fuel || 100),
-      });
-      setMsg(
-        t('ops.rent.returnedMsg', {
-          total: formatMinor(res.adjustmentMinor, r.currency),
-          fuel: formatMinor(res.fuelMinor, r.currency),
+      const res = await ret.mutateAsync({ odometerKm: Number(odo), fuelPct: Number(fuel) });
+      setMsg({
+        ok: true,
+        text: t('ops.rent.returnedMsg', {
+          total: money(res.adjustmentMinor, r.currency),
+          fuel: money(res.fuelMinor, r.currency),
         }),
-      );
+      });
       setOpen(false);
     } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : t('ops.rent.returnFail'));
+      setMsg({ ok: false, text: err(e, t('ops.rent.returnFail')) });
+    } finally {
+      setConfirmReturn(false);
     }
   }
+
+  const showOverdue = r.overdue || r.state === 'overdue';
 
   return (
     <Card
@@ -281,30 +341,51 @@ function RentalRow({ rental: r }: { rental: Rental }) {
           <span className="bidi-isolate font-mono text-sm">{r.reference}</span>
           <Badge
             variant={
-              r.state === 'active'
-                ? 'success'
-                : r.state === 'overdue'
-                  ? 'destructive'
+              showOverdue
+                ? 'destructive'
+                : r.state === 'active'
+                  ? 'success'
                   : r.state === 'closed'
                     ? 'neutral'
                     : 'warning'
             }
             data-testid={`rental-state-${r.reference}`}
           >
-            {r.state}
+            {showOverdue ? t('ops.rent.overdue') : r.state.replace(/_/g, ' ')}
           </Badge>
         </CardTitle>
+        <p className="text-sm">
+          {r.vehicle ?? t('ops.rent.noVehicle')}
+          {r.plate ? (
+            <span className="bidi-isolate ms-2 font-mono text-xs text-muted-foreground">
+              {r.plate}
+            </span>
+          ) : null}
+        </p>
         <p className="text-xs text-muted-foreground">
-          {r.pickupLocationCode} → {r.returnLocationCode} ·{' '}
-          {new Date(r.scheduledPickupAt).toLocaleDateString()} –{' '}
-          {new Date(r.scheduledReturnAt).toLocaleDateString()} · {t('ops.rent.settlement')}{' '}
-          {formatMinor(r.settlementMinor, r.currency)}
+          {r.customerName ?? r.driverName ?? '—'}
+          {r.customerName && r.driverName && r.customerName !== r.driverName
+            ? ` · ${t('ops.rent.driverIs', { name: r.driverName })}`
+            : ''}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {r.pickupLocationCode}
+          {r.returnLocationCode !== r.pickupLocationCode ? ` → ${r.returnLocationCode}` : ''} ·{' '}
+          {fmt.dateTime(r.scheduledPickupAt)} – {fmt.dateTime(r.scheduledReturnAt)}
+          {r.settlementMinor
+            ? ` · ${t('ops.rent.settlement')} ${money(r.settlementMinor, r.currency)}`
+            : ''}
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
         {msg ? (
-          <p className="text-sm" data-testid={`rental-msg-${r.reference}`}>
-            {msg}
+          <p
+            className={`rounded-md border px-3 py-2 text-sm ${
+              msg.ok ? 'border-success/40 bg-success/10' : 'border-destructive/40 bg-destructive/10'
+            }`}
+            data-testid={`rental-msg-${r.reference}`}
+          >
+            {msg.text}
           </p>
         ) : null}
 
@@ -315,7 +396,11 @@ function RentalRow({ rental: r }: { rental: Rental }) {
             </Button>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label={t('ops.rent.odoOut')} htmlFor={`odo-${r.reference}`}>
+              <Field
+                label={t('ops.rent.odoOut')}
+                htmlFor={`odo-${r.reference}`}
+                error={odo && !numOk(odo) ? t('ops.rent.numberOnly') : undefined}
+              >
                 {({ id }) => (
                   <Input
                     id={id}
@@ -326,7 +411,11 @@ function RentalRow({ rental: r }: { rental: Rental }) {
                   />
                 )}
               </Field>
-              <Field label={t('ops.rent.fuelOut')} htmlFor={`fuel-${r.reference}`}>
+              <Field
+                label={t('ops.rent.fuelOut')}
+                htmlFor={`fuel-${r.reference}`}
+                error={fuel && !pctOk(fuel) ? t('ops.rent.pct0to100') : undefined}
+              >
                 {({ id }) => (
                   <Input
                     id={id}
@@ -346,7 +435,11 @@ function RentalRow({ rental: r }: { rental: Rental }) {
                   />
                 )}
               </Field>
-              <Field label={t('ops.rent.licence')} htmlFor={`lic-${r.reference}`}>
+              <Field
+                label={t('ops.rent.licence')}
+                htmlFor={`lic-${r.reference}`}
+                hint={t('ops.rent.licenceHint')}
+              >
                 {({ id }) => (
                   <Input
                     id={id}
@@ -356,13 +449,17 @@ function RentalRow({ rental: r }: { rental: Rental }) {
                   />
                 )}
               </Field>
-              <div className="sm:col-span-2">
+              <div className="flex gap-2 sm:col-span-2">
                 <Button
                   onClick={doPickup}
                   loading={pickup.isPending}
+                  disabled={!pickupValid}
                   data-testid={`pickup-submit-${r.reference}`}
                 >
                   {t('ops.rent.confirmPickup')}
+                </Button>
+                <Button variant="ghost" onClick={() => setOpen(false)}>
+                  {t('ops.st.cancel')}
                 </Button>
               </div>
             </div>
@@ -380,7 +477,22 @@ function RentalRow({ rental: r }: { rental: Rental }) {
             </Button>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label={t('ops.rent.odoIn')} htmlFor={`odoi-${r.reference}`}>
+              <Field
+                label={t('ops.rent.odoIn')}
+                htmlFor={`odoi-${r.reference}`}
+                hint={
+                  r.odometerOutKm != null
+                    ? t('ops.rent.odoOutWas', { km: r.odometerOutKm })
+                    : undefined
+                }
+                error={
+                  odo && !numOk(odo)
+                    ? t('ops.rent.numberOnly')
+                    : returnOdoTooLow
+                      ? t('ops.rent.odoTooLow')
+                      : undefined
+                }
+              >
                 {({ id }) => (
                   <Input
                     id={id}
@@ -395,6 +507,7 @@ function RentalRow({ rental: r }: { rental: Rental }) {
                 label={t('ops.rent.fuelIn')}
                 htmlFor={`fueli-${r.reference}`}
                 hint={t('ops.rent.fuelInHint')}
+                error={fuel && !pctOk(fuel) ? t('ops.rent.pct0to100') : undefined}
               >
                 {({ id }) => (
                   <Input
@@ -406,13 +519,16 @@ function RentalRow({ rental: r }: { rental: Rental }) {
                   />
                 )}
               </Field>
-              <div className="sm:col-span-2">
+              <div className="flex gap-2 sm:col-span-2">
                 <Button
-                  onClick={doReturn}
-                  loading={ret.isPending}
+                  onClick={() => setConfirmReturn(true)}
+                  disabled={!returnValid}
                   data-testid={`return-submit-${r.reference}`}
                 >
                   {t('ops.rent.confirmReturn')}
+                </Button>
+                <Button variant="ghost" onClick={() => setOpen(false)}>
+                  {t('ops.st.cancel')}
                 </Button>
               </div>
             </div>
@@ -508,6 +624,15 @@ function RentalRow({ rental: r }: { rental: Rental }) {
           </Button>
         ) : null}
       </CardContent>
+
+      <ConfirmDialog
+        open={confirmReturn}
+        onOpenChange={setConfirmReturn}
+        title={t('ops.rent.returnConfirmTitle')}
+        description={t('ops.rent.returnConfirmBody')}
+        confirmLabel={t('ops.rent.confirmReturn')}
+        onConfirm={doReturn}
+      />
     </Card>
   );
 }
