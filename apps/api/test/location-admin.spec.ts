@@ -94,6 +94,73 @@ describe('location & operating-hours admin (FR-ADM-007)', () => {
       .expect((r) => expect(r.body.params?.reason).toBe('archive_via_action'));
   });
 
+  it('rejects an invalid timezone, an unknown category, and duplicate weekly days', async () => {
+    const base = { code: 'TST3', name: 'Test Location 3', timezone: 'America/New_York' };
+
+    const badTz = await request(server)
+      .post('/api/v1/ops/locations')
+      .set('Authorization', `Bearer ${admin}`)
+      .send({ ...base, timezone: 'America/Notreal' })
+      .expect(422);
+    expect(badTz.body.fieldErrors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: 'timezone', code: 'invalid_timezone' }),
+      ]),
+    );
+
+    const badCat = await request(server)
+      .post('/api/v1/ops/locations')
+      .set('Authorization', `Bearer ${admin}`)
+      .send({ ...base, supportedCategoryCodes: ['economy', 'made_up_class'] })
+      .expect(422);
+    expect(badCat.body.fieldErrors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: 'supportedCategoryCodes.1', code: 'unsupported' }),
+      ]),
+    );
+
+    const dupDay = await request(server)
+      .post('/api/v1/ops/locations')
+      .set('Authorization', `Bearer ${admin}`)
+      .send({
+        ...base,
+        regularHours: [
+          { day: 1, open: '08:00', close: '12:00' },
+          { day: 1, open: '13:00', close: '18:00' },
+        ],
+      })
+      .expect(422);
+    expect(dupDay.body.fieldErrors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: 'regularHours.1.day', code: 'duplicate' }),
+      ]),
+    );
+  });
+
+  it('a draft or archived location is not bookable through search / quote', async () => {
+    await request(server)
+      .post('/api/v1/ops/locations/TST2/archive?force=true')
+      .set('Authorization', `Bearer ${admin}`)
+      .expect(201);
+
+    const quote = await request(server)
+      .post('/api/v1/discovery/quote')
+      .send({
+        pickupLocationCode: 'TST2',
+        pickupAt: isoIn(20),
+        returnAt: isoIn(23),
+        categoryCode: 'economy',
+        holderKey: `loc-arch-${Math.random().toString(36).slice(2)}`,
+      })
+      .expect(404);
+    expect(quote.body.params?.reason).toBe('location_not_active');
+
+    await request(server)
+      .post('/api/v1/ops/locations/TST2/restore')
+      .set('Authorization', `Bearer ${admin}`)
+      .expect(201);
+  });
+
   it('adds then removes a holiday closure exception', async () => {
     const added = await request(server)
       .post('/api/v1/ops/locations/TST3/hours-exceptions')
@@ -108,6 +175,22 @@ describe('location & operating-hours admin (FR-ADM-007)', () => {
       .expect(200);
     expect(withEx.body.hoursExceptions).toHaveLength(1);
     expect(withEx.body.hoursExceptions[0].date).toBe('2026-12-25');
+
+    // a second exception for the same date is refused
+    const dup = await request(server)
+      .post('/api/v1/ops/locations/TST3/hours-exceptions')
+      .set('Authorization', `Bearer ${admin}`)
+      .send({ date: '2026-12-25', closed: false, open: '10:00', close: '14:00' })
+      .expect(409);
+    expect(dup.body.params?.reason).toBe('exception_exists');
+
+    // a reduced-hours exception with inverted times is refused
+    await request(server)
+      .post('/api/v1/ops/locations/TST3/hours-exceptions')
+      .set('Authorization', `Bearer ${admin}`)
+      .send({ date: '2026-12-24', closed: false, open: '18:00', close: '09:00' })
+      .expect(422)
+      .expect((r) => expect(r.body.params?.reason).toBe('hours_inverted'));
 
     await request(server)
       .post(`/api/v1/ops/locations/TST3/hours-exceptions/${exId}/remove`)
@@ -148,6 +231,7 @@ describe('location & operating-hours admin (FR-ADM-007)', () => {
       .set('Authorization', `Bearer ${admin}`)
       .expect(200);
     expect(impact.body.futureReservations).toBeGreaterThanOrEqual(1);
+    expect(impact.body).toHaveProperty('openRentals');
 
     await request(server)
       .post('/api/v1/ops/locations/TST1/archive')

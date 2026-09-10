@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS "location_hours_exc_idx";--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "location_hours_exc_loc_date_unq" ON "location_hours_exception" USING btree ("location_id","date");

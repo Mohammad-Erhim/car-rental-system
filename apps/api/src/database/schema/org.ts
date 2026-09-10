@@ -87,7 +87,8 @@ export const locationHoursException = pgTable(
     close: time('close'),
     reason: text('reason'),
   },
-  (t) => ({ locDateIdx: index('location_hours_exc_idx').on(t.locationId, t.date) }),
+  // one exception row per (location, date) — a second one for the same day is ambiguous.
+  (t) => ({ locDateUnq: uniqueIndex('location_hours_exc_loc_date_unq').on(t.locationId, t.date) }),
 );
 
 /** One-way route allowance between two locations (SRC-ONEWAY-ROUTE). Not reciprocal by default. */

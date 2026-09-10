@@ -66,6 +66,14 @@ export class AvailabilityService {
   private async loadLocation(code: string) {
     const [loc] = await this.db.select().from(location).where(eq(location.code, code)).limit(1);
     if (!loc) throw new AppError('resource_not_found', { title: `Location ${code} not found` });
+    // a draft or archived location is never bookable — the public location list already hides it,
+    // this rejects a direct search/quote/hold/booking call that names it anyway.
+    if (loc.status !== 'active') {
+      throw new AppError('resource_not_found', {
+        title: `Location ${code} is not available for booking`,
+        params: { reason: 'location_not_active' },
+      });
+    }
     const exceptions = await this.db
       .select()
       .from(locationHoursException)
