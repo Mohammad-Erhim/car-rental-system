@@ -34,6 +34,9 @@ export interface ReconciliationException {
   kind: string;
   ledgerAmountMinor: number | null;
   providerAmountMinor: number | null;
+  /** ledger − provider, when both are known */
+  deltaMinor: number | null;
+  currency: string;
   state: 'open' | 'resolved';
   createdAt: string;
 }

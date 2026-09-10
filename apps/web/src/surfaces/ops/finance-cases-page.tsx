@@ -1,21 +1,26 @@
 import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
   Badge,
   Button,
   Card,
   CardContent,
   CardHeader,
   CardTitle,
+  ConfirmDialog,
   DataTable,
+  Field,
   PageHeader,
+  Textarea,
   Toolbar,
   type DataTableColumn,
 } from '@carrental/ui';
 import { useState } from 'react';
 
 import { ApiError } from '../../lib/api.js';
-import { formatMinor } from '../../lib/discovery-hooks.js';
 import {
   useReconciliationExceptions,
   useRecoveryCases,
@@ -28,13 +33,13 @@ import {
 } from '../../lib/finance-hooks.js';
 
 /**
- * SCREEN-OPS-036/037 — recovery & reconciliation (FR-INT-002, FR-PAY-009). Owned recovery
- * cases (money moved, a downstream step failed) with a **Retry** that re-signals the case and
+ * SCREEN-OPS-036/037 — recovery & reconciliation (FR-INT-002, FR-PAY-009). Owned recovery cases
+ * (money moved, a downstream step failed) with a **Retry** that re-signals the case and
  * auto-resolves it once the world is consistent again — never a silent close; plus the payment
- * reconciliation exception list with a manual run.
+ * reconciliation exception list with a manual run. Resolving anything needs a note (audit trail).
  */
 export function FinanceCasesPage() {
-  const { t } = useI18n();
+  const { t, fmt } = useI18n();
   const { hasPermission } = useAuth();
   const canWork = hasPermission('payment.reconcile');
 
@@ -44,7 +49,16 @@ export function FinanceCasesPage() {
   const resolveCase = useResolveCase();
   const resolveExc = useResolveException();
   const runReconcile = useRunReconciliation();
-  const [msg, setMsg] = useState<string | null>(null);
+
+  const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
+  const [resolving, setResolving] = useState<null | { type: 'case' | 'exception'; id: string }>(
+    null,
+  );
+  const [note, setNote] = useState('');
+  const [noteError, setNoteError] = useState(false);
+
+  const errText = (e: unknown, fb: string) => (e instanceof ApiError ? e.message : fb);
+  const money = (m: number, c: string) => fmt.money({ amountMinor: m, currency: c });
 
   const age = (iso: string) => {
     const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
@@ -52,48 +66,51 @@ export function FinanceCasesPage() {
   };
 
   async function doRetry(id: string) {
-    setMsg(null);
+    setResult(null);
     try {
       const r = await retry.mutateAsync(id);
-      setMsg(
-        r.outcome === 'resolved'
-          ? t('ops.fin.retryResolved', { n: r.retryCount })
-          : t('ops.fin.retryStillOpen', { n: r.retryCount }),
-      );
+      setResult({
+        ok: true,
+        text:
+          r.outcome === 'resolved'
+            ? t('ops.fin.retryResolved', { n: r.retryCount })
+            : t('ops.fin.retryStillOpen', { n: r.retryCount }),
+      });
     } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : t('ops.fin.retryFail'));
+      setResult({ ok: false, text: errText(e, t('ops.fin.retryFail')) });
     }
   }
 
-  async function doResolveCase(id: string) {
-    const note = window.prompt(t('ops.fin.resolvePrompt'))?.trim();
-    if (!note) return;
-    setMsg(null);
-    try {
-      await resolveCase.mutateAsync({ id, note });
-    } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : t('ops.fin.resolveFail'));
+  async function doResolve() {
+    if (!resolving) return;
+    if (!note.trim()) {
+      setNoteError(true);
+      throw new Error('note required'); // keeps the ConfirmDialog open
     }
-  }
-
-  async function doResolveExc(id: string) {
-    const note = window.prompt(t('ops.fin.resolvePrompt'))?.trim();
-    if (!note) return;
-    setMsg(null);
+    setNoteError(false);
+    setResult(null);
     try {
-      await resolveExc.mutateAsync({ id, note });
+      if (resolving.type === 'case') {
+        await resolveCase.mutateAsync({ id: resolving.id, note: note.trim() });
+      } else {
+        await resolveExc.mutateAsync({ id: resolving.id, note: note.trim() });
+      }
+      setResult({ ok: true, text: t('ops.fin.resolved') });
     } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : t('ops.fin.resolveFail'));
+      setResult({ ok: false, text: errText(e, t('ops.fin.resolveFail')) });
+    } finally {
+      setResolving(null);
+      setNote('');
     }
   }
 
   async function doRun() {
-    setMsg(null);
+    setResult(null);
     try {
       const r = await runReconcile.mutateAsync();
-      setMsg(t('ops.fin.ranReconcile', { n: r.exceptionsOpened }));
+      setResult({ ok: true, text: t('ops.fin.ranReconcile', { n: r.exceptionsOpened }) });
     } catch (e) {
-      setMsg(e instanceof ApiError ? e.message : t('ops.fin.reconcileFail'));
+      setResult({ ok: false, text: errText(e, t('ops.fin.reconcileFail')) });
     }
   }
 
@@ -101,7 +118,12 @@ export function FinanceCasesPage() {
     s === 'critical' || s === 'high' ? 'destructive' : s === 'medium' ? 'warning' : 'neutral';
 
   const caseColumns: Array<DataTableColumn<RecoveryCase>> = [
-    { key: 'kind', header: t('ops.fin.kind'), cell: (c) => c.kind, className: 'font-mono text-xs' },
+    {
+      key: 'kind',
+      header: t('ops.fin.kind'),
+      cell: (c) => c.kind.replace(/_/g, ' '),
+      className: 'text-xs',
+    },
     {
       key: 'severity',
       header: t('ops.fin.severity'),
@@ -141,7 +163,11 @@ export function FinanceCasesPage() {
             >
               {t('ops.fin.retry')}
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => doResolveCase(c.id)}>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setResolving({ type: 'case', id: c.id })}
+            >
               {t('ops.fin.resolve')}
             </Button>
           </span>
@@ -156,18 +182,35 @@ export function FinanceCasesPage() {
       cell: (e) => e.reservationReference ?? '—',
       className: 'bidi-isolate font-mono text-xs',
     },
-    { key: 'kind', header: t('ops.fin.kind'), cell: (e) => e.kind, className: 'font-mono text-xs' },
+    {
+      key: 'kind',
+      header: t('ops.fin.kind'),
+      cell: (e) => e.kind.replace(/_/g, ' '),
+      className: 'text-xs',
+    },
     {
       key: 'ledger',
       header: t('ops.fin.ledger'),
-      cell: (e) => (e.ledgerAmountMinor == null ? '—' : formatMinor(e.ledgerAmountMinor, 'USD')),
+      cell: (e) => (e.ledgerAmountMinor == null ? '—' : money(e.ledgerAmountMinor, e.currency)),
       className: 'tabular-nums',
     },
     {
       key: 'provider',
       header: t('ops.fin.provider'),
+      cell: (e) => (e.providerAmountMinor == null ? '—' : money(e.providerAmountMinor, e.currency)),
+      className: 'tabular-nums',
+    },
+    {
+      key: 'delta',
+      header: t('ops.fin.delta'),
       cell: (e) =>
-        e.providerAmountMinor == null ? '—' : formatMinor(e.providerAmountMinor, 'USD'),
+        e.deltaMinor == null ? (
+          '—'
+        ) : (
+          <span className={e.deltaMinor === 0 ? '' : 'font-medium text-destructive'}>
+            {money(e.deltaMinor, e.currency)}
+          </span>
+        ),
       className: 'tabular-nums',
     },
     {
@@ -176,7 +219,11 @@ export function FinanceCasesPage() {
       className: 'text-end',
       cell: (e) =>
         canWork ? (
-          <Button size="sm" variant="ghost" onClick={() => doResolveExc(e.id)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setResolving({ type: 'exception', id: e.id })}
+          >
             {t('ops.fin.resolve')}
           </Button>
         ) : null,
@@ -187,15 +234,21 @@ export function FinanceCasesPage() {
     <div className="space-y-6">
       <PageHeader title={t('ops.fin.title')} description={t('ops.fin.subtitle')} />
 
-      {msg ? (
-        <p className="text-sm text-muted-foreground" data-testid="finance-msg">
-          {msg}
-        </p>
+      {result ? (
+        <Alert variant={result.ok ? 'success' : 'destructive'} data-testid="finance-result">
+          <AlertTitle>{result.ok ? t('state.success.title') : t('state.failure.title')}</AlertTitle>
+          <AlertDescription>{result.text}</AlertDescription>
+        </Alert>
       ) : null}
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
           <CardTitle className="text-base">{t('ops.fin.cases')}</CardTitle>
+          {cases.data ? (
+            <span className="text-sm text-muted-foreground" data-testid="finance-case-count">
+              {t('ops.fin.openCount', { n: cases.data.length })}
+            </span>
+          ) : null}
         </CardHeader>
         <CardContent>
           <DataTable
@@ -221,7 +274,14 @@ export function FinanceCasesPage() {
 
       <Card>
         <CardHeader className="gap-3">
-          <CardTitle className="text-base">{t('ops.fin.reconciliation')}</CardTitle>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="text-base">{t('ops.fin.reconciliation')}</CardTitle>
+            {exceptions.data ? (
+              <span className="text-sm text-muted-foreground" data-testid="finance-exc-count">
+                {t('ops.fin.openCount', { n: exceptions.data.length })}
+              </span>
+            ) : null}
+          </div>
           {canWork ? (
             <Toolbar aria-label={t('ops.fin.reconciliation')}>
               <Button
@@ -246,7 +306,7 @@ export function FinanceCasesPage() {
             onRetry={() => exceptions.refetch()}
             testid="reconciliation-table"
             bodyTestid="reconciliation-rows"
-            minWidth="40rem"
+            minWidth="44rem"
             labels={{
               loading: t('ops.st.loading'),
               loadFailTitle: t('ops.fin.excLoadFail'),
@@ -256,6 +316,43 @@ export function FinanceCasesPage() {
           />
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={!!resolving}
+        onOpenChange={(v) => {
+          if (!v) {
+            setResolving(null);
+            setNote('');
+            setNoteError(false);
+          }
+        }}
+        title={t('ops.fin.resolveTitle')}
+        description={
+          <div className="space-y-3">
+            <p>{t('ops.fin.resolveBody')}</p>
+            <Field
+              label={t('ops.fin.resolutionNote')}
+              htmlFor="fin-note"
+              error={noteError ? t('ops.fin.noteRequired') : undefined}
+            >
+              {({ id }) => (
+                <Textarea
+                  id={id}
+                  rows={3}
+                  value={note}
+                  onChange={(e) => {
+                    setNote(e.target.value);
+                    if (e.target.value.trim()) setNoteError(false);
+                  }}
+                  data-testid="finance-resolve-note"
+                />
+              )}
+            </Field>
+          </div>
+        }
+        confirmLabel={t('ops.fin.resolve')}
+        onConfirm={doResolve}
+      />
     </div>
   );
 }

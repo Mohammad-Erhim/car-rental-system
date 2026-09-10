@@ -441,12 +441,24 @@ export class PaymentService {
   }
 
   async listReconciliationExceptions() {
-    return this.db
-      .select()
+    const rows = await this.db
+      .select({
+        e: reconciliationException,
+        currency: paymentIntent.currency,
+      })
       .from(reconciliationException)
+      .leftJoin(paymentIntent, eq(paymentIntent.id, reconciliationException.intentId))
       .where(eq(reconciliationException.state, 'open'))
       .orderBy(desc(reconciliationException.createdAt))
       .limit(200);
+    return rows.map(({ e, currency }) => ({
+      ...e,
+      currency: currency ?? 'USD',
+      deltaMinor:
+        e.ledgerAmountMinor != null && e.providerAmountMinor != null
+          ? e.ledgerAmountMinor - e.providerAmountMinor
+          : null,
+    }));
   }
 
   async resolveReconciliationException(actor: Actor, id: string, note: string): Promise<void> {
