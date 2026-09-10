@@ -9,14 +9,29 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
 
-import { directionOf, resolveLocale, type Direction } from './config';
+import {
+  DEFAULT_LOCALE,
+  LOCALES,
+  directionOf,
+  resolveLocaleWithin,
+  type Direction,
+} from './config';
 import { createFormatters, type Formatters } from './format';
 import { BASE_RESOURCES } from './resources';
 import { createTranslator, type MissingKeyEvent, type ResourceBundle } from './translator';
+
+/** One switchable locale — from `GET /meta/locales` at runtime, or the compile-time list. */
+export interface RuntimeLocale {
+  code: string;
+  nativeName: string;
+  englishName: string;
+  direction: Direction;
+}
 
 export interface I18nContextValue {
   locale: string;
@@ -24,9 +39,18 @@ export interface I18nContextValue {
   t: (key: string, params?: Record<string, unknown>) => string;
   fmt: Formatters;
   setLocale: (next: string) => void;
+  /** The locales a user may switch to — runtime list when supplied, else the built-in three. */
+  locales: RuntimeLocale[];
   /** Which locale a key resolves from (null if nowhere) — useful for fallback badges. */
   resolvedLocaleFor: (key: string) => string | null;
 }
+
+const STATIC_LOCALES: RuntimeLocale[] = Object.values(LOCALES).map((l) => ({
+  code: l.code,
+  nativeName: l.nativeName,
+  englishName: l.englishName,
+  direction: l.direction,
+}));
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
@@ -35,6 +59,13 @@ export interface I18nProviderProps {
   initialLocale?: string;
   /** Extra/overriding resources merged over BASE_RESOURCES (e.g. fetched from the API). */
   resources?: ResourceBundle;
+  /**
+   * The enabled locales from `GET /meta/locales` — makes a dashboard-added language switchable
+   * with no code change (DEC-024). Omit to use the compile-time three.
+   */
+  availableLocales?: RuntimeLocale[];
+  /** Runtime default locale (from `/meta/locales`), used when a requested locale isn't enabled. */
+  defaultLocale?: string;
   onMissingKey?: (event: MissingKeyEvent) => void;
   onLocaleChange?: (locale: string) => void;
 }
@@ -53,10 +84,40 @@ export function I18nProvider({
   children,
   initialLocale,
   resources,
+  availableLocales,
+  defaultLocale,
   onMissingKey,
   onLocaleChange,
 }: I18nProviderProps) {
-  const [locale, setLocaleState] = useState(() => resolveLocale(initialLocale));
+  const locales = availableLocales?.length ? availableLocales : STATIC_LOCALES;
+  const codes = useMemo(() => locales.map((l) => l.code), [locales]);
+  const rtDefault = defaultLocale && codes.includes(defaultLocale) ? defaultLocale : DEFAULT_LOCALE;
+
+  const [locale, setLocaleState] = useState(() =>
+    resolveLocaleWithin(initialLocale, codes, rtDefault),
+  );
+  // set once the user (or an actor-preference sync) explicitly chooses — after that we only
+  // clamp a now-invalid locale down, never re-derive from `initialLocale`.
+  const userChose = useRef(false);
+
+  // The enabled set arrives async (`/meta/locales`) and can change later (a language is
+  // deactivated). Until the user picks, keep honoring the original request against the current
+  // set — so a page opened in a dashboard-added language lands there once the list loads. After
+  // a pick, only pull back a locale that has since become invalid.
+  useEffect(() => {
+    const want = userChose.current
+      ? codes.includes(locale)
+        ? locale
+        : resolveLocaleWithin(locale, codes, rtDefault)
+      : resolveLocaleWithin(initialLocale, codes, rtDefault);
+    if (want !== locale) {
+      setLocaleState(want);
+      onLocaleChange?.(want);
+    }
+  }, [codes, rtDefault, initialLocale, locale, onLocaleChange]);
+
+  const currentDirection: Direction =
+    locales.find((l) => l.code === locale)?.direction ?? directionOf(locale);
 
   const merged = useMemo(() => mergeResources(resources), [resources]);
 
@@ -78,28 +139,30 @@ export function I18nProvider({
   useEffect(() => {
     if (typeof document === 'undefined') return;
     document.documentElement.lang = locale;
-    document.documentElement.dir = directionOf(locale);
-  }, [locale]);
+    document.documentElement.dir = currentDirection;
+  }, [locale, currentDirection]);
 
   const setLocale = useCallback(
     (next: string) => {
-      const resolved = resolveLocale(next);
+      userChose.current = true;
+      const resolved = resolveLocaleWithin(next, codes, rtDefault);
       setLocaleState(resolved);
       onLocaleChange?.(resolved);
     },
-    [onLocaleChange],
+    [onLocaleChange, codes, rtDefault],
   );
 
   const value = useMemo<I18nContextValue>(
     () => ({
       locale,
-      direction: directionOf(locale),
+      direction: currentDirection,
       t: translator.t,
       fmt,
       setLocale,
+      locales,
       resolvedLocaleFor: translator.resolvedLocaleFor,
     }),
-    [locale, translator, fmt, setLocale],
+    [locale, currentDirection, translator, fmt, setLocale, locales],
   );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;

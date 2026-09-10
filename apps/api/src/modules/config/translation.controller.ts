@@ -96,6 +96,8 @@ export class TranslationController {
   @Post('locales/:code/default')
   @Permissions('config.publish')
   makeDefaultLocale(@Req() req: Request, @CurrentActor() actor: Actor) {
-    return this.translations.setDefaultLocale(actor, req.params.code!);
+    return this.translations.setDefaultLocale(actor, req.params.code!, {
+      force: req.query.force === 'true',
+    });
   }
 }

@@ -68,6 +68,27 @@ export function resolveLocale(requested: string | null | undefined): string {
   return DEFAULT_LOCALE;
 }
 
+/**
+ * Resolve a requested locale against a runtime-provided allow-list (the enabled locales from
+ * `GET /meta/locales`) rather than the compile-time `LOCALES`. Used so a language added from the
+ * dashboard is switchable with no code change (DEC-024). Falls back to `fallback` (the runtime
+ * default), then the language part of a region tag, then the static default.
+ */
+export function resolveLocaleWithin(
+  requested: string | null | undefined,
+  allowed: readonly string[],
+  fallback: string = DEFAULT_LOCALE,
+): string {
+  const set = new Set(allowed.length ? allowed : SUPPORTED_LOCALE_CODES);
+  const raw = typeof requested === 'string' ? requested.trim() : '';
+  if (set.has(raw)) return raw;
+  const lang = raw.split('-')[0] ?? '';
+  if (set.has(lang)) return lang;
+  return set.has(fallback)
+    ? fallback
+    : (SUPPORTED_LOCALE_CODES.find((c) => set.has(c)) ?? DEFAULT_LOCALE);
+}
+
 /** Always returns a definition — resolves unknown codes to the default. */
 export function getLocaleDefinition(code: string): LocaleDefinition {
   return LOCALES[resolveLocale(code)] ?? LOCALES[DEFAULT_LOCALE]!;

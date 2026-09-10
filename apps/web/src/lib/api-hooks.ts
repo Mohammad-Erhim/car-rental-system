@@ -167,9 +167,7 @@ export function useAdminLocales() {
 
 export function useUpsertLocale() {
   const qc = useQueryClient();
-  const onError = useWorkflowError();
   return useMutation({
-    onError,
     mutationFn: (body: {
       code: string;
       nativeName: string;
@@ -187,19 +185,24 @@ export function useUpsertLocale() {
 
 export function useLocaleAction() {
   const qc = useQueryClient();
-  const onError = useWorkflowError();
   return useMutation({
-    onError,
     mutationFn: ({
       code,
       action,
+      force,
     }: {
       code: string;
       action: 'activate' | 'deactivate' | 'default';
-    }) => apiFetch(`/config/locales/${encodeURIComponent(code)}/${action}`, { method: 'POST' }),
+      force?: boolean;
+    }) =>
+      apiFetch<{ code: string; isActive?: boolean; isDefault?: boolean; reassigned?: number }>(
+        `/config/locales/${encodeURIComponent(code)}/${action}${force ? '?force=true' : ''}`,
+        { method: 'POST' },
+      ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['locales'] });
       qc.invalidateQueries({ queryKey: ['meta', 'locales'] });
+      qc.invalidateQueries({ queryKey: ['meta', 'translations'] });
       qc.invalidateQueries({ queryKey: ['translations'] });
     },
   });
@@ -214,6 +217,24 @@ export function useMetaLocales() {
     queryFn: ({ signal }) =>
       apiFetch<LocalesResponse>('/meta/locales', { signal, anonymous: true }),
     staleTime: 5 * 60_000,
+  });
+}
+
+/**
+ * Published `common` translation overrides for a locale (DEC-024) — the same public endpoint the
+ * customer site merges. The ops dashboard applies these over its bundled strings so a string
+ * published from the Translations screen actually shows up here too.
+ */
+export function usePublishedCommonTranslations(locale: string) {
+  return useQuery({
+    queryKey: ['meta', 'translations', 'common', locale],
+    enabled: !!locale,
+    staleTime: 5 * 60_000,
+    queryFn: ({ signal }) =>
+      apiFetch<Record<string, string>>(
+        `/meta/translations?namespace=common&locale=${encodeURIComponent(locale)}`,
+        { signal, anonymous: true },
+      ),
   });
 }
 

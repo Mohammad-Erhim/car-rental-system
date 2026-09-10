@@ -6,9 +6,12 @@ import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
 import type { Actor } from '../../common/auth/types';
 import { CacheBus } from '../../common/cache/cache-bus';
+import { isUniqueViolation } from '../../common/db-error';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
+import { customer } from '../../database/schema/customer';
 import { locale, translation } from '../../database/schema/i18n';
+import { account } from '../../database/schema/iam';
 
 /**
  * Translation catalogue (FR-ADM-012, SRS-I18N-003). Completeness + publish status by language;
@@ -63,13 +66,24 @@ export class TranslationService {
     return { locales: locales.map((l) => l.code), rows };
   }
 
+  /** A known locale — one that ships bundled strings, or one enabled from the dashboard. */
+  private async isKnownLocale(code: string): Promise<boolean> {
+    if (SUPPORTED_LOCALE_CODES.includes(code)) return true;
+    const [row] = await this.db
+      .select({ code: locale.code })
+      .from(locale)
+      .where(eq(locale.code, code))
+      .limit(1);
+    return !!row;
+  }
+
   /**
    * Published overrides for one namespace + locale as a flat `{ key: value }` map. Public
    * (no draft/in-review content) — `apps/site` merges this over the bundled base at build/ISR
-   * time (enhancement-program §4).
+   * time, and `apps/web` at runtime (DEC-024).
    */
   async publishedBundle(namespace: string, localeCode: string): Promise<Record<string, string>> {
-    if (!SUPPORTED_LOCALE_CODES.includes(localeCode)) return {};
+    if (!(await this.isKnownLocale(localeCode))) return {};
     const rows = await this.db
       .select({ key: translation.key, value: translation.value })
       .from(translation)
@@ -117,7 +131,7 @@ export class TranslationService {
       status?: 'draft' | 'in_review' | 'published';
     },
   ) {
-    if (!SUPPORTED_LOCALE_CODES.includes(input.localeCode)) {
+    if (!(await this.isKnownLocale(input.localeCode))) {
       throw new AppError('validation_failed', {
         title: 'Unknown locale',
         fieldErrors: [{ path: 'localeCode', code: 'unsupported' }],
@@ -199,12 +213,22 @@ export class TranslationService {
     },
   ) {
     const code = input.code.trim().toLowerCase();
-    if (!/^[a-z]{2}(-[a-z0-9]{2,8})*$/i.test(code)) {
+    if (!/^[a-z]{2,3}(-[a-z0-9]{2,8})*$/i.test(code)) {
       throw new AppError('validation_failed', {
         title: 'Invalid BCP-47 locale code',
         fieldErrors: [{ path: 'code', code: 'invalid' }],
       });
     }
+
+    const [existing] = await this.db.select().from(locale).where(eq(locale.code, code)).limit(1);
+    // flipping the *default* locale's writing direction reflows the whole product — refuse it here.
+    if (existing?.isDefault && input.direction !== existing.direction) {
+      throw AppError.businessRule(
+        'The default language’s text direction cannot be changed while it is the default',
+        { reason: 'default_direction_locked' },
+      );
+    }
+
     const fallback = (input.fallbackChain ?? ['en']).filter((c) => c !== code);
     const [row] = await this.db
       .insert(locale)
@@ -250,30 +274,82 @@ export class TranslationService {
         reason: 'is_default',
       });
     }
-    await this.db
-      .update(locale)
-      .set({ isActive, updatedAt: sql`now()` })
-      .where(eq(locale.code, code));
+    let reassigned = 0;
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(locale)
+        .set({ isActive, updatedAt: sql`now()` })
+        .where(eq(locale.code, code));
+      if (!isActive) {
+        // people whose saved language just went away are moved to the default so they aren't
+        // stuck on a language the switcher no longer offers.
+        const [def] = await tx
+          .select({ code: locale.code })
+          .from(locale)
+          .where(eq(locale.isDefault, true))
+          .limit(1);
+        const fallback = def?.code ?? 'en';
+        const a = await tx
+          .update(account)
+          .set({ localeCode: fallback, updatedAt: sql`now()` })
+          .where(eq(account.localeCode, code))
+          .returning({ id: account.id });
+        const c = await tx
+          .update(customer)
+          .set({ localeCode: fallback, updatedAt: sql`now()` })
+          .where(eq(customer.localeCode, code))
+          .returning({ id: customer.id });
+        reassigned = a.length + c.length;
+      }
+    });
     await this.audit.record({
       action: isActive ? 'config.locale.activated' : 'config.locale.deactivated',
       targetType: 'locale',
       targetId: row.id,
       actor,
+      after: isActive ? undefined : { reassignedAccounts: reassigned },
     });
     await this.cache.invalidate('i18n:locales', {});
-    return { code, isActive };
+    return { code, isActive, reassigned };
   }
 
-  async setDefaultLocale(actor: Actor, code: string) {
+  async setDefaultLocale(actor: Actor, code: string, opts: { force?: boolean } = {}) {
     const [row] = await this.db.select().from(locale).where(eq(locale.code, code)).limit(1);
     if (!row) throw AppError.notFound('locale');
-    await this.db.transaction(async (tx) => {
-      await tx.update(locale).set({ isDefault: false }).where(ne(locale.code, code));
-      await tx
-        .update(locale)
-        .set({ isDefault: true, isActive: true, updatedAt: sql`now()` })
-        .where(eq(locale.code, code));
-    });
+
+    // A locale that ships a bundled string file (the launch three) is always complete. Any other
+    // — a language added from the dashboard — is only as good as its published overrides; making
+    // an untranslated one the default would show English everywhere. Needs `force`.
+    if (!SUPPORTED_LOCALE_CODES.includes(code) && !opts.force) {
+      const [pub] = await this.db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(translation)
+        .where(and(eq(translation.localeCode, code), eq(translation.status, 'published')));
+      if ((pub?.n ?? 0) === 0) {
+        throw AppError.businessRule(
+          'This language has no published translations yet — making it the default would show English everywhere. Publish its strings first, or confirm to proceed.',
+          { reason: 'default_locale_untranslated', publishedKeys: 0 },
+        );
+      }
+    }
+
+    try {
+      await this.db.transaction(async (tx) => {
+        await tx.update(locale).set({ isDefault: false }).where(ne(locale.code, code));
+        await tx
+          .update(locale)
+          .set({ isDefault: true, isActive: true, updatedAt: sql`now()` })
+          .where(eq(locale.code, code));
+      });
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new AppError('state_conflict', {
+          title: 'The default language was changed at the same time — reload and try again',
+          params: { reason: 'default_race' },
+        });
+      }
+      throw err;
+    }
     await this.audit.record({
       action: 'config.locale.default_changed',
       targetType: 'locale',
