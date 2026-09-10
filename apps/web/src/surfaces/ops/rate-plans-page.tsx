@@ -21,7 +21,7 @@ import {
   useToast,
   type DataTableColumn,
 } from '@carrental/ui';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import { LookupSelect } from '../../components/lookup-select.js';
 import { ApiError } from '../../lib/api.js';
@@ -133,6 +133,14 @@ export function RatePlansPage() {
   });
 
   const [form, setForm] = useState<FormState>(emptyForm());
+  const formCard = useRef<HTMLDivElement>(null);
+  const editPlan = (next: FormState) => {
+    setForm(next);
+    errs.clear();
+    requestAnimationFrame(() =>
+      formCard.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+    );
+  };
   const [showRetired, setShowRetired] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [confirmPublish, setConfirmPublish] = useState<RatePlan | null>(null);
@@ -210,6 +218,7 @@ export function RatePlansPage() {
     });
     const tierMins = new Set<number>();
     form.tiers.forEach((tier, i) => {
+      if (!tier.minHours.trim() && !tier.day.trim()) return; // an untouched row is dropped on submit
       const mh = num(tier.minHours);
       if (!Number.isFinite(mh) || mh < 1 || !Number.isFinite(num(tier.day)) || num(tier.day) <= 0)
         local.push({ path: `tiers.${i}`, code: 'invalid' });
@@ -364,10 +373,7 @@ export function RatePlansPage() {
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => {
-                  setForm(planToForm(p));
-                  window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-                }}
+                onClick={() => editPlan(planToForm(p))}
                 data-testid={`rp-edit-${p.id}`}
               >
                 {t('ops.rp.editDraft')}
@@ -387,10 +393,7 @@ export function RatePlansPage() {
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => {
-                setForm(clonePlan(p));
-                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-              }}
+              onClick={() => editPlan(clonePlan(p))}
               data-testid={`rp-clone-${p.id}`}
             >
               {t('ops.rp.clone')}
@@ -483,7 +486,7 @@ export function RatePlansPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card ref={formCard}>
         <CardHeader className="flex flex-row items-center justify-between gap-2">
           <CardTitle className="text-base">
             {form.id ? t('ops.rp.editing', { name: form.name }) : t('ops.rp.newDraft')}
