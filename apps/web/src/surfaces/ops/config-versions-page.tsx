@@ -7,6 +7,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  ConfirmDialog,
   DataTable,
   ErrorSummary,
   Field,
@@ -60,7 +61,7 @@ const STATE_VARIANT: Record<ConfigState, 'success' | 'warning' | 'neutral' | 'de
 };
 
 export function ConfigVersionsPage() {
-  const { t } = useI18n();
+  const { t, fmt } = useI18n();
   const { hasPermission } = useAuth();
   const canPublish = hasPermission('config.publish');
 
@@ -86,6 +87,8 @@ export function ConfigVersionsPage() {
   const [values, setValues] = useState<Record<string, string>>({});
   const [note, setNote] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
+  const [rejecting, setRejecting] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState('');
 
   const currentPublished = useMemo(
     () => versions.data?.find((v) => v.state === 'published') ?? null,
@@ -127,15 +130,16 @@ export function ConfigVersionsPage() {
     }
   }
 
-  async function act(id: string, action: 'submit' | 'approve' | 'reject') {
+  async function act(id: string, action: 'submit' | 'approve' | 'reject', reason?: string) {
     setActionError(null);
-    let reason: string | undefined;
-    if (action === 'reject') {
-      reason = window.prompt(t('ops.cfg.rejectPrompt'))?.trim() ?? '';
-      if (!reason) return;
+    if (action === 'reject' && !reason?.trim()) {
+      setRejecting(id);
+      return;
     }
     try {
-      await transition.mutateAsync({ id, action, note: reason });
+      await transition.mutateAsync({ id, action, note: reason?.trim() });
+      setRejecting(null);
+      setRejectReason('');
     } catch (err) {
       setActionError(
         err instanceof ApiError
@@ -144,6 +148,7 @@ export function ConfigVersionsPage() {
             : err.message
           : t('ops.cfg.actionFail'),
       );
+      setRejecting(null);
     }
   }
 
@@ -173,7 +178,7 @@ export function ConfigVersionsPage() {
     {
       key: 'effective',
       header: t('ops.tbl.effective'),
-      cell: (v) => (v.effectiveFrom ? new Date(v.effectiveFrom).toLocaleString() : '—'),
+      cell: (v) => (v.effectiveFrom ? fmt.dateTime(v.effectiveFrom) : '—'),
       className: 'text-xs text-muted-foreground',
     },
     {
@@ -374,6 +379,46 @@ export function ConfigVersionsPage() {
           </form>
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={!!rejecting}
+        onOpenChange={(v) => {
+          if (!v) {
+            setRejecting(null);
+            setRejectReason('');
+          }
+        }}
+        destructive
+        title={t('ops.cfg.rejectTitle')}
+        description={
+          <div className="space-y-3">
+            <p>{t('ops.cfg.rejectBody')}</p>
+            <Field
+              label={t('ops.cfg.rejectReason')}
+              htmlFor="cfg-reject-reason"
+              error={
+                rejecting && !rejectReason.trim() ? t('ops.cfg.rejectReasonRequired') : undefined
+              }
+            >
+              {({ id }) => (
+                <Textarea
+                  id={id}
+                  rows={3}
+                  value={rejectReason}
+                  onChange={(e) => setRejectReason(e.target.value)}
+                  data-testid="config-reject-reason"
+                />
+              )}
+            </Field>
+          </div>
+        }
+        confirmLabel={t('ops.cfg.reject')}
+        onConfirm={() => {
+          if (!rejectReason.trim()) throw new Error('reason required');
+          const id = rejecting!;
+          return act(id, 'reject', rejectReason);
+        }}
+      />
     </div>
   );
 }
