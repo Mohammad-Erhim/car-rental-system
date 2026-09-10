@@ -6,8 +6,9 @@ import { AuditService } from '../../common/audit/audit.service';
 import type { Actor } from '../../common/auth/types';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
-import { product } from '../../database/schema/catalogue';
+import { product, vehicleCategory } from '../../database/schema/catalogue';
 import { organization } from '../../database/schema/org';
+import { ConfigPublic } from '../config/config.public';
 
 /**
  * FR-ADM-006 / FR-PRC-005-006 — extras & protection products. The server owns the price; a
@@ -21,6 +22,7 @@ export interface ProductInput {
   kind: 'extra' | 'protection';
   unitPriceMinor: number;
   currency?: string;
+  pricingUnit?: 'per_rental' | 'per_day';
   taxable?: boolean;
   maxQuantity?: number;
   categoryScope?: string[];
@@ -32,6 +34,7 @@ export interface ResolvedExtra {
   code: string;
   label: string;
   kind: string;
+  pricingUnit: string;
   quantity: number;
   unitMinor: number;
   amountMinor: number;
@@ -43,6 +46,7 @@ export class ProductService {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
+    private readonly config: ConfigPublic,
   ) {}
 
   private async orgId(): Promise<string> {
@@ -92,9 +96,12 @@ export class ProductService {
     categoryCode: string;
     pickupLocationCode: string;
     currency: string;
+    /** billable rental length — a `per_day` product is `unitPrice × days` (default 1 day) */
+    durationHours?: number;
   }): Promise<ResolvedExtra[]> {
     if (input.extraCodes.length === 0) return [];
     const org = await this.orgId();
+    const days = Math.max(1, Math.ceil((input.durationHours ?? 24) / 24));
     const counts = new Map<string, number>();
     for (const c of input.extraCodes) counts.set(c, (counts.get(c) ?? 0) + 1);
 
@@ -132,17 +139,50 @@ export class ProductService {
           code,
         });
       }
+      // a per-day product's effective unit price is (price × billable days); the line then stays
+      // `unitMinor × quantity === amountMinor`.
+      const unitMinor =
+        row.pricingUnit === 'per_day' ? row.unitPriceMinor * days : row.unitPriceMinor;
       out.push({
         code: row.code,
         label: row.name,
         kind: row.kind,
+        pricingUnit: row.pricingUnit,
         quantity: qty,
-        unitMinor: row.unitPriceMinor,
-        amountMinor: row.unitPriceMinor * qty,
+        unitMinor,
+        amountMinor: unitMinor * qty,
         taxable: row.taxable,
       });
     }
     return out;
+  }
+
+  /** category / location scope + currency must line up with real catalogue entries. */
+  private async assertScope(input: ProductInput) {
+    const issues: Array<{ path: string; code: string }> = [];
+    if (input.categoryScope?.length) {
+      const cats = new Set(
+        (
+          await this.db
+            .select({ code: vehicleCategory.code })
+            .from(vehicleCategory)
+            .where(eq(vehicleCategory.organizationId, await this.orgId()))
+        ).map((c) => c.code),
+      );
+      input.categoryScope.forEach((c, i) => {
+        if (!cats.has(c)) issues.push({ path: `categoryScope.${i}`, code: 'unsupported' });
+      });
+    }
+    if (input.locationScope?.length) {
+      const locs = new Set(
+        (await this.config.listLocations(await this.orgId())).map((l) => l.code),
+      );
+      input.locationScope.forEach((l, i) => {
+        if (!locs.has(l)) issues.push({ path: `locationScope.${i}`, code: 'unsupported' });
+      });
+    }
+    if (issues.length) throw AppError.validation(issues, 'Product scope is not valid');
+    if (input.currency) await this.config.assertLookupCode('currency', input.currency, 'currency');
   }
 
   async upsert(actor: Actor, input: ProductInput) {
@@ -153,6 +193,7 @@ export class ProductService {
     if (input.maxQuantity != null && input.maxQuantity < 1) {
       throw AppError.validation([{ path: 'maxQuantity', code: 'min', params: { min: 1 } }]);
     }
+    await this.assertScope(input);
     const [existing] = await this.db
       .select()
       .from(product)
@@ -164,6 +205,7 @@ export class ProductService {
       kind: input.kind,
       unitPriceMinor: input.unitPriceMinor,
       currency: input.currency ?? existing?.currency ?? 'USD',
+      pricingUnit: input.pricingUnit ?? existing?.pricingUnit ?? 'per_rental',
       taxable: input.taxable ?? existing?.taxable ?? true,
       maxQuantity: input.maxQuantity ?? existing?.maxQuantity ?? 1,
       categoryScope: input.categoryScope ?? existing?.categoryScope ?? [],
@@ -224,6 +266,7 @@ export class ProductService {
       kind: r.kind,
       unitPriceMinor: r.unitPriceMinor,
       currency: r.currency,
+      pricingUnit: r.pricingUnit,
       taxable: r.taxable,
       maxQuantity: r.maxQuantity,
       categoryScope: r.categoryScope,

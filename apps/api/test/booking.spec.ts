@@ -153,7 +153,7 @@ describe('booking / payment', () => {
     ).find((l) => l.kind === 'extra' && l.code === 'gps');
     expect(gpsLine).toBeTruthy();
     expect(gpsLine!.label).toBe('GPS navigation'); // catalogue name, not client-supplied
-    expect(gpsLine!.amountMinor).toBe(600); // catalogue price (seed)
+    expect(gpsLine!.amountMinor).toBe(1800); // seed $6/day × 3 billable days
     expect(withExtra.body.totalMinor).toBeGreaterThan(q2.totalMinor); // quote + priced extra + tax
 
     // an unknown / inactive code is rejected — no charge, no reservation
