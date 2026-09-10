@@ -4,10 +4,11 @@ import { useToast } from '@carrental/ui';
 import { ApiError } from './api.js';
 
 /**
- * Shared `onError` for the config-version workflow mutations (submit / approve / reject across
- * branding, SEO, consent, templates, pages, policies). Surfaces the exact API rejection as a
- * toast instead of the action failing silently — e.g. "the author cannot approve their own draft"
- * or "this revision is already published".
+ * Shared `onError` for config-editing mutations that would otherwise fail silently: the
+ * config-version workflow (submit / approve / reject across branding, SEO, consent, templates,
+ * pages, policies) plus translation catalogue edits and locale administration. Surfaces the exact
+ * API rejection as a toast — e.g. "the author cannot approve their own draft", "this revision is
+ * already published", or "the default locale cannot be deactivated".
  */
 export function useWorkflowError() {
   const { t } = useI18n();
