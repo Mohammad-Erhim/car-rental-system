@@ -2,6 +2,7 @@ import { useAuth, useFormErrors } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   Alert,
+  AlertDescription,
   Badge,
   Button,
   Card,
@@ -610,7 +611,9 @@ export function ConfigVersionsPage() {
                   </ul>
                 </div>
               ) : (
-                <Alert variant="warning">{t('ops.cfg.diffNone')}</Alert>
+                <Alert variant="warning">
+                  <AlertDescription>{t('ops.cfg.diffNone')}</AlertDescription>
+                </Alert>
               )
             ) : null}
             <p className="text-xs text-muted-foreground">{t('ops.cfg.appliesToNew')}</p>

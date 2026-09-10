@@ -96,6 +96,7 @@ export function useCancelDataRequest() {
 export function useTranslationCompleteness() {
   return useQuery({
     queryKey: ['translations', 'completeness'],
+    staleTime: 60_000,
     queryFn: ({ signal }) =>
       apiFetch<TranslationCompleteness>('/config/translations/completeness', { signal }),
   });
@@ -176,6 +177,18 @@ export function useUpsertLocale() {
       fallbackChain?: string[];
       sortOrder?: number;
     }) => apiFetch<AdminLocale>('/config/locales', { method: 'POST', body }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['locales'] });
+      qc.invalidateQueries({ queryKey: ['meta', 'locales'] });
+    },
+  });
+}
+
+export function useDeleteLocale() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (code: string) =>
+      apiFetch(`/config/locales/${encodeURIComponent(code)}`, { method: 'DELETE' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['locales'] });
       qc.invalidateQueries({ queryKey: ['meta', 'locales'] });

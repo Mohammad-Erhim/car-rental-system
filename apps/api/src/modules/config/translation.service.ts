@@ -266,6 +266,43 @@ export class TranslationService {
     return row;
   }
 
+  /**
+   * Delete a locale that was never really used — inactive, not the default, and with no
+   * translation rows of its own. A bundled locale (en/fr/ar) can't be deleted. Anything with
+   * history is deactivated, never deleted.
+   */
+  async removeLocale(actor: Actor, code: string) {
+    if (SUPPORTED_LOCALE_CODES.includes(code)) {
+      throw AppError.businessRule('A built-in language cannot be deleted', { reason: 'built_in' });
+    }
+    const [row] = await this.db.select().from(locale).where(eq(locale.code, code)).limit(1);
+    if (!row) throw AppError.notFound('locale');
+    if (row.isDefault || row.isActive) {
+      throw AppError.businessRule('Deactivate the language before deleting it', {
+        reason: row.isDefault ? 'is_default' : 'is_active',
+      });
+    }
+    const [tr] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(translation)
+      .where(eq(translation.localeCode, code));
+    if ((tr?.n ?? 0) > 0) {
+      throw AppError.businessRule(
+        'This language has translations — deactivate it instead so the history is kept',
+        { reason: 'has_translations', translations: tr!.n },
+      );
+    }
+    await this.db.delete(locale).where(eq(locale.code, code));
+    await this.audit.record({
+      action: 'config.locale.deleted',
+      targetType: 'locale',
+      targetId: row.id,
+      actor,
+      before: { code, nativeName: row.nativeName },
+    });
+    await this.cache.invalidate('i18n:locales', {});
+  }
+
   async setLocaleActive(actor: Actor, code: string, isActive: boolean) {
     const [row] = await this.db.select().from(locale).where(eq(locale.code, code)).limit(1);
     if (!row) throw AppError.notFound('locale');

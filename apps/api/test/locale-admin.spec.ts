@@ -121,6 +121,63 @@ describe('locale administration', () => {
       .expect(201);
   });
 
+  it('an unused locale can be deleted; a built-in / active / translated one cannot', async () => {
+    // built-in
+    await request(server)
+      .delete('/api/v1/config/locales/fr')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(422)
+      .expect((r) => expect(r.body.params?.reason).toBe('built_in'));
+
+    // a fresh, inactive, untranslated locale — deletable
+    await request(server)
+      .post('/api/v1/config/locales')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ code: 'nl', nativeName: 'Nederlands', englishName: 'Dutch', direction: 'ltr' })
+      .expect(201);
+    await request(server)
+      .delete('/api/v1/config/locales/nl')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const gone = await request(server)
+      .get('/api/v1/config/locales')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(gone.body.some((l: { code: string }) => l.code === 'nl')).toBe(false);
+
+    // an active one must be deactivated first
+    await request(server)
+      .post('/api/v1/config/locales')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ code: 'sv', nativeName: 'Svenska', englishName: 'Swedish', direction: 'ltr' })
+      .expect(201);
+    await request(server)
+      .post('/api/v1/config/locales/sv/activate')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201);
+    await request(server)
+      .delete('/api/v1/config/locales/sv')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(422)
+      .expect((r) => expect(r.body.params?.reason).toBe('is_active'));
+    await request(server)
+      .post('/api/v1/config/locales/sv/deactivate')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201);
+
+    // …but not once it has a translation row
+    await request(server)
+      .post('/api/v1/config/translations')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ namespace: 'common', key: 'action.search', localeCode: 'sv', value: 'Sök' })
+      .expect(201);
+    await request(server)
+      .delete('/api/v1/config/locales/sv')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(422)
+      .expect((r) => expect(r.body.params?.reason).toBe('has_translations'));
+  });
+
   it('rejects a malformed BCP-47 code and forbids a non-publisher', async () => {
     await request(server)
       .post('/api/v1/config/locales')

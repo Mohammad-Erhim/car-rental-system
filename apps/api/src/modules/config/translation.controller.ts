@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Post, Query, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { z } from 'zod';
@@ -79,6 +79,13 @@ export class TranslationController {
     @CurrentActor() actor: Actor,
   ) {
     return this.translations.upsertLocale(actor, body);
+  }
+
+  @Delete('locales/:code')
+  @Permissions('config.publish')
+  @ApiOperation({ operationId: 'config_removeLocale', summary: 'Delete an unused locale' })
+  removeLocale(@Req() req: Request, @CurrentActor() actor: Actor) {
+    return this.translations.removeLocale(actor, req.params.code!);
   }
 
   @Post('locales/:code/activate')
