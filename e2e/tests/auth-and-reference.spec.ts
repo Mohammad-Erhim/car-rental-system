@@ -164,10 +164,12 @@ test.describe('operations foundation (APP-OPS)', () => {
     const row = page.locator('[data-testid="lookup-value-rows"] tr[data-code="other"]');
     await expect(row).toBeVisible();
     const newLabel = `Other reason ${Date.now() % 100000}`;
-    // the inline-edit trigger is a button showing the current label
-    await row.locator('button').first().click();
-    await row.getByLabel('Edit label').fill(newLabel);
-    await row.getByRole('button', { name: 'Save' }).click();
+    // edit opens a dialog with a label field per active locale
+    await page.getByTestId('edit-other').click();
+    const editor = page.getByRole('dialog');
+    await editor.getByTestId('label-en').fill(newLabel);
+    await editor.getByRole('button', { name: /^Save$/ }).click();
+    await expect(editor).toBeHidden();
     await expect(row).toContainText(newLabel);
 
     await shot(page, testInfo, 'ops-reference-data');

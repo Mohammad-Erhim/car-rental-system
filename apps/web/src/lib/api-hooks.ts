@@ -2,6 +2,7 @@ import type {
   AddDriverRequest,
   ChallengeCreatedResponse,
   Driver,
+  LocalesResponse,
   LookupType,
   LookupValuesResponse,
   PrivacyRequest,
@@ -206,6 +207,16 @@ export function useLocaleAction() {
 }
 
 // ---- reference data ----
+
+/** Enabled locales (from `/meta/locales`) — used to render one label field per active locale. */
+export function useMetaLocales() {
+  return useQuery({
+    queryKey: ['meta', 'locales'],
+    queryFn: ({ signal }) =>
+      apiFetch<LocalesResponse>('/meta/locales', { signal, anonymous: true }),
+    staleTime: 5 * 60_000,
+  });
+}
 
 export function useLookupTypes(params?: { classification?: string; search?: string }) {
   const qs = new URLSearchParams();

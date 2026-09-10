@@ -1,6 +1,6 @@
 import { fallbackChain } from '@carrental/i18n';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core';
 
 import { AppError } from '../../common/app-error';
@@ -163,23 +163,26 @@ export class LookupService {
       )
       .orderBy(asc(lookupValue.sortOrder), asc(lookupValue.code));
 
-    // localized labels
+    // localized labels — fetch every published locale for this type once, then derive both the
+    // fallback-resolved single label (for consumers) and the full per-locale map (for the editor).
     const chain = fallbackChain(q.locale ?? 'en');
     const labelRows = await this.db
       .select()
       .from(translation)
       .where(
-        and(
-          eq(translation.namespace, `${NS}:${typeCode}`),
-          inArray(translation.localeCode, chain),
-          eq(translation.status, 'published'),
-        ),
+        and(eq(translation.namespace, `${NS}:${typeCode}`), eq(translation.status, 'published')),
       );
     const labels = new Map<string, { value: string; locale: string }>();
     for (const loc of [...chain].reverse()) {
       for (const lr of labelRows.filter((r) => r.localeCode === loc)) {
         labels.set(lr.key, { value: lr.value, locale: loc });
       }
+    }
+    const translationsByCode = new Map<string, Record<string, string>>();
+    for (const lr of labelRows) {
+      const m = translationsByCode.get(lr.key) ?? {};
+      m[lr.localeCode] = lr.value;
+      translationsByCode.set(lr.key, m);
     }
 
     const values = rows
@@ -204,6 +207,7 @@ export class LookupService {
           scopeKey: r.scopeKey,
           label: label?.value ?? r.defaultLabel,
           labelLocale: label?.locale,
+          translations: { en: r.defaultLabel, ...(translationsByCode.get(r.code) ?? {}) },
           sortOrder: r.sortOrder,
           isDefault: r.isDefault,
           isActive: r.isActive,
@@ -460,8 +464,21 @@ export class LookupService {
     labels: Record<string, string>,
     actor: Actor,
   ) {
-    for (const [locale, value] of Object.entries(labels)) {
-      if (!value) continue;
+    for (const [locale, raw] of Object.entries(labels)) {
+      const value = raw?.trim() ?? '';
+      // an explicitly-provided empty label clears that locale's override (falls back to `en`)
+      if (!value) {
+        await this.db
+          .delete(translation)
+          .where(
+            and(
+              eq(translation.namespace, `${NS}:${typeCode}`),
+              eq(translation.key, code),
+              eq(translation.localeCode, locale),
+            ),
+          );
+        continue;
+      }
       await this.db
         .insert(translation)
         .values({
