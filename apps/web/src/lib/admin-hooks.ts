@@ -524,6 +524,8 @@ export function useCustomerRecord(id: string | null) {
 
 // ---- extras & protection products (SCREEN-OPS-027 / FR-ADM-006) ----
 
+export type ProductPricingUnit = 'per_rental' | 'per_day';
+
 export interface CatalogueProduct {
   id: string;
   code: string;
@@ -531,6 +533,7 @@ export interface CatalogueProduct {
   kind: 'extra' | 'protection';
   unitPriceMinor: number;
   currency: string;
+  pricingUnit: ProductPricingUnit;
   taxable: boolean;
   maxQuantity: number;
   categoryScope: string[];
@@ -545,6 +548,7 @@ export interface ProductInput {
   kind: 'extra' | 'protection';
   unitPriceMinor: number;
   currency?: string;
+  pricingUnit?: ProductPricingUnit;
   taxable?: boolean;
   maxQuantity?: number;
   categoryScope?: string[];

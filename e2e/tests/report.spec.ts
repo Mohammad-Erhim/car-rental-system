@@ -219,6 +219,13 @@ test('SCREEN-OPS-027 / FR-ADM-006: add an extra to the catalogue, then deactivat
   await expect(row).toHaveAttribute('data-active', 'true');
   await shot(page, testInfo, 'ops-products');
 
+  // edit it: the code is read-only, and the pricing unit / scope can change
+  await row.getByRole('button', { name: 'Edit' }).click();
+  await expect(page.locator('input[data-testid="product-code"]')).toHaveCount(0); // code is locked
+  await page.getByTestId('product-pricing-unit').selectOption('per_day');
+  await page.getByTestId('product-create').click();
+  await expect(row).toContainText(/per day/i);
+
   // deactivate it — it drops out of what a customer can pick (confirmed first)
   await page.getByTestId(`product-toggle-${code}`).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Deactivate' }).click();
