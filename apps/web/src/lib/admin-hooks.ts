@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiFetch, getAccessToken } from './api.js';
 
@@ -604,18 +604,38 @@ export interface OpsSearchParams {
   to?: string;
 }
 
+export interface OpsSearchResponse {
+  query: string;
+  /** rows returned (<= the display cap) */
+  count: number;
+  /** true number of matches before the cap */
+  total: number;
+  /** true when `total > count` — prompt the operator to narrow */
+  truncated: boolean;
+  results: SearchHit[];
+}
+
+/** A query is worth running once there are 2+ characters OR at least one structured filter. */
+export function opsSearchReady(p: OpsSearchParams): boolean {
+  return (
+    (p.q?.trim().length ?? 0) >= 2 ||
+    !!p.kind ||
+    !!p.status ||
+    !!p.locationCode ||
+    !!p.from ||
+    !!p.to
+  );
+}
+
 export function useOpsSearch(params: OpsSearchParams) {
   const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) if (v) qs.set(k, v);
-  const enabled = (params.q?.trim().length ?? 0) >= 2 || !!params.status || !!params.locationCode;
+  for (const [k, v] of Object.entries(params)) if (v) qs.set(k, v.trim());
   return useQuery({
     queryKey: ['ops', 'search', params],
-    enabled,
+    enabled: opsSearchReady(params),
+    placeholderData: keepPreviousData,
     queryFn: ({ signal }) =>
-      apiFetch<{ query: string; count: number; results: SearchHit[] }>(
-        `/ops/search${qs.toString() ? `?${qs}` : ''}`,
-        { signal },
-      ),
+      apiFetch<OpsSearchResponse>(`/ops/search${qs.toString() ? `?${qs}` : ''}`, { signal }),
   });
 }
 

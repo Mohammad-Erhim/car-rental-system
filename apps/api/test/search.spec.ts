@@ -17,22 +17,19 @@ const isoIn = (days: number, hour = 10) => {
 
 describe('unified reservation + rental search (FR-ADM-003)', () => {
   let server: ReturnType<typeof httpServer>;
+  let app: Awaited<ReturnType<typeof getTestApp>>;
   let agent: string;
+  let scopedAgent: string;
   let customer: string;
   let resRef: string;
   let rentalRef: string;
+  let otherLocationRef: string;
 
-  beforeAll(async () => {
-    const app = await getTestApp();
-    server = httpServer(app);
-    agent = (await signIn(app, 'test-agent@example.test', 'Test-Passw0rd!', 'staff')).accessToken;
-    customer = (await signIn(app, 'test-customer@example.test', 'Test-Passw0rd!', 'customer'))
-      .accessToken;
-
+  const book = async (locationCode: string, driverName: string) => {
     const quote = await request(server)
       .post('/api/v1/discovery/quote')
       .send({
-        pickupLocationCode: 'TST1',
+        pickupLocationCode: locationCode,
         pickupAt: isoIn(20),
         returnAt: isoIn(23),
         categoryCode: 'economy',
@@ -44,14 +41,27 @@ describe('unified reservation + rental search (FR-ADM-003)', () => {
       .set('Authorization', `Bearer ${customer}`)
       .send({
         quoteReference: quote.body.reference,
-        drivers: [
-          { role: 'primary_renter', fullName: 'Sydney Searcher', licenceNumber: 'D-SRCH-1' },
-        ],
+        drivers: [{ role: 'primary_renter', fullName: driverName, licenceNumber: 'D-SRCH-1' }],
         acceptTerms: true,
         paymentToken: 'tok_visa_ok',
       })
       .expect(201);
-    resRef = booked.body.reference;
+    return booked.body.reference as string;
+  };
+
+  beforeAll(async () => {
+    app = await getTestApp();
+    server = httpServer(app);
+    agent = (await signIn(app, 'test-agent@example.test', 'Test-Passw0rd!', 'staff')).accessToken;
+    // finance_staff confined to TST1 (has reservation.read + rental.read) — proves search
+    // honours the same location boundary as the reports (FR-RPT-004).
+    scopedAgent = (await signIn(app, 'test-scoped@example.test', 'Test-Passw0rd!', 'staff'))
+      .accessToken;
+    customer = (await signIn(app, 'test-customer@example.test', 'Test-Passw0rd!', 'customer'))
+      .accessToken;
+
+    resRef = await book('TST1', 'Sydney Searcher');
+    otherLocationRef = await book('TST2', 'Sydney Searcher');
 
     const assigned = await request(server)
       .post(`/api/v1/ops/reservations/${resRef}/assign`)
@@ -146,5 +156,57 @@ describe('unified reservation + rental search (FR-ADM-003)', () => {
       .set('Authorization', `Bearer ${agent}`)
       .expect(200);
     expect(miss.body.results.length).toBe(0);
+  });
+
+  it('reports the true total and flags truncation', async () => {
+    const res = await request(server)
+      .get('/api/v1/ops/search?q=Sydney%20Searcher&limit=1')
+      .set('Authorization', `Bearer ${agent}`)
+      .expect(200);
+    expect(res.body.results.length).toBe(1);
+    expect(res.body.total).toBeGreaterThanOrEqual(3); // 2 reservations (TST1+TST2) + 1 rental
+    expect(res.body.count).toBe(1);
+    expect(res.body.truncated).toBe(true);
+  });
+
+  it('a location-scoped actor only sees rows for their own locations (FR-RPT-004)', async () => {
+    const orgWide = await request(server)
+      .get('/api/v1/ops/search?q=Sydney%20Searcher')
+      .set('Authorization', `Bearer ${agent}`)
+      .expect(200);
+    const orgRefs = (orgWide.body.results as Array<{ reference: string }>).map((h) => h.reference);
+    expect(orgRefs).toContain(resRef); // TST1
+    expect(orgRefs).toContain(otherLocationRef); // TST2
+
+    const scoped = await request(server)
+      .get('/api/v1/ops/search?q=Sydney%20Searcher')
+      .set('Authorization', `Bearer ${scopedAgent}`)
+      .expect(200);
+    const scopedRefs = (
+      scoped.body.results as Array<{ reference: string; locationCode: string }>
+    ).map((h) => h.reference);
+    expect(scopedRefs).toContain(resRef); // TST1 — in scope
+    expect(scopedRefs).not.toContain(otherLocationRef); // TST2 — out of scope
+    expect(
+      (scoped.body.results as Array<{ locationCode: string }>).every(
+        (h) => h.locationCode === 'TST1',
+      ),
+    ).toBe(true);
+    expect(scoped.body.total).toBeLessThan(orgWide.body.total);
+  });
+
+  it('records every search to the audit trail (PII lookup — SRS-SEC-016)', async () => {
+    const admin = (await signIn(app, 'test-admin@example.test', 'Test-Passw0rd!', 'staff'))
+      .accessToken;
+    await request(server)
+      .get('/api/v1/ops/search?q=D-SRCH-1')
+      .set('Authorization', `Bearer ${agent}`)
+      .expect(200);
+    const audit = await request(server)
+      .get('/api/v1/ops/audit?action=ops.search')
+      .set('Authorization', `Bearer ${admin}`)
+      .expect(200);
+    const rows = audit.body as Array<{ action: string; after?: { query?: string } }>;
+    expect(rows.some((r) => r.action === 'ops.search' && r.after?.query === 'D-SRCH-1')).toBe(true);
   });
 });

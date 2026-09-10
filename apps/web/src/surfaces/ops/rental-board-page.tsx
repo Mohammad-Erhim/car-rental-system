@@ -54,6 +54,7 @@ export function RentalBoardPage() {
   const state = params.get('state') ?? '';
   const flow = params.get('flow') ?? '';
   const dueToday = params.get('due') === 'today';
+  const focusRef = params.get('ref') ?? ''; // pin to one rental (from the unified search)
   const setParam = (key: string, value: string) =>
     setParams(
       (p) => {
@@ -66,13 +67,14 @@ export function RentalBoardPage() {
 
   const rentals = useOpsRentals({ state: state || undefined });
   const rows = (rentals.data ?? []).filter((r) => {
+    if (focusRef) return r.reference === focusRef;
     if (flow === 'pickup' && dueToday && !isToday(r.scheduledPickupAt)) return false;
     if (flow === 'return' && dueToday && !isToday(r.scheduledReturnAt)) return false;
     if (dueToday && !flow && !isToday(r.scheduledPickupAt) && !isToday(r.scheduledReturnAt))
       return false;
     return true;
   });
-  const filtered = state || flow || dueToday;
+  const filtered = state || flow || dueToday || focusRef;
 
   return (
     <div className="space-y-6">
@@ -123,6 +125,22 @@ export function RentalBoardPage() {
         ) : null}
       </Toolbar>
 
+      {focusRef ? (
+        <p
+          className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm"
+          data-testid="rental-focus"
+        >
+          <span className="bidi-isolate font-mono text-xs">{focusRef}</span>
+          <button
+            type="button"
+            onClick={() => setParams({}, { replace: true })}
+            className="text-xs font-medium text-primary hover:underline"
+          >
+            {t('ops.queue.showAll')}
+          </button>
+        </p>
+      ) : null}
+
       {rentals.isLoading ? (
         <AppStateView kind="loading" inline title={t('ops.st.loading')} />
       ) : rentals.isError ? (
@@ -135,8 +153,20 @@ export function RentalBoardPage() {
       ) : !rows.length ? (
         <AppStateView
           kind="empty"
-          title={filtered ? t('ops.rent.emptyFiltered') : t('ops.rent.empty')}
-          description={filtered ? t('ops.rent.emptyFilteredBody') : t('ops.rent.emptyBody')}
+          title={
+            focusRef
+              ? t('ops.rent.emptyFiltered')
+              : filtered
+                ? t('ops.rent.emptyFiltered')
+                : t('ops.rent.empty')
+          }
+          description={
+            focusRef
+              ? t('ops.rent.focusMiss')
+              : filtered
+                ? t('ops.rent.emptyFilteredBody')
+                : t('ops.rent.emptyBody')
+          }
           primaryAction={
             filtered
               ? {
