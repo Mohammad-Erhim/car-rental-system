@@ -1171,6 +1171,8 @@
   "ops.tpl.preview": "معاينة",
   "ops.tpl.previewTitle": "معاينة (قيم عيّنة)",
   "ops.tpl.publish": "نشر",
+  "ops.tpl.publishBody": "{key} · {channel} · {locale} يدخل حيّز التنفيذ فورًا — سيَستخدم هذا الإصدارَ أوّلُ إشعار مطابِق يُرسَل إلى عميل. ويحلّ محلّ الإصدار المنشور الحالي.",
+  "ops.tpl.publishTitle": "نشر هذا القالب؟",
   "ops.tpl.required": "مطلوب",
   "ops.tpl.saveDraft": "حفظ المسودة",
   "ops.tpl.selectOne": "اختر قالبًا",

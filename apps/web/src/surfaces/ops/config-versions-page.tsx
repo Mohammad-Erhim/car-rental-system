@@ -89,6 +89,7 @@ export function ConfigVersionsPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [approving, setApproving] = useState<string | null>(null);
 
   const currentPublished = useMemo(
     () => versions.data?.find((v) => v.state === 'published') ?? null,
@@ -201,7 +202,7 @@ export function ConfigVersionsPage() {
             <>
               <Button
                 size="sm"
-                onClick={() => act(v.id, 'approve')}
+                onClick={() => setApproving(v.id)}
                 data-testid={`approve-${v.revision}`}
               >
                 {t('ops.cfg.approve')}
@@ -379,6 +380,15 @@ export function ConfigVersionsPage() {
           </form>
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={!!approving}
+        onOpenChange={(v) => !v && setApproving(null)}
+        title={t('ops.cfg.approveTitle')}
+        description={t('ops.cfg.approveBody')}
+        confirmLabel={t('ops.cfg.approve')}
+        onConfirm={() => act(approving!, 'approve')}
+      />
 
       <ConfirmDialog
         open={!!rejecting}

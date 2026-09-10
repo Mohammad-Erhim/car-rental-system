@@ -63,6 +63,11 @@ test('SCREEN-OPS-033/034: draft → preview → submit → a second admin approv
 
   const row2 = page.getByTestId(`config-row-${rev}`);
   await row2.getByRole('button', { name: /Approve & publish/ }).click();
+  // approving publishes live — confirm first
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: /Approve & publish/ })
+    .click();
   await expect(row2).toHaveAttribute('data-state', 'published');
   await shot(page, testInfo, 'ops-config-published');
 
@@ -141,7 +146,11 @@ test('SCREEN-OPS-033 / FR-ADM-011: edit → preview → submit → publish a not
   await page.getByRole('button', { name: 'Submit for review' }).click();
   await expect(page.getByTestId('tpl-publish')).toBeVisible();
   await page.getByTestId('tpl-publish').click();
-  await expect(page.getByText(/Status: published · version 1\.1/)).toBeVisible();
+  // publishing a live customer-facing template is confirmed first
+  const publishDialog = page.getByRole('dialog');
+  await expect(publishDialog).toContainText('Publish this template?');
+  await publishDialog.getByRole('button', { name: 'Publish' }).click();
+  await expect(page.getByText(/Status: Published · version 1\.1/)).toBeVisible();
   await shot(page, testInfo, 'ops-templates-published');
 
   // FR-ADM-011 event-rules half — the delivery rule for this event is editable below
