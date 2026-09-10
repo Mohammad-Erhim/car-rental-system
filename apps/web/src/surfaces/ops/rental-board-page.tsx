@@ -32,6 +32,11 @@ import {
 const INCIDENT_CATEGORIES = ['breakdown', 'accident', 'damage', 'other'] as const;
 const RENTAL_STATES = ['awaiting_pickup', 'active', 'overdue', 'closed'] as const;
 
+const stateLabel = (t: (k: string) => string, s: string) =>
+  RENTAL_STATES.includes(s as (typeof RENTAL_STATES)[number])
+    ? t(`ops.rent.stateLabel.${s}`)
+    : s.replace(/_/g, ' ');
+
 const selectClass =
   'flex h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
@@ -100,7 +105,7 @@ export function RentalBoardPage() {
             <option value="">{t('ops.rent.allStates')}</option>
             {RENTAL_STATES.map((s) => (
               <option key={s} value={s}>
-                {s.replace(/_/g, ' ')}
+                {t(`ops.rent.stateLabel.${s}`)}
               </option>
             ))}
           </select>
@@ -247,14 +252,20 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
   const [fuel, setFuel] = useState('100');
   const [driver, setDriver] = useState('');
   const [licence, setLicence] = useState('');
+  const [findings, setFindings] = useState<
+    Array<{ area: string; description: string; charge: string }>
+  >([]);
 
   const inProgress = ['active', 'overdue'].includes(r.state);
   const [incOpen, setIncOpen] = useState(false);
   const [incCategory, setIncCategory] = useState<(typeof INCIDENT_CATEGORIES)[number]>('breakdown');
   const [incNote, setIncNote] = useState('');
   const [incReplacement, setIncReplacement] = useState('');
+  // A replacement must be a same-category available unit at this location (the API rejects a
+  // category mismatch) — so only offer those.
   const spares = useOpsUnits({
     locationCode: inProgress && incOpen ? r.pickupLocationCode : undefined,
+    categoryCode: inProgress && incOpen ? (r.categoryCode ?? undefined) : undefined,
     state: 'available',
   });
   const availableSpares = (spares.data?.results ?? []).filter((u) => u.id !== undefined);
@@ -264,11 +275,29 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
 
   // client-side guards for the odometer/fuel inputs — a clear message before the round trip
   const numOk = (v: string) => /^\d+$/.test(v.trim());
+  const moneyOk = (v: string) => /^\d+(\.\d{1,2})?$/.test(v.trim());
   const pctOk = (v: string) => numOk(v) && Number(v) >= 0 && Number(v) <= 100;
   const pickupValid =
     numOk(odo) && pctOk(fuel) && driver.trim().length > 0 && licence.trim().length > 0;
   const returnOdoTooLow = numOk(odo) && r.odometerOutKm != null && Number(odo) < r.odometerOutKm;
-  const returnValid = numOk(odo) && pctOk(fuel) && !returnOdoTooLow;
+  // every started finding row must be complete before the return can go through
+  const findingsValid = findings.every(
+    (f) => f.area.trim() && f.description.trim() && (f.charge === '' || moneyOk(f.charge)),
+  );
+  const returnValid = numOk(odo) && pctOk(fuel) && !returnOdoTooLow && findingsValid;
+
+  const setFinding = (i: number, patch: Partial<(typeof findings)[number]>) =>
+    setFindings((fs) => fs.map((f, j) => (j === i ? { ...f, ...patch } : f)));
+  const preparedFindings = findings
+    .filter((f) => f.area.trim() && f.description.trim())
+    .map((f) => ({
+      area: f.area.trim().slice(0, 80),
+      description: f.description.trim().slice(0, 500),
+      chargeMinor: f.charge.trim() ? Math.round(Number(f.charge) * 100) : 0,
+    }));
+  const findingsChargeMinor = preparedFindings.reduce((a, f) => a + f.chargeMinor, 0);
+  const fuelDeficit =
+    numOk(fuel) && r.fuelOutPct != null ? Math.max(0, r.fuelOutPct - Number(fuel)) : 0;
 
   async function doIncident() {
     setMsg(null);
@@ -321,7 +350,11 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
   async function doReturn() {
     setMsg(null);
     try {
-      const res = await ret.mutateAsync({ odometerKm: Number(odo), fuelPct: Number(fuel) });
+      const res = await ret.mutateAsync({
+        odometerKm: Number(odo),
+        fuelPct: Number(fuel),
+        findings: preparedFindings.length ? preparedFindings : undefined,
+      });
       setMsg({
         ok: true,
         text: t('ops.rent.returnedMsg', {
@@ -330,6 +363,7 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
         }),
       });
       setOpen(false);
+      setFindings([]);
     } catch (e) {
       setMsg({ ok: false, text: err(e, t('ops.rent.returnFail')) });
     } finally {
@@ -365,7 +399,7 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
             }
             data-testid={`rental-state-${r.reference}`}
           >
-            {showOverdue ? t('ops.rent.overdue') : r.state.replace(/_/g, ' ')}
+            {showOverdue ? t('ops.rent.stateLabel.overdue') : stateLabel(t, r.state)}
           </Badge>
         </CardTitle>
         <p className="text-sm">
@@ -533,6 +567,59 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
                   />
                 )}
               </Field>
+
+              <div className="space-y-2 sm:col-span-2">
+                <p className="text-sm font-medium">{t('ops.rent.findings')}</p>
+                <p className="text-xs text-muted-foreground">{t('ops.rent.findingsHint')}</p>
+                {findings.map((f, i) => (
+                  <div
+                    key={i}
+                    className="grid gap-2 rounded-md border p-2 sm:grid-cols-[1fr_1fr_7rem_auto]"
+                    data-testid={`return-finding-${r.reference}-${i}`}
+                  >
+                    <Input
+                      aria-label={t('ops.rent.findingArea')}
+                      placeholder={t('ops.rent.findingArea')}
+                      value={f.area}
+                      maxLength={80}
+                      onChange={(e) => setFinding(i, { area: e.target.value })}
+                    />
+                    <Input
+                      aria-label={t('ops.rent.findingDesc')}
+                      placeholder={t('ops.rent.findingDesc')}
+                      value={f.description}
+                      maxLength={500}
+                      onChange={(e) => setFinding(i, { description: e.target.value })}
+                    />
+                    <Input
+                      aria-label={t('ops.rent.findingCharge')}
+                      inputMode="decimal"
+                      placeholder={t('ops.rent.findingCharge')}
+                      value={f.charge}
+                      invalid={!!f.charge && !moneyOk(f.charge)}
+                      onChange={(e) => setFinding(i, { charge: e.target.value })}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setFindings((fs) => fs.filter((_, j) => j !== i))}
+                    >
+                      {t('ops.rent.removeFinding')}
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setFindings((fs) => [...fs, { area: '', description: '', charge: '' }])
+                  }
+                  data-testid={`return-add-finding-${r.reference}`}
+                >
+                  {t('ops.rent.addFinding')}
+                </Button>
+              </div>
+
               <div className="flex gap-2 sm:col-span-2">
                 <Button
                   onClick={() => setConfirmReturn(true)}
@@ -643,7 +730,37 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
         open={confirmReturn}
         onOpenChange={setConfirmReturn}
         title={t('ops.rent.returnConfirmTitle')}
-        description={t('ops.rent.returnConfirmBody')}
+        description={
+          <div className="space-y-2 text-sm">
+            <p>
+              {t('ops.rent.returnOdoLine', {
+                inKm: odo || '—',
+                outLine:
+                  r.odometerOutKm != null && numOk(odo)
+                    ? t('ops.rent.returnOdoDelta', { km: Number(odo) - r.odometerOutKm })
+                    : '',
+              })}
+            </p>
+            <p>
+              {fuelDeficit > 0
+                ? t('ops.rent.returnFuelLine', {
+                    inPct: fuel,
+                    outPct: r.fuelOutPct ?? 100,
+                    deficit: fuelDeficit,
+                  })
+                : t('ops.rent.returnFuelLineNoDeficit', { inPct: fuel })}
+            </p>
+            <p>
+              {preparedFindings.length
+                ? t('ops.rent.returnFindingsLine', {
+                    n: preparedFindings.length,
+                    total: money(findingsChargeMinor, r.currency),
+                  })
+                : t('ops.rent.returnNoFindings')}
+            </p>
+            <p className="text-muted-foreground">{t('ops.rent.returnSettleNote')}</p>
+          </div>
+        }
         confirmLabel={t('ops.rent.confirmReturn')}
         onConfirm={doReturn}
       />

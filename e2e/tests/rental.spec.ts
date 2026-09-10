@@ -104,7 +104,17 @@ test('FLOW-OPS: assign → pickup → customer extend → return → ready', asy
   await page.getByTestId(`return-open-${rentalRef}`).click();
   await page.getByTestId(`return-odo-${rentalRef}`).fill('15480');
   await page.getByTestId(`return-fuel-${rentalRef}`).fill('75');
+  // record a damage finding on the return inspection
+  await page.getByTestId(`return-add-finding-${rentalRef}`).click();
+  const finding = page.getByTestId(`return-finding-${rentalRef}-0`);
+  await finding.getByLabel(/Area/i).fill('front bumper');
+  await finding.getByLabel(/What is damaged/i).fill('deep scratch');
+  await finding.getByLabel(/Charge/i).fill('60.00');
   await page.getByTestId(`return-submit-${rentalRef}`).click();
+  // the return confirmation spells out the settlement before it is captured
+  const returnDialog = page.getByRole('dialog');
+  await expect(returnDialog).toContainText(/deficit|damage/i);
+  await returnDialog.getByRole('button', { name: 'Confirm return' }).click();
   await expect(page.getByTestId(`rental-msg-${rentalRef}`)).toContainText(/settlement/i);
   await expect(page.getByTestId(`rental-state-${rentalRef}`)).toContainText('closed');
   await page.getByTestId(`readiness-${rentalRef}`).click();
