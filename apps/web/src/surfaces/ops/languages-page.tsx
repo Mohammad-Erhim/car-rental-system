@@ -316,7 +316,11 @@ export function LanguagesPage() {
           </CardHeader>
           <CardContent>
             <ErrorSummary title={t('ops.languages.checkFields')} errors={errs.summary} />
-            <form className="grid gap-3 sm:grid-cols-5" onSubmit={submit} noValidate>
+            <form
+              className="grid gap-x-4 gap-y-3 sm:grid-cols-5 sm:items-end"
+              onSubmit={submit}
+              noValidate
+            >
               <Field
                 label={t('ops.languages.code')}
                 hint={t('ops.languages.codeHint')}
