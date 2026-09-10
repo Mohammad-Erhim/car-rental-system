@@ -7,6 +7,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  ConfirmDialog,
   DataTable,
   ErrorSummary,
   Field,
@@ -30,13 +31,14 @@ import {
  * scope and takes effect on the customer search with no redeploy.
  */
 export function RatePlansPage() {
-  const { t } = useI18n();
+  const { t, fmt } = useI18n();
   const plans = useRatePlans();
   const cats = useOpsCategories();
   const create = useCreateRatePlan();
   const publish = usePublishRatePlan();
   const errs = useFormErrors({ baseDayMinor: t('ops.rp.baseDay'), name: t('ops.tbl.name') });
   const [publishError, setPublishError] = useState<string | null>(null);
+  const [confirmPublish, setConfirmPublish] = useState<{ id: string; name: string } | null>(null);
 
   const [form, setForm] = useState({
     categoryCode: '',
@@ -76,7 +78,7 @@ export function RatePlansPage() {
     }
   }
 
-  const money = (m: number, c: string) => `${(m / 100).toFixed(2)} ${c}`;
+  const money = (m: number, c: string) => fmt.money({ amountMinor: m, currency: c });
 
   type Plan = NonNullable<typeof plans.data>[number];
   const columns: Array<DataTableColumn<Plan>> = [
@@ -94,10 +96,18 @@ export function RatePlansPage() {
     },
     { key: 'tax', header: t('ops.tbl.tax'), cell: (p) => `${(p.taxBps / 100).toFixed(0)}%` },
     {
+      key: 'effective',
+      header: t('ops.rp.effectiveFrom'),
+      cell: (p) => fmt.date(p.effectiveFrom),
+      className: 'text-xs text-muted-foreground',
+    },
+    {
       key: 'status',
       header: t('ops.tbl.status'),
       cell: (p) => (
-        <Badge variant={p.status === 'published' ? 'success' : 'neutral'}>{p.status}</Badge>
+        <Badge variant={p.status === 'published' ? 'success' : 'neutral'}>
+          {t(`ops.cfg.state.${p.status}`)}
+        </Badge>
       ),
     },
     {
@@ -108,7 +118,7 @@ export function RatePlansPage() {
         p.status !== 'published' && p.status !== 'retired' ? (
           <Button
             size="sm"
-            onClick={() => doPublish(p.id)}
+            onClick={() => setConfirmPublish({ id: p.id, name: p.name })}
             data-testid={`publish-${p.name.replace(/\s+/g, '-')}`}
           >
             {t('ops.rp.publish')}
@@ -230,6 +240,21 @@ export function RatePlansPage() {
                 />
               )}
             </Field>
+            <Field
+              label={t('ops.rp.effectiveFrom')}
+              htmlFor="rp-effective"
+              hint={t('ops.rp.effectiveFromHint')}
+            >
+              {({ id }) => (
+                <Input
+                  id={id}
+                  type="date"
+                  value={form.effectiveFrom}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setForm((f) => ({ ...f, effectiveFrom: e.target.value }))}
+                />
+              )}
+            </Field>
             <div className="sm:col-span-2">
               <Button type="submit" loading={create.isPending} data-testid="rate-plan-create">
                 {t('ops.rp.createDraft')}
@@ -238,6 +263,17 @@ export function RatePlansPage() {
           </form>
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={!!confirmPublish}
+        onOpenChange={(v) => !v && setConfirmPublish(null)}
+        title={t('ops.rp.publishTitle')}
+        description={t('ops.rp.publishBody', { name: confirmPublish?.name ?? '' })}
+        confirmLabel={t('ops.rp.publish')}
+        onConfirm={async () => {
+          if (confirmPublish) await doPublish(confirmPublish.id);
+        }}
+      />
     </div>
   );
 }

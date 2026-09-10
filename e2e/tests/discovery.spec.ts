@@ -133,6 +133,7 @@ test.describe('operations pricing & fleet (APP-OPS)', () => {
     const row = page.locator(`[data-testid="rate-plan-rows"] tr[data-plan="${planName}"]`);
     await expect(row).toBeVisible();
     await row.getByRole('button', { name: 'Publish' }).click();
+    await page.getByRole('dialog').getByRole('button', { name: 'Publish' }).click();
     await expect(row).toHaveAttribute('data-status', 'published');
     await shot(page, testInfo, 'ops-rate-plans');
 
