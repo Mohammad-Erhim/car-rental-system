@@ -121,6 +121,14 @@ export async function seedTest(db: Database): Promise<void> {
       roles: ['finance_staff'],
       locationScope: ['TST1'],
     },
+    {
+      // fleet staff confined to TST1 — proves fleet block/transfer/import scoping (FR-RPT-004)
+      email: 'test-fleet-scoped@example.test',
+      name: 'Test Scoped Fleet',
+      kind: 'staff',
+      roles: ['fleet_staff'],
+      locationScope: ['TST1'],
+    },
     { email: 'test-customer@example.test', name: 'Test Customer', kind: 'customer', roles: [] },
   ];
 

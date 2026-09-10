@@ -211,11 +211,20 @@ export class FleetService {
     return { unitIds, occupiedByUnit };
   }
 
-  /** Maintenance / damage / admin blocks on a unit (SCREEN-OPS-017). Newest first. */
-  async listBlocks(filter: { unitId?: string; status?: string } = {}): Promise<BlockRow[]> {
+  /**
+   * Maintenance / damage / admin blocks on a unit (SCREEN-OPS-017). Newest first. A
+   * location-scoped staffer only sees blocks on units currently at one of their locations
+   * (FR-RPT-004).
+   */
+  async listBlocks(
+    actor: Actor,
+    filter: { unitId?: string; status?: string } = {},
+  ): Promise<BlockRow[]> {
+    const scope = actor.locationScope?.length ? actor.locationScope : null;
     const where = [
       filter.unitId ? eq(vehicleBlock.unitId, filter.unitId) : undefined,
       filter.status ? eq(vehicleBlock.status, filter.status) : undefined,
+      scope ? inArray(location.code, scope) : undefined,
     ].filter(Boolean);
     const rows = await this.db
       .select({
@@ -232,6 +241,7 @@ export class FleetService {
       })
       .from(vehicleBlock)
       .innerJoin(vehicleUnit, eq(vehicleUnit.id, vehicleBlock.unitId))
+      .innerJoin(location, eq(location.id, vehicleUnit.currentLocationId))
       .where(where.length ? and(...where) : undefined)
       .orderBy(desc(vehicleBlock.createdAt))
       .limit(200);
@@ -327,6 +337,8 @@ export class FleetService {
   async releaseBlock(actor: Actor, id: string): Promise<void> {
     const [blk] = await this.db.select().from(vehicleBlock).where(eq(vehicleBlock.id, id)).limit(1);
     if (!blk) throw AppError.notFound('vehicle block');
+    const unit = await this.loadUnit(blk.unitId);
+    await this.assertUnitInScope(actor, unit.currentLocationId);
     await this.db
       .update(vehicleBlock)
       .set({ status: 'released', updatedAt: sql`now()`, updatedBy: actor.accountId })
@@ -430,6 +442,7 @@ export class FleetService {
   ): Promise<UnitImportResult> {
     const records = parseCsv(input.csv);
     const errors: UnitImportResult['errors'] = [];
+    const scope = actor.locationScope?.length ? actor.locationScope : null;
 
     const cats = await this.db
       .select({ id: vehicleCategory.id, code: vehicleCategory.code })
@@ -470,6 +483,11 @@ export class FleetService {
       const loc = locByCode.get(rec.locationCode ?? '');
       if (!rec.locationCode) err('locationCode', 'required');
       else if (!loc) err('locationCode', `unknown location "${rec.locationCode}"`);
+      else if (scope && !scope.includes(rec.locationCode))
+        err('locationCode', `"${rec.locationCode}" is outside your assigned locations`);
+
+      const yr = (rec.year ?? '').trim();
+      if (yr && !/^(19|20)\d{2}$/.test(yr)) err('year', 'must be a 4-digit year');
 
       if (plate) seenPlate.add(plate);
       if (vin) seenVin.add(vin);
