@@ -3,11 +3,12 @@ import { ChevronRight } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
 /**
- * STAGE-012 — `/ops` breadcrumb trail (design §4.2). The ops router is flat (every screen is
- * one level under `/`), so the trail is at most `Dashboard › [Configuration] › <screen>`: the
- * `/config/*` screens get the real `/config` page as a middle crumb, everything else is two
- * levels. Labels and reachability come from the same permission-filtered nav list the sidebar
- * and command palette use — a crumb never links somewhere the user cannot open.
+ * STAGE-012 — `/ops` breadcrumb trail (design §4.2). Most screens sit one level under `/`, so
+ * the trail is `Dashboard › <screen>`. Two cases add a middle crumb: a `/config/*` screen gets
+ * the real `/config` page, and a detail route (`/work/:ref`, `/rentals/:ref`) gets its list
+ * page (`/work`, `/rentals`) so there is always a one-click way back to the queue. Labels and
+ * reachability come from the same permission-filtered nav list the sidebar and command palette
+ * use — a crumb never links somewhere the user cannot open.
  */
 export interface CrumbSource {
   /** route path without the `/ops` basename, e.g. `/config/rate-plans` */
@@ -30,6 +31,15 @@ export function Breadcrumbs({ items }: { items: CrumbSource[] }) {
 
   if (pathname.startsWith('/config/') && labelByPath.has('/config')) {
     trail.push({ to: '/config', label: t(labelByPath.get('/config')!) });
+  }
+
+  // A detail route (e.g. /work/RES-1234) links back to its list page as a middle crumb.
+  const segments = pathname.split('/').filter(Boolean);
+  if (segments.length > 1 && !pathname.startsWith('/config/')) {
+    const parent = `/${segments.slice(0, -1).join('/')}`;
+    if (labelByPath.has(parent)) {
+      trail.push({ to: parent, label: t(labelByPath.get(parent)!) });
+    }
   }
 
   const hereKey = labelByPath.get(pathname);

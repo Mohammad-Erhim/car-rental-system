@@ -39,6 +39,7 @@ export function CommandPalette({ items }: { items: CommandItem[] }) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -69,6 +70,11 @@ export function CommandPalette({ items }: { items: CommandItem[] }) {
   useEffect(() => {
     setActive((a) => (a > results.length - 1 ? 0 : a));
   }, [results.length]);
+
+  // keep the keyboard-selected row visible when the list scrolls
+  useEffect(() => {
+    listRef.current?.querySelector('[data-active]')?.scrollIntoView({ block: 'nearest' });
+  }, [active]);
 
   function go(item: CommandItem | undefined) {
     if (!item) return;
@@ -122,7 +128,7 @@ export function CommandPalette({ items }: { items: CommandItem[] }) {
               }
             }}
           />
-          <ul className="max-h-72 overflow-y-auto p-2" data-testid="cmdk-results">
+          <ul ref={listRef} className="max-h-72 overflow-y-auto p-2" data-testid="cmdk-results">
             {results.length === 0 ? (
               <li
                 className="px-3 py-6 text-center text-sm text-muted-foreground"

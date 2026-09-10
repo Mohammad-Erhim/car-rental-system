@@ -44,7 +44,8 @@ export function SystemStatus() {
     },
     down: { variant: 'destructive' as const, Icon: AlertTriangle, label: t('meta.health.down') },
   };
-  const { variant, Icon, label } = map[data.status];
+  // an unrecognised status from the API degrades gracefully rather than throwing
+  const { variant, Icon, label } = map[data.status] ?? map.degraded;
 
   return (
     <Link
