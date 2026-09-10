@@ -234,8 +234,16 @@ export class ConfigVersionService {
     return this.shape(await this.load(id));
   }
 
+  private async orgCurrency(): Promise<string> {
+    const [org] = await this.db
+      .select({ c: organization.defaultCurrency })
+      .from(organization)
+      .limit(1);
+    return org?.c ?? 'USD';
+  }
+
   /** Compute the customer-facing effect of a candidate payload without publishing it. */
-  preview(kind: string, payload: Record<string, unknown>, key?: string) {
+  async preview(kind: string, payload: Record<string, unknown>, key?: string) {
     this.validate(kind, payload, key);
     if (kind === 'policy') {
       const lateFeeBps = Number(payload.lateFeeBps ?? POLICY_DEFAULTS.cancellation.lateFeeBps);
@@ -243,8 +251,15 @@ export class ConfigVersionService {
         payload.freeCancelHours ?? POLICY_DEFAULTS.cancellation.freeCancelHours,
       );
       const minorPerPct = Number(payload.minorPerPct ?? POLICY_DEFAULTS.fuel_rate.minorPerPct);
-      const cancellation = `A $100.00 booking cancelled inside ${freeCancelHours}h keeps a ${(lateFeeBps / 100).toFixed(0)}% fee = $${((10000 * lateFeeBps) / 10000 / 100).toFixed(2)}`;
-      const fuel = `Returning 20% low on fuel = $${((20 * minorPerPct) / 100).toFixed(2)}`;
+      // A worked example on a sample booking / fuel deficit. The maths lives here (single source
+      // with the cancel + return settlement); the ops UI localises the surrounding sentence from
+      // the structured `policy` block. `examples` is kept for API consumers.
+      const SAMPLE_TOTAL_MINOR = 10000;
+      const SAMPLE_FUEL_DEFICIT_PCT = 20;
+      const lateFeeMinor = Math.round((SAMPLE_TOTAL_MINOR * lateFeeBps) / 10000);
+      const fuelChargeMinor = SAMPLE_FUEL_DEFICIT_PCT * minorPerPct;
+      const cancellation = `A $100.00 booking cancelled inside ${freeCancelHours}h keeps a ${(lateFeeBps / 100).toFixed(0)}% fee = $${(lateFeeMinor / 100).toFixed(2)}`;
+      const fuel = `Returning ${SAMPLE_FUEL_DEFICIT_PCT}% low on fuel = $${(fuelChargeMinor / 100).toFixed(2)}`;
       // when the caller names the key, only show the example that key drives.
       const examples =
         key === 'cancellation'
@@ -252,7 +267,20 @@ export class ConfigVersionService {
           : key === 'fuel_rate'
             ? [fuel]
             : [cancellation, fuel];
-      return { examples };
+      return {
+        examples,
+        policy: {
+          key: key ?? null,
+          currency: await this.orgCurrency(),
+          freeCancelHours,
+          lateFeeBps,
+          minorPerPct,
+          sampleTotalMinor: SAMPLE_TOTAL_MINOR,
+          lateFeeMinor,
+          sampleFuelDeficitPct: SAMPLE_FUEL_DEFICIT_PCT,
+          fuelChargeMinor,
+        },
+      };
     }
     if (kind === 'branding') {
       const parsed = brandConfigSchema.parse(payload);
@@ -359,31 +387,40 @@ export class ConfigVersionService {
     return { examples: ['No preview available for this kind yet.'] };
   }
 
-  /** the exact numeric fields each `policy` key accepts — an unknown or missing key is a typo. */
-  private static readonly POLICY_FIELDS: Record<string, string[]> = {
-    cancellation: ['freeCancelHours', 'lateFeeBps'],
-    fuel_rate: ['minorPerPct'],
+  /**
+   * The exact numeric fields each `policy` key accepts, with the sane range for each — an unknown
+   * or missing field is a typo, and an out-of-range value is a fat-finger that would directly
+   * mis-price a customer (e.g. a fuel rate of 15000 minor/pct read as "$150.00 per point").
+   */
+  private static readonly POLICY_FIELD_BOUNDS: Record<string, Record<string, { max: number }>> = {
+    cancellation: {
+      freeCancelHours: { max: 8760 }, // one year
+      lateFeeBps: { max: 10000 }, // 100% of the reservation total
+    },
+    fuel_rate: {
+      minorPerPct: { max: 100000 }, // 1000.00 major units per percentage point
+    },
   };
 
   private validate(kind: string, payload: Record<string, unknown>, key?: string) {
     const issues: Array<{ path: string; code: string }> = [];
     if (kind === 'policy') {
-      const allowed = key ? ConfigVersionService.POLICY_FIELDS[key] : undefined;
-      if (key && !allowed) issues.push({ path: 'key', code: 'unknown_policy_key' });
+      const bounds = key ? ConfigVersionService.POLICY_FIELD_BOUNDS[key] : undefined;
+      if (key && !bounds) issues.push({ path: 'key', code: 'unknown_policy_key' });
       for (const [k, v] of Object.entries(payload)) {
-        if (allowed && !allowed.includes(k)) {
+        if (bounds && !(k in bounds)) {
           issues.push({ path: k, code: 'unknown_field' });
           continue;
         }
         if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) {
           issues.push({ path: k, code: 'must_be_non_negative_number' });
+          continue;
         }
+        const max = bounds?.[k]?.max;
+        if (max != null && v > max) issues.push({ path: k, code: 'out_of_range' });
       }
-      for (const f of allowed ?? []) {
+      for (const f of Object.keys(bounds ?? {})) {
         if (!(f in payload)) issues.push({ path: f, code: 'required' });
-      }
-      if ('lateFeeBps' in payload && Number(payload.lateFeeBps) > 10000) {
-        issues.push({ path: 'lateFeeBps', code: 'out_of_range' });
       }
     }
     if (kind === 'branding') {
