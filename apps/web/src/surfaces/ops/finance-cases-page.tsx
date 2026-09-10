@@ -121,7 +121,14 @@ export function FinanceCasesPage() {
     {
       key: 'kind',
       header: t('ops.fin.kind'),
-      cell: (c) => c.kind.replace(/_/g, ' '),
+      cell: (c) => (
+        <span className="flex flex-wrap items-center gap-1">
+          {t(`ops.fin.caseKind.${c.kind}`)}
+          {c.state === 'in_progress' ? (
+            <Badge variant="warning">{t('ops.fin.caseState.in_progress')}</Badge>
+          ) : null}
+        </span>
+      ),
       className: 'text-xs',
     },
     {
@@ -157,7 +164,8 @@ export function FinanceCasesPage() {
             <Button
               size="sm"
               variant="outline"
-              loading={retry.isPending}
+              loading={retry.isPending && retry.variables === c.id}
+              disabled={retry.isPending}
               onClick={() => doRetry(c.id)}
               data-testid={`case-retry-${c.id}`}
             >
@@ -185,7 +193,7 @@ export function FinanceCasesPage() {
     {
       key: 'kind',
       header: t('ops.fin.kind'),
-      cell: (e) => e.kind.replace(/_/g, ' '),
+      cell: (e) => t(`ops.fin.excKind.${e.kind}`),
       className: 'text-xs',
     },
     {
