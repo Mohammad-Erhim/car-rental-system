@@ -172,6 +172,11 @@ export class TranslationService {
     });
     if ((input.status ?? 'draft') === 'published') {
       await this.cache.invalidate(`i18n:${input.localeCode}`, { namespace: input.namespace });
+      // reference-data value labels live in the `lookup:<type>` namespace and are also served by
+      // the values endpoint under its own ETag — keep that in step too.
+      if (input.namespace.startsWith('lookup:')) {
+        await this.cache.invalidate(input.namespace, { via: 'translation' });
+      }
     }
     return row;
   }
@@ -306,6 +311,9 @@ export class TranslationService {
         ),
       );
     await this.cache.invalidate(`i18n:${localeCode}`, { namespace });
+    if (namespace.startsWith('lookup:')) {
+      await this.cache.invalidate(namespace, { via: 'translation' });
+    }
     await this.audit.record({
       action: 'config.translation.published',
       targetType: 'translation_namespace',

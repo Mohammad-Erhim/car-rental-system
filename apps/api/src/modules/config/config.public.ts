@@ -29,6 +29,11 @@ export class ConfigPublic {
     return this.lookups.resolveHistorical(typeCode, code, locale);
   }
 
+  /** Throw `VALIDATION_FAILED` on `field` unless `code` is a currently-active value of `typeCode`. */
+  assertLookupCode(typeCode: string, code: string, field = 'code') {
+    return this.lookups.assertActiveCode(typeCode, code, field);
+  }
+
   async defaultOrganization() {
     const [org] = await this.db
       .select()

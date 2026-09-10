@@ -18,6 +18,7 @@ import {
 } from '../../database/schema/reservation';
 import { AvailabilityService } from '../availability/availability.service';
 import { ConfigVersionService } from '../config/config-version.service';
+import { ConfigPublic } from '../config/config.public';
 import { NotifyService } from '../notify/notify.service';
 import { PaymentService } from '../payment/payment.service';
 import { PricingService } from '../pricing/pricing.service';
@@ -33,6 +34,7 @@ export class ReservationOpsService {
     private readonly audit: AuditService,
     private readonly outbox: OutboxService,
     private readonly config: ConfigVersionService,
+    private readonly refData: ConfigPublic,
   ) {}
 
   private async orgId(): Promise<string> {
@@ -215,6 +217,10 @@ export class ReservationOpsService {
       throw AppError.businessRule(`A ${row.state} reservation cannot be cancelled here`, {
         reason: 'not_cancellable',
       });
+    }
+
+    if (input.reasonCode) {
+      await this.refData.assertLookupCode('cancel_reason', input.reasonCode, 'reasonCode');
     }
 
     const freeCancelHours = await this.config.policy('cancellation', 'freeCancelHours');

@@ -75,7 +75,7 @@ describe('fleet operations', () => {
     const opened = await request(server)
       .post('/api/v1/ops/fleet/blocks')
       .set(auth(adminToken))
-      .send({ unitId: unit!.id, kind: 'maintenance', reasonCode: 'service', startAt: isoIn(0) })
+      .send({ unitId: unit!.id, kind: 'maintenance', reasonCode: 'maintenance', startAt: isoIn(0) })
       .expect(201);
     const blockId = opened.body.id as string;
 
@@ -111,6 +111,21 @@ describe('fleet operations', () => {
 
     const after = await unitsAt('TST1', 'suv');
     expect(after.find((u) => u.id === unit!.id)?.state).toBe('available');
+  });
+
+  it('rejects a block reason that is not an active block_reason value', async () => {
+    const unit = (await unitsAt('TST1', 'suv')).find((u) => u.state === 'available');
+    const bad = await request(server)
+      .post('/api/v1/ops/fleet/blocks')
+      .set(auth(adminToken))
+      .send({
+        unitId: unit!.id,
+        kind: 'admin_block',
+        reasonCode: 'just_because',
+        startAt: isoIn(0),
+      })
+      .expect(422);
+    expect(bad.body.fieldErrors?.[0]?.path).toBe('reasonCode');
   });
 
   it('a unit transfers to another location and is then counted there', async () => {
