@@ -255,10 +255,9 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
   const [incReplacement, setIncReplacement] = useState('');
   const spares = useOpsUnits({
     locationCode: inProgress && incOpen ? r.pickupLocationCode : undefined,
+    state: 'available',
   });
-  const availableSpares = (spares.data ?? []).filter(
-    (u) => u.state === 'available' && u.id !== undefined,
-  );
+  const availableSpares = (spares.data?.results ?? []).filter((u) => u.id !== undefined);
 
   const money = (m: number, c: string) => fmt.money({ amountMinor: m, currency: c });
   const err = (e: unknown, fb: string) => (e instanceof ApiError ? e.message : fb);

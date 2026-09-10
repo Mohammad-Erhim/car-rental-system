@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiFetch } from './api.js';
 
@@ -17,14 +17,26 @@ export interface OpsUnit {
   state: string;
 }
 
-export function useOpsUnits(filter: { locationCode?: string; categoryCode?: string }) {
+export interface OpsUnitList {
+  count: number;
+  total: number;
+  results: OpsUnit[];
+}
+
+export function useOpsUnits(filter: {
+  locationCode?: string;
+  categoryCode?: string;
+  state?: string;
+}) {
   const qs = new URLSearchParams();
   if (filter.locationCode) qs.set('locationCode', filter.locationCode);
   if (filter.categoryCode) qs.set('categoryCode', filter.categoryCode);
+  if (filter.state) qs.set('state', filter.state);
   return useQuery({
     queryKey: ['ops', 'fleet-units', filter],
+    placeholderData: keepPreviousData,
     queryFn: ({ signal }) =>
-      apiFetch<OpsUnit[]>(`/ops/fleet/units${qs.toString() ? `?${qs}` : ''}`, { signal }),
+      apiFetch<OpsUnitList>(`/ops/fleet/units${qs.toString() ? `?${qs}` : ''}`, { signal }),
   });
 }
 

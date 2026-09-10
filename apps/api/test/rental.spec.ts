@@ -227,7 +227,7 @@ describe('rental lifecycle', () => {
       .query({ locationCode: 'TST1', categoryCode: 'suv' })
       .set(auth(adminToken))
       .expect(200);
-    const replacement = units.body.find(
+    const replacement = units.body.results.find(
       (u: { id: string; state: string }) => u.state === 'available' && u.id !== originalUnit,
     );
     expect(replacement).toBeTruthy();
@@ -247,8 +247,10 @@ describe('rental lifecycle', () => {
       .query({ locationCode: 'TST1', categoryCode: 'suv' })
       .set(auth(adminToken))
       .expect(200);
-    expect(now.body.find((u: { id: string }) => u.id === replacement.id).state).toBe('on_rent');
-    expect(now.body.find((u: { id: string }) => u.id === originalUnit).state).toBe('prep');
+    expect(now.body.results.find((u: { id: string }) => u.id === replacement.id).state).toBe(
+      'on_rent',
+    );
+    expect(now.body.results.find((u: { id: string }) => u.id === originalUnit).state).toBe('prep');
   });
 
   it('an accident with no replacement immobilises the vehicle; guards reject a bad swap / a closed rental', async () => {
@@ -277,7 +279,9 @@ describe('rental lifecycle', () => {
       .query({ locationCode: 'TST1' })
       .set(auth(adminToken))
       .expect(200);
-    expect(units.body.find((u: { id: string }) => u.id === unitId).state).toBe('out_of_service');
+    expect(units.body.results.find((u: { id: string }) => u.id === unitId).state).toBe(
+      'out_of_service',
+    );
     const blocks = await request(server)
       .get('/api/v1/ops/fleet/blocks')
       .query({ unitId, status: 'active' })
