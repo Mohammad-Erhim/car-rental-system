@@ -1,7 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, gte, ilike, lte, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, gte, ilike, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
+import { AuditService } from '../../common/audit/audit.service';
 import type { Actor } from '../../common/auth/types';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
@@ -13,7 +14,14 @@ import { reservation, reservationDriver } from '../../database/schema/reservatio
  * FR-ADM-003 / SCREEN-OPS-004 — one search across reservations *and* rentals. Free text matches a
  * reference, the primary driver, or (for rentals) the vehicle plate/VIN; the caller narrows with
  * status / location / a pickup-date window. Results carry a `kind` so the two are distinguished
- * and a `href` to the permitted next surface. Saved views are a documented follow-up.
+ * and a `href` to the permitted next surface.
+ *
+ * Access: a location-scoped actor only sees rows for their own pickup locations (FR-RPT-004),
+ * the same boundary the reports apply. Every query is recorded to the audit trail — a driver /
+ * licence lookup is a PII access (SRS-SEC-016).
+ *
+ * Results are capped, not deep-paginated: entity search is a "refine, don't page" interaction —
+ * the response carries the true `total` so the UI can say "showing N of M, narrow to see more".
  */
 export interface SearchParams {
   q?: string;
@@ -44,14 +52,32 @@ export interface SearchHit {
   href: string;
 }
 
+export interface SearchResponse {
+  query: string;
+  /** rows returned (<= limit) */
+  count: number;
+  /** true number of matches across both kinds, before the display cap */
+  total: number;
+  /** true when `total > count` — the UI prompts the operator to narrow */
+  truncated: boolean;
+  results: SearchHit[];
+}
+
+/** How many rows to pull from each side before merge-sorting to the display cap. */
+const SCAN_PER_SIDE = 100;
+
 @Injectable()
 export class SearchService {
-  constructor(@Inject(DB) private readonly db: Database) {}
+  constructor(
+    @Inject(DB) private readonly db: Database,
+    private readonly audit: AuditService,
+  ) {}
 
-  async search(
-    actor: Actor,
-    params: SearchParams,
-  ): Promise<{ query: string; count: number; results: SearchHit[] }> {
+  private scopeCodes(actor: Actor): string[] | null {
+    return actor.locationScope?.length ? actor.locationScope : null;
+  }
+
+  async search(actor: Actor, params: SearchParams): Promise<SearchResponse> {
     const canReservations = actor.permissions.includes('reservation.read');
     const canRentals = actor.permissions.includes('rental.read');
     if (!canReservations && !canRentals) {
@@ -62,21 +88,50 @@ export class SearchService {
     if (q && q.length < 2) {
       throw AppError.validation([{ path: 'q', code: 'too_small', params: { min: 2 } }]);
     }
-    const like = `%${q.replace(/[%_]/g, (m) => `\\${m}`)}%`;
-    const limit = Math.min(Math.max(params.limit ?? 50, 1), 100);
+    const like = `%${q.replace(/[%_\\]/g, (m) => `\\${m}`)}%`;
+    const rawLimit = Number(params.limit);
+    const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 50, 1), 100);
     const from = this.parseDate(params.from, 'from');
     const to = this.parseDate(params.to, 'to');
+    const scope = this.scopeCodes(actor);
 
     const wantReservations = canReservations && params.kind !== 'rental';
     const wantRentals = canRentals && params.kind !== 'reservation';
 
-    const results: SearchHit[] = [];
-    if (wantReservations)
-      results.push(...(await this.reservations(q, like, params, from, to, limit)));
-    if (wantRentals) results.push(...(await this.rentals(q, like, params, from, to, limit)));
+    let results: SearchHit[] = [];
+    let total = 0;
+    if (wantReservations) {
+      const r = await this.reservations(q, like, params, from, to, scope);
+      results.push(...r.hits);
+      total += r.total;
+    }
+    if (wantRentals) {
+      const r = await this.rentals(q, like, params, from, to, scope);
+      results.push(...r.hits);
+      total += r.total;
+    }
 
     results.sort((a, b) => (a.pickupAt < b.pickupAt ? 1 : a.pickupAt > b.pickupAt ? -1 : 0));
-    return { query: q, count: results.length, results: results.slice(0, limit) };
+    results = results.slice(0, limit);
+
+    await this.audit.record({
+      action: 'ops.search',
+      targetType: 'search',
+      actor,
+      outcome: 'accepted',
+      after: {
+        query: q || null,
+        kind: params.kind ?? null,
+        status: params.status ?? null,
+        locationCode: params.locationCode ?? null,
+        from: params.from ?? null,
+        to: params.to ?? null,
+        total,
+        locationScoped: !!scope,
+      },
+    });
+
+    return { query: q, count: results.length, total, truncated: total > results.length, results };
   }
 
   private parseDate(v: string | undefined, field: string): Date | null {
@@ -94,11 +149,12 @@ export class SearchService {
     params: SearchParams,
     from: Date | null,
     to: Date | null,
-    limit: number,
-  ): Promise<SearchHit[]> {
+    scope: string[] | null,
+  ): Promise<{ hits: SearchHit[]; total: number }> {
     const where: SQL[] = [];
     if (params.status) where.push(eq(reservation.state, params.status));
     if (params.locationCode) where.push(eq(reservation.pickupLocationCode, params.locationCode));
+    if (scope) where.push(inArray(reservation.pickupLocationCode, scope));
     if (from) where.push(gte(reservation.pickupAt, from.toISOString()));
     if (to) where.push(lte(reservation.pickupAt, to.toISOString()));
     if (q) {
@@ -111,6 +167,17 @@ export class SearchService {
         )!,
       );
     }
+    const whereSql = where.length ? and(...where) : sql`true`;
+    const driverJoin = and(
+      eq(reservationDriver.reservationId, reservation.id),
+      eq(reservationDriver.role, 'primary_renter'),
+    );
+
+    const [countRow] = await this.db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(reservation)
+      .leftJoin(reservationDriver, driverJoin)
+      .where(whereSql);
 
     const rows = await this.db
       .select({
@@ -127,18 +194,12 @@ export class SearchService {
         driverName: reservationDriver.fullName,
       })
       .from(reservation)
-      .leftJoin(
-        reservationDriver,
-        and(
-          eq(reservationDriver.reservationId, reservation.id),
-          eq(reservationDriver.role, 'primary_renter'),
-        ),
-      )
-      .where(where.length ? and(...where) : sql`true`)
+      .leftJoin(reservationDriver, driverJoin)
+      .where(whereSql)
       .orderBy(desc(reservation.pickupAt))
-      .limit(limit);
+      .limit(SCAN_PER_SIDE);
 
-    return rows.map((r) => ({
+    const hits = rows.map((r) => ({
       kind: 'reservation' as const,
       reference: r.reference,
       reservationReference: null,
@@ -156,6 +217,7 @@ export class SearchService {
       paidMinor: r.paidMinor,
       href: `/work?ref=${encodeURIComponent(r.reference)}`,
     }));
+    return { hits, total: countRow?.total ?? hits.length };
   }
 
   private async rentals(
@@ -164,11 +226,12 @@ export class SearchService {
     params: SearchParams,
     from: Date | null,
     to: Date | null,
-    limit: number,
-  ): Promise<SearchHit[]> {
+    scope: string[] | null,
+  ): Promise<{ hits: SearchHit[]; total: number }> {
     const where: SQL[] = [];
     if (params.status) where.push(eq(rental.state, params.status));
     if (params.locationCode) where.push(eq(rental.pickupLocationCode, params.locationCode));
+    if (scope) where.push(inArray(rental.pickupLocationCode, scope));
     if (from) where.push(gte(rental.scheduledPickupAt, from.toISOString()));
     if (to) where.push(lte(rental.scheduledPickupAt, to.toISOString()));
     if (q) {
@@ -182,6 +245,19 @@ export class SearchService {
         )!,
       );
     }
+    const whereSql = where.length ? and(...where) : sql`true`;
+    const driverJoin = and(
+      eq(reservationDriver.reservationId, reservation.id),
+      eq(reservationDriver.role, 'primary_renter'),
+    );
+
+    const [countRow] = await this.db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(rental)
+      .leftJoin(reservation, eq(reservation.reference, rental.reservationReference))
+      .leftJoin(reservationDriver, driverJoin)
+      .leftJoin(vehicleUnit, eq(vehicleUnit.id, rental.unitId))
+      .where(whereSql);
 
     const rows = await this.db
       .select({
@@ -203,20 +279,14 @@ export class SearchService {
       })
       .from(rental)
       .leftJoin(reservation, eq(reservation.reference, rental.reservationReference))
-      .leftJoin(
-        reservationDriver,
-        and(
-          eq(reservationDriver.reservationId, reservation.id),
-          eq(reservationDriver.role, 'primary_renter'),
-        ),
-      )
+      .leftJoin(reservationDriver, driverJoin)
       .leftJoin(vehicleUnit, eq(vehicleUnit.id, rental.unitId))
-      .where(where.length ? and(...where) : sql`true`)
+      .where(whereSql)
       .orderBy(desc(rental.scheduledPickupAt))
-      .limit(limit);
+      .limit(SCAN_PER_SIDE);
 
     const now = Date.now();
-    return rows.map((r) => ({
+    const hits = rows.map((r) => ({
       kind: 'rental' as const,
       reference: r.reference,
       reservationReference: r.reservationReference,
@@ -237,5 +307,6 @@ export class SearchService {
       paidMinor: r.paidMinor,
       href: `/rentals?ref=${encodeURIComponent(r.reference)}`,
     }));
+    return { hits, total: countRow?.total ?? hits.length };
   }
 }

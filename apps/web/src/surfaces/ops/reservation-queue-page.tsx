@@ -41,10 +41,23 @@ export function ReservationQueuePage() {
       { replace: true },
     );
   const [locationCode, setLocationCode] = useState(() => params.get('location') ?? '');
+  // A `ref` param (from the unified search) pins the queue to one reservation.
+  const focusRef = params.get('ref') ?? '';
+  const clearFocus = () =>
+    setParams(
+      (p) => {
+        p.delete('ref');
+        return p;
+      },
+      { replace: true },
+    );
   const rows = useOpsReservations({
     state: state || undefined,
     locationCode: locationCode || undefined,
   });
+  const visibleRows = focusRef
+    ? (rows.data ?? []).filter((r) => r.reference === focusRef)
+    : rows.data;
   const assign = useAssignVehicle();
   const [assignMsg, setAssignMsg] = useState<string | null>(null);
 
@@ -142,9 +155,24 @@ export function ReservationQueuePage() {
           </Toolbar>
         </CardHeader>
         <CardContent>
+          {focusRef ? (
+            <p
+              className="mb-3 flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm"
+              data-testid="ops-queue-focus"
+            >
+              <span className="bidi-isolate font-mono text-xs">{focusRef}</span>
+              <button
+                type="button"
+                onClick={clearFocus}
+                className="text-xs font-medium text-primary hover:underline"
+              >
+                {t('ops.queue.showAll')}
+              </button>
+            </p>
+          ) : null}
           <DataTable
             columns={columns}
-            rows={rows.data}
+            rows={visibleRows}
             rowKey={(r) => r.reference}
             isLoading={rows.isLoading}
             isError={rows.isError}
@@ -157,7 +185,7 @@ export function ReservationQueuePage() {
               loading: t('ops.st.loading'),
               loadFailTitle: t('ops.queue.loadFail'),
               retry: t('ops.st.retry'),
-              empty: t('ops.queue.empty'),
+              empty: focusRef ? t('ops.queue.focusMiss') : t('ops.queue.empty'),
             }}
           />
           {assignMsg ? (
