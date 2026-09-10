@@ -8,6 +8,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { ConfigVersion } from './admin-hooks.js';
 import { apiFetch } from './api.js';
+import { useWorkflowError } from './use-workflow-error.js';
 
 /** STAGE-009 (DEC-025) — the `branding` config-version rides the generic config workflow. */
 export const BRANDING_KIND = 'branding';
@@ -55,7 +56,9 @@ export function useBrandingPreview() {
 
 export function useBrandingTransition() {
   const qc = useQueryClient();
+  const onError = useWorkflowError();
   return useMutation({
+    onError,
     mutationFn: ({
       id,
       action,

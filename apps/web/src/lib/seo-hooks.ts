@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { ConfigVersion } from './admin-hooks.js';
 import { apiFetch } from './api.js';
+import { useWorkflowError } from './use-workflow-error.js';
 
 /** SRS-ADM-006 — the `seo` config-version rides the generic draft → submit → approve workflow. */
 export const SEO_KIND = 'seo';
@@ -49,7 +50,9 @@ export function useSeoPreview() {
 
 export function useSeoTransition() {
   const qc = useQueryClient();
+  const onError = useWorkflowError();
   return useMutation({
+    onError,
     mutationFn: ({
       id,
       action,

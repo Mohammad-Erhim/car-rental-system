@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import type { ConfigVersion } from './admin-hooks.js';
 import { apiFetch } from './api.js';
+import { useWorkflowError } from './use-workflow-error.js';
 
 /** The `pages` config-version rides the generic draft → submit → approve workflow. */
 export const PAGES_KIND = 'pages';
@@ -49,7 +50,9 @@ export function usePagesPreview() {
 
 export function usePagesTransition() {
   const qc = useQueryClient();
+  const onError = useWorkflowError();
   return useMutation({
+    onError,
     mutationFn: ({
       id,
       action,
