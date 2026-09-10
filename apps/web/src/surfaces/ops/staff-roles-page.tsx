@@ -7,6 +7,7 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  ConfirmDialog,
   DataTable,
   ErrorSummary,
   Field,
@@ -79,13 +80,26 @@ export function StaffRolesPage() {
     onError: (e) => errs.fromError(e),
   });
 
+  const [suspendTarget, setSuspendTarget] = useState<{ accountId: string; name: string } | null>(
+    null,
+  );
+
   const changeStatus = useMutation({
     mutationFn: (input: { accountId: string; status: 'active' | 'suspended' }) =>
       apiFetch(`/admin/staff/${input.accountId}/access`, {
         method: 'POST',
         body: { status: input.status },
       }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['admin', 'staff'] }),
+    onSuccess: (_d, v) => {
+      void qc.invalidateQueries({ queryKey: ['admin', 'staff'] });
+      toast({
+        title:
+          v.status === 'suspended' ? t('ops.staff.suspendedMsg') : t('ops.staff.reactivatedMsg'),
+        variant: 'success',
+      });
+    },
+    onError: (e) => toast({ title: e instanceof Error ? e.message : t('ops.staff.statusFail') }),
+    onSettled: () => setSuspendTarget(null),
   });
 
   type Staff = NonNullable<typeof staff.data>[number];
@@ -126,7 +140,8 @@ export function StaffRolesPage() {
           <Button
             size="sm"
             variant="ghost"
-            onClick={() => changeStatus.mutate({ accountId: s.accountId, status: 'suspended' })}
+            loading={changeStatus.isPending}
+            onClick={() => setSuspendTarget({ accountId: s.accountId, name: s.displayName })}
           >
             {t('ops.staff.suspend')}
           </Button>
@@ -134,6 +149,7 @@ export function StaffRolesPage() {
           <Button
             size="sm"
             variant="ghost"
+            loading={changeStatus.isPending}
             onClick={() => changeStatus.mutate({ accountId: s.accountId, status: 'active' })}
           >
             {t('ops.staff.reactivate')}
@@ -240,6 +256,22 @@ export function StaffRolesPage() {
           />
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={!!suspendTarget}
+        onOpenChange={(v) => !v && setSuspendTarget(null)}
+        destructive
+        title={t('ops.staff.suspendTitle', { name: suspendTarget?.name ?? '' })}
+        description={t('ops.staff.suspendBody')}
+        confirmLabel={t('ops.staff.suspend')}
+        onConfirm={async () => {
+          if (suspendTarget)
+            await changeStatus.mutateAsync({
+              accountId: suspendTarget.accountId,
+              status: 'suspended',
+            });
+        }}
+      />
     </div>
   );
 }

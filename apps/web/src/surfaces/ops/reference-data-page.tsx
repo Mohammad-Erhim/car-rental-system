@@ -14,6 +14,7 @@ import {
   Field,
   Input,
   PageHeader,
+  useToast,
   type DataTableColumn,
 } from '@carrental/ui';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -145,6 +146,10 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
     onError: (e) => errs.fromError(e),
   });
 
+  const { toast } = useToast();
+  const onMutError = (e: unknown) =>
+    toast({ title: e instanceof Error ? e.message : t('ops.ref.actionFail') });
+
   const setActive = useMutation({
     mutationFn: (input: { id: string; active: boolean; force?: boolean }) =>
       apiFetch(
@@ -154,6 +159,7 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
         { method: 'POST' },
       ),
     onSuccess: () => void invalidate(),
+    onError: onMutError,
   });
 
   const editLabel = useMutation({
@@ -163,6 +169,7 @@ function LookupTypeDetail({ typeCode, canManage }: { typeCode: string; canManage
         body: { label: input.label },
       }),
     onSuccess: () => void invalidate(),
+    onError: onMutError,
   });
 
   type LookupValue = NonNullable<typeof values.data>['values'][number];

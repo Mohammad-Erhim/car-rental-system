@@ -7,8 +7,10 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
+  ConfirmDialog,
   Input,
   PageHeader,
+  useToast,
 } from '@carrental/ui';
 import { Check, Globe, Star } from 'lucide-react';
 import { useState } from 'react';
@@ -30,10 +32,24 @@ export function LanguagesPage() {
   const { t } = useI18n();
   const canManage = useAuth().hasPermission('config.publish');
 
+  const { toast } = useToast();
   const locales = useAdminLocales();
   const completeness = useTranslationCompleteness();
   const upsert = useUpsertLocale();
   const act = useLocaleAction();
+  const [confirm, setConfirm] = useState<null | { code: string; action: 'deactivate' | 'default' }>(
+    null,
+  );
+
+  const doAct = (code: string, action: 'activate' | 'deactivate' | 'default') =>
+    act.mutate(
+      { code, action },
+      {
+        onError: (e) =>
+          toast({ title: e instanceof Error ? e.message : t('ops.languages.actionFail') }),
+        onSettled: () => setConfirm(null),
+      },
+    );
 
   const [form, setForm] = useState({
     code: '',
@@ -108,11 +124,11 @@ export function LanguagesPage() {
                         <Button
                           size="sm"
                           variant="ghost"
+                          loading={act.isPending}
                           onClick={() =>
-                            act.mutate({
-                              code: l.code,
-                              action: l.isActive ? 'deactivate' : 'activate',
-                            })
+                            l.isActive
+                              ? setConfirm({ code: l.code, action: 'deactivate' })
+                              : doAct(l.code, 'activate')
                           }
                         >
                           {l.isActive ? t('ops.languages.deactivate') : t('ops.languages.activate')}
@@ -120,7 +136,8 @@ export function LanguagesPage() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => act.mutate({ code: l.code, action: 'default' })}
+                          loading={act.isPending}
+                          onClick={() => setConfirm({ code: l.code, action: 'default' })}
                         >
                           {t('ops.languages.makeDefault')}
                         </Button>
@@ -207,6 +224,28 @@ export function LanguagesPage() {
           </CardContent>
         </Card>
       ) : null}
+
+      <ConfirmDialog
+        open={!!confirm}
+        onOpenChange={(v) => !v && setConfirm(null)}
+        destructive={confirm?.action === 'deactivate'}
+        title={
+          confirm?.action === 'default'
+            ? t('ops.languages.defaultTitle', { code: confirm?.code ?? '' })
+            : t('ops.languages.deactivateTitle', { code: confirm?.code ?? '' })
+        }
+        description={
+          confirm?.action === 'default'
+            ? t('ops.languages.defaultBody')
+            : t('ops.languages.deactivateBody')
+        }
+        confirmLabel={
+          confirm?.action === 'default'
+            ? t('ops.languages.makeDefault')
+            : t('ops.languages.deactivate')
+        }
+        onConfirm={() => (confirm ? doAct(confirm.code, confirm.action) : undefined)}
+      />
     </div>
   );
 }
