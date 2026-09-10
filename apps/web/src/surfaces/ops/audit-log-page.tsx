@@ -13,8 +13,25 @@ import {
   type DataTableColumn,
 } from '@carrental/ui';
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import { useAuditLog } from '../../lib/admin-hooks.js';
+
+/** Common actions, for the filter's autocomplete — the field still accepts anything. */
+const COMMON_ACTIONS = [
+  'ops.search',
+  'customer.searched',
+  'reservation.cancelled',
+  'reservation.modified',
+  'reservation.no_show',
+  'payment.reconciled',
+  'payment.refund',
+  'fleet.block.opened',
+  'fleet.unit.transferred',
+  'recovery_case.retried',
+  'config.published',
+  'iam.staff.invited',
+];
 
 /**
  * SCREEN-OPS-038 — Audit & activity. An append-only view of consequential actions. Sensitive
@@ -23,11 +40,24 @@ import { useAuditLog } from '../../lib/admin-hooks.js';
  * table renders the most recent 120 of them (narrow the filter to reach older ones).
  */
 export function AuditLogPage() {
-  const { t } = useI18n();
-  const [draft, setDraft] = useState({ action: '', targetType: '' });
-  const [filter, setFilter] = useState<{ action?: string; targetType?: string }>({});
+  const { t, fmt } = useI18n();
+  const [params, setParams] = useSearchParams();
+  const filter = {
+    action: params.get('action') ?? undefined,
+    targetType: params.get('targetType') ?? undefined,
+    from: params.get('from') ? `${params.get('from')}T00:00:00.000Z` : undefined,
+    to: params.get('to') ? `${params.get('to')}T23:59:59.999Z` : undefined,
+  };
+  const [draft, setDraft] = useState({
+    action: params.get('action') ?? '',
+    targetType: params.get('targetType') ?? '',
+    from: params.get('from') ?? '',
+    to: params.get('to') ?? '',
+  });
   const rows = useAuditLog(filter);
   const [expanded, setExpanded] = useState<string | null>(null);
+
+  const hasFilter = !!(filter.action || filter.targetType || filter.from || filter.to);
 
   // the API returns up to 200; render a bounded slice so a busy log stays responsive
   const RENDER_CAP = 120;
@@ -36,10 +66,16 @@ export function AuditLogPage() {
 
   function apply(e: React.FormEvent) {
     e.preventDefault();
-    setFilter({
-      action: draft.action.trim() || undefined,
-      targetType: draft.targetType.trim() || undefined,
-    });
+    setParams(
+      (p) => {
+        for (const [k, v] of Object.entries(draft)) {
+          if (v.trim()) p.set(k, v.trim());
+          else p.delete(k);
+        }
+        return p;
+      },
+      { replace: true },
+    );
   }
 
   type Event = NonNullable<typeof rows.data>[number];
@@ -47,8 +83,8 @@ export function AuditLogPage() {
     {
       key: 'when',
       header: t('ops.audit.hWhen'),
-      cell: (r) => new Date(r.occurredAt).toLocaleString(),
-      className: 'pe-3 text-xs text-muted-foreground',
+      cell: (r) => fmt.dateTime(r.occurredAt),
+      className: 'whitespace-nowrap pe-3 text-xs text-muted-foreground',
     },
     { key: 'actor', header: t('ops.audit.hActor'), cell: (r) => r.actor, className: 'pe-3' },
     {
@@ -115,6 +151,11 @@ export function AuditLogPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={apply} className="flex flex-wrap items-end gap-3" noValidate>
+            <datalist id="audit-actions">
+              {COMMON_ACTIONS.map((a) => (
+                <option key={a} value={a} />
+              ))}
+            </datalist>
             <Field
               label={t('ops.audit.filterAction')}
               htmlFor="aud-action"
@@ -123,6 +164,7 @@ export function AuditLogPage() {
               {({ id }) => (
                 <Input
                   id={id}
+                  list="audit-actions"
                   data-testid="audit-action"
                   value={draft.action}
                   onChange={(e) => setDraft((d) => ({ ...d, action: e.target.value }))}
@@ -143,16 +185,38 @@ export function AuditLogPage() {
                 />
               )}
             </Field>
+            <Field label={t('ops.search.from')} htmlFor="aud-from">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  type="date"
+                  value={draft.from}
+                  max={draft.to || undefined}
+                  onChange={(e) => setDraft((d) => ({ ...d, from: e.target.value }))}
+                />
+              )}
+            </Field>
+            <Field label={t('ops.search.to')} htmlFor="aud-to">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  type="date"
+                  value={draft.to}
+                  min={draft.from || undefined}
+                  onChange={(e) => setDraft((d) => ({ ...d, to: e.target.value }))}
+                />
+              )}
+            </Field>
             <Button type="submit" data-testid="audit-apply">
               {t('ops.audit.apply')}
             </Button>
-            {(filter.action || filter.targetType) && (
+            {hasFilter && (
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => {
-                  setDraft({ action: '', targetType: '' });
-                  setFilter({});
+                  setDraft({ action: '', targetType: '', from: '', to: '' });
+                  setParams({}, { replace: true });
                 }}
               >
                 {t('ops.st.clear')}

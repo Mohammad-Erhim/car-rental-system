@@ -197,12 +197,17 @@ export interface AuditRow {
   after: Record<string, unknown> | null;
 }
 
-export function useAuditLog(filter: { action?: string; targetType?: string }) {
+export function useAuditLog(filter: {
+  action?: string;
+  targetType?: string;
+  from?: string;
+  to?: string;
+}) {
   const qs = new URLSearchParams();
-  if (filter.action) qs.set('action', filter.action);
-  if (filter.targetType) qs.set('targetType', filter.targetType);
+  for (const [k, v] of Object.entries(filter)) if (v) qs.set(k, v);
   return useQuery({
     queryKey: ['ops', 'audit', filter],
+    placeholderData: keepPreviousData,
     queryFn: ({ signal }) =>
       apiFetch<AuditRow[]>(`/ops/audit${qs.toString() ? `?${qs}` : ''}`, { signal }),
   });
