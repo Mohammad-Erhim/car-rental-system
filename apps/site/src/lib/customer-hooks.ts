@@ -174,6 +174,7 @@ export interface CatalogueProduct {
   kind: 'extra' | 'protection';
   unitPriceMinor: number;
   currency: string;
+  pricingUnit: 'per_rental' | 'per_day';
   taxable: boolean;
   maxQuantity: number;
 }

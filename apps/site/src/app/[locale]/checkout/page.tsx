@@ -79,13 +79,20 @@ function CheckoutInner() {
     () => Object.entries(extras).flatMap(([code, qty]) => Array.from({ length: qty }, () => code)),
     [extras],
   );
+  // a per-day product costs (unit price × billable days); mirrors ProductService.resolveForBooking
+  const billableDays = Math.max(1, Math.ceil((quote.data?.durationHours ?? 24) / 24));
   const extrasEstimateMinor = useMemo(() => {
-    const byCode = new Map((products.data ?? []).map((p) => [p.code, p.unitPriceMinor]));
+    const byCode = new Map(
+      (products.data ?? []).map((p) => [
+        p.code,
+        p.unitPriceMinor * (p.pricingUnit === 'per_day' ? billableDays : 1),
+      ]),
+    );
     return Object.entries(extras).reduce(
       (sum, [code, qty]) => sum + (byCode.get(code) ?? 0) * qty,
       0,
     );
-  }, [extras, products.data]);
+  }, [extras, products.data, billableDays]);
 
   async function pay(e: FormEvent) {
     e.preventDefault();
@@ -209,9 +216,22 @@ function CheckoutInner() {
                           ) : null}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {t('checkout.extrasPerDay', {
-                            amount: formatMinor(p.unitPriceMinor, p.currency, uiLocale),
-                          })}
+                          {t(
+                            p.pricingUnit === 'per_day'
+                              ? 'checkout.extrasPerDay'
+                              : 'checkout.extrasOnce',
+                            { amount: formatMinor(p.unitPriceMinor, p.currency, uiLocale) },
+                          )}
+                          {p.pricingUnit === 'per_day' && billableDays > 1
+                            ? ` · ${t('checkout.extrasForDays', {
+                                amount: formatMinor(
+                                  p.unitPriceMinor * billableDays,
+                                  p.currency,
+                                  uiLocale,
+                                ),
+                                days: billableDays,
+                              })}`
+                            : ''}
                         </p>
                       </div>
                       {p.maxQuantity === 1 ? (
