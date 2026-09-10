@@ -22,6 +22,7 @@ import {
   CardTitle,
   Input,
   PageHeader,
+  useToast,
 } from '@carrental/ui';
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 
@@ -83,6 +84,7 @@ const selectClass = 'h-10 w-full rounded-md border bg-background px-3 text-sm';
 
 export function BrandingPage() {
   const { t } = useI18n();
+  const { toast } = useToast();
   const { hasPermission } = useAuth();
   const canPublish = hasPermission('config.publish');
 
@@ -321,7 +323,16 @@ export function BrandingPage() {
             <Button
               disabled={!draft || violations.length > 0 || draftMut.isPending}
               loading={draftMut.isPending}
-              onClick={() => draft && draftMut.mutate({ payload: draft })}
+              onClick={() =>
+                draft &&
+                draftMut.mutate(
+                  { payload: draft },
+                  {
+                    onSuccess: () =>
+                      toast({ title: t('ops.branding.draftSaved'), variant: 'success' }),
+                  },
+                )
+              }
             >
               {t('ops.branding.saveDraft')}
             </Button>

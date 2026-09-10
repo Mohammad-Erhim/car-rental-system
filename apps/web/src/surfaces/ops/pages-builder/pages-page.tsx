@@ -36,6 +36,7 @@ import {
   Input,
   PageHeader,
   Textarea,
+  useToast,
 } from '@carrental/ui';
 import {
   ArrowDown,
@@ -111,6 +112,7 @@ function makeBlock(type: BlockType): Block {
 
 export function PagesPage() {
   const { t } = useI18n();
+  const { toast } = useToast();
   const { hasPermission } = useAuth();
   const canPublish = hasPermission('config.publish');
 
@@ -263,19 +265,28 @@ export function PagesPage() {
     file: File,
     onRef: (ref: string, w: number | null, h: number | null) => void,
   ) {
-    const res = await upload.mutateAsync({ purpose, file });
-    assetUrls.current[res.ref] = res.url;
-    onRef(res.ref, res.width, res.height);
+    try {
+      const res = await upload.mutateAsync({ purpose, file });
+      assetUrls.current[res.ref] = res.url;
+      onRef(res.ref, res.width, res.height);
+    } catch (e) {
+      toast({ title: e instanceof Error ? e.message : t('ops.pages.uploadFail') });
+    }
   }
 
   function saveDraft() {
     if (issues.length) return;
+    const parsed = zPagesConfig.safeParse(mapStrings(cfg, toStorageRef));
+    if (!parsed.success) {
+      toast({ title: t('ops.pages.validationFailed') });
+      return;
+    }
     draftMut.mutate(
+      { payload: parsed.data, note: note.trim() || undefined },
       {
-        payload: zPagesConfig.parse(mapStrings(cfg, toStorageRef)),
-        note: note.trim() || undefined,
+        onSuccess: () => versions.refetch(),
+        onError: (e) => toast({ title: e instanceof Error ? e.message : t('ops.pages.draftFail') }),
       },
-      { onSuccess: () => versions.refetch() },
     );
   }
 
@@ -1163,6 +1174,7 @@ function ColoursPanel({
   onChange: (b: BrandConfig) => void;
 }) {
   const { t } = useI18n();
+  const { toast } = useToast();
   const { hasPermission } = useAuth();
   const canPublish = hasPermission('config.publish');
   const draftBrand = useDraftBranding();
@@ -1272,7 +1284,11 @@ function ColoursPanel({
             onClick={() =>
               draftBrand.mutate(
                 { payload: value, note: note.trim() || undefined },
-                { onSuccess: () => brandVersions.refetch() },
+                {
+                  onSuccess: () => brandVersions.refetch(),
+                  onError: (e) =>
+                    toast({ title: e instanceof Error ? e.message : t('ops.pages.draftFail') }),
+                },
               )
             }
           >

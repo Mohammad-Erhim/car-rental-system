@@ -16,6 +16,7 @@ import {
   Field,
   Input,
   PageHeader,
+  useToast,
   type DataTableColumn,
 } from '@carrental/ui';
 import { useState } from 'react';
@@ -46,6 +47,7 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function ReportsPage() {
   const { t, fmt } = useI18n();
+  const { toast } = useToast();
   const { hasPermission } = useAuth();
   const canSchedule = hasPermission('report.export');
 
@@ -174,6 +176,7 @@ export function ReportsPage() {
         recipients: recipientList,
       });
       setSched((s) => ({ ...s, recipients: '' }));
+      toast({ title: t('ops.rpt.scheduleCreated'), variant: 'success' });
     } catch (err) {
       setSchedError(err instanceof ApiError ? err.message : t('ops.rpt.scheduleFail'));
     }
