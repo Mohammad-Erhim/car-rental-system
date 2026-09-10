@@ -56,7 +56,7 @@ function toCsv(rows: ConsentLogEntry[]): string {
 }
 
 export function ConsentLogPage() {
-  const { t } = useI18n();
+  const { t, fmt } = useI18n();
   const [draft, setDraft] = useState({ from: '', to: '', action: '' });
   const [query, setQuery] = useState<ConsentLogQuery>({ limit: PAGE, offset: 0 });
   const log = useConsentLog(query);
@@ -92,7 +92,7 @@ export function ConsentLogPage() {
     {
       key: 'at',
       header: t('ops.consent.log.when'),
-      cell: (r) => new Date(r.at).toLocaleString(),
+      cell: (r) => fmt.dateTime(r.at),
       className: 'pe-3 text-xs text-muted-foreground whitespace-nowrap',
     },
     {

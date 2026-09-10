@@ -19,7 +19,7 @@ import { useDataQuality, type DataQualityCheck } from '../../lib/admin-hooks.js'
  * A non-zero count is something ops should work; the panel never mutates anything.
  */
 export function DataQualityPage() {
-  const { t } = useI18n();
+  const { t, fmt } = useI18n();
   const report = useDataQuality();
 
   const sevVariant = (s: string) =>
@@ -84,7 +84,7 @@ export function DataQualityPage() {
                 )}
                 <span className="ms-2 text-xs text-muted-foreground">
                   {t('ops.dq.checkedAt', {
-                    at: new Date(report.data.checkedAt).toLocaleString(),
+                    at: fmt.dateTime(report.data.checkedAt),
                   })}
                 </span>
               </span>
