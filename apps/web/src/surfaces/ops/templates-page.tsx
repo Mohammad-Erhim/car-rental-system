@@ -9,6 +9,7 @@ import {
   CardHeader,
   CardTitle,
   Checkbox,
+  ConfirmDialog,
   Field,
   Input,
   PageHeader,
@@ -58,6 +59,7 @@ export function TemplatesPage() {
   const [body, setBody] = useState('');
   const [vars, setVars] = useState<TemplateVar[]>([]);
   const [dirty, setDirty] = useState(false);
+  const [confirmPublish, setConfirmPublish] = useState(false);
   // Re-sync the form from the server only when the *selection* changes — not when a save creates
   // a fresh draft row for the same (key, channel, locale), which would otherwise wipe an
   // in-flight preview and re-render the editor mid-interaction.
@@ -174,7 +176,10 @@ export function TemplatesPage() {
             </CardTitle>
             {d ? (
               <p className="text-xs text-muted-foreground">
-                {t('ops.tpl.statusLine', { status: d.status, version: d.version })}
+                {t('ops.tpl.statusLine', {
+                  status: t(`ops.cfg.state.${d.status}`),
+                  version: d.version,
+                })}
               </p>
             ) : null}
           </CardHeader>
@@ -318,16 +323,13 @@ export function TemplatesPage() {
                   {d.hasOpenDraft && (d.status === 'draft' || d.status === 'in_review') ? (
                     <Button
                       disabled={!canPublish || dirty || transition.isPending}
-                      onClick={() => transition.mutate({ id: d.id, action: 'publish' })}
+                      onClick={() => setConfirmPublish(true)}
                       data-testid="tpl-publish"
                     >
                       {t('ops.tpl.publish')}
                     </Button>
                   ) : null}
                 </div>
-                {transition.isError ? (
-                  <p className="text-sm text-destructive">{(transition.error as Error).message}</p>
-                ) : null}
 
                 {preview.data ? (
                   <Card className="bg-muted/40" data-testid="tpl-preview">
@@ -359,6 +361,21 @@ export function TemplatesPage() {
       </div>
 
       {sel ? <RuleCard event={sel.key} channel={sel.channel} canPublish={canPublish} /> : null}
+
+      <ConfirmDialog
+        open={confirmPublish}
+        onOpenChange={setConfirmPublish}
+        title={t('ops.tpl.publishTitle')}
+        description={t('ops.tpl.publishBody', {
+          key: sel?.key ?? '',
+          channel: sel?.channel ?? '',
+          locale: sel?.locale ?? '',
+        })}
+        confirmLabel={t('ops.tpl.publish')}
+        onConfirm={async () => {
+          if (d) await transition.mutateAsync({ id: d.id, action: 'publish' });
+        }}
+      />
     </div>
   );
 }

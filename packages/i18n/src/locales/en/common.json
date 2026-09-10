@@ -1171,6 +1171,8 @@
   "ops.tpl.preview": "Preview",
   "ops.tpl.previewTitle": "Preview (sample values)",
   "ops.tpl.publish": "Publish",
+  "ops.tpl.publishBody": "{key} · {channel} · {locale} goes live immediately — the next matching notification sent to a customer uses this version. The current published version is replaced.",
+  "ops.tpl.publishTitle": "Publish this template?",
   "ops.tpl.required": "required",
   "ops.tpl.saveDraft": "Save draft",
   "ops.tpl.selectOne": "Select a template",

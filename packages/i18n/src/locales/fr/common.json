@@ -1171,6 +1171,8 @@
   "ops.tpl.preview": "Aperçu",
   "ops.tpl.previewTitle": "Aperçu (valeurs d’exemple)",
   "ops.tpl.publish": "Publier",
+  "ops.tpl.publishBody": "{key} · {channel} · {locale} entre en vigueur immédiatement — la prochaine notification correspondante envoyée à un client utilise cette version. La version publiée actuelle est remplacée.",
+  "ops.tpl.publishTitle": "Publier ce modèle ?",
   "ops.tpl.required": "requis",
   "ops.tpl.saveDraft": "Enregistrer le brouillon",
   "ops.tpl.selectOne": "Sélectionnez un modèle",
