@@ -20,6 +20,7 @@ import {
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
+import { LookupSelect } from '../../components/lookup-select.js';
 import { ApiError } from '../../lib/api.js';
 import { useAssignVehicle } from '../../lib/rental-hooks.js';
 import {
@@ -36,15 +37,6 @@ import {
  * bare toast (design §12.5). Every action's outcome (success or the exact API error) is shown
  * inline.
  */
-
-const CANCEL_REASONS = [
-  'customer_request',
-  'no_show',
-  'payment_failed',
-  'duplicate',
-  'goodwill',
-  'other',
-] as const;
 
 const stateVariant = (s: string) =>
   s === 'confirmed'
@@ -72,8 +64,7 @@ export function ReservationDetailPage() {
   const [confirmNoShow, setConfirmNoShow] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [noShowNote, setNoShowNote] = useState('');
-  const [cancelReason, setCancelReason] =
-    useState<(typeof CANCEL_REASONS)[number]>('customer_request');
+  const [cancelReason, setCancelReason] = useState('');
   const [cancelNote, setCancelNote] = useState('');
 
   const errText = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
@@ -129,6 +120,7 @@ export function ReservationDetailPage() {
     }
   };
   const runCancel = async () => {
+    if (!cancelReason) throw new Error('reason required'); // keeps the ConfirmDialog open
     setResult(null);
     try {
       const res = await cancel.mutateAsync({
@@ -395,25 +387,20 @@ export function ReservationDetailPage() {
         onOpenChange={setConfirmCancel}
         destructive
         title={t('ops.resv.cancelTitle')}
+        confirmDisabled={!cancelReason}
         description={
           <div className="space-y-3">
             <p>{t('ops.resv.cancelBody')}</p>
-            <Field label={t('ops.resv.reason')} htmlFor="cn-reason">
-              {({ id }) => (
-                <select
+            <Field label={t('ops.resv.reason')} htmlFor="cn-reason" required>
+              {({ id, describedBy, invalid }) => (
+                <LookupSelect
+                  typeCode="cancel_reason"
                   id={id}
-                  className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  describedBy={describedBy}
+                  invalid={invalid}
                   value={cancelReason}
-                  onChange={(e) =>
-                    setCancelReason(e.target.value as (typeof CANCEL_REASONS)[number])
-                  }
-                >
-                  {CANCEL_REASONS.map((r) => (
-                    <option key={r} value={r}>
-                      {r.replace(/_/g, ' ')}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setCancelReason}
+                />
               )}
             </Field>
             <Field label={t('ops.resv.noteOptional')} htmlFor="cn-note">

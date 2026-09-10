@@ -108,10 +108,15 @@ const CONFIGURABLE_LOOKUPS: Record<string, { label: string; values: [string, str
   cancel_reason: {
     label: 'Cancellation reason',
     values: [
+      ['customer_request', "At the customer's request"],
       ['plans_changed', 'Plans changed'],
       ['found_better_price', 'Found a better price'],
       ['trip_cancelled', 'Trip cancelled'],
       ['booked_by_mistake', 'Booked by mistake'],
+      ['no_show', 'No-show'],
+      ['payment_failed', 'Payment failed'],
+      ['duplicate', 'Duplicate booking'],
+      ['goodwill', 'Goodwill / service recovery'],
       ['other', 'Other'],
     ],
   },

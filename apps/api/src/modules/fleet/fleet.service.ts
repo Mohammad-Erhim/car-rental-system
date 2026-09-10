@@ -10,6 +10,7 @@ import { vehicleCategory } from '../../database/schema/catalogue';
 import { vehicleBlock, vehicleUnit } from '../../database/schema/fleet';
 import { location } from '../../database/schema/org';
 import { rental } from '../../database/schema/rental';
+import { ConfigPublic } from '../config/config.public';
 
 /** Minimal RFC-4180-ish CSV parse — quoted fields, "" escapes, CR/LF rows. Header row required. */
 export function parseCsv(text: string): Array<Record<string, string>> {
@@ -101,6 +102,7 @@ export class FleetService {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
+    private readonly refData: ConfigPublic,
   ) {}
 
   async listUnits(
@@ -297,6 +299,13 @@ export class FleetService {
     const unit = await this.loadUnit(input.unitId);
     await this.assertUnitInScope(actor, unit.currentLocationId);
     const kind = input.kind ?? 'maintenance';
+    if (input.reasonCode) {
+      await this.refData.assertLookupCode(
+        kind === 'transfer' ? 'transfer_reason' : 'block_reason',
+        input.reasonCode,
+        'reasonCode',
+      );
+    }
     if (kind === 'maintenance' && (await this.hasOpenRental(unit.id))) {
       throw AppError.businessRule('This unit has an open rental — return it before maintenance', {
         reason: 'open_rental',

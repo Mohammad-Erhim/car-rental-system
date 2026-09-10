@@ -258,6 +258,21 @@ export class LookupService {
       .where(and(...where));
   }
 
+  /**
+   * Guard a consumer write: the code must be a currently-active value of `typeCode`. Callers that
+   * accept a free-form `reasonCode` / `docType` from a form should run this so deactivating or
+   * removing a value in Reference data actually takes effect on new records (SRS-LKP-004).
+   */
+  async assertActiveCode(typeCode: string, code: string, field = 'code'): Promise<void> {
+    const { values } = await this.getValues(typeCode);
+    if (!values.some((v) => v.code === code)) {
+      throw AppError.validation(
+        [{ path: field, code: 'unsupported', params: { type: typeCode } }],
+        `"${code}" is not an active ${typeCode} value`,
+      );
+    }
+  }
+
   private assertEditable(type: Awaited<ReturnType<LookupService['getType']>>) {
     if (type.editability === 'read_only') {
       throw new AppError('forbidden', {
@@ -464,6 +479,7 @@ export class LookupService {
     labels: Record<string, string>,
     actor: Actor,
   ) {
+    const touched = new Set<string>();
     for (const [locale, raw] of Object.entries(labels)) {
       const value = raw?.trim() ?? '';
       // an explicitly-provided empty label clears that locale's override (falls back to `en`)
@@ -477,6 +493,7 @@ export class LookupService {
               eq(translation.localeCode, locale),
             ),
           );
+        touched.add(locale);
         continue;
       }
       await this.db
@@ -494,6 +511,11 @@ export class LookupService {
           target: [translation.namespace, translation.key, translation.localeCode],
           set: { value, status: 'published', updatedAt: sql`now()` },
         });
+      touched.add(locale);
+    }
+    // keep the i18n bundle ETag in step with the translations screen (both edit the same rows)
+    for (const locale of touched) {
+      await this.cache.invalidate(`i18n:${locale}`, { namespace: `${NS}:${typeCode}` });
     }
   }
 

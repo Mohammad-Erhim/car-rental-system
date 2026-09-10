@@ -92,6 +92,22 @@ describe('reservation operations', () => {
     expect(cancels).toHaveLength(1); // exactly one event
   });
 
+  it('rejects a cancel reason that is not an active cancel_reason value', async () => {
+    const r = await bookEconomyAt(server, customerToken, 40);
+    const bad = await request(server)
+      .post(`/api/v1/reservations/${r.reference}/cancel`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ reasonCode: 'totally_made_up' })
+      .expect(422);
+    expect(bad.body.fieldErrors?.[0]?.path).toBe('reasonCode');
+    // the reservation is untouched — a valid reason still cancels it
+    await request(server)
+      .post(`/api/v1/reservations/${r.reference}/cancel`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ reasonCode: 'plans_changed' })
+      .expect(201);
+  });
+
   it('a late cancel keeps a 20% fee', async () => {
     const r = await bookEconomyAt(server, customerToken, 1); // 1 day out → late
     const c = await request(server)

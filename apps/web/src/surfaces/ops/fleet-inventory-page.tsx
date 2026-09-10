@@ -13,7 +13,6 @@ import {
   ConfirmDialog,
   DataTable,
   Field,
-  Input,
   PageHeader,
   Textarea,
   Toolbar,
@@ -22,6 +21,7 @@ import {
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
+import { LookupSelect } from '../../components/lookup-select.js';
 import { ApiError } from '../../lib/api.js';
 import { useLocations } from '../../lib/discovery-hooks.js';
 import {
@@ -124,12 +124,13 @@ export function FleetInventoryPage() {
 
   const runBlock = async () => {
     if (!blockUnit) return;
+    if (!blockReason) throw new Error('reason required'); // keeps the ConfirmDialog open
     setResult(null);
     try {
       await addBlock.mutateAsync({
         unitId: blockUnit.id,
         kind: blockKind,
-        reasonCode: blockReason.trim().slice(0, 60) || undefined,
+        reasonCode: blockReason,
         startAt: new Date().toISOString(),
       });
       setResult({
@@ -230,6 +231,7 @@ export function FleetInventoryPage() {
                   onClick={() => {
                     setBlockUnit(u);
                     setBlockKind('maintenance');
+                    setBlockReason('');
                   }}
                   data-testid={`fleet-block-${u.id}`}
                 >
@@ -455,19 +457,22 @@ export function FleetInventoryPage() {
                 </select>
               )}
             </Field>
-            <Field label={t('ops.fleet.reason')} htmlFor="fb-reason">
-              {({ id }) => (
-                <Input
+            <Field label={t('ops.fleet.reason')} htmlFor="fb-reason" required>
+              {({ id, describedBy, invalid }) => (
+                <LookupSelect
+                  typeCode="block_reason"
                   id={id}
+                  describedBy={describedBy}
+                  invalid={invalid}
                   value={blockReason}
-                  maxLength={60}
-                  onChange={(e) => setBlockReason(e.target.value)}
+                  onChange={setBlockReason}
                 />
               )}
             </Field>
           </div>
         }
         confirmLabel={t('ops.fleet.block')}
+        confirmDisabled={!blockReason}
         onConfirm={runBlock}
       />
 
