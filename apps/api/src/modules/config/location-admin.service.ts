@@ -5,10 +5,13 @@ import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
 import type { Actor } from '../../common/auth/types';
 import { CacheBus } from '../../common/cache/cache-bus';
+import { isUniqueViolation } from '../../common/db-error';
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
+import { vehicleCategory } from '../../database/schema/catalogue';
 import { location, locationHoursException, organization } from '../../database/schema/org';
+import { rental } from '../../database/schema/rental';
 import { reservation } from '../../database/schema/reservation';
 
 /**
@@ -44,6 +47,16 @@ export interface LocationInput {
 }
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** A string Intl accepts as an IANA zone (`Intl.DateTimeFormat` throws a RangeError otherwise). */
+function isValidTimeZone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 @Injectable()
 export class LocationAdminService {
@@ -92,11 +105,13 @@ export class LocationAdminService {
   }
 
   /**
-   * Future-reservation impact for a location — confirmed/pending reservations picking up or
-   * returning here from now on. Surfaced before a status change (FR-ADM-007).
+   * Impact of retiring a location — anything still tied to it: an upcoming reservation picking up
+   * or returning here, plus a car from an open rental scheduled to come back here (its pickup is
+   * already in the past, so the reservation-date filter alone would miss it). FR-ADM-007.
    */
   async impact(code: string) {
     const row = await this.load(code);
+    const now = new Date().toISOString();
     const [res] = await this.db
       .select({ n: sql<number>`count(*)::int` })
       .from(reservation)
@@ -104,16 +119,31 @@ export class LocationAdminService {
         and(
           eq(reservation.organizationId, row.organizationId),
           inArray(reservation.state, ['pending', 'confirmed']),
-          gte(reservation.pickupAt, new Date().toISOString()),
+          or(gte(reservation.pickupAt, now), gte(reservation.returnAt, now)),
           or(eq(reservation.pickupLocationCode, code), eq(reservation.returnLocationCode, code)),
         ),
       );
-    return { code, futureReservations: res?.n ?? 0 };
+    const [rent] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(rental)
+      .where(
+        and(
+          eq(rental.organizationId, row.organizationId),
+          inArray(rental.state, ['awaiting_pickup', 'active', 'overdue']),
+          or(eq(rental.pickupLocationCode, code), eq(rental.returnLocationCode, code)),
+        ),
+      );
+    return { code, futureReservations: res?.n ?? 0, openRentals: rent?.n ?? 0 };
+  }
+
+  /** anything that would be stranded by retiring this location. */
+  private impactTotal(i: { futureReservations: number; openRentals: number }): number {
+    return i.futureReservations + i.openRentals;
   }
 
   async upsert(actor: Actor, input: LocationInput) {
     const org = await this.orgId();
-    this.validate(input);
+    await this.validate(org, input);
     // Archival is only reachable through `setStatus`, which runs the future-reservation impact
     // check — `upsert` must not be a back door around it.
     if (input.status === 'archived') {
@@ -180,13 +210,14 @@ export class LocationAdminService {
   ) {
     const row = await this.load(code);
     if (status === 'archived' && !opts.force) {
-      const { futureReservations } = await this.impact(code);
-      if (futureReservations > 0) {
+      const impact = await this.impact(code);
+      if (this.impactTotal(impact) > 0) {
         throw AppError.businessRule(
-          'This location has future reservations — confirm to archive it',
+          'This location still has upcoming reservations or cars due back — confirm to archive it',
           {
             reason: 'location_has_future_reservations',
-            futureReservations,
+            futureReservations: impact.futureReservations,
+            openRentals: impact.openRentals,
           },
         );
       }
@@ -223,21 +254,42 @@ export class LocationAdminService {
       throw AppError.validation([{ path: 'date', code: 'invalid_string' }]);
     }
     const closed = input.closed ?? !(input.open && input.close);
-    if (!closed && (!input.open || !input.close)) {
-      throw AppError.validation([{ path: 'open', code: 'required' }]);
+    if (!closed) {
+      if (!input.open || !input.close || !TIME_RE.test(input.open) || !TIME_RE.test(input.close)) {
+        throw AppError.validation([{ path: 'open', code: 'required' }]);
+      }
+      if (input.open >= input.close) {
+        throw AppError.businessRule(
+          'The exception’s opening time must be before its closing time',
+          {
+            reason: 'hours_inverted',
+          },
+        );
+      }
     }
-    const [ex] = await this.db
-      .insert(locationHoursException)
-      .values({
-        locationId: row.id,
-        date: input.date,
-        closed,
-        open: closed ? null : (input.open ?? null),
-        close: closed ? null : (input.close ?? null),
-        reason: input.reason ?? null,
-        createdBy: actor.accountId,
-      })
-      .returning();
+    let ex;
+    try {
+      [ex] = await this.db
+        .insert(locationHoursException)
+        .values({
+          locationId: row.id,
+          date: input.date,
+          closed,
+          open: closed ? null : (input.open ?? null),
+          close: closed ? null : (input.close ?? null),
+          reason: input.reason ?? null,
+          createdBy: actor.accountId,
+        })
+        .returning();
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new AppError('state_conflict', {
+          title: `${code} already has an hours exception for ${input.date} — remove it first`,
+          params: { reason: 'exception_exists', date: input.date },
+        });
+      }
+      throw err;
+    }
     await this.after(actor, 'config.location.hours_exception.added', row.id, {
       code,
       date: input.date,
@@ -281,16 +333,27 @@ export class LocationAdminService {
     return row;
   }
 
-  private validate(input: LocationInput) {
+  private async validate(orgId: string, input: LocationInput) {
+    const issues: Array<{ path: string; code: string }> = [];
+
+    if (input.timezone && !isValidTimeZone(input.timezone)) {
+      issues.push({ path: 'timezone', code: 'invalid_timezone' });
+    }
+
+    const seenDays = new Set<number>();
     for (const [i, s] of (input.regularHours ?? []).entries()) {
       if (s.day < 0 || s.day > 6) {
-        throw AppError.validation([{ path: `regularHours.${i}.day`, code: 'invalid_type' }]);
+        issues.push({ path: `regularHours.${i}.day`, code: 'invalid_type' });
+        continue;
       }
+      if (seenDays.has(s.day)) {
+        issues.push({ path: `regularHours.${i}.day`, code: 'duplicate' });
+      }
+      seenDays.add(s.day);
       if (!s.closed) {
         if (!s.open || !s.close || !TIME_RE.test(s.open) || !TIME_RE.test(s.close)) {
-          throw AppError.validation([{ path: `regularHours.${i}.open`, code: 'invalid_string' }]);
-        }
-        if (s.open >= s.close) {
+          issues.push({ path: `regularHours.${i}.open`, code: 'invalid_string' });
+        } else if (s.open >= s.close) {
           throw AppError.businessRule('A location’s opening time must be before its closing time', {
             reason: 'hours_inverted',
             day: s.day,
@@ -298,12 +361,30 @@ export class LocationAdminService {
         }
       }
     }
+
     if (
       input.turnaroundMinutes != null &&
       (input.turnaroundMinutes < 0 || input.turnaroundMinutes > 1440)
     ) {
-      throw AppError.validation([{ path: 'turnaroundMinutes', code: 'too_big' }]);
+      issues.push({ path: 'turnaroundMinutes', code: 'out_of_range' });
     }
+
+    // supported categories must be codes of active vehicle categories, not free text
+    const codes = input.supportedCategoryCodes ?? [];
+    if (codes.length) {
+      const active = await this.db
+        .select({ code: vehicleCategory.code })
+        .from(vehicleCategory)
+        .where(and(eq(vehicleCategory.organizationId, orgId), eq(vehicleCategory.isActive, true)));
+      const activeSet = new Set(active.map((c) => c.code));
+      codes.forEach((c, i) => {
+        if (!activeSet.has(c)) {
+          issues.push({ path: `supportedCategoryCodes.${i}`, code: 'unsupported' });
+        }
+      });
+    }
+
+    if (issues.length) throw AppError.validation(issues, 'Location details are not valid');
   }
 
   private async after(

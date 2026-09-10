@@ -35,7 +35,7 @@ const zLocation = z.object({
   contact: z.record(z.string()).optional(),
   latitude: z.string().max(32).nullable().optional(),
   longitude: z.string().max(32).nullable().optional(),
-  regularHours: z.array(zHoursSlot).max(14).optional(),
+  regularHours: z.array(zHoursSlot).max(7).optional(),
   afterHoursReturn: z.boolean().optional(),
   pickupInstructions: z.string().max(2000).nullable().optional(),
   returnInstructions: z.string().max(2000).nullable().optional(),
