@@ -11,6 +11,7 @@ import {
   ConfirmDialog,
   Input,
   PageHeader,
+  useToast,
 } from '@carrental/ui';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -37,11 +38,11 @@ function useDebounced<T>(value: T, ms = 300) {
 }
 
 /**
- * SCREEN-OPS-021 / SCREEN-OPS-022 · FR-ADM-001 — customer record search + consolidated view
- * (read side). Search by a permitted identifier, then open one record: contact, status, saved
- * drivers, reservations, rentals, balance, open cases, and active eligibility restrictions
- * (FR-ADM-002, read-only here). Duplicate-merge and the restriction write workflow are a
- * documented follow-up.
+ * SCREEN-OPS-021 / SCREEN-OPS-022 · FR-ADM-001/002 — customer record search + consolidated view.
+ * Search by a permitted identifier, then open one record: contact, status, saved drivers,
+ * reservations, rentals, balance, open cases, eligibility restrictions (create → a different
+ * manager approves → active → lift), and the reversible duplicate merge. Every search and every
+ * record view is a PII access recorded on the audit trail (SRS-SEC-016).
  */
 export function CustomersPage() {
   const { t, fmt } = useI18n();
@@ -75,6 +76,13 @@ export function CustomersPage() {
             ) : null}
             {search.isLoading ? (
               <AppStateView kind="loading" title={t('state.loading.title')} inline />
+            ) : search.isError ? (
+              <AppStateView
+                kind="failure"
+                inline
+                title={t('ops.cust.searchFail')}
+                primaryAction={{ label: t('ops.st.retry'), onClick: () => search.refetch() }}
+              />
             ) : search.data ? (
               search.data.results.length === 0 ? (
                 <p className="text-sm text-muted-foreground">{t('ops.cust.noResults')}</p>
@@ -113,6 +121,18 @@ export function CustomersPage() {
         <div className="space-y-4">
           {!sel ? (
             <AppStateView kind="empty" title={t('ops.cust.selectOne')} inline />
+          ) : record.isError ? (
+            <AppStateView
+              kind="failure"
+              inline
+              title={t('ops.cust.loadRecordFail')}
+              description={
+                record.error instanceof ApiError && record.error.status === 404
+                  ? t('ops.cust.noResults')
+                  : undefined
+              }
+              primaryAction={{ label: t('ops.st.retry'), onClick: () => record.refetch() }}
+            />
           ) : record.isLoading || !r ? (
             <AppStateView kind="loading" title={t('state.loading.title')} inline />
           ) : (
@@ -246,11 +266,18 @@ export function CustomersPage() {
  */
 function RestrictionsCard({ customerId, record }: { customerId: string; record: CustomerRecord }) {
   const { t } = useI18n();
+  const { toast } = useToast();
   const { hasPermission, actor } = useAuth();
   const canManage = hasPermission('customer.manage');
   const create = useCreateRestriction(customerId);
   const decide = useRestrictionDecision(customerId);
-  const [form, setForm] = useState({ category: 'block', scope: 'all', reasonCode: '' });
+  const emptyForm = {
+    category: 'block',
+    scopeKind: 'all' as 'all' | 'category' | 'location',
+    scopeValue: '',
+    reasonCode: '',
+  };
+  const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<null | {
     rid: string;
@@ -259,11 +286,25 @@ function RestrictionsCard({ customerId, record }: { customerId: string; record: 
 
   const rows = record.restrictions;
   const hasActive = rows.some((x) => x.status === 'active');
+  const scopeValueValid =
+    form.scopeKind === 'all' || /^[A-Za-z0-9_-]+$/.test(form.scopeValue.trim());
+  const composedScope =
+    form.scopeKind === 'all' ? 'all' : `${form.scopeKind}:${form.scopeValue.trim()}`;
 
   const runDecision = async (rid: string, action: 'approve' | 'reject' | 'lift') => {
     setError(null);
     try {
       await decide.mutateAsync({ rid, action });
+      toast({
+        title: t(
+          action === 'approve'
+            ? 'ops.cust.rstrApproved'
+            : action === 'reject'
+              ? 'ops.cust.rstrRejected'
+              : 'ops.cust.rstrLifted',
+        ),
+        variant: 'success',
+      });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('ops.cust.rstrFail'));
     } finally {
@@ -274,15 +315,20 @@ function RestrictionsCard({ customerId, record }: { customerId: string; record: 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!scopeValueValid) {
+      setError(t('ops.cust.scopeValueHint'));
+      return;
+    }
     try {
       await create.mutateAsync({
         category: form.category as 'review' | 'block',
-        scope: form.scope.trim() || 'all',
+        scope: composedScope,
         reasonCode: form.reasonCode.trim() || undefined,
       });
-      setForm({ category: 'block', scope: 'all', reasonCode: '' });
+      setForm(emptyForm);
+      toast({ title: t('ops.cust.rstrCreated'), variant: 'success' });
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('ops.cust.rstrFail'));
+      setError(err instanceof ApiError ? err.message : t('ops.cust.rstrFail'));
     }
   }
 
@@ -327,7 +373,8 @@ function RestrictionsCard({ customerId, record }: { customerId: string; record: 
                     <Button
                       size="sm"
                       variant="outline"
-                      loading={decide.isPending}
+                      loading={decide.isPending && decide.variables?.rid === x.id}
+                      disabled={decide.isPending}
                       onClick={() => setConfirm({ rid: x.id, action: 'approve' })}
                       data-testid={`rstr-approve-${x.id}`}
                     >
@@ -341,7 +388,8 @@ function RestrictionsCard({ customerId, record }: { customerId: string; record: 
                   <Button
                     size="sm"
                     variant="ghost"
-                    loading={decide.isPending}
+                    loading={decide.isPending && decide.variables?.rid === x.id}
+                    disabled={decide.isPending}
                     onClick={() => runDecision(x.id, 'reject')}
                   >
                     {t('ops.cust.rstrReject')}
@@ -352,7 +400,8 @@ function RestrictionsCard({ customerId, record }: { customerId: string; record: 
                 <Button
                   size="sm"
                   variant="ghost"
-                  loading={decide.isPending}
+                  loading={decide.isPending && decide.variables?.rid === x.id}
+                  disabled={decide.isPending}
                   onClick={() => setConfirm({ rid: x.id, action: 'lift' })}
                   data-testid={`rstr-lift-${x.id}`}
                 >
@@ -378,15 +427,37 @@ function RestrictionsCard({ customerId, record }: { customerId: string; record: 
               </select>
             </label>
             <label className="text-xs">
-              {t('ops.cust.rstrScope')}
-              <Input
-                className="mt-1 h-9 w-40"
-                value={form.scope}
-                onChange={(e) => setForm((f) => ({ ...f, scope: e.target.value }))}
-                placeholder="all"
-                data-testid="rstr-scope"
-              />
+              {t('ops.cust.scopeKind')}
+              <select
+                className="mt-1 block h-9 rounded-md border border-input bg-background px-2 text-sm"
+                value={form.scopeKind}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    scopeKind: e.target.value as typeof f.scopeKind,
+                    scopeValue: '',
+                  }))
+                }
+                data-testid="rstr-scope-kind"
+              >
+                <option value="all">{t('ops.cust.scopeAll')}</option>
+                <option value="category">{t('ops.cust.scopeCategory')}</option>
+                <option value="location">{t('ops.cust.scopeLocation')}</option>
+              </select>
             </label>
+            {form.scopeKind !== 'all' ? (
+              <label className="text-xs">
+                {t('ops.cust.scopeValue')}
+                <Input
+                  className="mt-1 h-9 w-40"
+                  value={form.scopeValue}
+                  onChange={(e) => setForm((f) => ({ ...f, scopeValue: e.target.value }))}
+                  placeholder={t('ops.cust.scopeValueHint')}
+                  invalid={form.scopeValue.trim().length > 0 && !scopeValueValid}
+                  data-testid="rstr-scope-value"
+                />
+              </label>
+            ) : null}
             <label className="text-xs">
               {t('ops.cust.rstrReason')}
               <Input
@@ -395,7 +466,13 @@ function RestrictionsCard({ customerId, record }: { customerId: string; record: 
                 onChange={(e) => setForm((f) => ({ ...f, reasonCode: e.target.value }))}
               />
             </label>
-            <Button type="submit" size="sm" loading={create.isPending} data-testid="rstr-create">
+            <Button
+              type="submit"
+              size="sm"
+              loading={create.isPending}
+              disabled={!scopeValueValid}
+              data-testid="rstr-create"
+            >
               {t('ops.cust.rstrAdd')}
             </Button>
           </form>
@@ -427,6 +504,7 @@ function RestrictionsCard({ customerId, record }: { customerId: string; record: 
  */
 function MergeCard({ record }: { record: CustomerRecord }) {
   const { t } = useI18n();
+  const { toast } = useToast();
   const { hasPermission } = useAuth();
   const canManage = hasPermission('customer.manage');
   const merge = useMergeCustomer(record.id);
@@ -443,6 +521,7 @@ function MergeCard({ record }: { record: CustomerRecord }) {
     setError(null);
     try {
       await unmerge.mutateAsync();
+      toast({ title: t('ops.cust.unmergeDone'), variant: 'success' });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t('ops.cust.mergeFail'));
     } finally {
@@ -486,6 +565,7 @@ function MergeCard({ record }: { record: CustomerRecord }) {
                 });
                 setIntoId('');
                 setReason('');
+                toast({ title: t('ops.cust.mergeDone'), variant: 'success' });
               } catch (err) {
                 setError(err instanceof ApiError ? err.message : t('ops.cust.mergeFail'));
               }

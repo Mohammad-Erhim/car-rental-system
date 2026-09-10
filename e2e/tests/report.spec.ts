@@ -264,14 +264,14 @@ test('SCREEN-OPS-022 / FR-ADM-002: create → a second manager approves → lift
 
   const card = page.getByTestId('cust-restrictions');
   await card.getByTestId('rstr-category').selectOption('block');
-  await card.getByTestId('rstr-scope').fill('all');
+  await card.getByTestId('rstr-scope-kind').selectOption('all');
   await card.getByTestId('rstr-create').click();
   await expect(card).toContainText('pending review');
   // the author cannot approve their own
   await expect(card.getByRole('button', { name: 'Approve' })).toHaveCount(0);
   await shot(page, testInfo, 'ops-customer-restriction');
 
-  // a different admin approves, then lifts
+  // a different admin approves (through the confirm), then lifts
   await page.getByRole('button', { name: /Sign out/ }).click();
   await page.waitForURL(/\/ops\/sign-in/);
   await signInStaff(page, ADMIN);
@@ -280,8 +280,10 @@ test('SCREEN-OPS-022 / FR-ADM-002: create → a second manager approves → lift
   await page.getByTestId('cust-results').getByRole('button').first().click();
   const card2 = page.getByTestId('cust-restrictions');
   await card2.getByRole('button', { name: 'Approve' }).first().click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Approve' }).click();
   await expect(card2).toContainText('active');
   await card2.getByRole('button', { name: 'Lift' }).first().click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Lift' }).click();
   await expect(card2).toContainText('lifted');
 
   // FR-ADM-001 — the duplicate-handling card offers a reversible merge to a manager
