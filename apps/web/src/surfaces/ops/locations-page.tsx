@@ -14,6 +14,7 @@ import {
   Input,
   PageHeader,
   Textarea,
+  useToast,
 } from '@carrental/ui';
 import { useEffect, useRef, useState } from 'react';
 
@@ -41,6 +42,7 @@ const emptyHours = (): HoursSlot[] =>
 
 export function LocationsPage() {
   const { t } = useI18n();
+  const { toast } = useToast();
   const { hasPermission } = useAuth();
   const canPublish = hasPermission('config.publish');
 
@@ -119,6 +121,10 @@ export function LocationsPage() {
           s.closed ? { day: s.day, closed: true } : { day: s.day, open: s.open, close: s.close },
         ),
       });
+      toast({
+        title: creating ? t('ops.loc.savedNew') : t('ops.loc.saved'),
+        variant: 'success',
+      });
       if (creating) {
         setSel(creating.code);
         setCreating(null);
@@ -127,6 +133,19 @@ export function LocationsPage() {
       setSaveError(e instanceof Error ? e.message : t('ops.loc.saveFail'));
     }
   }
+
+  const statusFeedback = {
+    onSuccess: (_d: unknown, v: { action: 'archive' | 'restore' }) =>
+      toast({
+        title:
+          v.action === 'archive'
+            ? t('ops.loc.archived', { name: detail.data?.name ?? '' })
+            : t('ops.loc.restored', { name: detail.data?.name ?? '' }),
+        variant: 'success',
+      }),
+    onError: (e: unknown) =>
+      toast({ title: e instanceof Error ? e.message : t('ops.loc.statusFail') }),
+  };
 
   if (list.isLoading) return <AppStateView kind="loading" title={t('state.loading.title')} />;
   if (list.isError || !list.data)
@@ -404,7 +423,9 @@ export function LocationsPage() {
                     <Button
                       variant="outline"
                       disabled={!canPublish || status.isPending}
-                      onClick={() => status.mutate({ code: d.code, action: 'restore' })}
+                      onClick={() =>
+                        status.mutate({ code: d.code, action: 'restore' }, statusFeedback)
+                      }
                     >
                       {t('ops.loc.restore')}
                     </Button>
@@ -431,7 +452,20 @@ export function LocationsPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => removeEx.mutate({ code: d.code, id: x.id })}
+                                onClick={() =>
+                                  removeEx.mutate(
+                                    { code: d.code, id: x.id },
+                                    {
+                                      onError: (e) =>
+                                        toast({
+                                          title:
+                                            e instanceof Error
+                                              ? e.message
+                                              : t('ops.loc.exSaveFail'),
+                                        }),
+                                    },
+                                  )
+                                }
                               >
                                 {t('action.remove')}
                               </Button>
@@ -453,7 +487,14 @@ export function LocationsPage() {
                               closed: true,
                               reason: ex.reason || undefined,
                             },
-                            { onSuccess: () => setEx({ date: '', reason: '' }) },
+                            {
+                              onSuccess: () => setEx({ date: '', reason: '' }),
+                              onError: (err) =>
+                                toast({
+                                  title:
+                                    err instanceof Error ? err.message : t('ops.loc.exSaveFail'),
+                                }),
+                            },
                           );
                         }}
                       >
@@ -503,11 +544,14 @@ export function LocationsPage() {
         destructive
         onConfirm={() => {
           if (d)
-            status.mutate({
-              code: d.code,
-              action: 'archive',
-              force: (impact.data?.futureReservations ?? 0) > 0,
-            });
+            status.mutate(
+              {
+                code: d.code,
+                action: 'archive',
+                force: (impact.data?.futureReservations ?? 0) > 0,
+              },
+              statusFeedback,
+            );
         }}
       />
     </div>

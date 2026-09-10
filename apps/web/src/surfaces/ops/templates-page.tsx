@@ -14,6 +14,7 @@ import {
   Input,
   PageHeader,
   Textarea,
+  useToast,
 } from '@carrental/ui';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
@@ -37,6 +38,7 @@ import {
  */
 export function TemplatesPage() {
   const { t } = useI18n();
+  const { toast } = useToast();
   const { hasPermission } = useAuth();
   const canPublish = hasPermission('config.publish');
 
@@ -92,15 +94,29 @@ export function TemplatesPage() {
 
   async function onSave() {
     if (!sel) return;
-    await saveDraft.mutateAsync({
-      key: sel.key,
-      channel: sel.channel,
-      localeCode: sel.locale,
-      subject: subject || null,
-      bodyTemplate: body,
-      variables: vars,
-    });
-    setDirty(false);
+    try {
+      await saveDraft.mutateAsync({
+        key: sel.key,
+        channel: sel.channel,
+        localeCode: sel.locale,
+        subject: subject || null,
+        bodyTemplate: body,
+        variables: vars,
+      });
+      setDirty(false);
+      toast({ title: t('ops.tpl.draftSaved'), variant: 'success' });
+    } catch (e) {
+      toast({ title: e instanceof Error ? e.message : t('ops.tpl.draftFail') });
+    }
+  }
+
+  function runPreview() {
+    preview.mutate(
+      { subject: subject || null, bodyTemplate: body, variables: vars },
+      {
+        onError: (e) => toast({ title: e instanceof Error ? e.message : t('ops.tpl.previewFail') }),
+      },
+    );
   }
 
   if (groups.isLoading) return <AppStateView kind="loading" title={t('state.loading.title')} />;
@@ -300,13 +316,8 @@ export function TemplatesPage() {
                   </Button>
                   <Button
                     variant="outline"
-                    onClick={() =>
-                      preview.mutate({
-                        subject: subject || null,
-                        bodyTemplate: body,
-                        variables: vars,
-                      })
-                    }
+                    onClick={runPreview}
+                    loading={preview.isPending}
                     disabled={preview.isPending}
                   >
                     {t('ops.tpl.preview')}

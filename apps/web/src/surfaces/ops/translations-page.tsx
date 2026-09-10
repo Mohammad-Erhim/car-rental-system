@@ -11,6 +11,7 @@ import {
   DataTable,
   Input,
   PageHeader,
+  useToast,
   type DataTableColumn,
 } from '@carrental/ui';
 import { useState } from 'react';
@@ -123,9 +124,23 @@ function NamespaceEditor({
   onPick: (ns: string, loc: string) => void;
 }) {
   const { t } = useI18n();
+  const { toast } = useToast();
   const entries = useTranslationList(namespace, locale);
   const upsert = useUpsertTranslation();
   const publish = usePublishTranslations();
+
+  const saveEntry = (key: string, value: string, status: 'draft' | 'in_review') =>
+    upsert.mutate(
+      { namespace, key, localeCode: locale, value, status },
+      {
+        onSuccess: () =>
+          toast({
+            title: status === 'draft' ? t('ops.trans.saved') : t('ops.trans.reviewed'),
+            variant: 'success',
+          }),
+      },
+    );
+  const savingKey = upsert.isPending ? upsert.variables?.key : undefined;
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [publishError, setPublishError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -259,32 +274,20 @@ function NamespaceEditor({
                           <Button
                             size="sm"
                             variant="ghost"
+                            loading={savingKey === row.key}
                             disabled={!draft || draft === row.translation}
-                            onClick={() =>
-                              upsert.mutate({
-                                namespace,
-                                key: row.key,
-                                localeCode: locale,
-                                value: draft,
-                                status: 'draft',
-                              })
-                            }
+                            onClick={() => saveEntry(row.key, draft, 'draft')}
                           >
                             {t('ops.trans.saveDraft')}
                           </Button>
                           <Button
                             size="sm"
-                            disabled={!draft}
-                            data-testid={`translation-review-${row.key}`}
-                            onClick={() =>
-                              upsert.mutate({
-                                namespace,
-                                key: row.key,
-                                localeCode: locale,
-                                value: draft,
-                                status: 'in_review',
-                              })
+                            loading={savingKey === row.key}
+                            disabled={
+                              !draft || (row.status === 'in_review' && draft === row.translation)
                             }
+                            data-testid={`translation-review-${row.key}`}
+                            onClick={() => saveEntry(row.key, draft, 'in_review')}
                           >
                             {t('ops.trans.markReviewed')}
                           </Button>

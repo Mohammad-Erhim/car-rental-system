@@ -308,6 +308,16 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
     }
   }
 
+  async function doReadiness() {
+    setMsg(null);
+    try {
+      await readiness.mutateAsync(true);
+      setMsg({ ok: true, text: t('ops.rent.readyDoneBoard', { ref: r.reference }) });
+    } catch (e) {
+      setMsg({ ok: false, text: err(e, t('ops.rent.readyFailBoard')) });
+    }
+  }
+
   async function doReturn() {
     setMsg(null);
     try {
@@ -620,7 +630,7 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
         {r.state === 'closed' ? (
           <Button
             variant="outline"
-            onClick={() => readiness.mutate(true)}
+            onClick={doReadiness}
             loading={readiness.isPending}
             data-testid={`readiness-${r.reference}`}
           >
