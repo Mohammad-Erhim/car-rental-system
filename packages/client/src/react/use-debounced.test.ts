@@ -4,8 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useDebounced } from './use-debounced';
 
 describe('useDebounced', () => {
-  beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it('returns the initial value immediately', () => {
     const { result } = renderHook(() => useDebounced('a', 300));
