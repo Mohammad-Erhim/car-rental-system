@@ -113,6 +113,66 @@
   direction: ltr;
 }
 
+/* Mobile navigation drawer (apps/web has its own minimal Tailwind config with no animation
+   utilities, so the slide is defined here). Slides in from the inline-start edge — left in LTR,
+   right in RTL. Radix Dialog holds the node mounted until the close animation finishes. */
+:root {
+  --drawer-from: -100%;
+}
+[dir='rtl'] {
+  --drawer-from: 100%;
+}
+@keyframes ops-drawer-in {
+  from {
+    transform: translateX(var(--drawer-from));
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes ops-drawer-out {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(var(--drawer-from));
+  }
+}
+@keyframes ops-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes ops-overlay-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+[data-ops-drawer][data-state='open'] {
+  animation: ops-drawer-in 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+[data-ops-drawer][data-state='closed'] {
+  animation: ops-drawer-out 0.2s ease-in;
+}
+[data-ops-drawer-overlay][data-state='open'] {
+  animation: ops-overlay-in 0.2s ease-out;
+}
+[data-ops-drawer-overlay][data-state='closed'] {
+  animation: ops-overlay-out 0.15s ease-in;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-ops-drawer],
+  [data-ops-drawer-overlay] {
+    animation-duration: 0.001ms;
+  }
+}
+
 html,
 body,
 #root {

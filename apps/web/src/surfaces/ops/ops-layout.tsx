@@ -1,6 +1,7 @@
 import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import { Button, ThemeToggle } from '@carrental/ui';
+import * as Dialog from '@radix-ui/react-dialog';
 import {
   BarChart3,
   CarFront,
@@ -15,6 +16,7 @@ import {
   LogOut,
   Mail,
   MapPin,
+  Menu,
   Package,
   Palette,
   ScrollText,
@@ -25,28 +27,37 @@ import {
   UserSearch,
   Users,
   Wallet,
+  X,
+  type LucideIcon,
 } from 'lucide-react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 
 import { LanguageSwitcher } from '../../components/language-switcher.js';
 import { SystemStatus } from '../../components/system-status.js';
 
 import { Breadcrumbs } from './breadcrumbs.js';
 import { CommandPalette } from './command-palette.js';
+import { SidebarNav, type OpsNavGroup } from './sidebar-nav.js';
 
 /**
- * APP-OPS shell (design §4.2 / §7.3). Left navigation on desktop, collapses to a top bar on
- * narrow screens. Nav items are filtered by permission — a section a user cannot open does not
- * appear (design §3.1).
+ * APP-OPS shell (design §4.2 / §7.3). A pinned left sidebar on desktop; on smaller screens the
+ * same grouped navigation lives in a slide-in drawer opened from the header (no more horizontal
+ * icon-scroll). Nav items are permission-filtered — a section a user cannot open does not appear.
  *
  * Routing note (DEC-023): this router runs with `basename: '/ops'`, so every `to` here is
  * written WITHOUT the `/ops` prefix — React Router adds it. The public site is a separate origin
  * ({@link SITE_URL}); the "view site" link is a real navigation out of this SPA.
+ *
+ * The drawer is built on `@radix-ui/react-dialog` directly (already an apps/web dependency)
+ * rather than a `@carrental/ui` primitive: it is app-specific shell chrome, and apps/web runs a
+ * minimal Tailwind config without the shared preset's animation utilities — the slide keyframes
+ * live in `index.css`.
  */
 interface NavItem {
   to: string;
   label: string;
-  Icon: typeof LayoutDashboard;
+  Icon: LucideIcon;
   end?: boolean;
   anyOf?: string[];
 }
@@ -59,11 +70,6 @@ interface NavGroup {
 
 const SITE_URL = (import.meta.env.VITE_SITE_URL as string | undefined) || '/';
 
-/**
- * Grouped navigation (design §4.2 — clear hierarchy). Groups: daily operations, the catalogue a
- * manager tunes, system configuration, and administration. Items are still permission-filtered;
- * a group with nothing visible is not rendered.
- */
 const NAV_GROUPS: NavGroup[] = [
   {
     items: [{ to: '/', label: 'ops.nav.dashboard', Icon: LayoutDashboard, end: true }],
@@ -96,12 +102,7 @@ const NAV_GROUPS: NavGroup[] = [
         anyOf: ['fleet.read', 'fleet.manage'],
       },
       { to: '/finance', label: 'ops.nav.finance', Icon: Wallet, anyOf: ['payment.read'] },
-      {
-        to: '/customers',
-        label: 'ops.nav.customers',
-        Icon: UserSearch,
-        anyOf: ['customer.read'],
-      },
+      { to: '/customers', label: 'ops.nav.customers', Icon: UserSearch, anyOf: ['customer.read'] },
     ],
   },
   {
@@ -193,12 +194,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/admin/staff', label: 'ops.nav.staff', Icon: Users, anyOf: ['staff.manage'] },
       { to: '/insights', label: 'ops.nav.reports', Icon: BarChart3, anyOf: ['report.read'] },
       { to: '/audit', label: 'ops.nav.audit', Icon: ScrollText, anyOf: ['audit.read'] },
-      {
-        to: '/consent-log',
-        label: 'ops.nav.consentLog',
-        Icon: CookieIcon,
-        anyOf: ['audit.read'],
-      },
+      { to: '/consent-log', label: 'ops.nav.consentLog', Icon: CookieIcon, anyOf: ['audit.read'] },
       {
         to: '/data-quality',
         label: 'ops.nav.dataQuality',
@@ -209,26 +205,44 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
+function ViewSiteLink({ className }: { className?: string }) {
+  const { t } = useI18n();
+  return (
+    <a
+      href={SITE_URL}
+      className={
+        className ??
+        'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground'
+      }
+    >
+      <ExternalLink className="size-4" aria-hidden="true" />
+      {t('ops.nav.viewSite')}
+    </a>
+  );
+}
+
 export function OpsLayout() {
   const { t } = useI18n();
   const { status, actor, signOut, hasPermission } = useAuth();
   const authed = status === 'authenticated' && actor?.kind === 'staff';
+  const { pathname } = useLocation();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Close the drawer on any route change (covers the command palette, breadcrumbs, back button).
+  useEffect(() => setDrawerOpen(false), [pathname]);
 
   const canSee = (n: NavItem) => !n.anyOf || (authed && hasPermission(...n.anyOf));
-  const groups = NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter(canSee) })).filter(
-    (g) => g.items.length > 0,
-  );
-  const flatItems = groups.flatMap((g) => g.items);
+  const groups: OpsNavGroup[] = NAV_GROUPS.map((g) => ({
+    ...g,
+    items: g.items.filter(canSee),
+  })).filter((g) => g.items.length > 0);
   const commandItems = groups.flatMap((g) =>
     g.items.map((it) => ({ to: it.to, label: it.label, Icon: it.Icon, groupKey: g.titleKey })),
   );
 
-  const navClass = (isActive: boolean) =>
-    `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium ${
-      isActive
-        ? 'bg-primary/10 text-primary'
-        : 'text-muted-foreground hover:bg-accent hover:text-foreground'
-    }`;
+  const scopeLabel = actor?.organizationId
+    ? t('ops.header.scope', { name: actor.organizationName ?? t('ops.header.org') })
+    : t('ops.header.console');
 
   return (
     <div className="flex min-h-screen bg-muted/30">
@@ -236,78 +250,57 @@ export function OpsLayout() {
         {t('common.skipToContent')}
       </a>
 
-      {/* Desktop sidebar — only for an authenticated staff session (the sign-in / recovery
-          screens render a bare centred card). Pinned to the viewport; the nav list scrolls. */}
+      {/* Desktop sidebar — authenticated staff only (sign-in / recovery render a bare card). */}
       {authed ? (
-        <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-e bg-background lg:flex">
+        <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-e bg-background lg:flex">
           <NavLink
             to="/"
-            className="flex h-16 shrink-0 items-center gap-2 border-b px-4 font-semibold"
+            className="flex h-16 shrink-0 items-center gap-2.5 border-b px-5 font-semibold tracking-tight"
           >
-            <LayoutDashboard className="size-5 text-primary" aria-hidden="true" />
+            <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
+              <LayoutDashboard className="size-4" aria-hidden="true" />
+            </span>
             {t('app.ops.name')}
           </NavLink>
-          <nav aria-label={t('ops.nav.sections')} className="flex-1 space-y-4 overflow-y-auto p-2">
-            {groups.map((g, gi) => (
-              <div key={g.titleKey ?? `g${gi}`} className="space-y-1">
-                {g.titleKey ? (
-                  <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {t(g.titleKey)}
-                  </p>
-                ) : null}
-                {g.items.map(({ to, label, Icon, end }) => (
-                  <NavLink
-                    key={to}
-                    to={to}
-                    end={end}
-                    className={({ isActive }) => navClass(isActive)}
-                  >
-                    <Icon className="size-4" aria-hidden="true" />
-                    {t(label)}
-                  </NavLink>
-                ))}
-              </div>
-            ))}
-          </nav>
-          <div className="shrink-0 border-t p-2">
-            <a
-              href={SITE_URL}
-              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
-            >
-              <ExternalLink className="size-4" aria-hidden="true" />
-              {t('ops.nav.viewSite')}
-            </a>
+          <div className="flex-1 overflow-y-auto px-3 py-4">
+            <SidebarNav groups={groups} />
+          </div>
+          <div className="shrink-0 border-t p-3">
+            <ViewSiteLink />
           </div>
         </aside>
       ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-2 border-b bg-background px-3 sm:px-4">
-          <div className="hidden min-w-0 items-center gap-2 text-sm sm:flex">
-            <span className="rounded bg-muted px-2 py-1 font-medium">
-              {actor?.organizationId
-                ? t('ops.header.scope', {
-                    name: actor.organizationName ?? t('ops.header.org'),
-                  })
-                : t('ops.header.console')}
-            </span>
+          <div className="flex min-w-0 items-center gap-2">
             {authed ? (
-              <span className="hidden text-muted-foreground sm:inline">
-                {actor?.locationScope.length
+              <button
+                type="button"
+                onClick={() => setDrawerOpen(true)}
+                aria-label={t('ops.nav.openMenu')}
+                className="grid size-9 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground lg:hidden"
+              >
+                <Menu className="size-5" aria-hidden="true" />
+              </button>
+            ) : null}
+            <span
+              className={`${
+                authed ? 'hidden sm:inline-block' : 'inline-block'
+              } max-w-[45vw] shrink-0 truncate whitespace-nowrap rounded bg-muted px-2 py-1 text-sm font-medium lg:max-w-none`}
+            >
+              {scopeLabel}
+            </span>
+            {authed && actor ? (
+              <span className="hidden whitespace-nowrap text-sm text-muted-foreground xl:inline">
+                {actor.locationScope.length
                   ? t('ops.header.locations', { n: actor.locationScope.length })
                   : t('ops.header.allLocations')}
               </span>
             ) : null}
           </div>
-          <div className="flex shrink items-center gap-1 sm:gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             {authed ? <CommandPalette items={commandItems} /> : null}
-            <a
-              href={SITE_URL}
-              className="hidden items-center gap-1.5 rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground sm:inline-flex"
-            >
-              <ExternalLink className="size-4" aria-hidden="true" />
-              <span className="hidden md:inline">{t('ops.nav.viewSite')}</span>
-            </a>
             <SystemStatus />
             <ThemeToggle
               labels={{
@@ -319,9 +312,9 @@ export function OpsLayout() {
               }}
             />
             <LanguageSwitcher />
-            {authed ? (
+            {authed && actor ? (
               <>
-                <span className="hidden text-sm font-medium sm:inline">{actor?.displayName}</span>
+                <span className="hidden text-sm font-medium sm:inline">{actor.displayName}</span>
                 <Button
                   variant="outline"
                   size="sm"
@@ -340,34 +333,59 @@ export function OpsLayout() {
           </div>
         </header>
 
+        {/* Mobile / tablet navigation drawer */}
         {authed ? (
-          <nav
-            aria-label={t('ops.nav.sections')}
-            className="flex gap-1 overflow-x-auto border-b bg-background px-2 py-2 lg:hidden"
-          >
-            {flatItems.map(({ to, label, Icon, end }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={end}
-                className={({ isActive }) =>
-                  `inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium ${
-                    isActive ? 'bg-primary/10 text-primary' : 'text-muted-foreground'
-                  }`
-                }
+          <Dialog.Root open={drawerOpen} onOpenChange={setDrawerOpen}>
+            <Dialog.Portal>
+              <Dialog.Overlay
+                data-ops-drawer-overlay
+                className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+              />
+              <Dialog.Content
+                data-ops-drawer
+                aria-label={t('ops.nav.sections')}
+                className="fixed inset-y-0 start-0 z-50 flex w-[19rem] max-w-[85vw] flex-col border-e bg-background shadow-xl focus:outline-none lg:hidden"
               >
-                <Icon className="size-4" aria-hidden="true" />
-                {t(label)}
-              </NavLink>
-            ))}
-            <a
-              href={SITE_URL}
-              className="inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground"
-            >
-              <ExternalLink className="size-4" aria-hidden="true" />
-              {t('ops.nav.viewSite')}
-            </a>
-          </nav>
+                <div className="flex h-16 shrink-0 items-center justify-between gap-2 border-b px-4">
+                  <span className="flex items-center gap-2.5 font-semibold tracking-tight">
+                    <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
+                      <LayoutDashboard className="size-4" aria-hidden="true" />
+                    </span>
+                    <Dialog.Title className="text-sm">{t('app.ops.name')}</Dialog.Title>
+                  </span>
+                  <Dialog.Close
+                    aria-label={t('ops.nav.closeMenu')}
+                    className="grid size-9 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                  >
+                    <X className="size-5" aria-hidden="true" />
+                  </Dialog.Close>
+                </div>
+                {actor ? (
+                  <div className="shrink-0 border-b px-4 py-3 text-sm">
+                    <p className="font-medium">{actor.displayName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {[
+                        actor.organizationId
+                          ? (actor.organizationName ?? t('ops.header.org'))
+                          : null,
+                        actor.locationScope.length
+                          ? t('ops.header.locations', { n: actor.locationScope.length })
+                          : t('ops.header.allLocations'),
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  </div>
+                ) : null}
+                <div className="flex-1 overflow-y-auto px-3 py-4">
+                  <SidebarNav groups={groups} onNavigate={() => setDrawerOpen(false)} />
+                </div>
+                <div className="shrink-0 border-t p-3">
+                  <ViewSiteLink />
+                </div>
+              </Dialog.Content>
+            </Dialog.Portal>
+          </Dialog.Root>
         ) : null}
 
         <main id="ops-main" className="flex-1 p-4 md:p-6">
