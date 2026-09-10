@@ -11,6 +11,7 @@ import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
 import type { Actor } from '../../common/auth/types';
+import { isUniqueViolation } from '../../common/db-error';
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
@@ -99,25 +100,42 @@ export class ConfigVersionService {
     if (input.kind === 'pages') input.payload = normalizePagesAssets(input.payload);
     this.validate(input.kind, input.payload, input.key);
     const orgId = await this.orgId();
-    const [prev] = await this.db
-      .select({ v: configVersion.revision })
-      .from(configVersion)
-      .where(and(eq(configVersion.kind, input.kind), eq(configVersion.key, input.key)))
-      .orderBy(desc(configVersion.revision))
-      .limit(1);
-    const [row] = await this.db
-      .insert(configVersion)
-      .values({
-        organizationId: orgId,
-        kind: input.kind,
-        key: input.key,
-        revision: (prev?.v ?? 0) + 1,
-        state: 'draft',
-        payload: input.payload,
-        note: input.note ?? null,
-        createdBy: actor.accountId,
-      })
-      .returning();
+
+    // `revision` is `max + 1` for (kind,key). Two concurrent drafts read the same max and would
+    // collide on the unique index — recompute and retry a few times before giving up with a 409.
+    let row: typeof configVersion.$inferSelect | undefined;
+    for (let attempt = 0; attempt < 5 && !row; attempt++) {
+      const [prev] = await this.db
+        .select({ v: configVersion.revision })
+        .from(configVersion)
+        .where(and(eq(configVersion.kind, input.kind), eq(configVersion.key, input.key)))
+        .orderBy(desc(configVersion.revision))
+        .limit(1);
+      try {
+        [row] = await this.db
+          .insert(configVersion)
+          .values({
+            organizationId: orgId,
+            kind: input.kind,
+            key: input.key,
+            revision: (prev?.v ?? 0) + 1,
+            state: 'draft',
+            payload: input.payload,
+            note: input.note ?? null,
+            createdBy: actor.accountId,
+          })
+          .returning();
+      } catch (err) {
+        // a lost race on `revision` — recompute and try again; anything else is a real error.
+        if (!isUniqueViolation(err)) throw err;
+      }
+    }
+    if (!row) {
+      throw new AppError('state_conflict', {
+        title: 'Another revision of this setting was just drafted — reload and try again',
+        params: { reason: 'concurrent_draft' },
+      });
+    }
     await this.audit.record({
       action: 'config.version.drafted',
       targetType: 'config_version',
@@ -170,37 +188,49 @@ export class ConfigVersionService {
     }
     this.validate(row.kind, row.payload, row.key);
 
-    await this.db.transaction(async (tx) => {
-      await tx
-        .update(configVersion)
-        .set({ state: 'superseded', updatedAt: sql`now()` })
-        .where(
-          and(
-            eq(configVersion.kind, row.kind),
-            eq(configVersion.key, row.key),
-            eq(configVersion.state, 'published'),
-          ),
+    try {
+      await this.db.transaction(async (tx) => {
+        await tx
+          .update(configVersion)
+          .set({ state: 'superseded', updatedAt: sql`now()` })
+          .where(
+            and(
+              eq(configVersion.kind, row.kind),
+              eq(configVersion.key, row.key),
+              eq(configVersion.state, 'published'),
+            ),
+          );
+        await tx
+          .update(configVersion)
+          .set({
+            state: 'published',
+            approvedAt: sql`now()`,
+            approvedBy: actor.accountId,
+            effectiveFrom: sql`now()`,
+            updatedAt: sql`now()`,
+          })
+          .where(eq(configVersion.id, id));
+        await this.outbox.emit(
+          {
+            type: 'config.version.published.v1',
+            aggregateType: 'config_version',
+            aggregateId: id,
+            payload: { kind: row.kind, key: row.key, revision: row.revision },
+          },
+          tx,
         );
-      await tx
-        .update(configVersion)
-        .set({
-          state: 'published',
-          approvedAt: sql`now()`,
-          approvedBy: actor.accountId,
-          effectiveFrom: sql`now()`,
-          updatedAt: sql`now()`,
-        })
-        .where(eq(configVersion.id, id));
-      await this.outbox.emit(
-        {
-          type: 'config.version.published.v1',
-          aggregateType: 'config_version',
-          aggregateId: id,
-          payload: { kind: row.kind, key: row.key, revision: row.revision },
-        },
-        tx,
-      );
-    });
+      });
+    } catch (err) {
+      // the partial unique index (one published row per kind+key) — another reviewer published a
+      // different revision of this setting a moment ago.
+      if (isUniqueViolation(err)) {
+        throw new AppError('state_conflict', {
+          title: 'Another revision of this setting was just published — reload the history',
+          params: { reason: 'already_published' },
+        });
+      }
+      throw err;
+    }
     await this.audit.record({
       action: 'config.version.approved',
       targetType: 'config_version',
@@ -232,6 +262,28 @@ export class ConfigVersionService {
       after: { reason: note },
     });
     return this.shape(await this.load(id));
+  }
+
+  /**
+   * Discard an unsubmitted draft. Only `draft` rows can be deleted — a `rejected` revision was
+   * reviewed and stays in the record (FR-ADM-005 append-only); to carry it forward the author
+   * drafts a fresh revision from it in the UI.
+   */
+  async remove(actor: Actor, id: string) {
+    const row = await this.load(id);
+    if (row.state !== 'draft') {
+      throw AppError.businessRule(`A ${row.state} version cannot be deleted`, {
+        reason: row.state,
+      });
+    }
+    await this.db.delete(configVersion).where(eq(configVersion.id, id));
+    await this.audit.record({
+      action: 'config.version.deleted',
+      targetType: 'config_version',
+      targetId: id,
+      actor,
+      before: { kind: row.kind, key: row.key, revision: row.revision },
+    });
   }
 
   private async orgCurrency(): Promise<string> {

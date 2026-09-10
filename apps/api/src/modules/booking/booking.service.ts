@@ -6,6 +6,7 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
 import type { Actor } from '../../common/auth/types';
+import { isUniqueViolation } from '../../common/db-error';
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
@@ -515,11 +516,4 @@ export class BookingService {
 
 function sha256(s: string): string {
   return createHash('sha256').update(s).digest('hex');
-}
-
-function isUniqueViolation(err: unknown): boolean {
-  const code =
-    (err as { code?: string; cause?: { code?: string } })?.code ??
-    (err as { cause?: { code?: string } })?.cause?.code;
-  return code === '23505';
 }

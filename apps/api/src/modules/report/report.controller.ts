@@ -1,4 +1,15 @@
-import { Inject, Body, Controller, Get, Header, Param, Post, Query, Res } from '@nestjs/common';
+import {
+  Inject,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Header,
+  Param,
+  Post,
+  Query,
+  Res,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import type { Response } from 'express';
@@ -133,6 +144,12 @@ export class ReportController {
   @Permissions('config.read', 'config.publish')
   preview(@Body(new ZodValidationPipe(zPreview)) body: z.infer<typeof zPreview>) {
     return this.config.preview(body.kind, body.payload, body.key);
+  }
+
+  @Delete('config/versions/:id')
+  @Permissions('config.read', 'config.publish')
+  removeVersion(@Param('id') id: string, @CurrentActor() actor: Actor) {
+    return this.config.remove(actor, id);
   }
 
   @Post('config/versions/:id/submit')

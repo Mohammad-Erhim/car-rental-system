@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "config_version_one_published_unq" ON "config_version" USING btree ("kind","key") WHERE "config_version"."state" = 'published';

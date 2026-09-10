@@ -68,6 +68,14 @@ export function useDraftConfigVersion() {
   });
 }
 
+export function useDeleteConfigVersion() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => apiFetch(`/ops/config/versions/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ops', 'config-versions'] }),
+  });
+}
+
 export function useConfigVersionTransition() {
   const qc = useQueryClient();
   const onError = useWorkflowError();
