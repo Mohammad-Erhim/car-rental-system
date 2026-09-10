@@ -226,4 +226,89 @@ describe('fleet operations', () => {
       .send({ csv: good, commit: false })
       .expect(403);
   });
+
+  it('a location-scoped fleet staffer only sees and acts on units at their locations (FR-RPT-004)', async () => {
+    const app = await getTestApp();
+    const scopedToken = (
+      await signIn(app, 'test-fleet-scoped@example.test', 'Test-Passw0rd!', 'staff')
+    ).accessToken;
+
+    // units + blocks are confined to TST1
+    const units = await request(server)
+      .get('/api/v1/ops/fleet/units')
+      .set(auth(scopedToken))
+      .expect(200);
+    expect(
+      (units.body.results as Array<{ currentLocationCode: string }>).every(
+        (u) => u.currentLocationCode === 'TST1',
+      ),
+    ).toBe(true);
+
+    // admin blocks a TST2 unit; the scoped staffer must not see it or be able to release it
+    const tst2 = (await unitsAt('TST2')).find((u) => u.state === 'available');
+    expect(tst2).toBeTruthy();
+    const blk = await request(server)
+      .post('/api/v1/ops/fleet/blocks')
+      .set(auth(adminToken))
+      .send({ unitId: tst2!.id, kind: 'admin_block', startAt: isoIn(0) })
+      .expect(201);
+
+    const scopedBlocks = await request(server)
+      .get('/api/v1/ops/fleet/blocks')
+      .query({ status: 'active' })
+      .set(auth(scopedToken))
+      .expect(200);
+    expect((scopedBlocks.body as Array<{ id: string }>).some((b) => b.id === blk.body.id)).toBe(
+      false,
+    );
+
+    await request(server)
+      .post(`/api/v1/ops/fleet/blocks/${blk.body.id}/release`)
+      .set(auth(scopedToken))
+      .expect(403);
+    await request(server)
+      .post(`/api/v1/ops/fleet/units/${tst2!.id}/transfer`)
+      .set(auth(scopedToken))
+      .send({ toLocationCode: 'TST1' })
+      .expect(403);
+
+    // importing units into TST2 is rejected for a TST1-scoped staffer
+    const s = Date.now().toString().slice(-6);
+    const csv = [
+      'plate,vin,categoryCode,locationCode,year,make,model,colour',
+      `SCP${s}A,VINSCP${s}0001,economy,TST2,2024,Kia,Rio,white`,
+      `SCP${s}B,VINSCP${s}0002,economy,TST1,2024,Kia,Rio,white`,
+    ].join('\n');
+    const imp = await request(server)
+      .post('/api/v1/ops/fleet/units/import')
+      .set(auth(scopedToken))
+      .send({ csv, commit: false })
+      .expect(201);
+    expect(
+      (imp.body.errors as Array<{ field: string; message: string }>).some(
+        (e) => e.field === 'locationCode' && /assigned locations/i.test(e.message),
+      ),
+    ).toBe(true);
+
+    // a bad year is rejected
+    const badYear = [
+      'plate,vin,categoryCode,locationCode,year,make,model,colour',
+      `SCY${s}A,VINSCY${s}0001,economy,TST1,20xx,Kia,Rio,white`,
+    ].join('\n');
+    const yr = await request(server)
+      .post('/api/v1/ops/fleet/units/import')
+      .set(auth(scopedToken))
+      .send({ csv: badYear, commit: false })
+      .expect(201);
+    expect((yr.body.errors as Array<{ field: string }>).some((e) => e.field === 'year')).toBe(true);
+  });
+
+  it('a block end before its start is a 422', async () => {
+    const unit = (await unitsAt('TST1'))[0]!;
+    await request(server)
+      .post('/api/v1/ops/fleet/blocks')
+      .set(auth(adminToken))
+      .send({ unitId: unit.id, startAt: isoIn(5), endAt: isoIn(2) })
+      .expect(422);
+  });
 });

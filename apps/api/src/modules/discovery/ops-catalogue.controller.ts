@@ -46,14 +46,19 @@ const zRatePlan = z.object({
     .optional(),
 });
 
-const zBlock = z.object({
-  unitId: z.string().uuid(),
-  kind: z.enum(['maintenance', 'damage', 'admin_block', 'transfer']).optional(),
-  reasonCode: z.string().max(60).optional(),
-  startAt: z.string().datetime({ offset: true }),
-  endAt: z.string().datetime({ offset: true }).optional(),
-  note: z.string().max(1000).optional(),
-});
+const zBlock = z
+  .object({
+    unitId: z.string().uuid(),
+    kind: z.enum(['maintenance', 'damage', 'admin_block', 'transfer']).optional(),
+    reasonCode: z.string().max(60).optional(),
+    startAt: z.string().datetime({ offset: true }),
+    endAt: z.string().datetime({ offset: true }).optional(),
+    note: z.string().max(1000).optional(),
+  })
+  .refine((b) => !b.endAt || new Date(b.endAt) > new Date(b.startAt), {
+    path: ['endAt'],
+    message: 'The block end must be after its start',
+  });
 
 const zTransfer = z.object({
   toLocationCode: z.string().min(1).max(20),
@@ -175,8 +180,12 @@ export class OpsCatalogueController {
 
   @Get('fleet/blocks')
   @Permissions('fleet.read', 'fleet.manage')
-  listBlocks(@Query('unitId') unitId?: string, @Query('status') status?: string) {
-    return this.fleet.listBlocks({ unitId, status });
+  listBlocks(
+    @CurrentActor() actor: Actor,
+    @Query('unitId') unitId?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.fleet.listBlocks(actor, { unitId, status });
   }
 
   @Post('fleet/blocks')
