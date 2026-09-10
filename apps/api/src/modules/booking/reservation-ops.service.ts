@@ -659,7 +659,19 @@ export class ReservationOpsService {
   }
 
   async resolveCase(actor: Actor, id: string, note: string) {
+    const kase = await this.payments.getCase(id);
+    if (!kase) throw AppError.notFound('recovery case');
+    if (kase.state === 'resolved') {
+      throw new AppError('validation_failed', { title: 'This case is already resolved' });
+    }
     await this.payments.resolveCase(actor, id, note);
+    await this.audit.record({
+      action: 'recovery_case.resolved',
+      targetType: 'recovery_case',
+      targetId: id,
+      actor,
+      after: { note },
+    });
   }
 
   /**
