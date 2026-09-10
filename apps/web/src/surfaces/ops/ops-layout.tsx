@@ -19,6 +19,8 @@ import {
   Menu,
   Package,
   Palette,
+  PanelLeftClose,
+  PanelLeftOpen,
   ScrollText,
   Search,
   Settings2,
@@ -205,18 +207,44 @@ const NAV_GROUPS: NavGroup[] = [
   },
 ];
 
-function ViewSiteLink({ className }: { className?: string }) {
+const SIDEBAR_KEY = 'carrental.ops.sidebar';
+
+/** Desktop sidebar collapsed/expanded, remembered per browser. */
+function useSidebarCollapsed() {
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_KEY) === 'collapsed';
+    } catch {
+      return false;
+    }
+  });
+  const toggle = () =>
+    setCollapsed((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem(SIDEBAR_KEY, next ? 'collapsed' : 'expanded');
+      } catch {
+        /* storage unavailable */
+      }
+      return next;
+    });
+  return { collapsed, toggle };
+}
+
+function ViewSiteLink({ collapsed = false }: { collapsed?: boolean }) {
   const { t } = useI18n();
   return (
     <a
       href={SITE_URL}
+      title={collapsed ? t('ops.nav.viewSite') : undefined}
       className={
-        className ??
-        'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground'
+        collapsed
+          ? 'flex justify-center rounded-md py-2.5 text-muted-foreground hover:bg-accent hover:text-foreground'
+          : 'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground'
       }
     >
-      <ExternalLink className="size-4" aria-hidden="true" />
-      {t('ops.nav.viewSite')}
+      <ExternalLink className="size-4 shrink-0" aria-hidden="true" />
+      {collapsed ? <span className="sr-only">{t('ops.nav.viewSite')}</span> : t('ops.nav.viewSite')}
     </a>
   );
 }
@@ -227,6 +255,7 @@ export function OpsLayout() {
   const authed = status === 'authenticated' && actor?.kind === 'staff';
   const { pathname } = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const { collapsed, toggle: toggleSidebar } = useSidebarCollapsed();
 
   // Close the drawer on any route change (covers the command palette, breadcrumbs, back button).
   useEffect(() => setDrawerOpen(false), [pathname]);
@@ -250,23 +279,49 @@ export function OpsLayout() {
         {t('common.skipToContent')}
       </a>
 
-      {/* Desktop sidebar — authenticated staff only (sign-in / recovery render a bare card). */}
+      {/* Desktop sidebar — authenticated staff only (sign-in / recovery render a bare card).
+          Collapses to an icon rail on demand (remembered per browser). */}
       {authed ? (
-        <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-e bg-background lg:flex">
+        <aside
+          className={`sticky top-0 hidden h-screen shrink-0 flex-col border-e bg-background lg:flex ${
+            collapsed ? 'w-16' : 'w-64'
+          }`}
+        >
           <NavLink
             to="/"
-            className="flex h-16 shrink-0 items-center gap-2.5 border-b px-5 font-semibold tracking-tight"
+            title={collapsed ? t('app.ops.name') : undefined}
+            className={`flex h-16 shrink-0 items-center border-b font-semibold tracking-tight ${
+              collapsed ? 'justify-center px-0' : 'gap-2.5 px-5'
+            }`}
           >
-            <span className="grid size-8 place-items-center rounded-md bg-primary/10 text-primary">
+            <span className="grid size-8 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
               <LayoutDashboard className="size-4" aria-hidden="true" />
             </span>
-            {t('app.ops.name')}
+            {collapsed ? null : t('app.ops.name')}
           </NavLink>
-          <div className="flex-1 overflow-y-auto px-3 py-4">
-            <SidebarNav groups={groups} />
+          <div className={`flex-1 overflow-y-auto py-4 ${collapsed ? 'px-2' : 'px-3'}`}>
+            <SidebarNav groups={groups} collapsed={collapsed} />
           </div>
-          <div className="shrink-0 border-t p-3">
-            <ViewSiteLink />
+          <div className={`shrink-0 space-y-1 border-t ${collapsed ? 'p-2' : 'p-3'}`}>
+            <ViewSiteLink collapsed={collapsed} />
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              aria-label={collapsed ? t('ops.nav.expandSidebar') : t('ops.nav.collapseSidebar')}
+              title={collapsed ? t('ops.nav.expandSidebar') : undefined}
+              className={`flex w-full items-center rounded-md text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground ${
+                collapsed ? 'justify-center py-2.5' : 'gap-3 px-3 py-2'
+              }`}
+            >
+              {collapsed ? (
+                <PanelLeftOpen className="size-4 shrink-0 rtl:-scale-x-100" aria-hidden="true" />
+              ) : (
+                <>
+                  <PanelLeftClose className="size-4 shrink-0 rtl:-scale-x-100" aria-hidden="true" />
+                  {t('ops.nav.collapseSidebar')}
+                </>
+              )}
+            </button>
           </div>
         </aside>
       ) : null}
