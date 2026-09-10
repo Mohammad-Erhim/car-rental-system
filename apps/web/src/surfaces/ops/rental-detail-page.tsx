@@ -123,7 +123,7 @@ export function RentalDetailPage() {
           <span className="flex flex-wrap items-center gap-2">
             <span className="bidi-isolate font-mono">{d.reference}</span>
             <Badge variant={stateBadge(d.state, overdue)}>
-              {overdue ? t('ops.rent.overdue') : d.state.replace(/_/g, ' ')}
+              {t(`ops.rent.stateLabel.${overdue ? 'overdue' : d.state}`)}
             </Badge>
           </span>
         }

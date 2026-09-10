@@ -60,24 +60,35 @@ export function useOpsRentals(filter: {
   });
 }
 
+/** Every rental lifecycle change also moves a dashboard KPI (pickups today, fleet readiness…). */
+function useRentalInvalidate() {
+  const qc = useQueryClient();
+  return (extra?: () => void) => {
+    void qc.invalidateQueries({ queryKey: ['ops', 'rentals'] });
+    void qc.invalidateQueries({ queryKey: ['ops', 'dashboard'] });
+    extra?.();
+  };
+}
+
 export function useAssignVehicle() {
   const qc = useQueryClient();
+  const invalidate = useRentalInvalidate();
   return useMutation({
     mutationFn: (reservationReference: string) =>
       apiFetch<Rental>(`/ops/reservations/${reservationReference}/assign`, {
         method: 'POST',
         body: {},
       }),
-    onSuccess: (_data, reservationReference) => {
-      void qc.invalidateQueries({ queryKey: ['ops', 'rentals'] });
-      void qc.invalidateQueries({ queryKey: ['ops', 'reservations'] });
-      void qc.invalidateQueries({ queryKey: ['reservation', reservationReference] });
-    },
+    onSuccess: (_data, reservationReference) =>
+      invalidate(() => {
+        void qc.invalidateQueries({ queryKey: ['ops', 'reservations'] });
+        void qc.invalidateQueries({ queryKey: ['reservation', reservationReference] });
+      }),
   });
 }
 
 export function usePickup(reference: string) {
-  const qc = useQueryClient();
+  const invalidate = useRentalInvalidate();
   return useMutation({
     mutationFn: (body: {
       odometerKm: number;
@@ -85,12 +96,12 @@ export function usePickup(reference: string) {
       driverName: string;
       licenceNumber: string;
     }) => apiFetch<Rental>(`/ops/rentals/${reference}/pickup`, { method: 'POST', body }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['ops', 'rentals'] }),
+    onSuccess: () => invalidate(),
   });
 }
 
 export function useReturnRental(reference: string) {
-  const qc = useQueryClient();
+  const invalidate = useRentalInvalidate();
   return useMutation({
     mutationFn: (body: {
       odometerKm: number;
@@ -101,7 +112,7 @@ export function useReturnRental(reference: string) {
         `/ops/rentals/${reference}/return`,
         { method: 'POST', body },
       ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['ops', 'rentals'] }),
+    onSuccess: () => invalidate(),
   });
 }
 
@@ -132,14 +143,15 @@ export function useOpsRentalDetail(reference: string | null) {
 
 export function useReadiness(reference: string) {
   const qc = useQueryClient();
+  const invalidate = useRentalInvalidate();
   return useMutation({
     mutationFn: (passed: boolean) =>
       apiFetch<Rental>(`/ops/rentals/${reference}/readiness`, { method: 'POST', body: { passed } }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['ops', 'rentals'] });
-      void qc.invalidateQueries({ queryKey: ['rental', reference] });
-      void qc.invalidateQueries({ queryKey: ['ops', 'fleet-units'] });
-    },
+    onSuccess: () =>
+      invalidate(() => {
+        void qc.invalidateQueries({ queryKey: ['rental', reference] });
+        void qc.invalidateQueries({ queryKey: ['ops', 'fleet-units'] });
+      }),
   });
 }
 
@@ -156,6 +168,7 @@ export function useMyRental(reservationReference: string | null) {
 
 export function useRaiseIncident(reference: string) {
   const qc = useQueryClient();
+  const invalidate = useRentalInvalidate();
   return useMutation({
     mutationFn: (body: {
       category: 'breakdown' | 'accident' | 'damage' | 'other';
@@ -163,25 +176,24 @@ export function useRaiseIncident(reference: string) {
       immobilised?: boolean;
       replacementUnitId?: string;
     }) => apiFetch<Rental>(`/ops/rentals/${reference}/incident`, { method: 'POST', body }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['ops', 'rentals'] });
-      void qc.invalidateQueries({ queryKey: ['ops', 'fleet-units'] });
-      void qc.invalidateQueries({ queryKey: ['ops', 'fleet-blocks'] });
-    },
+    onSuccess: () =>
+      invalidate(() => {
+        void qc.invalidateQueries({ queryKey: ['rental', reference] });
+        void qc.invalidateQueries({ queryKey: ['ops', 'fleet-units'] });
+        void qc.invalidateQueries({ queryKey: ['ops', 'fleet-blocks'] });
+      }),
   });
 }
 
 export function useExtendRental(reference: string) {
   const qc = useQueryClient();
+  const invalidate = useRentalInvalidate();
   return useMutation({
     mutationFn: (body: { newReturnAt: string; paymentToken?: string }) =>
       apiFetch<Rental & { deltaMinor: number }>(`/rentals/${reference}/extend`, {
         method: 'POST',
         body,
       }),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['rental'] });
-      void qc.invalidateQueries({ queryKey: ['ops', 'rentals'] });
-    },
+    onSuccess: () => invalidate(() => void qc.invalidateQueries({ queryKey: ['rental'] })),
   });
 }
