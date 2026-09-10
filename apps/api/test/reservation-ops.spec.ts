@@ -251,6 +251,25 @@ describe('reservation operations', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ note: 'reconciled manually' })
       .expect(201);
+
+    // the resolution is on the audit trail
+    const audit = await request(server)
+      .get('/api/v1/ops/audit?action=recovery_case.resolved')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect((audit.body as Array<{ targetId: string }>).some((r) => r.targetId === c.id)).toBe(true);
+
+    // resolving it again → 422 (already resolved); a bogus id → 404 (not a silent no-op)
+    await request(server)
+      .post(`/api/v1/ops/cases/${c.id}/resolve`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ note: 'again' })
+      .expect(422);
+    await request(server)
+      .post('/api/v1/ops/cases/00000000-0000-0000-0000-000000000000/resolve')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ note: 'ghost' })
+      .expect(404);
   });
 
   it('a recovery case can be retried — records the attempt, resolves once consistent, 404/400 guards', async () => {
