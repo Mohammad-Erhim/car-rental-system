@@ -135,6 +135,35 @@ describe('location & operating-hours admin (FR-ADM-007)', () => {
         expect.objectContaining({ path: 'regularHours.1.day', code: 'duplicate' }),
       ]),
     );
+
+    const badCoord = await request(server)
+      .post('/api/v1/ops/locations')
+      .set('Authorization', `Bearer ${admin}`)
+      .send({ ...base, latitude: '200', longitude: 'abc' })
+      .expect(422);
+    expect(badCoord.body.fieldErrors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ path: 'latitude', code: 'out_of_range' }),
+        expect.objectContaining({ path: 'longitude', code: 'out_of_range' }),
+      ]),
+    );
+  });
+
+  it('two concurrent creates of the same code never 500 — the loser gets a clean 409', async () => {
+    const body = { code: 'RACE1', name: 'Race Location', timezone: 'America/New_York' };
+    const results = await Promise.all(
+      [0, 1].map(() =>
+        request(server)
+          .post('/api/v1/ops/locations')
+          .set('Authorization', `Bearer ${admin}`)
+          .send(body),
+      ),
+    );
+    // no unhandled unique-violation leaked as a 500
+    expect(results.every((r) => r.status < 500)).toBe(true);
+    expect(results.some((r) => r.status === 201)).toBe(true);
+    const loser = results.find((r) => r.status === 409);
+    if (loser) expect(loser.body.params?.reason).toBe('code_exists');
   });
 
   it('a draft or archived location is not bookable through search / quote', async () => {

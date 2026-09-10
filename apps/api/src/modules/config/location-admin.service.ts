@@ -179,16 +179,33 @@ export class LocationAdminService {
       status: input.status ?? existing?.status ?? 'active',
     };
 
-    const [row] = existing
-      ? await this.db
-          .update(location)
-          .set({ ...values, updatedBy: actor.accountId, updatedAt: new Date().toISOString() })
-          .where(eq(location.id, existing.id))
-          .returning()
-      : await this.db
-          .insert(location)
-          .values({ organizationId: org, code: input.code, createdBy: actor.accountId, ...values })
-          .returning();
+    let row;
+    try {
+      [row] = existing
+        ? await this.db
+            .update(location)
+            .set({ ...values, updatedBy: actor.accountId, updatedAt: new Date().toISOString() })
+            .where(eq(location.id, existing.id))
+            .returning()
+        : await this.db
+            .insert(location)
+            .values({
+              organizationId: org,
+              code: input.code,
+              createdBy: actor.accountId,
+              ...values,
+            })
+            .returning();
+    } catch (err) {
+      // two admins creating the same code at once — the unique index caught the loser.
+      if (isUniqueViolation(err)) {
+        throw new AppError('state_conflict', {
+          title: `A location with code ${input.code} already exists`,
+          params: { reason: 'code_exists' },
+        });
+      }
+      throw err;
+    }
 
     await this.after(
       actor,
@@ -367,6 +384,18 @@ export class LocationAdminService {
       (input.turnaroundMinutes < 0 || input.turnaroundMinutes > 1440)
     ) {
       issues.push({ path: 'turnaroundMinutes', code: 'out_of_range' });
+    }
+
+    for (const [field, limit] of [
+      ['latitude', 90],
+      ['longitude', 180],
+    ] as const) {
+      const raw = input[field];
+      if (raw == null || raw === '') continue;
+      const n = Number(raw);
+      if (!Number.isFinite(n) || Math.abs(n) > limit) {
+        issues.push({ path: field, code: 'out_of_range' });
+      }
     }
 
     // supported categories must be codes of active vehicle categories, not free text
