@@ -1071,6 +1071,8 @@
   "ops.rp.cancelEdit": "Cancel edit",
   "ops.rp.card": "Plans",
   "ops.rp.category": "Category",
+  "ops.rp.clearForm": "Clear",
+  "ops.rp.clone": "Clone",
   "ops.rp.chooseCategory": "Choose a category…",
   "ops.rp.createDraft": "Create draft",
   "ops.rp.created": "Draft created.",

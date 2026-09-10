@@ -27,6 +27,8 @@ function codeKey(code: string): string {
     case 'less_than_min':
     case 'incomplete':
       return 'error.field.invalid';
+    case 'duplicate':
+      return 'error.field.used';
     case 'expired':
       return 'error.field.expired';
     case 'used':
@@ -71,6 +73,21 @@ export function useFormErrors(fieldLabels: Record<string, string> = {}) {
     [t],
   );
 
+  /** A friendly line for a non-field error, by problem category — else the raw title. */
+  const topLevelText = useCallback(
+    (e: ApiError): string => {
+      const byCat: Record<string, string> = {
+        conflict: 'error.conflict',
+        authorization: 'error.forbidden',
+        not_found: 'error.notFound',
+        rate_limit: 'error.rateLimited',
+      };
+      const k = byCat[e.problem.category];
+      return k ? t(k) : e.message;
+    },
+    [t],
+  );
+
   const fromError = useCallback((e: unknown) => {
     setLocalState([]);
     setError(e instanceof ApiError ? e : null);
@@ -109,8 +126,8 @@ export function useFormErrors(fieldLabels: Record<string, string> = {}) {
         message: `${labels[f.path] ?? humanize(f.path)}: ${errorText(f.code, f.params)}`,
       }));
     }
-    return [{ id: 'form-error', message: error.message }];
-  }, [error, labelsKey, localKey, errorText]);
+    return [{ id: 'form-error', message: topLevelText(error) }];
+  }, [error, labelsKey, localKey, errorText, topLevelText]);
 
   const fieldError = useCallback(
     (path: string): string | null => {
@@ -122,7 +139,7 @@ export function useFormErrors(fieldLabels: Record<string, string> = {}) {
     [error, local, errorText],
   );
 
-  const topLevelMessage = error && !error.fieldErrors.length ? error.message : null;
+  const topLevelMessage = error && !error.fieldErrors.length ? topLevelText(error) : null;
 
   return { error, summary, fieldError, topLevelMessage, fromError, setLocal, clear };
 }

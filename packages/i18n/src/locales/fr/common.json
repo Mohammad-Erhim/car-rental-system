@@ -1071,6 +1071,8 @@
   "ops.rp.cancelEdit": "Annuler la modification",
   "ops.rp.card": "Grilles",
   "ops.rp.category": "Catégorie",
+  "ops.rp.clearForm": "Effacer",
+  "ops.rp.clone": "Cloner",
   "ops.rp.chooseCategory": "Choisir une catégorie…",
   "ops.rp.createDraft": "Créer un brouillon",
   "ops.rp.created": "Brouillon créé.",

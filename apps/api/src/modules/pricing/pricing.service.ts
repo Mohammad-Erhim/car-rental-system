@@ -298,6 +298,7 @@ export class PricingService {
       fees?: Array<{ code: string; label: string; amountMinor: number; taxable?: boolean }>;
       tiers?: Array<{ minHours: number; dayMinor: number }>;
     },
+    expectedVersion?: number,
   ) {
     const orgId = await this.orgId();
     this.validatePlan(input);
@@ -321,10 +322,14 @@ export class PricingService {
     if (id) {
       const [existing] = await this.db.select().from(ratePlan).where(eq(ratePlan.id, id)).limit(1);
       if (!existing) throw AppError.notFound('rate plan');
-      if (existing.status === 'published') {
-        throw AppError.businessRule('A published rate plan cannot be edited — create a new one', {
-          reason: 'published_immutable',
-        });
+      if (existing.status === 'published' || existing.status === 'retired') {
+        throw AppError.businessRule(
+          `A ${existing.status} rate plan cannot be edited — clone it into a new draft`,
+          { reason: 'plan_immutable' },
+        );
+      }
+      if (expectedVersion !== undefined && expectedVersion !== existing.version) {
+        throw AppError.conflict(existing.version, existing.status);
       }
       await this.db
         .update(ratePlan)
@@ -397,17 +402,22 @@ export class PricingService {
 
   private validatePlan(input: {
     baseDayMinor: number;
+    hourMinor?: number;
     minDurationHours?: number;
     maxDurationHours?: number | null;
     taxBps?: number;
+    fees?: Array<{ code: string; label: string; amountMinor: number }>;
     tiers?: Array<{ minHours: number; dayMinor: number }>;
     effectiveFrom: string;
     effectiveTo?: string | null;
   }) {
     const issues: Array<{ path: string; code: string }> = [];
     if (input.baseDayMinor <= 0) issues.push({ path: 'baseDayMinor', code: 'must_be_positive' });
+    if ((input.hourMinor ?? 0) < 0) issues.push({ path: 'hourMinor', code: 'must_be_positive' });
     if ((input.taxBps ?? 0) < 0 || (input.taxBps ?? 0) > 10_000)
       issues.push({ path: 'taxBps', code: 'out_of_range' });
+    if ((input.minDurationHours ?? 1) < 1)
+      issues.push({ path: 'minDurationHours', code: 'must_be_positive' });
     if (
       input.minDurationHours != null &&
       input.maxDurationHours != null &&
@@ -416,9 +426,20 @@ export class PricingService {
       issues.push({ path: 'maxDurationHours', code: 'less_than_min' });
     if (input.effectiveTo && input.effectiveTo < input.effectiveFrom)
       issues.push({ path: 'effectiveTo', code: 'before_from' });
-    for (const [i, t] of (input.tiers ?? []).entries()) {
-      if (t.minHours <= 0 || t.dayMinor <= 0)
+    const feeCodes = new Set<string>();
+    for (const [i, f] of (input.fees ?? []).entries()) {
+      if (!f.code.trim() || !f.label.trim()) issues.push({ path: `fees.${i}`, code: 'incomplete' });
+      if (f.amountMinor < 0) issues.push({ path: `fees.${i}`, code: 'must_be_positive' });
+      if (f.code.trim() && feeCodes.has(f.code.trim()))
+        issues.push({ path: `fees.${i}`, code: 'duplicate' });
+      feeCodes.add(f.code.trim());
+    }
+    const tierMins = new Set<number>();
+    for (const [i, tr] of (input.tiers ?? []).entries()) {
+      if (tr.minHours <= 0 || tr.dayMinor <= 0)
         issues.push({ path: `tiers.${i}`, code: 'must_be_positive' });
+      if (tierMins.has(tr.minHours)) issues.push({ path: `tiers.${i}`, code: 'duplicate' });
+      tierMins.add(tr.minHours);
     }
     if (issues.length) throw AppError.validation(issues, 'Rate plan is not valid');
   }

@@ -34,9 +34,13 @@ const zRatePlan = z.object({
   fees: z
     .array(
       z.object({
-        code: z.string().max(60),
-        label: z.string().max(120),
-        amountMinor: z.number().int(),
+        code: z
+          .string()
+          .min(1)
+          .max(60)
+          .regex(/^[a-z0-9_]+$/, 'lowercase letters, digits, underscore'),
+        label: z.string().min(1).max(120),
+        amountMinor: z.number().int().min(0),
         taxable: z.boolean().optional(),
       }),
     )
@@ -233,10 +237,12 @@ export class OpsCatalogueController {
   @Post('pricing/rate-plans')
   @Permissions('config.publish')
   upsertPlan(
+    @Req() req: Request,
     @Body(new ZodValidationPipe(zRatePlan)) body: z.infer<typeof zRatePlan>,
     @CurrentActor() actor: Actor,
   ) {
-    return this.pricing.upsertPlan(actor, body);
+    const ifMatch = req.header('If-Match');
+    return this.pricing.upsertPlan(actor, body, ifMatch ? Number(ifMatch) : undefined);
   }
 
   @Post('pricing/rate-plans/:id/publish')
