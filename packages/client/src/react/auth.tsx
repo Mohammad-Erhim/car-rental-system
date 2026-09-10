@@ -35,6 +35,27 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 // restart) and shared across tabs, so this "there is a session" hint has to be too — otherwise a
 // restart or a second tab looks signed-out despite a valid cookie (S7-DEF-005).
 const SESSION_HINT_KEY = 'carrental.session.hint';
+// The actor `localeCode` we last pushed into the i18n context. Persisted so "the actor's saved
+// locale changed" is judged across reloads, not just within one page life — otherwise every
+// refresh re-applies the account default and silently overwrites a switcher choice the user
+// made this session (S7 locale-revert).
+const APPLIED_ACTOR_LOCALE_KEY = 'carrental.locale.fromActor';
+
+function readAppliedActorLocale(): string | null {
+  try {
+    return localStorage.getItem(APPLIED_ACTOR_LOCALE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeAppliedActorLocale(locale: string): void {
+  try {
+    localStorage.setItem(APPLIED_ACTOR_LOCALE_KEY, locale);
+  } catch {
+    /* ignore */
+  }
+}
 
 export interface AuthProviderProps {
   children: ReactNode;
@@ -65,7 +86,7 @@ export function AuthProvider({
   const [actor, setActor] = useState<Actor | null>(null);
   const [status, setStatus] = useState<'loading' | 'authenticated' | 'anonymous'>('loading');
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const appliedActorLocale = useRef<string | null>(null);
+  const appliedActorLocale = useRef<string | null>(readAppliedActorLocale());
   const doRefreshRef = useRef<() => Promise<boolean>>(() => Promise.resolve(false));
 
   const scheduleRefresh = useCallback((expiresInSeconds: number) => {
@@ -154,17 +175,16 @@ export function AuthProvider({
   }, [doRefresh, clearSession]);
 
   // A signed-in actor's saved locale preference follows them across sign-ins / devices
-  // (FR-IAM-006). Only push when the actor's own value changes — never fight a switcher change
-  // the user made this session. Suppressed on surfaces where the URL owns the locale
-  // (`followActorLocale={false}` — apps/site).
+  // (FR-IAM-006). Only push when the actor's own value *changes* from what we last applied
+  // (tracked across reloads via localStorage) — a plain refresh must not re-assert the account
+  // default over a switcher choice the user made this session. Suppressed on surfaces where the
+  // URL owns the locale (`followActorLocale={false}` — apps/site).
   useEffect(() => {
     const next = actor?.localeCode;
-    if (!next) {
-      appliedActorLocale.current = null;
-      return;
-    }
+    if (!next) return;
     if (next !== appliedActorLocale.current) {
       appliedActorLocale.current = next;
+      writeAppliedActorLocale(next);
       if (followActorLocale && next !== locale) setLocale(next);
     }
   }, [actor, locale, setLocale, followActorLocale]);
