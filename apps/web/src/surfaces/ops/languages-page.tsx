@@ -10,7 +10,6 @@ import {
   ConfirmDialog,
   Input,
   PageHeader,
-  useToast,
 } from '@carrental/ui';
 import { Check, Globe, Star } from 'lucide-react';
 import { useState } from 'react';
@@ -32,7 +31,6 @@ export function LanguagesPage() {
   const { t } = useI18n();
   const canManage = useAuth().hasPermission('config.publish');
 
-  const { toast } = useToast();
   const locales = useAdminLocales();
   const completeness = useTranslationCompleteness();
   const upsert = useUpsertLocale();
@@ -42,14 +40,7 @@ export function LanguagesPage() {
   );
 
   const doAct = (code: string, action: 'activate' | 'deactivate' | 'default') =>
-    act.mutate(
-      { code, action },
-      {
-        onError: (e) =>
-          toast({ title: e instanceof Error ? e.message : t('ops.languages.actionFail') }),
-        onSettled: () => setConfirm(null),
-      },
-    );
+    act.mutate({ code, action }, { onSettled: () => setConfirm(null) });
 
   const [form, setForm] = useState({
     code: '',

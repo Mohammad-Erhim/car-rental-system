@@ -12,6 +12,7 @@ import type {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiFetch } from './api.js';
+import { useWorkflowError } from './use-workflow-error.js';
 
 // ---- customer profile ----
 
@@ -114,7 +115,9 @@ export function useTranslationList(namespace: string, locale: string) {
 
 export function useUpsertTranslation() {
   const qc = useQueryClient();
+  const onError = useWorkflowError();
   return useMutation({
+    onError,
     mutationFn: (body: {
       namespace: string;
       key: string;
@@ -128,7 +131,9 @@ export function useUpsertTranslation() {
 
 export function usePublishTranslations() {
   const qc = useQueryClient();
+  const onError = useWorkflowError();
   return useMutation({
+    onError,
     mutationFn: (input: { namespace: string; locale: string }) =>
       apiFetch(
         `/config/translations/${encodeURIComponent(input.namespace)}/${encodeURIComponent(input.locale)}/publish`,
@@ -162,7 +167,9 @@ export function useAdminLocales() {
 
 export function useUpsertLocale() {
   const qc = useQueryClient();
+  const onError = useWorkflowError();
   return useMutation({
+    onError,
     mutationFn: (body: {
       code: string;
       nativeName: string;
@@ -180,7 +187,9 @@ export function useUpsertLocale() {
 
 export function useLocaleAction() {
   const qc = useQueryClient();
+  const onError = useWorkflowError();
   return useMutation({
+    onError,
     mutationFn: ({
       code,
       action,
