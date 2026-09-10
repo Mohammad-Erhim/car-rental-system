@@ -105,12 +105,41 @@ export function useReturnRental(reference: string) {
   });
 }
 
+export interface RentalDetail extends Rental {
+  odometerInKm: number | null;
+  fuelInPct: number | null;
+  plate: string | null;
+  vehicle: string | null;
+  categoryCode: string | null;
+  driverName: string | null;
+  customerName: string | null;
+  findings: Array<{
+    area: string;
+    severity: string;
+    description: string;
+    chargeMinor: number;
+  }>;
+  history: NonNullable<Rental['history']>;
+}
+
+export function useOpsRentalDetail(reference: string | null) {
+  return useQuery({
+    queryKey: ['rental', reference],
+    queryFn: ({ signal }) => apiFetch<RentalDetail>(`/rentals/${reference}`, { signal }),
+    enabled: !!reference,
+  });
+}
+
 export function useReadiness(reference: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (passed: boolean) =>
       apiFetch<Rental>(`/ops/rentals/${reference}/readiness`, { method: 'POST', body: { passed } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['ops', 'rentals'] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['ops', 'rentals'] });
+      void qc.invalidateQueries({ queryKey: ['rental', reference] });
+      void qc.invalidateQueries({ queryKey: ['ops', 'fleet-units'] });
+    },
   });
 }
 
@@ -152,6 +181,7 @@ export function useExtendRental(reference: string) {
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['rental'] });
+      void qc.invalidateQueries({ queryKey: ['ops', 'rentals'] });
     },
   });
 }

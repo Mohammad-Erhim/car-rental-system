@@ -24,6 +24,7 @@ import { ProductsPage } from '../surfaces/ops/products-page.js';
 import { RatePlansPage } from '../surfaces/ops/rate-plans-page.js';
 import { ReferenceDataPage } from '../surfaces/ops/reference-data-page.js';
 import { RentalBoardPage } from '../surfaces/ops/rental-board-page.js';
+import { RentalDetailPage } from '../surfaces/ops/rental-detail-page.js';
 import { ReportsPage } from '../surfaces/ops/reports-page.js';
 import { ReservationDetailPage } from '../surfaces/ops/reservation-detail-page.js';
 import { ReservationQueuePage } from '../surfaces/ops/reservation-queue-page.js';
@@ -153,6 +154,10 @@ export const router = createBrowserRouter(
         {
           path: 'rentals',
           element: perm(['rental.read', 'rental.pickup', 'rental.return'], <RentalBoardPage />),
+        },
+        {
+          path: 'rentals/:reference',
+          element: perm(['rental.read', 'rental.pickup', 'rental.return'], <RentalDetailPage />),
         },
         {
           path: 'finance',
