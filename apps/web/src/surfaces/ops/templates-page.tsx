@@ -15,6 +15,7 @@ import {
   Field,
   Input,
   PageHeader,
+  Select,
   Textarea,
   useToast,
 } from '@carrental/ui';
@@ -454,6 +455,7 @@ function RuleCard({
   canPublish: boolean;
 }) {
   const { t } = useI18n();
+  const { toast } = useToast();
   const rule = useNotificationRule(event, channel);
   const save = useUpsertNotificationRule();
   const [form, setForm] = useState<{
@@ -495,20 +497,26 @@ function RuleCard({
     e.preventDefault();
     const quietHours =
       form.quietStart && form.quietEnd ? { start: form.quietStart, end: form.quietEnd } : null;
-    save.mutate({
-      event,
-      channel,
-      enabled: form.enabled,
-      audience: form.audience as 'primary_renter' | 'account_holder' | 'all_drivers' | 'ops',
-      delayMinutes: Math.max(0, Number(form.delayMinutes) || 0),
-      quietHours,
-      maxAttempts: Math.max(1, Number(form.maxAttempts) || 1),
-      retryBackoffMinutes: Math.max(0, Number(form.retryBackoffMinutes) || 0),
-      escalateAfterAttempts: form.escalateAfterAttempts
-        ? Math.max(1, Number(form.escalateAfterAttempts))
-        : null,
-      senderIdentity: form.senderIdentity.trim() || null,
-    });
+    save.mutate(
+      {
+        event,
+        channel,
+        enabled: form.enabled,
+        audience: form.audience as 'primary_renter' | 'account_holder' | 'all_drivers' | 'ops',
+        delayMinutes: Math.max(0, Number(form.delayMinutes) || 0),
+        quietHours,
+        maxAttempts: Math.max(1, Number(form.maxAttempts) || 1),
+        retryBackoffMinutes: Math.max(0, Number(form.retryBackoffMinutes) || 0),
+        escalateAfterAttempts: form.escalateAfterAttempts
+          ? Math.max(1, Number(form.escalateAfterAttempts))
+          : null,
+        senderIdentity: form.senderIdentity.trim() || null,
+      },
+      {
+        onSuccess: () => toast({ title: t('ops.rule.saved'), variant: 'success' }),
+        onError: (e) => toast({ title: e instanceof Error ? e.message : t('ops.rule.saveFail') }),
+      },
+    );
   };
 
   return (
@@ -529,21 +537,26 @@ function RuleCard({
         <Alert variant="info">
           <AlertDescription>{t('ops.rule.notEnforcedNotice')}</AlertDescription>
         </Alert>
-        <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={form.enabled}
-              onChange={(e) => setForm((f) => f && { ...f, enabled: e.target.checked })}
-              disabled={!canPublish}
-              data-testid="rule-toggle"
-            />
-            {t('ops.rule.enabled')}
-          </label>
-          <Field label={t('ops.rule.audience')}>
-            {({ id }) => (
-              <select
+        <form onSubmit={submit} className="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Field label={t('ops.rule.enabled')} hint={t('ops.rule.enabledHint')}>
+            {({ id, describedBy }) => (
+              <div className="flex h-[var(--control-h)] items-center">
+                <Checkbox
+                  id={id}
+                  aria-describedby={describedBy}
+                  checked={form.enabled}
+                  onChange={(e) => setForm((f) => f && { ...f, enabled: e.target.checked })}
+                  disabled={!canPublish}
+                  data-testid="rule-toggle"
+                />
+              </div>
+            )}
+          </Field>
+          <Field label={t('ops.rule.audience')} hint={t('ops.rule.audienceHint')}>
+            {({ id, describedBy }) => (
+              <Select
                 id={id}
-                className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-describedby={describedBy}
                 value={form.audience}
                 onChange={(e) => setForm((f) => f && { ...f, audience: e.target.value })}
                 disabled={!canPublish}
@@ -553,13 +566,14 @@ function RuleCard({
                 <option value="account_holder">{t('ops.rule.aud.account_holder')}</option>
                 <option value="all_drivers">{t('ops.rule.aud.all_drivers')}</option>
                 <option value="ops">{t('ops.rule.aud.ops')}</option>
-              </select>
+              </Select>
             )}
           </Field>
           <Field label={t('ops.rule.sender')} hint={t('ops.rule.senderHint')}>
-            {({ id }) => (
+            {({ id, describedBy }) => (
               <Input
                 id={id}
+                aria-describedby={describedBy}
                 value={form.senderIdentity}
                 onChange={(e) => setForm((f) => f && { ...f, senderIdentity: e.target.value })}
                 disabled={!canPublish}
@@ -568,21 +582,26 @@ function RuleCard({
               />
             )}
           </Field>
-          <Field label={t('ops.rule.delay')}>
-            {({ id }) => (
+          <Field label={t('ops.rule.delay')} hint={t('ops.rule.delayHint')}>
+            {({ id, describedBy }) => (
               <Input
                 id={id}
+                aria-describedby={describedBy}
+                type="number"
                 inputMode="numeric"
+                min={0}
+                max={100_000}
                 value={form.delayMinutes}
                 onChange={(e) => setForm((f) => f && { ...f, delayMinutes: e.target.value })}
                 disabled={!canPublish}
               />
             )}
           </Field>
-          <Field label={t('ops.rule.quietStart')}>
-            {({ id }) => (
+          <Field label={t('ops.rule.quietStart')} hint={t('ops.rule.quietStartHint')}>
+            {({ id, describedBy }) => (
               <Input
                 id={id}
+                aria-describedby={describedBy}
                 type="time"
                 value={form.quietStart}
                 onChange={(e) => setForm((f) => f && { ...f, quietStart: e.target.value })}
@@ -590,10 +609,11 @@ function RuleCard({
               />
             )}
           </Field>
-          <Field label={t('ops.rule.quietEnd')}>
-            {({ id }) => (
+          <Field label={t('ops.rule.quietEnd')} hint={t('ops.rule.quietEndHint')}>
+            {({ id, describedBy }) => (
               <Input
                 id={id}
+                aria-describedby={describedBy}
                 type="time"
                 value={form.quietEnd}
                 onChange={(e) => setForm((f) => f && { ...f, quietEnd: e.target.value })}
@@ -601,22 +621,30 @@ function RuleCard({
               />
             )}
           </Field>
-          <Field label={t('ops.rule.maxAttempts')}>
-            {({ id }) => (
+          <Field label={t('ops.rule.maxAttempts')} hint={t('ops.rule.maxAttemptsHint')}>
+            {({ id, describedBy }) => (
               <Input
                 id={id}
+                aria-describedby={describedBy}
+                type="number"
                 inputMode="numeric"
+                min={1}
+                max={20}
                 value={form.maxAttempts}
                 onChange={(e) => setForm((f) => f && { ...f, maxAttempts: e.target.value })}
                 disabled={!canPublish}
               />
             )}
           </Field>
-          <Field label={t('ops.rule.backoff')}>
-            {({ id }) => (
+          <Field label={t('ops.rule.backoff')} hint={t('ops.rule.backoffHint')}>
+            {({ id, describedBy }) => (
               <Input
                 id={id}
+                aria-describedby={describedBy}
+                type="number"
                 inputMode="numeric"
+                min={0}
+                max={10_080}
                 value={form.retryBackoffMinutes}
                 onChange={(e) => setForm((f) => f && { ...f, retryBackoffMinutes: e.target.value })}
                 disabled={!canPublish}
@@ -624,10 +652,14 @@ function RuleCard({
             )}
           </Field>
           <Field label={t('ops.rule.escalate')} hint={t('ops.rule.escalateHint')}>
-            {({ id }) => (
+            {({ id, describedBy }) => (
               <Input
                 id={id}
+                aria-describedby={describedBy}
+                type="number"
                 inputMode="numeric"
+                min={1}
+                max={20}
                 value={form.escalateAfterAttempts}
                 onChange={(e) =>
                   setForm((f) => f && { ...f, escalateAfterAttempts: e.target.value })
@@ -636,18 +668,10 @@ function RuleCard({
               />
             )}
           </Field>
-          <div className="sm:col-span-2 lg:col-span-3 flex items-center gap-3">
+          <div className="sm:col-span-2 lg:col-span-3">
             <Button type="submit" disabled={!canPublish || save.isPending} data-testid="rule-save">
               {t('ops.rule.save')}
             </Button>
-            {save.isError ? (
-              <span className="text-sm text-destructive" data-testid="rule-error">
-                {save.error instanceof Error ? save.error.message : t('ops.rule.saveFail')}
-              </span>
-            ) : null}
-            {save.isSuccess ? (
-              <span className="text-sm text-muted-foreground">{t('ops.rule.saved')}</span>
-            ) : null}
           </div>
         </form>
       </CardContent>
