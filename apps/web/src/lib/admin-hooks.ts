@@ -325,6 +325,8 @@ export interface DataQualityCheck {
   count: number;
   ok: boolean;
   sample: string[];
+  /** the check's own query failed — a distinct state from "count is 0"; never treat as clear */
+  error: string | null;
 }
 export interface DataQualityReport {
   checkedAt: string;

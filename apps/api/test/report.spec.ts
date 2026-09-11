@@ -1,6 +1,12 @@
+import { randomUUID } from 'node:crypto';
+
+import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { DB } from '../src/database/database.module';
+import type { Database } from '../src/database/drizzle';
+import { recoveryCase } from '../src/database/schema/payment';
 import { ReportService } from '../src/modules/report/report.service';
 
 import { closeTestApp, getTestApp, httpServer } from './helpers/app';
@@ -885,12 +891,15 @@ describe('STAGE-006 administration & reporting', () => {
       ok: boolean;
       severity: string;
       sample: string[];
+      error: string | null;
     }>;
     expect(checks.length).toBeGreaterThanOrEqual(5);
     for (const c of checks) {
       expect(typeof c.count).toBe('number');
       expect(c.ok).toBe(c.count === 0);
       expect(Array.isArray(c.sample)).toBe(true);
+      // every check ran clean — none of them failed to even execute
+      expect(c.error).toBeNull();
     }
     // the referential-integrity checks stay clean — no test creates orphans or dangling rows
     const countFor = (id: string) => checks.find((c) => c.id === id)?.count;
@@ -903,6 +912,88 @@ describe('STAGE-006 administration & reporting', () => {
       .get('/api/v1/ops/data-quality')
       .set('Authorization', `Bearer ${agentToken}`)
       .expect(403);
+  });
+
+  it('TEST-ADM-010 the data-quality checks genuinely detect real violations, not just stay clean when nothing is wrong', async () => {
+    // config_never_published: draft -> submit -> reject, never approved — a fresh (kind,key)
+    // pair no other test ever publishes, so it can only show up because of this test
+    const uniqueKey = `dq-test-${randomUUID().slice(0, 8)}`;
+    const draft = await request(server)
+      .post('/api/v1/ops/config/versions')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ kind: 'pricing', key: uniqueKey, payload: { note: 'data-quality detection test' } })
+      .expect(201);
+    await request(server)
+      .post(`/api/v1/ops/config/versions/${draft.body.id}/submit`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({})
+      .expect(201);
+    await request(server)
+      .post(`/api/v1/ops/config/versions/${draft.body.id}/reject`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ note: 'rejecting on purpose for the data-quality test' })
+      .expect(201);
+
+    // recovery_case_stale: a genuine case via the existing write-after-charge simulation, then
+    // backdated past the 14-day threshold directly in the DB — the same way real staleness would
+    // actually happen (time passing), not something reachable through any legitimate app flow
+    const q = await request(server)
+      .post('/api/v1/discovery/quote')
+      .send({
+        pickupLocationCode: 'TST1',
+        pickupAt: tuesday(60),
+        returnAt: plus(tuesday(60), 3),
+        categoryCode: 'suv',
+        holderKey: `dq-stale-${uniqueKey}`,
+      })
+      .expect(201);
+    await request(server)
+      .post('/api/v1/bookings/confirm')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        quoteReference: q.body.reference,
+        drivers: [{ role: 'primary_renter', fullName: 'DQ Stale', email: 'dq-stale@example.test' }],
+        acceptTerms: true,
+        paymentToken: 'tok_ok',
+        simulateWriteFailure: true,
+      })
+      .expect(500);
+    const cases = await request(server)
+      .get('/api/v1/ops/cases')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const staleCase = (
+      cases.body as Array<{ id: string; kind: string; subjectRef: string; createdAt: string }>
+    ).find((c) => c.kind === 'write_after_charge');
+    expect(staleCase).toBeTruthy();
+    const app = await getTestApp();
+    const db = app.get<Database>(DB);
+    await db
+      .update(recoveryCase)
+      .set({ createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString() })
+      .where(eq(recoveryCase.id, staleCase!.id));
+
+    const res = await request(server)
+      .get('/api/v1/ops/data-quality')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const checks = res.body.checks as Array<{
+      id: string;
+      count: number;
+      sample: string[];
+      error: string | null;
+    }>;
+    const neverPublished = checks.find((c) => c.id === 'config_never_published')!;
+    expect(neverPublished.count).toBeGreaterThan(0);
+    expect(neverPublished.sample).toContain(`pricing:${uniqueKey}`);
+    expect(neverPublished.error).toBeNull();
+
+    const stale = checks.find((c) => c.id === 'recovery_case_stale')!;
+    expect(stale.count).toBeGreaterThan(0);
+    expect(stale.sample).toContain(`write_after_charge · ${staleCase!.subjectRef}`);
+    expect(stale.error).toBeNull();
+    // the report as a whole is honestly non-ok now that real issues exist
+    expect(res.body.ok).toBe(false);
   });
 
   it('SCREEN-OPS-002 the operational dashboard returns scoped counts, never below zero; a customer is refused', async () => {
