@@ -1401,6 +1401,7 @@
   "ops.tpl.loadError": "تعذّر تحميل القوالب.",
   "ops.tpl.missingLocales": "لا يوجد إصدار منشور لـ: {list}",
   "ops.tpl.missingVars": "لا توجد قيمة عيّنة لـ: {list}",
+  "ops.tpl.notStarted": "لم يبدأ بعد — لا توجد مسودة لهذه اللغة",
   "ops.tpl.preview": "معاينة",
   "ops.tpl.previewFail": "تعذّر إنشاء المعاينة.",
   "ops.tpl.previewTitle": "معاينة (قيم عيّنة)",

@@ -1401,6 +1401,7 @@
   "ops.tpl.loadError": "Impossible de charger les modèles.",
   "ops.tpl.missingLocales": "Aucune version publiée pour : {list}",
   "ops.tpl.missingVars": "Aucune valeur d’exemple pour : {list}",
+  "ops.tpl.notStarted": "Pas encore commencé — aucun brouillon pour cette langue",
   "ops.tpl.preview": "Aperçu",
   "ops.tpl.previewFail": "Impossible de générer l’aperçu.",
   "ops.tpl.previewTitle": "Aperçu (valeurs d’exemple)",

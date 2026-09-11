@@ -164,6 +164,13 @@ export class TemplateService {
 
   /** Create or replace the single open draft for (key, channel, locale). */
   async saveDraft(actor: Actor, input: TemplateDraftInput) {
+    const active = await this.activeLocaleCodes();
+    if (!active.includes(input.localeCode)) {
+      throw new AppError('validation_failed', {
+        title: 'Unknown or inactive locale',
+        fieldErrors: [{ path: 'localeCode', code: 'unsupported' }],
+      });
+    }
     // Drafts may be incomplete — only structural rules are enforced here (no `{{var}}` that is
     // not declared, non-empty body). Legal-content + full-coverage checks run at publish.
     const issues = this.structuralIssues(input.subject ?? '', input.bodyTemplate, input.variables);

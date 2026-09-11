@@ -1401,6 +1401,7 @@
   "ops.tpl.loadError": "Templates could not be loaded.",
   "ops.tpl.missingLocales": "No published version for: {list}",
   "ops.tpl.missingVars": "No sample value for: {list}",
+  "ops.tpl.notStarted": "Not started — no draft yet for this language",
   "ops.tpl.preview": "Preview",
   "ops.tpl.previewFail": "Couldn’t build the preview.",
   "ops.tpl.previewTitle": "Preview (sample values)",

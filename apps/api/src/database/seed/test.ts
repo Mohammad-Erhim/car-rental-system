@@ -3,7 +3,7 @@ import { sql } from 'drizzle-orm';
 
 import type { Database } from '../drizzle';
 import { customer } from '../schema/customer';
-import { account, staffProfile } from '../schema/iam';
+import { account, role, staffProfile } from '../schema/iam';
 import { location, organization } from '../schema/org';
 
 import { seedDiscovery } from './discovery';
@@ -81,6 +81,23 @@ export async function seedTest(db: Database): Promise<void> {
       });
   }
 
+  // test-only custom role: exactly `config.read`, no `config.publish` — proves a plain
+  // config-viewer (the kind an org can create via the role editor) can't write through an
+  // endpoint that only meant to let it view (e.g. notification-template drafting).
+  await db
+    .insert(role)
+    .values({
+      organizationId: org.id,
+      code: 'config_viewer',
+      name: 'Config viewer (test)',
+      isSystem: false,
+      permissionActions: ['config.read'],
+    })
+    .onConflictDoUpdate({
+      target: [role.organizationId, role.code],
+      set: { permissionActions: ['config.read'], updatedAt: sql`now()` },
+    });
+
   const accounts: Array<{
     email: string;
     name: string;
@@ -128,6 +145,13 @@ export async function seedTest(db: Database): Promise<void> {
       kind: 'staff',
       roles: ['fleet_staff'],
       locationScope: ['TST1'],
+    },
+    {
+      // config.read only, no config.publish — proves view permission never grants write
+      email: 'test-config-viewer@example.test',
+      name: 'Test Config Viewer',
+      kind: 'staff',
+      roles: ['config_viewer'],
     },
     { email: 'test-customer@example.test', name: 'Test Customer', kind: 'customer', roles: [] },
   ];
