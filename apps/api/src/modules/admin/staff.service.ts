@@ -118,15 +118,17 @@ export class StaffService {
         status: 'invited',
         invitedAt: sql`now()`,
         createdBy: actor.accountId,
-        approvalLimitMinor: input.roleCodes.some((r) => ['manager', 'administrator'].includes(r))
-          ? 500_000
-          : 20_000,
+        approvalLimitMinor: approvalLimitFor(input.roleCodes),
       })
       .onConflictDoUpdate({
         target: staffProfile.accountId,
         set: {
           roleCodes: input.roleCodes,
           locationScope: input.locationScope ?? [],
+          // a re-invite (resend) can change roles before the invitee ever accepts — keep the
+          // approval limit in sync the same way changeAccess does, or a role bump/cut made this
+          // way silently doesn't take effect.
+          approvalLimitMinor: approvalLimitFor(input.roleCodes),
           updatedAt: sql`now()`,
         },
       });
@@ -165,13 +167,18 @@ export class StaffService {
       .limit(1);
     if (!profile) throw AppError.notFound('staff member');
 
-    if (
-      accountId === actor.accountId &&
-      input.roleCodes &&
-      !input.roleCodes.includes('administrator') &&
-      actor.roleCodes.includes('administrator')
-    ) {
-      // prevent self-removal of the last admin path
+    // Guards the org against ending up with zero usable administrator access — checked against
+    // the *target's* current state, not who the actor is, so it covers every route to the same
+    // outcome: an admin demoting themselves, an admin suspending/deactivating themselves (locks
+    // the account exactly as effectively as losing the role does), and a different staff.manage
+    // actor (e.g. a 'manager', who has every permission action but isn't personally an
+    // 'administrator') suspending, deactivating, or role-stripping the org's only administrator.
+    const targetIsActiveAdmin =
+      profile.status === 'active' && profile.roleCodes.includes('administrator');
+    const losesAdminRole = !!input.roleCodes && !input.roleCodes.includes('administrator');
+    const losesActiveStatus = input.status === 'suspended' || input.status === 'deactivated';
+
+    if (targetIsActiveAdmin && (losesAdminRole || losesActiveStatus)) {
       const admins = await this.db
         .select({ n: sql<number>`count(*)::int` })
         .from(staffProfile)
@@ -180,7 +187,8 @@ export class StaffService {
         );
       if ((admins[0]?.n ?? 0) <= 1) {
         throw new AppError('business_rule_violation', {
-          title: 'You cannot remove your own last administrator access',
+          title:
+            "This account is the organization's only active administrator — it can't be suspended, deactivated, or lose the administrator role.",
           params: { reason: 'last_admin' },
         });
       }
@@ -202,6 +210,13 @@ export class StaffService {
         roleCodes: input.roleCodes ?? profile.roleCodes,
         locationScope: input.locationScope ?? profile.locationScope,
         status: input.status ?? profile.status,
+        // a role change (promotion or demotion) has to move the approval limit with it — invite()
+        // sets this from the initial roles, but changeAccess previously never touched it again, so
+        // promoting someone to manager/administrator silently left them at the lower limit (and
+        // demoting an ex-admin left them with the higher one — a privilege-retention gap).
+        approvalLimitMinor: input.roleCodes
+          ? approvalLimitFor(input.roleCodes)
+          : profile.approvalLimitMinor,
         activatedAt:
           input.status === 'active' && !profile.activatedAt ? sql`now()` : profile.activatedAt,
         updatedAt: sql`now()`,
@@ -246,4 +261,11 @@ export class StaffService {
 
 function cryptoRandom(): string {
   return Array.from({ length: 24 }, () => Math.floor(Math.random() * 36).toString(36)).join('');
+}
+
+/** The staff-profile approval limit is derived purely from role codes (DEC/FR-ADM-009's simple
+ *  tiering: manager/administrator get the higher limit, everyone else the base one) — shared by
+ *  every write path that can set `roleCodes` so a later role change actually takes effect. */
+function approvalLimitFor(roleCodes: string[]): number {
+  return roleCodes.some((r) => ['manager', 'administrator'].includes(r)) ? 500_000 : 20_000;
 }
