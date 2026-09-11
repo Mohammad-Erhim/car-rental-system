@@ -58,6 +58,7 @@ describe('rental lifecycle', () => {
   let agentToken: string;
   let adminToken: string;
   let customerToken: string;
+  let financeToken: string; // rental.read but no rental.pickup/rental.return
   const auth = (tok: string) => ({ Authorization: `Bearer ${tok}` });
 
   beforeAll(async () => {
@@ -66,6 +67,8 @@ describe('rental lifecycle', () => {
     agentToken = (await signIn(app, 'test-agent@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
     adminToken = (await signIn(app, 'test-admin@example.test', 'Test-Passw0rd!', 'staff'))
+      .accessToken;
+    financeToken = (await signIn(app, 'test-finance@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
     customerToken = (await signIn(app, 'test-customer@example.test', 'Test-Passw0rd!', 'customer'))
       .accessToken;
@@ -380,6 +383,13 @@ describe('rental lifecycle', () => {
     await request(server)
       .post('/api/v1/ops/rentals/overdue-sweep')
       .set('Authorization', `Bearer ${customerToken}`)
+      .send({})
+      .expect(403);
+
+    // rental.read (view-only) is not enough to trigger the mutation either
+    await request(server)
+      .post('/api/v1/ops/rentals/overdue-sweep')
+      .set('Authorization', `Bearer ${financeToken}`)
       .send({})
       .expect(403);
   });

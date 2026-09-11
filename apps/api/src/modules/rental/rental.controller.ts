@@ -147,7 +147,7 @@ export class RentalController {
    * Runs automatically on the worker's housekeeping tick; this is the manual/ops trigger.
    */
   @Post('ops/rentals/overdue-sweep')
-  @Permissions('rental.read', 'rental.return')
+  @Permissions('rental.return')
   async overdueSweep() {
     const marked = await this.rentals.markOverdue();
     return { marked };
