@@ -343,9 +343,6 @@ export function ReportsPage() {
             <CardTitle className="text-base">{t('ops.rpt.schedule')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Alert variant="info">
-              <AlertDescription>{t('ops.rpt.autoDispatchNotice')}</AlertDescription>
-            </Alert>
             {schedules.isLoading ? (
               <AppStateView kind="loading" inline title={t('ops.st.loading')} />
             ) : !schedules.data?.length ? (

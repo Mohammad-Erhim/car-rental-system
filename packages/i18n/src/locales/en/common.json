@@ -1221,7 +1221,6 @@
   "ops.rp.unpriced": "No live rate plan: {cats}. These categories won’t appear in customer search until one is published.",
   "ops.rp.unpricedTitle": "Some categories have no price",
   "ops.rp.updated": "Draft saved.",
-  "ops.rpt.autoDispatchNotice": "The cron pattern is saved with the schedule, but nothing dispatches it automatically yet — use Send now whenever you want it delivered.",
   "ops.rpt.cron": "Cron",
   "ops.rpt.cronCustom": "Custom",
   "ops.rpt.cronDaily": "Daily (07:00)",
