@@ -13,6 +13,7 @@ describe('notification templates (SCREEN-OPS-033 / FR-ADM-011)', () => {
   let server: ReturnType<typeof httpServer>;
   let adminToken: string;
   let agentToken: string;
+  let viewerToken: string;
 
   beforeAll(async () => {
     const app = await getTestApp();
@@ -21,8 +22,44 @@ describe('notification templates (SCREEN-OPS-033 / FR-ADM-011)', () => {
       .accessToken;
     agentToken = (await signIn(app, 'test-agent@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
+    viewerToken = (await signIn(app, 'test-config-viewer@example.test', 'Test-Passw0rd!', 'staff'))
+      .accessToken;
   });
   afterAll(closeTestApp);
+
+  it('config.read alone (no config.publish) can view but not draft or submit a template', async () => {
+    await request(server)
+      .get('/api/v1/ops/templates')
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .expect(200);
+    await request(server)
+      .post('/api/v1/ops/templates/draft')
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .send({
+        key: 'reservation_confirmed',
+        channel: 'email',
+        localeCode: 'en',
+        subject: 'x',
+        bodyTemplate: 'x',
+        variables: [],
+      })
+      .expect(403);
+  });
+
+  it('rejects a draft for an inactive/unknown locale', async () => {
+    await request(server)
+      .post('/api/v1/ops/templates/draft')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        key: 'reservation_confirmed',
+        channel: 'email',
+        localeCode: 'de',
+        subject: 'x',
+        bodyTemplate: 'x',
+        variables: [],
+      })
+      .expect(422);
+  });
 
   it('lists templates grouped by key/channel with per-locale status', async () => {
     const res = await request(server)

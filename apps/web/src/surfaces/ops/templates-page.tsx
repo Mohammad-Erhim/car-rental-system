@@ -28,6 +28,8 @@ import {
   useUpsertNotificationRule,
   type TemplateVar,
 } from '../../lib/admin-hooks.js';
+import { useMetaLocales } from '../../lib/api-hooks.js';
+import { ApiError } from '../../lib/api.js';
 
 /**
  * SCREEN-OPS-033 / FR-ADM-011 — notification template administration (content half). Edit the
@@ -43,6 +45,13 @@ export function TemplatesPage() {
   const canPublish = hasPermission('config.publish');
 
   const groups = useTemplateGroups();
+  const metaLocales = useMetaLocales();
+  // the *live* active-locale set (DEC-024) — a language added from /ops/config/languages must be
+  // authorable here even before any row for it exists, not just the locales a row happens to have.
+  const activeLocales = useMemo(
+    () => metaLocales.data?.locales.filter((l) => !l.testOnly).map((l) => l.code) ?? [],
+    [metaLocales.data],
+  );
   const [sel, setSel] = useState<{ key: string; channel: string; locale: string } | null>(null);
 
   useEffect(() => {
@@ -66,17 +75,29 @@ export function TemplatesPage() {
   // a fresh draft row for the same (key, channel, locale), which would otherwise wipe an
   // in-flight preview and re-render the editor mid-interaction.
   const syncedFor = useRef<string | null>(null);
+  // a locale that's active but has no row yet (a newly added language) — not a real failure
+  const isNewLocale =
+    detail.isError && detail.error instanceof ApiError && detail.error.code === 'not_found';
 
   useEffect(() => {
     const selKey = sel ? `${sel.key}:${sel.channel}:${sel.locale}` : null;
-    if (detail.data && selKey && syncedFor.current !== selKey) {
+    if (!selKey || syncedFor.current === selKey) return;
+    if (detail.data) {
       syncedFor.current = selKey;
       setSubject(detail.data.subject ?? '');
       setBody(detail.data.bodyTemplate);
       setVars(detail.data.variables ?? []);
       setDirty(false);
+    } else if (isNewLocale) {
+      // no row for this (key, channel, locale) yet — start blank, never leak the previously
+      // selected locale's content into what looks like a fresh draft
+      syncedFor.current = selKey;
+      setSubject('');
+      setBody('');
+      setVars([]);
+      setDirty(false);
     }
-  }, [detail.data, sel]);
+  }, [detail.data, isNewLocale, sel]);
 
   const referenced = useMemo(() => {
     const set = new Set<string>();
@@ -143,44 +164,59 @@ export function TemplatesPage() {
             <CardTitle className="text-base">{t('ops.tpl.list')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-1">
-            {groups.data.map((g) => (
-              <div key={`${g.key}:${g.channel}`} className="rounded-md border p-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{g.key}</span>
-                  <Badge variant="neutral">{g.channel}</Badge>
+            {groups.data.map((g) => {
+              // every active language gets a tab, even one with no row yet (a newly added
+              // language must be authorable here, not just already-templated locales)
+              const tabs = [
+                ...g.locales.map((l) => ({ ...l, started: true })),
+                ...activeLocales
+                  .filter((code) => !g.locales.some((l) => l.localeCode === code))
+                  .map((code) => ({ localeCode: code, hasDraft: false, started: false })),
+              ];
+              return (
+                <div key={`${g.key}:${g.channel}`} className="rounded-md border p-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">{g.key}</span>
+                    <Badge variant="neutral">{g.channel}</Badge>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {tabs.map((l) => {
+                      const active =
+                        sel?.key === g.key &&
+                        sel?.channel === g.channel &&
+                        sel?.locale === l.localeCode;
+                      return (
+                        <button
+                          key={l.localeCode}
+                          type="button"
+                          onClick={() => {
+                            preview.reset();
+                            setSel({ key: g.key, channel: g.channel, locale: l.localeCode });
+                          }}
+                          className={`rounded px-1.5 py-0.5 text-xs ${
+                            active
+                              ? 'bg-primary text-primary-foreground'
+                              : l.started
+                                ? 'bg-muted'
+                                : 'border border-dashed border-muted-foreground/40 text-muted-foreground'
+                          }`}
+                          title={l.started ? undefined : t('ops.tpl.notStarted')}
+                          data-testid={`tpl-loc-${g.key}-${l.localeCode}`}
+                        >
+                          {l.localeCode}
+                          {l.hasDraft ? ' •' : !l.started ? ' +' : ''}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {g.missingLocales.length > 0 ? (
+                    <p className="mt-1 text-xs text-warning">
+                      {t('ops.tpl.missingLocales', { list: g.missingLocales.join(', ') })}
+                    </p>
+                  ) : null}
                 </div>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {g.locales.map((l) => {
-                    const active =
-                      sel?.key === g.key &&
-                      sel?.channel === g.channel &&
-                      sel?.locale === l.localeCode;
-                    return (
-                      <button
-                        key={l.localeCode}
-                        type="button"
-                        onClick={() => {
-                          preview.reset();
-                          setSel({ key: g.key, channel: g.channel, locale: l.localeCode });
-                        }}
-                        className={`rounded px-1.5 py-0.5 text-xs ${
-                          active ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                        }`}
-                        data-testid={`tpl-loc-${g.key}-${l.localeCode}`}
-                      >
-                        {l.localeCode}
-                        {l.hasDraft ? ' •' : ''}
-                      </button>
-                    );
-                  })}
-                </div>
-                {g.missingLocales.length > 0 ? (
-                  <p className="mt-1 text-xs text-warning">
-                    {t('ops.tpl.missingLocales', { list: g.missingLocales.join(', ') })}
-                  </p>
-                ) : null}
-              </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
 
@@ -197,11 +233,20 @@ export function TemplatesPage() {
                   version: d.version,
                 })}
               </p>
+            ) : isNewLocale ? (
+              <p className="text-xs text-muted-foreground">{t('ops.tpl.notStarted')}</p>
             ) : null}
           </CardHeader>
           <CardContent className="space-y-4">
-            {detail.isLoading || !d ? (
+            {detail.isLoading ? (
               <AppStateView kind="loading" title={t('state.loading.title')} inline />
+            ) : detail.isError && !isNewLocale ? (
+              <AppStateView
+                kind="failure"
+                inline
+                title={t('ops.tpl.loadError')}
+                primaryAction={{ label: t('action.retry'), onClick: () => detail.refetch() }}
+              />
             ) : (
               <>
                 <Field label={t('ops.tpl.subject')}>
@@ -322,7 +367,7 @@ export function TemplatesPage() {
                   >
                     {t('ops.tpl.preview')}
                   </Button>
-                  {d.hasOpenDraft && d.status === 'draft' ? (
+                  {d?.hasOpenDraft && d.status === 'draft' ? (
                     <Button
                       variant="outline"
                       disabled={!canPublish || dirty || transition.isPending}
@@ -331,7 +376,7 @@ export function TemplatesPage() {
                       {t('ops.tpl.submit')}
                     </Button>
                   ) : null}
-                  {d.hasOpenDraft && (d.status === 'draft' || d.status === 'in_review') ? (
+                  {d?.hasOpenDraft && (d.status === 'draft' || d.status === 'in_review') ? (
                     <Button
                       disabled={!canPublish || dirty || transition.isPending}
                       onClick={() => setConfirmPublish(true)}
