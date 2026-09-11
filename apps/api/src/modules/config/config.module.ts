@@ -5,6 +5,7 @@ import { BrandingController } from './branding.controller';
 import { ConfigVersionService } from './config-version.service';
 import { ConfigController } from './config.controller';
 import { ConfigPublic } from './config.public';
+import { LocaleRepo } from './locale.repo';
 import { LocationAdminController } from './location-admin.controller';
 import { LocationAdminService } from './location-admin.service';
 import { LookupController } from './lookup.controller';
@@ -33,7 +34,8 @@ import { TranslationService } from './translation.service';
     ConfigVersionService,
     BrandAssetService,
     LocationAdminService,
+    LocaleRepo,
   ],
-  exports: [ConfigPublic, LookupService, ConfigVersionService, TranslationService],
+  exports: [ConfigPublic, LookupService, ConfigVersionService, TranslationService, LocaleRepo],
 })
 export class ConfigModule {}

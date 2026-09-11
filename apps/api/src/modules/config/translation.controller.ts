@@ -28,14 +28,16 @@ export class TranslationController {
 
   // --- translation catalogue ---
 
+  // `lookup.manage` can view too — it can also draft `lookup:*` translations (see
+  // `TranslationService.upsert`) and needs to browse the catalogue to find what to translate.
   @Get('translations/completeness')
-  @Permissions('config.read', 'config.publish')
+  @Permissions('config.read', 'config.publish', 'lookup.manage')
   completeness() {
     return this.translations.completeness();
   }
 
   @Get('translations')
-  @Permissions('config.read', 'config.publish')
+  @Permissions('config.read', 'config.publish', 'lookup.manage')
   list(@Query('namespace') namespace: string, @Query('locale') locale: string) {
     return this.translations.list(namespace, locale);
   }

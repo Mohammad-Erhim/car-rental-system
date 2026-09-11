@@ -7,8 +7,8 @@ import type { Actor } from '../../common/auth/types';
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
-import { locale } from '../../database/schema/i18n';
 import { template } from '../../database/schema/notify';
+import { LocaleRepo } from '../config/locale.repo';
 
 /**
  * SCREEN-OPS-033 / FR-ADM-011 — notification template administration (content half). Manage the
@@ -56,15 +56,11 @@ export class TemplateService {
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
     private readonly outbox: OutboxService,
+    private readonly localeRepo: LocaleRepo,
   ) {}
 
-  private async activeLocaleCodes(): Promise<string[]> {
-    const rows = await this.db
-      .select({ code: locale.code })
-      .from(locale)
-      .where(and(eq(locale.isActive, true), eq(locale.testOnly, false)))
-      .orderBy(asc(locale.sortOrder));
-    return rows.map((r) => r.code);
+  private activeLocaleCodes(): Promise<string[]> {
+    return this.localeRepo.activeCodes();
   }
 
   /** Templates grouped by (key, channel) with a per-locale status + a publish-readiness note. */
