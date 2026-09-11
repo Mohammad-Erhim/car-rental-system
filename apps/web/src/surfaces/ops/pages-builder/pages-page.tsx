@@ -22,6 +22,7 @@ import {
   type BrandConfig,
 } from '@carrental/theme';
 import {
+  AppStateView,
   Badge,
   Button,
   Card,
@@ -320,6 +321,19 @@ export function PagesPage() {
   }, []);
   const deviceW = DEVICE_W[viewport];
   const scale = Math.min(1, Math.max(0.2, (containerW - 4) / deviceW));
+
+  // Without this gate, `cfg` falls back to DEFAULT_PAGES_CONFIG for the one render before
+  // `published` resolves — a visible flash of the built-in layout before the real one loads.
+  if (published.isLoading) return <AppStateView kind="loading" title={t('state.loading.title')} />;
+  if (published.isError)
+    return (
+      <AppStateView
+        kind="failure"
+        title={t('state.failure.title')}
+        description={t('ops.pages.loadFail')}
+        primaryAction={{ label: t('action.retry'), onClick: () => published.refetch() }}
+      />
+    );
 
   return (
     <div className="space-y-6">

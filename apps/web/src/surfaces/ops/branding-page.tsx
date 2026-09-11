@@ -14,6 +14,7 @@ import {
   validateBrandConfig,
 } from '@carrental/theme';
 import {
+  AppStateView,
   Badge,
   Button,
   Card,
@@ -125,6 +126,20 @@ export function BrandingPage() {
       setUploadingKey(null);
     }
   }
+
+  // Without this gate, `cfg` falls back to DEFAULT_BRAND_CONFIG for the one render before
+  // `published` resolves — a visible flash of the wrong colours for any org whose real theme
+  // differs from the built-in default, every time this page loads.
+  if (published.isLoading) return <AppStateView kind="loading" title={t('state.loading.title')} />;
+  if (published.isError)
+    return (
+      <AppStateView
+        kind="failure"
+        title={t('state.failure.title')}
+        description={t('ops.branding.loadFail')}
+        primaryAction={{ label: t('action.retry'), onClick: () => published.refetch() }}
+      />
+    );
 
   return (
     <div className="space-y-6">
