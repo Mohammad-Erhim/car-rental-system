@@ -801,7 +801,10 @@ export class ReportService {
 
     const checks = await Promise.all(
       CHECKS.map((c) =>
-        runDataQualityCheck(c, async () => {
+        // only the display fields go to `runDataQualityCheck` as `meta` — passing `c` itself
+        // would spread its raw `countSql`/`sampleSql` Drizzle query-builder objects into the
+        // response alongside `count`/`ok`/`sample`/`error`
+        runDataQualityCheck({ id: c.id, title: c.title, severity: c.severity }, async () => {
           const countRows = await this.db.execute<{ n: number }>(c.countSql);
           const count = Number(countRows[0]?.n ?? 0);
           const sample =

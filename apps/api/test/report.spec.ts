@@ -900,6 +900,13 @@ describe('STAGE-006 administration & reporting', () => {
       expect(Array.isArray(c.sample)).toBe(true);
       // every check ran clean — none of them failed to even execute
       expect(c.error).toBeNull();
+      // regression guard: each check's internal Drizzle query-builder objects (`countSql`/
+      // `sampleSql`) must never leak into the API response — they did briefly, from passing the
+      // whole check definition as `runDataQualityCheck`'s `meta` instead of just the display
+      // fields, caught live in the dev environment right after this shipped.
+      expect(Object.keys(c).sort()).toEqual(
+        ['count', 'error', 'id', 'ok', 'sample', 'severity', 'title'].sort(),
+      );
     }
     // the referential-integrity checks stay clean — no test creates orphans or dangling rows
     const countFor = (id: string) => checks.find((c) => c.id === id)?.count;
