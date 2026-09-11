@@ -2853,6 +2853,20 @@
         ]
       }
     },
+    "/api/v1/ops/audit/actors": {
+      "get": {
+        "operationId": "ReportController_searchActors",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/ops/data-quality": {
       "get": {
         "operationId": "ReportController_dataQuality",

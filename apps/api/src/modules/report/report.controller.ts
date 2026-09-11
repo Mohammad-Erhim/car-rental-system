@@ -34,6 +34,7 @@ const zPreview = z.object({
   payload: z.record(z.unknown()),
 });
 const zNote = z.object({ note: z.string().min(1).max(1000) });
+const zActorSearch = z.object({ q: z.string().min(2).max(60) });
 const zAuditQuery = z.object({
   action: z.string().max(100).optional(),
   targetType: z.string().max(60).optional(),
@@ -185,6 +186,15 @@ export class ReportController {
   @Permissions('audit.read')
   audit(@Query(new ZodValidationPipe(zAuditQuery)) q: z.infer<typeof zAuditQuery>) {
     return this.reports.auditLog(q);
+  }
+
+  // static path — registered before /audit's own params are ever dynamic, but there's no
+  // collision risk either way since neither this controller nor `audit` above uses a `:id`
+  // segment here.
+  @Get('audit/actors')
+  @Permissions('audit.read')
+  searchActors(@Query(new ZodValidationPipe(zActorSearch)) q: z.infer<typeof zActorSearch>) {
+    return this.reports.searchActors(q.q);
   }
 
   // ---- data quality (SCREEN-OPS-039) ----

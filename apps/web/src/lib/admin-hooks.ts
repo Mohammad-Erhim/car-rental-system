@@ -262,6 +262,24 @@ export function useAuditLog(filter: AuditLogQuery) {
   });
 }
 
+export interface AuditActor {
+  id: string;
+  label: string;
+  email: string;
+  kind: string;
+}
+
+/** Typeahead for "filter by actor" — searches accounts by display name or email. Disabled (no
+ *  request) below 2 characters, matching the backend's own minimum. */
+export function useAuditActorSearch(q: string) {
+  return useQuery({
+    queryKey: ['ops', 'audit-actors', q],
+    enabled: q.trim().length >= 2,
+    queryFn: ({ signal }) =>
+      apiFetch<AuditActor[]>(`/ops/audit/actors?q=${encodeURIComponent(q.trim())}`, { signal }),
+  });
+}
+
 const AUDIT_EXPORT_PAGE = 200; // server-side max for a single page (zAuditQuery limit)
 const AUDIT_EXPORT_CAP = 20_000; // sanity cap so a very wide filter can't hang the browser tab
 
