@@ -2,6 +2,7 @@ import { useAuth } from '@carrental/client/react';
 import { DEFAULT_SEO_CONFIG, seoConfigSchema, type SeoConfig } from '@carrental/contracts';
 import { useI18n } from '@carrental/i18n/react';
 import {
+  AppStateView,
   Button,
   Card,
   CardContent,
@@ -15,6 +16,7 @@ import {
 } from '@carrental/ui';
 import { useEffect, useRef, useState } from 'react';
 
+import { useDeleteConfigVersion } from '../../lib/admin-hooks.js';
 import {
   useDraftSeo,
   usePublishedSeo,
@@ -49,6 +51,7 @@ export function SeoPage() {
   const draft = useDraftSeo();
   const preview = useSeoPreview();
   const transition = useSeoTransition();
+  const deleteVersion = useDeleteConfigVersion();
 
   const base = published.data?.config ?? DEFAULT_SEO_CONFIG;
   const [form, setForm] = useState<SeoConfig>(base);
@@ -104,6 +107,21 @@ export function SeoPage() {
 
   const descLen = form.defaultDescription.length;
 
+  // Without this gate, `form` is initialised from DEFAULT_SEO_CONFIG and stays that way until
+  // the adopt-effect above fires post-mount — a visible flash of the built-in title/description
+  // before the real published config paints, for any org whose real SEO config differs from the
+  // default (i.e. everyone who's actually filled this in).
+  if (published.isLoading) return <AppStateView kind="loading" title={t('state.loading.title')} />;
+  if (published.isError)
+    return (
+      <AppStateView
+        kind="failure"
+        title={t('state.failure.title')}
+        description={t('ops.seo.loadFail')}
+        primaryAction={{ label: t('action.retry'), onClick: () => published.refetch() }}
+      />
+    );
+
   return (
     <div className="space-y-6">
       <PageHeader title={t('ops.seo.title')} description={t('ops.seo.subtitle')} />
@@ -115,59 +133,63 @@ export function SeoPage() {
               <CardTitle className="text-base">{t('ops.seo.identity')}</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
-              <Field label={t('ops.seo.siteName')} htmlFor="seo-name" required>
-                {({ id }) => (
-                  <Input
-                    id={id}
-                    value={form.siteName}
-                    onChange={(e) => set('siteName', e.target.value)}
-                  />
-                )}
-              </Field>
-              <Field
-                label={t('ops.seo.titleTemplate')}
-                htmlFor="seo-tpl"
-                hint={t('ops.seo.titleTemplateHint')}
-              >
-                {({ id }) => (
-                  <Input
-                    id={id}
-                    value={form.titleTemplate}
-                    onChange={(e) => set('titleTemplate', e.target.value)}
-                    className="font-mono"
-                  />
-                )}
-              </Field>
-              <Field
-                label={t('ops.seo.defaultTitle')}
-                htmlFor="seo-title"
-                required
-                className="sm:col-span-2"
-              >
-                {({ id }) => (
-                  <Input
-                    id={id}
-                    value={form.defaultTitle}
-                    onChange={(e) => set('defaultTitle', e.target.value)}
-                  />
-                )}
-              </Field>
-              <Field
-                label={t('ops.seo.defaultDescription')}
-                htmlFor="seo-desc"
-                required
-                hint={t('ops.seo.descriptionHint', { n: descLen })}
-                className="sm:col-span-2"
-              >
-                {({ id }) => (
-                  <Textarea
-                    id={id}
-                    rows={3}
-                    value={form.defaultDescription}
-                    onChange={(e) => set('defaultDescription', e.target.value)}
-                  />
-                )}
-              </Field>
+              {/* a config.read-only viewer reaches this screen too — disable every write
+                  control instead of letting them edit freely and 403 only on save. */}
+              <fieldset disabled={!canPublish} className="contents">
+                <Field label={t('ops.seo.siteName')} htmlFor="seo-name" required>
+                  {({ id }) => (
+                    <Input
+                      id={id}
+                      value={form.siteName}
+                      onChange={(e) => set('siteName', e.target.value)}
+                    />
+                  )}
+                </Field>
+                <Field
+                  label={t('ops.seo.titleTemplate')}
+                  htmlFor="seo-tpl"
+                  hint={t('ops.seo.titleTemplateHint')}
+                >
+                  {({ id }) => (
+                    <Input
+                      id={id}
+                      value={form.titleTemplate}
+                      onChange={(e) => set('titleTemplate', e.target.value)}
+                      className="font-mono"
+                    />
+                  )}
+                </Field>
+                <Field
+                  label={t('ops.seo.defaultTitle')}
+                  htmlFor="seo-title"
+                  required
+                  className="sm:col-span-2"
+                >
+                  {({ id }) => (
+                    <Input
+                      id={id}
+                      value={form.defaultTitle}
+                      onChange={(e) => set('defaultTitle', e.target.value)}
+                    />
+                  )}
+                </Field>
+                <Field
+                  label={t('ops.seo.defaultDescription')}
+                  htmlFor="seo-desc"
+                  required
+                  hint={t('ops.seo.descriptionHint', { n: descLen })}
+                  className="sm:col-span-2"
+                >
+                  {({ id }) => (
+                    <Textarea
+                      id={id}
+                      rows={3}
+                      value={form.defaultDescription}
+                      onChange={(e) => set('defaultDescription', e.target.value)}
+                    />
+                  )}
+                </Field>
+              </fieldset>
             </CardContent>
           </Card>
 
@@ -176,64 +198,70 @@ export function SeoPage() {
               <CardTitle className="text-base">{t('ops.seo.urlsSocial')}</CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 sm:grid-cols-2">
-              <Field
-                label={t('ops.seo.canonicalBase')}
-                htmlFor="seo-canon"
-                required
-                hint={t('ops.seo.canonicalHint')}
-                className="sm:col-span-2"
-              >
-                {({ id }) => (
-                  <Input
-                    id={id}
-                    inputMode="url"
-                    placeholder="https://example.com"
-                    value={form.canonicalBaseUrl}
-                    onChange={(e) => set('canonicalBaseUrl', e.target.value)}
-                  />
-                )}
-              </Field>
-              <Field label={t('ops.seo.ogImage')} htmlFor="seo-og" hint={t('ops.seo.ogImageHint')}>
-                {({ id }) => (
-                  <Input
-                    id={id}
-                    inputMode="url"
-                    placeholder="https://…/og.png"
-                    value={form.ogImageUrl ?? ''}
-                    onChange={(e) => setNullable('ogImageUrl', e.target.value)}
-                  />
-                )}
-              </Field>
-              <Field
-                label={t('ops.seo.twitterHandle')}
-                htmlFor="seo-tw"
-                hint={t('ops.seo.twitterHint')}
-              >
-                {({ id }) => (
-                  <Input
-                    id={id}
-                    placeholder="@brand"
-                    value={form.twitterHandle ?? ''}
-                    onChange={(e) => setNullable('twitterHandle', e.target.value)}
-                  />
-                )}
-              </Field>
-              <Field
-                label={t('ops.seo.orgLogo')}
-                htmlFor="seo-logo"
-                hint={t('ops.seo.orgLogoHint')}
-                className="sm:col-span-2"
-              >
-                {({ id }) => (
-                  <Input
-                    id={id}
-                    inputMode="url"
-                    placeholder="https://…/logo.png"
-                    value={form.organizationLogoUrl ?? ''}
-                    onChange={(e) => setNullable('organizationLogoUrl', e.target.value)}
-                  />
-                )}
-              </Field>
+              <fieldset disabled={!canPublish} className="contents">
+                <Field
+                  label={t('ops.seo.canonicalBase')}
+                  htmlFor="seo-canon"
+                  required
+                  hint={t('ops.seo.canonicalHint')}
+                  className="sm:col-span-2"
+                >
+                  {({ id }) => (
+                    <Input
+                      id={id}
+                      inputMode="url"
+                      placeholder="https://example.com"
+                      value={form.canonicalBaseUrl}
+                      onChange={(e) => set('canonicalBaseUrl', e.target.value)}
+                    />
+                  )}
+                </Field>
+                <Field
+                  label={t('ops.seo.ogImage')}
+                  htmlFor="seo-og"
+                  hint={t('ops.seo.ogImageHint')}
+                >
+                  {({ id }) => (
+                    <Input
+                      id={id}
+                      inputMode="url"
+                      placeholder="https://…/og.png"
+                      value={form.ogImageUrl ?? ''}
+                      onChange={(e) => setNullable('ogImageUrl', e.target.value)}
+                    />
+                  )}
+                </Field>
+                <Field
+                  label={t('ops.seo.twitterHandle')}
+                  htmlFor="seo-tw"
+                  hint={t('ops.seo.twitterHint')}
+                >
+                  {({ id }) => (
+                    <Input
+                      id={id}
+                      placeholder="@brand"
+                      value={form.twitterHandle ?? ''}
+                      onChange={(e) => setNullable('twitterHandle', e.target.value)}
+                    />
+                  )}
+                </Field>
+                <Field
+                  label={t('ops.seo.orgLogo')}
+                  htmlFor="seo-logo"
+                  hint={t('ops.seo.orgLogoHint')}
+                  className="sm:col-span-2"
+                >
+                  {({ id }) => (
+                    <Input
+                      id={id}
+                      inputMode="url"
+                      placeholder="https://…/logo.png"
+                      value={form.organizationLogoUrl ?? ''}
+                      onChange={(e) => setNullable('organizationLogoUrl', e.target.value)}
+                    />
+                  )}
+                </Field>
+              </fieldset>
             </CardContent>
           </Card>
 
@@ -242,42 +270,44 @@ export function SeoPage() {
               <CardTitle className="text-base">{t('ops.seo.indexing')}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <label className="flex items-start gap-3 text-sm">
-                <Checkbox
-                  checked={form.indexable}
-                  onChange={(e) => set('indexable', e.target.checked)}
-                />
-                <span>
-                  <span className="font-medium">{t('ops.seo.indexable')}</span>
-                  <span className="block text-xs text-muted-foreground">
-                    {t('ops.seo.indexableHint')}
+              <fieldset disabled={!canPublish} className="contents space-y-4">
+                <label className="flex items-start gap-3 text-sm">
+                  <Checkbox
+                    checked={form.indexable}
+                    onChange={(e) => set('indexable', e.target.checked)}
+                  />
+                  <span>
+                    <span className="font-medium">{t('ops.seo.indexable')}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {t('ops.seo.indexableHint')}
+                    </span>
                   </span>
-                </span>
-              </label>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field
-                  label={t('ops.seo.googleVerification')}
-                  htmlFor="seo-gv"
-                  hint={t('ops.seo.verificationHint')}
-                >
-                  {({ id }) => (
-                    <Input
-                      id={id}
-                      value={form.googleSiteVerification ?? ''}
-                      onChange={(e) => setNullable('googleSiteVerification', e.target.value)}
-                    />
-                  )}
-                </Field>
-                <Field label={t('ops.seo.bingVerification')} htmlFor="seo-bv">
-                  {({ id }) => (
-                    <Input
-                      id={id}
-                      value={form.bingSiteVerification ?? ''}
-                      onChange={(e) => setNullable('bingSiteVerification', e.target.value)}
-                    />
-                  )}
-                </Field>
-              </div>
+                </label>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field
+                    label={t('ops.seo.googleVerification')}
+                    htmlFor="seo-gv"
+                    hint={t('ops.seo.verificationHint')}
+                  >
+                    {({ id }) => (
+                      <Input
+                        id={id}
+                        value={form.googleSiteVerification ?? ''}
+                        onChange={(e) => setNullable('googleSiteVerification', e.target.value)}
+                      />
+                    )}
+                  </Field>
+                  <Field label={t('ops.seo.bingVerification')} htmlFor="seo-bv">
+                    {({ id }) => (
+                      <Input
+                        id={id}
+                        value={form.bingSiteVerification ?? ''}
+                        onChange={(e) => setNullable('bingSiteVerification', e.target.value)}
+                      />
+                    )}
+                  </Field>
+                </div>
+              </fieldset>
             </CardContent>
           </Card>
 
@@ -296,6 +326,7 @@ export function SeoPage() {
                     id={id}
                     rows={2}
                     value={note}
+                    disabled={!canPublish}
                     onChange={(e) => setNote(e.target.value)}
                   />
                 )}
@@ -304,11 +335,17 @@ export function SeoPage() {
                 <Button variant="outline" onClick={runPreview} loading={preview.isPending}>
                   {t('ops.seo.preview')}
                 </Button>
-                <Button onClick={saveDraft} loading={draft.isPending} data-testid="seo-draft">
+                <Button
+                  onClick={saveDraft}
+                  loading={draft.isPending}
+                  disabled={!canPublish}
+                  data-testid="seo-draft"
+                >
                   {t('ops.cfg.saveDraft')}
                 </Button>
                 <Button
                   variant="ghost"
+                  disabled={!canPublish}
                   onClick={() => {
                     touched.current = false;
                     setForm(base);
@@ -358,6 +395,7 @@ export function SeoPage() {
                 canPublish={canPublish}
                 pending={transition.isPending}
                 onAction={transition.mutateAsync}
+                onDelete={deleteVersion.mutateAsync}
               />
             </CardContent>
           </Card>
