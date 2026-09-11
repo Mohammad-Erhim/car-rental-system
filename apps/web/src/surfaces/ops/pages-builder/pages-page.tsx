@@ -56,13 +56,14 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 
+import { useDeleteConfigVersion } from '../../../lib/admin-hooks.js';
+import { useMetaLocales } from '../../../lib/api-hooks.js';
 import {
   useBrandingTransition,
   useBrandingVersions,
   useDraftBranding,
   usePublishedBranding,
 } from '../../../lib/branding-hooks.js';
-import { useMetaLocales } from '../../../lib/api-hooks.js';
 import {
   useDraftPages,
   usePagesTransition,
@@ -123,6 +124,7 @@ export function PagesPage() {
   const versions = usePagesVersions();
   const draftMut = useDraftPages();
   const transition = usePagesTransition();
+  const deleteVersion = useDeleteConfigVersion();
   const upload = useUploadPageAsset();
   const publishedBrand = usePublishedBranding();
   const metaLocales = useMetaLocales();
@@ -367,7 +369,12 @@ export function PagesPage() {
         <Card className="h-fit">
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle className="text-base">{t('ops.pages.blocksPanel')}</CardTitle>
-            <Button size="sm" variant="outline" onClick={() => setAddOpen(true)}>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!canPublish}
+              onClick={() => setAddOpen(true)}
+            >
               <Plus className="size-4" /> {t('ops.pages.addBlock')}
             </Button>
           </CardHeader>
@@ -403,7 +410,7 @@ export function PagesPage() {
                     <button
                       type="button"
                       className={btn}
-                      disabled={i === 0}
+                      disabled={!canPublish || i === 0}
                       aria-label={t('ops.pages.moveUp')}
                       onClick={() => move(b.id, -1)}
                     >
@@ -412,7 +419,7 @@ export function PagesPage() {
                     <button
                       type="button"
                       className={btn}
-                      disabled={i === blocks.length - 1}
+                      disabled={!canPublish || i === blocks.length - 1}
                       aria-label={t('ops.pages.moveDown')}
                       onClick={() => move(b.id, 1)}
                     >
@@ -421,7 +428,7 @@ export function PagesPage() {
                     <button
                       type="button"
                       className={btn}
-                      disabled={def.required}
+                      disabled={!canPublish || def.required}
                       aria-label={b.hidden ? t('ops.pages.show') : t('ops.pages.hide')}
                       onClick={() => updateBlock(b.id, (x) => ({ ...x, hidden: !x.hidden }))}
                     >
@@ -430,7 +437,7 @@ export function PagesPage() {
                     <button
                       type="button"
                       className={`${btn} hover:text-destructive`}
-                      disabled={def.required}
+                      disabled={!canPublish || def.required}
                       aria-label={t('ops.pages.delete')}
                       onClick={() => setConfirmDelete(b.id)}
                     >
@@ -483,52 +490,58 @@ export function PagesPage() {
                       {t('ops.pages.localeFallbackHint')}
                     </p>
                   ) : null}
-                  {BLOCK_DEFS[selected.type].supportsTone ? (
-                    <label className="block space-y-1 text-sm">
-                      <span className="font-medium text-muted-foreground">
-                        {t('ops.pages.tone')}
-                      </span>
-                      <select
-                        className={selectClass}
-                        value={selected.tone}
-                        onChange={(e) =>
-                          updateBlock(selected.id, (x) => ({
-                            ...x,
-                            tone: e.target.value as Block['tone'],
-                          }))
-                        }
-                      >
-                        {(['default', 'muted', 'brand'] as const).map((tn) => (
-                          <option key={tn} value={tn}>
-                            {t(`ops.pages.tone.${tn}`)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  ) : null}
-                  {BLOCK_DEFS[selected.type].fields.map((f) => (
-                    <FieldControl
-                      key={f.key}
-                      def={f}
-                      value={(selected.props as Record<string, unknown>)[f.key]}
-                      locale={editLocale}
-                      t={t}
-                      assetUrls={assetUrls.current}
-                      uploading={upload.isPending}
-                      onExpand={setLightbox}
-                      onUpload={(file, cb) => onUpload(f.purpose ?? 'pageImage', file, cb)}
-                      onChange={(v) =>
-                        updateBlock(
-                          selected.id,
-                          (x) =>
-                            ({
+                  {/* a config.read-only viewer reaches this screen too (@Permissions is an "any"
+                      gate on the shared list/preview reads) — disable every write control here
+                      instead of letting them edit freely and only find out on save that the
+                      backend requires config.publish. */}
+                  <fieldset disabled={!canPublish} className="contents space-y-4">
+                    {BLOCK_DEFS[selected.type].supportsTone ? (
+                      <label className="block space-y-1 text-sm">
+                        <span className="font-medium text-muted-foreground">
+                          {t('ops.pages.tone')}
+                        </span>
+                        <select
+                          className={selectClass}
+                          value={selected.tone}
+                          onChange={(e) =>
+                            updateBlock(selected.id, (x) => ({
                               ...x,
-                              props: { ...(x.props as Record<string, unknown>), [f.key]: v },
-                            }) as Block,
-                        )
-                      }
-                    />
-                  ))}
+                              tone: e.target.value as Block['tone'],
+                            }))
+                          }
+                        >
+                          {(['default', 'muted', 'brand'] as const).map((tn) => (
+                            <option key={tn} value={tn}>
+                              {t(`ops.pages.tone.${tn}`)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : null}
+                    {BLOCK_DEFS[selected.type].fields.map((f) => (
+                      <FieldControl
+                        key={f.key}
+                        def={f}
+                        value={(selected.props as Record<string, unknown>)[f.key]}
+                        locale={editLocale}
+                        t={t}
+                        assetUrls={assetUrls.current}
+                        uploading={upload.isPending}
+                        onExpand={setLightbox}
+                        onUpload={(file, cb) => onUpload(f.purpose ?? 'pageImage', file, cb)}
+                        onChange={(v) =>
+                          updateBlock(
+                            selected.id,
+                            (x) =>
+                              ({
+                                ...x,
+                                props: { ...(x.props as Record<string, unknown>), [f.key]: v },
+                              }) as Block,
+                          )
+                        }
+                      />
+                    ))}
+                  </fieldset>
                 </>
               )}
             </CardContent>
@@ -537,6 +550,7 @@ export function PagesPage() {
           <AnnouncementPanel
             value={cfg.announcement ?? null}
             locale={editLocale}
+            disabled={!canPublish}
             onChange={(a) => mutate({ ...cfg, announcement: a ?? undefined })}
           />
 
@@ -557,13 +571,14 @@ export function PagesPage() {
               ) : null}
               <Textarea
                 value={note}
+                disabled={!canPublish}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder={t('ops.pages.notePlaceholder')}
                 className="min-h-[60px] text-sm"
               />
               <div className="flex flex-wrap gap-2">
                 <Button
-                  disabled={!draft || issues.length > 0 || draftMut.isPending}
+                  disabled={!canPublish || !draft || issues.length > 0 || draftMut.isPending}
                   loading={draftMut.isPending}
                   onClick={saveDraft}
                 >
@@ -589,6 +604,7 @@ export function PagesPage() {
                 canPublish={canPublish}
                 pending={transition.isPending}
                 onAction={transition.mutateAsync}
+                onDelete={deleteVersion.mutateAsync}
               />
             </CardContent>
           </Card>
@@ -1030,10 +1046,12 @@ const ANNOUNCE_VARIANTS = ['info', 'success', 'warning', 'critical'] as const;
 function AnnouncementPanel({
   value,
   locale,
+  disabled,
   onChange,
 }: {
   value: Announcement | null;
   locale: EditLocale;
+  disabled: boolean;
   onChange: (a: Announcement | null) => void;
 }) {
   const { t } = useI18n();
@@ -1052,109 +1070,112 @@ function AnnouncementPanel({
           <input
             type="checkbox"
             checked={base.enabled}
+            disabled={disabled}
             onChange={(e) => set({ enabled: e.target.checked })}
           />
           {t('ops.pages.announce.enable')}
         </label>
       </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        <p className="text-xs text-muted-foreground">{t('ops.pages.announce.hint')}</p>
+      <CardContent className="text-sm">
+        <fieldset disabled={disabled} className="contents space-y-3">
+          <p className="text-xs text-muted-foreground">{t('ops.pages.announce.hint')}</p>
 
-        <label className="block space-y-1">
-          <span className="font-medium text-muted-foreground">
-            {t('ops.pages.announce.message')}
-          </span>
-          <Input
-            value={msg}
-            placeholder={locale !== 'en' ? base.message.en : ''}
-            maxLength={200}
-            onChange={(e) =>
-              set({
-                message: {
-                  ...base.message,
-                  [locale]: locale === 'en' ? e.target.value : e.target.value || undefined,
-                } as Localized,
-              })
-            }
-          />
-        </label>
-
-        <label className="block space-y-1">
-          <span className="font-medium text-muted-foreground">
-            {t('ops.pages.announce.variant')}
-          </span>
-          <select
-            className={selectClass}
-            value={base.variant}
-            onChange={(e) => set({ variant: e.target.value as Announcement['variant'] })}
-          >
-            {ANNOUNCE_VARIANTS.map((v) => (
-              <option key={v} value={v}>
-                {t(`ops.pages.announce.variant.${v}`)}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <div className="grid gap-2 sm:grid-cols-2">
           <label className="block space-y-1">
             <span className="font-medium text-muted-foreground">
-              {t('ops.pages.announce.ctaLabel')}
+              {t('ops.pages.announce.message')}
             </span>
             <Input
-              value={ctaLabel}
-              maxLength={60}
-              onChange={(e) => {
-                const label = {
-                  ...(base.cta?.label ?? { en: '' }),
-                  [locale]: locale === 'en' ? e.target.value : e.target.value || undefined,
-                } as Localized;
-                set({ cta: { label, href: base.cta?.href ?? '' } });
-              }}
+              value={msg}
+              placeholder={locale !== 'en' ? base.message.en : ''}
+              maxLength={200}
+              onChange={(e) =>
+                set({
+                  message: {
+                    ...base.message,
+                    [locale]: locale === 'en' ? e.target.value : e.target.value || undefined,
+                  } as Localized,
+                })
+              }
             />
           </label>
+
           <label className="block space-y-1">
             <span className="font-medium text-muted-foreground">
-              {t('ops.pages.announce.ctaHref')}
+              {t('ops.pages.announce.variant')}
+            </span>
+            <select
+              className={selectClass}
+              value={base.variant}
+              onChange={(e) => set({ variant: e.target.value as Announcement['variant'] })}
+            >
+              {ANNOUNCE_VARIANTS.map((v) => (
+                <option key={v} value={v}>
+                  {t(`ops.pages.announce.variant.${v}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            <label className="block space-y-1">
+              <span className="font-medium text-muted-foreground">
+                {t('ops.pages.announce.ctaLabel')}
+              </span>
+              <Input
+                value={ctaLabel}
+                maxLength={60}
+                onChange={(e) => {
+                  const label = {
+                    ...(base.cta?.label ?? { en: '' }),
+                    [locale]: locale === 'en' ? e.target.value : e.target.value || undefined,
+                  } as Localized;
+                  set({ cta: { label, href: base.cta?.href ?? '' } });
+                }}
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="font-medium text-muted-foreground">
+                {t('ops.pages.announce.ctaHref')}
+              </span>
+              <Input
+                value={base.cta?.href ?? ''}
+                placeholder="/en/search · https://…"
+                onChange={(e) => {
+                  const href = e.target.value;
+                  if (!href && !ctaLabel) return set({ cta: null });
+                  set({ cta: { label: base.cta?.label ?? { en: '' }, href } });
+                }}
+              />
+            </label>
+          </div>
+
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={base.dismissible}
+              onChange={(e) => set({ dismissible: e.target.checked })}
+            />
+            <span className="font-medium text-muted-foreground">
+              {t('ops.pages.announce.dismissible')}
+            </span>
+          </label>
+
+          <label className="block space-y-1">
+            <span className="flex items-center justify-between font-medium text-muted-foreground">
+              {t('ops.pages.announce.campaignId')}
+              <span className="text-[0.7rem] normal-case">
+                {t('ops.pages.announce.campaignIdHint')}
+              </span>
             </span>
             <Input
-              value={base.cta?.href ?? ''}
-              placeholder="/en/search · https://…"
-              onChange={(e) => {
-                const href = e.target.value;
-                if (!href && !ctaLabel) return set({ cta: null });
-                set({ cta: { label: base.cta?.label ?? { en: '' }, href } });
-              }}
+              value={base.id}
+              maxLength={40}
+              onChange={(e) =>
+                set({ id: e.target.value.replace(/[^A-Za-z0-9._-]/g, '-') || 'announcement' })
+              }
             />
           </label>
-        </div>
-
-        <label className="flex items-center gap-2">
-          <input
-            type="checkbox"
-            checked={base.dismissible}
-            onChange={(e) => set({ dismissible: e.target.checked })}
-          />
-          <span className="font-medium text-muted-foreground">
-            {t('ops.pages.announce.dismissible')}
-          </span>
-        </label>
-
-        <label className="block space-y-1">
-          <span className="flex items-center justify-between font-medium text-muted-foreground">
-            {t('ops.pages.announce.campaignId')}
-            <span className="text-[0.7rem] normal-case">
-              {t('ops.pages.announce.campaignIdHint')}
-            </span>
-          </span>
-          <Input
-            value={base.id}
-            maxLength={40}
-            onChange={(e) =>
-              set({ id: e.target.value.replace(/[^A-Za-z0-9._-]/g, '-') || 'announcement' })
-            }
-          />
-        </label>
+        </fieldset>
       </CardContent>
     </Card>
   );
@@ -1188,6 +1209,7 @@ function ColoursPanel({
   const draftBrand = useDraftBranding();
   const brandVersions = useBrandingVersions();
   const brandTransition = useBrandingTransition();
+  const deleteBrandVersion = useDeleteConfigVersion();
   const [note, setNote] = useState('');
 
   if (!value) {
@@ -1224,46 +1246,50 @@ function ColoursPanel({
       <CardContent className="space-y-4 text-sm">
         <p className="text-muted-foreground">{t('ops.pages.coloursHint')}</p>
 
-        <div className="space-y-1.5">
-          <span className="font-medium text-muted-foreground">{t('ops.pages.colourPreset')}</span>
-          <div className="flex flex-wrap gap-1.5">
-            {PRESETS.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                aria-pressed={activePreset?.id === p.id}
-                title={p.description}
-                className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs ${
-                  activePreset?.id === p.id ? 'border-primary bg-primary/5' : 'hover:border-primary'
-                }`}
-                onClick={() => onChange({ ...value, colors: clone(p.config.colors) })}
-              >
-                <span
-                  className="size-3 rounded-full border"
-                  style={{ background: hslTripleToHex(p.config.colors.light.primary) }}
+        <fieldset disabled={!canPublish} className="contents space-y-4">
+          <div className="space-y-1.5">
+            <span className="font-medium text-muted-foreground">{t('ops.pages.colourPreset')}</span>
+            <div className="flex flex-wrap gap-1.5">
+              {PRESETS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  aria-pressed={activePreset?.id === p.id}
+                  title={p.description}
+                  className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs ${
+                    activePreset?.id === p.id
+                      ? 'border-primary bg-primary/5'
+                      : 'hover:border-primary'
+                  }`}
+                  onClick={() => onChange({ ...value, colors: clone(p.config.colors) })}
+                >
+                  <span
+                    className="size-3 rounded-full border"
+                    style={{ background: hslTripleToHex(p.config.colors.light.primary) }}
+                  />
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            {COLOUR_TOKENS.map((token) => (
+              <label key={token} className="flex items-center gap-2">
+                <input
+                  type="color"
+                  aria-label={t(`ops.pages.colourToken.${token}`)}
+                  value={hslTripleToHex(value.colors.light[token])}
+                  onChange={(e) => setToken(token, e.target.value)}
+                  className="size-8 shrink-0 cursor-pointer rounded border bg-transparent p-0.5"
                 />
-                {p.label}
-              </button>
+                <span className="min-w-0 truncate text-xs text-muted-foreground">
+                  {t(`ops.pages.colourToken.${token}`)}
+                </span>
+              </label>
             ))}
           </div>
-        </div>
-
-        <div className="grid gap-2 sm:grid-cols-2">
-          {COLOUR_TOKENS.map((token) => (
-            <label key={token} className="flex items-center gap-2">
-              <input
-                type="color"
-                aria-label={t(`ops.pages.colourToken.${token}`)}
-                value={hslTripleToHex(value.colors.light[token])}
-                onChange={(e) => setToken(token, e.target.value)}
-                className="size-8 shrink-0 cursor-pointer rounded border bg-transparent p-0.5"
-              />
-              <span className="min-w-0 truncate text-xs text-muted-foreground">
-                {t(`ops.pages.colourToken.${token}`)}
-              </span>
-            </label>
-          ))}
-        </div>
+        </fieldset>
 
         {violations.length ? (
           <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">
@@ -1280,6 +1306,7 @@ function ColoursPanel({
 
         <Textarea
           value={note}
+          disabled={!canPublish}
           onChange={(e) => setNote(e.target.value)}
           placeholder={t('ops.pages.notePlaceholder')}
           className="min-h-[52px] text-sm"
@@ -1287,7 +1314,7 @@ function ColoursPanel({
         <div className="flex flex-wrap items-center gap-2">
           <Button
             size="sm"
-            disabled={violations.length > 0 || draftBrand.isPending}
+            disabled={!canPublish || violations.length > 0 || draftBrand.isPending}
             loading={draftBrand.isPending}
             onClick={() =>
               draftBrand.mutate(
@@ -1328,6 +1355,7 @@ function ColoursPanel({
               pending={brandTransition.isPending}
               limit={4}
               onAction={brandTransition.mutateAsync}
+              onDelete={deleteBrandVersion.mutateAsync}
             />
           </div>
         ) : null}
