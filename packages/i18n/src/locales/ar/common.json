@@ -1221,7 +1221,6 @@
   "ops.rp.unpriced": "لا توجد خطة أسعار نشطة: {cats}. لن تظهر هذه الفئات في بحث العملاء حتى تُنشر خطة.",
   "ops.rp.unpricedTitle": "بعض الفئات بلا سعر",
   "ops.rp.updated": "تم حفظ المسودة.",
-  "ops.rpt.autoDispatchNotice": "يُحفظ نمط الجدولة (cron) مع الجدول، لكن لا شيء يُرسله تلقائيًا حتى الآن — استخدم \"إرسال الآن\" كلما أردت تسليمه.",
   "ops.rpt.cron": "Cron",
   "ops.rpt.cronCustom": "مخصّص",
   "ops.rpt.cronDaily": "يوميًا (07:00)",

@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { parseExpression } from 'cron-parser';
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
@@ -356,6 +357,13 @@ export class ReportService {
       .limit(1);
     if (!def) throw AppError.notFound('report');
 
+    // Same reasoning: an unparseable cron used to save fine and simply never fire — now that a
+    // dispatcher actually reads this field (dispatchDueSchedules), a bad expression is a request
+    // error, not a silent no-op discovered days later.
+    if (nextFireAfter(input.cron, new Date()) === null) {
+      throw AppError.validation([{ path: 'cron', code: 'invalid_cron' }]);
+    }
+
     const orgId = await this.orgId();
     const [row] = await this.db
       .insert(reportSchedule)
@@ -393,8 +401,14 @@ export class ReportService {
    * `report.delivery.v1` outbox event stays as the durable audit trail alongside it, not as the
    * only delivery attempt — previously it was the *only* thing this method did, so nothing was
    * ever actually sent to `recipients` despite the response claiming `sent: true`.
+   *
+   * `actor` is `null` for the automated dispatcher tick (`dispatchDueSchedules`) — there is no
+   * human to attribute the audit trail to, so it records as `actorType: 'system'`
+   * (`AuditService.record` already has that fallback). The owner-authority check is always
+   * against the schedule's `createdBy`, never against `actor` — an automated call is exactly as
+   * safe as a manual one.
    */
-  async sendScheduleNow(actor: Actor, id: string) {
+  async sendScheduleNow(actor: Actor | null, id: string) {
     const orgId = await this.orgId();
     const [sch] = await this.db
       .select()
@@ -518,4 +532,52 @@ export class ReportService {
         createdAt: new Date(r.createdAt).toISOString(),
       }));
   }
+
+  /**
+   * FR-RPT-006 automated dispatch — the worker tick's entry point (once a minute; see
+   * `worker.ts`). Finds every active schedule whose next cron occurrence (after its last run, or
+   * after it was created if never run) has arrived, and sends it via `sendScheduleNow` — the
+   * exact same owner-re-check / run / notify / outbox path a manual "Send now" click uses, so
+   * automated and manual dispatch can never drift apart into two different behaviors.
+   */
+  async dispatchDueSchedules(now: Date): Promise<{ checked: number; dispatched: string[] }> {
+    const active = await this.db
+      .select({
+        id: reportSchedule.id,
+        cron: reportSchedule.cron,
+        lastRunAt: reportSchedule.lastRunAt,
+        createdAt: reportSchedule.createdAt,
+      })
+      .from(reportSchedule)
+      .where(eq(reportSchedule.isActive, 'true'));
+    const dispatched: string[] = [];
+    for (const sch of active) {
+      const baseline = sch.lastRunAt ?? sch.createdAt;
+      if (!isScheduleDue(sch.cron, baseline, now)) continue;
+      // a null actor records this audit trail as system-triggered (AuditService already has a
+      // 'system' actorType fallback for exactly this) — there is no human to attribute it to.
+      await this.sendScheduleNow(null, sch.id);
+      dispatched.push(sch.id);
+    }
+    return { checked: active.length, dispatched };
+  }
+}
+
+/** The cron expression's next occurrence strictly after `baseline`, or `null` for a malformed
+ *  expression (never fires — matches `schedule()`'s own creation-time validation, which should
+ *  make this unreachable in practice, but a tick must not throw over one bad row). */
+export function nextFireAfter(cron: string, baseline: string | Date): Date | null {
+  try {
+    return parseExpression(cron, { currentDate: baseline, utc: true }).next().toDate();
+  } catch {
+    return null;
+  }
+}
+
+/** Whether a schedule last run (or created, if never run) at `baseline` has a cron occurrence due
+ *  by `now`. Exported standalone (no DB) so the dispatch-timing logic itself — the part worth
+ *  getting exactly right — has fast, deterministic unit coverage. */
+export function isScheduleDue(cron: string, baseline: string | Date, now: Date): boolean {
+  const next = nextFireAfter(cron, baseline);
+  return next !== null && next.getTime() <= now.getTime();
 }
