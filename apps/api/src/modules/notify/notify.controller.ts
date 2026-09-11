@@ -68,7 +68,16 @@ const zRule = z.object({
   maxAttempts: z.number().int().min(1).max(20).optional(),
   retryBackoffMinutes: z.number().int().min(0).max(10_080).optional(),
   escalateAfterAttempts: z.number().int().min(1).max(20).nullable().optional(),
-  senderIdentity: z.string().max(60).nullable().optional(),
+  // local-part of the From identity only (e.g. 'bookings') — never free text: this can end up in
+  // a mail header once a real SMTP driver exists, so no whitespace/control/'@'/CRLF is accepted.
+  senderIdentity: z
+    .string()
+    .trim()
+    .min(1)
+    .max(60)
+    .regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/)
+    .nullable()
+    .optional(),
 });
 
 /** SCREEN-OPS-033 / FR-ADM-011 — notification template administration (content half). */

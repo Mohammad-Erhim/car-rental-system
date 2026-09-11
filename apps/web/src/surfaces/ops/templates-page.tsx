@@ -1,6 +1,8 @@
 import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
+  Alert,
+  AlertDescription,
   AppStateView,
   Badge,
   Button,
@@ -523,7 +525,10 @@ function RuleCard({
           {event} · {channel}
         </p>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        <Alert variant="info">
+          <AlertDescription>{t('ops.rule.notEnforcedNotice')}</AlertDescription>
+        </Alert>
         <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <label className="flex items-center gap-2 text-sm">
             <Checkbox
@@ -558,6 +563,7 @@ function RuleCard({
                 value={form.senderIdentity}
                 onChange={(e) => setForm((f) => f && { ...f, senderIdentity: e.target.value })}
                 disabled={!canPublish}
+                maxLength={60}
                 data-testid="rule-sender"
               />
             )}
