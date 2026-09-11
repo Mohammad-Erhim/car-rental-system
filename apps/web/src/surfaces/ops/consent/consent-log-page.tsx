@@ -10,11 +10,16 @@ import {
   DataTable,
   Input,
   PageHeader,
+  useToast,
   type DataTableColumn,
 } from '@carrental/ui';
 import { useState } from 'react';
 
-import { useConsentLog, type ConsentLogQuery } from '../../../lib/consent-hooks.js';
+import {
+  useConsentLog,
+  useConsentLogExport,
+  type ConsentLogQuery,
+} from '../../../lib/consent-hooks.js';
 
 const ACTIONS = ['', 'accept_all', 'reject_all', 'save_preferences', 'withdraw'] as const;
 const selectClass = 'h-9 rounded-md border bg-background px-2 text-sm';
@@ -57,9 +62,11 @@ function toCsv(rows: ConsentLogEntry[]): string {
 
 export function ConsentLogPage() {
   const { t, fmt } = useI18n();
+  const { toast } = useToast();
   const [draft, setDraft] = useState({ from: '', to: '', action: '' });
   const [query, setQuery] = useState<ConsentLogQuery>({ limit: PAGE, offset: 0 });
   const log = useConsentLog(query);
+  const exportMut = useConsentLogExport();
 
   function apply(e: React.FormEvent) {
     e.preventDefault();
@@ -72,15 +79,33 @@ export function ConsentLogPage() {
     });
   }
 
-  function downloadCsv() {
-    const rows = log.data?.entries ?? [];
-    const blob = new Blob([toCsv(rows)], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `consent-log-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  // Exports every event matching the current filter (not just the page on screen) — see
+  // useConsentLogExport for why that distinction matters for a compliance export.
+  async function downloadCsv() {
+    try {
+      const { entries, truncated } = await exportMut.mutateAsync({
+        from: query.from,
+        to: query.to,
+        action: query.action,
+      });
+      const blob = new Blob([toCsv(entries)], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `consent-log-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      if (truncated) {
+        toast({ title: t('ops.consent.log.exportTruncated', { n: entries.length }) });
+      } else {
+        toast({
+          title: t('ops.consent.log.exportDone', { n: entries.length }),
+          variant: 'success',
+        });
+      }
+    } catch {
+      toast({ title: t('ops.consent.log.exportFail') });
+    }
   }
 
   const s = log.data?.summary;
@@ -195,6 +220,7 @@ export function ConsentLogPage() {
               type="button"
               variant="ghost"
               onClick={downloadCsv}
+              loading={exportMut.isPending}
               disabled={!log.data?.entries.length}
             >
               {t('ops.consent.log.export')}
