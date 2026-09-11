@@ -32,6 +32,9 @@ const zPreview = z.object({
 });
 const zNote = z.object({ note: z.string().min(1).max(1000) });
 const zActorSearch = z.object({ q: z.string().min(2).max(60) });
+// 7 days minimum (a "trend" over less than a week isn't one); 90-day cap to bound the query cost
+// of the retroactive-occupancy join in dashboardAnalytics()
+const zDashboardAnalytics = z.object({ days: z.coerce.number().int().min(7).max(90).default(30) });
 const zAuditQuery = z.object({
   action: z.string().max(100).optional(),
   targetType: z.string().max(60).optional(),
@@ -59,6 +62,15 @@ export class ReportController {
   @Permissions('reservation.read')
   dashboard(@CurrentActor() actor: Actor) {
     return this.reports.opsDashboard(actor);
+  }
+
+  @Get('dashboard/analytics')
+  @Permissions('reservation.read')
+  dashboardAnalytics(
+    @Query(new ZodValidationPipe(zDashboardAnalytics)) q: z.infer<typeof zDashboardAnalytics>,
+    @CurrentActor() actor: Actor,
+  ) {
+    return this.reports.dashboardAnalytics(actor, q.days);
   }
 
   // ---- reports ----

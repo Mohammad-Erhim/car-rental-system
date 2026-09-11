@@ -99,6 +99,7 @@ POST   /api/v1/ops/customers/:id/restrictions/:rid/lift
 POST   /api/v1/ops/customers/:id/restrictions/:rid/reject
 POST   /api/v1/ops/customers/:id/unmerge
 GET    /api/v1/ops/dashboard
+GET    /api/v1/ops/dashboard/analytics
 GET    /api/v1/ops/data-quality
 POST   /api/v1/ops/data-quality/:checkId/acknowledge
 POST   /api/v1/ops/data-quality/:checkId/false-positive

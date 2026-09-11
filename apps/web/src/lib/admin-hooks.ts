@@ -410,6 +410,36 @@ export function useOpsDashboard() {
   });
 }
 
+export interface DashboardAnalyticsDay {
+  date: string;
+  bookings: number;
+  bookedMinor: number;
+  cancellations: number;
+  revenueMinor: number;
+  /** share of the fleet realized-occupied that day, 0..100; null when the org has no units */
+  utilizationPct: number | null;
+}
+export interface DashboardAnalytics {
+  scopeNote: string;
+  rangeDays: number;
+  currency: string;
+  /** current fleet size — the *denominator* every day's utilizationPct was computed against, not
+   *  a historical one (there's no daily fleet-size snapshot), so older days can read slightly off
+   *  if the fleet has grown/shrunk during the window. Surfaced so the UI can disclose that. */
+  fleetTotal: number;
+  daily: DashboardAnalyticsDay[];
+  byCategory: Array<{ categoryCode: string; reservations: number; revenueMinor: number }>;
+}
+
+export function useDashboardAnalytics(days: number) {
+  return useQuery({
+    queryKey: ['ops', 'dashboard', 'analytics', days],
+    queryFn: ({ signal }) =>
+      apiFetch<DashboardAnalytics>(`/ops/dashboard/analytics?days=${days}`, { signal }),
+    staleTime: 60_000,
+  });
+}
+
 // ---- notification templates (SCREEN-OPS-033 / FR-ADM-011) ----
 
 export interface TemplateVar {
