@@ -26,7 +26,7 @@ describe('notification event rules (FR-ADM-011)', () => {
   let customer: string;
   let dayCursor = 40;
 
-  const book = async () => {
+  const book = async (token: string = customer) => {
     const day = (dayCursor += 3);
     const quote = await request(server)
       .post('/api/v1/discovery/quote')
@@ -40,7 +40,7 @@ describe('notification event rules (FR-ADM-011)', () => {
       .expect(201);
     return request(server)
       .post('/api/v1/bookings/confirm')
-      .set('Authorization', `Bearer ${customer}`)
+      .set('Authorization', `Bearer ${token}`)
       .send({
         quoteReference: quote.body.reference,
         drivers: [
@@ -57,11 +57,42 @@ describe('notification event rules (FR-ADM-011)', () => {
       .expect(201);
   };
 
+  type Message = {
+    event: string;
+    deliveryState: string;
+    lastError: string | null;
+    sender: string | null;
+    subject: string | null;
+    localeCode: string;
+    templateKey: string | null;
+  };
+
   const latestConfirmation = async () => {
     const mail = await request(server).get('/api/v1/dev/mail?limit=100').expect(200);
-    return (mail.body.messages as Array<{ event: string }>).find((m) => m.event === EVENT) as
-      | { event: string; deliveryState: string; lastError: string | null; sender: string | null }
-      | undefined;
+    return (mail.body.messages as Message[]).find((m) => m.event === EVENT);
+  };
+
+  /** Register + verify a fresh customer pinned to `localeCode`; returns their access token. */
+  const customerWithLocale = async (localeCode: string) => {
+    const email = `notify-locale-${localeCode}-${Date.now()}-${Math.random()
+      .toString(36)
+      .slice(2)}@example.test`;
+    const reg = await request(server)
+      .post('/api/v1/auth/register')
+      .send({
+        fullName: 'Locale Customer',
+        email,
+        password: 'Sup3rSecret!!',
+        localeCode,
+        acceptTerms: true,
+        marketingOptIn: false,
+      })
+      .expect(201);
+    const verify = await request(server)
+      .post('/api/v1/auth/verify-contact')
+      .send({ challengeId: reg.body.challengeId, code: reg.body.devCode })
+      .expect(201);
+    return verify.body.accessToken as string;
   };
 
   beforeAll(async () => {
@@ -129,5 +160,63 @@ describe('notification event rules (FR-ADM-011)', () => {
     const sent = await latestConfirmation();
     expect(sent?.deliveryState).not.toBe('suppressed');
     expect(sent?.sender).toBe('bookings');
+  });
+
+  it('escalateAfterAttempts beyond maxAttempts is rejected — attempts stop first, it could never fire', async () => {
+    await request(server)
+      .post('/api/v1/ops/notification-rules')
+      .set('Authorization', `Bearer ${admin}`)
+      .send({ event: EVENT, channel: 'email', maxAttempts: 2, escalateAfterAttempts: 5 })
+      .expect(422);
+
+    // still rejected when maxAttempts is left at its saved value and only escalation moves past it
+    await request(server)
+      .post('/api/v1/ops/notification-rules')
+      .set('Authorization', `Bearer ${admin}`)
+      .send({ event: EVENT, channel: 'email', escalateAfterAttempts: 99 })
+      .expect(422);
+  });
+
+  it('escalateAfterAttempts at or below maxAttempts is accepted', async () => {
+    await request(server)
+      .post('/api/v1/ops/notification-rules')
+      .set('Authorization', `Bearer ${admin}`)
+      .send({ event: EVENT, channel: 'email', maxAttempts: 5, escalateAfterAttempts: 3 })
+      .expect(201)
+      .expect((r) => {
+        expect(r.body.maxAttempts).toBe(5);
+        expect(r.body.escalateAfterAttempts).toBe(3);
+      });
+  });
+
+  it('a locale with no published template of its own falls back through the runtime chain (DEC-024), not straight to raw JSON', async () => {
+    // "fi" only exists in this run — a dashboard-added language whose fallback (set at creation,
+    // not the static en/fr/ar list) reaches French before English.
+    await request(server)
+      .post('/api/v1/config/locales')
+      .set('Authorization', `Bearer ${admin}`)
+      .send({
+        code: 'fi',
+        nativeName: 'Suomi',
+        englishName: 'Finnish',
+        direction: 'ltr',
+        fallbackChain: ['fr'],
+      })
+      .expect(201);
+    await request(server)
+      .post('/api/v1/config/locales/fi/activate')
+      .set('Authorization', `Bearer ${admin}`)
+      .expect(201);
+
+    const fiCustomer = await customerWithLocale('fi');
+    await book(fiCustomer);
+
+    const sent = await latestConfirmation();
+    expect(sent?.localeCode).toBe('fi');
+    // resolved via the fi -> fr -> en chain to the published French template, not the en default
+    // and not the "[event] {...}" raw-JSON last resort.
+    expect(sent?.templateKey).toBe(EVENT);
+    expect(sent?.subject).toContain('réservation');
+    expect(sent?.subject).not.toContain('booking');
   });
 });

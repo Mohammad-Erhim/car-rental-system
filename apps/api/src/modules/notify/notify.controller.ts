@@ -146,7 +146,7 @@ export class TemplateController {
   }
 
   @Post('templates/draft')
-  @Permissions('config.read', 'config.publish')
+  @Permissions('config.publish')
   draft(
     @Body(new ZodValidationPipe(zDraft)) body: z.infer<typeof zDraft>,
     @CurrentActor() actor: Actor,
@@ -161,7 +161,7 @@ export class TemplateController {
   }
 
   @Post('templates/:id/submit')
-  @Permissions('config.read', 'config.publish')
+  @Permissions('config.publish')
   submit(@Param('id') id: string, @CurrentActor() actor: Actor) {
     return this.templates.submit(actor, id);
   }

@@ -8,6 +8,8 @@ import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { notificationRule, template } from '../../database/schema/notify';
 
+import { TemplateService } from './template.service';
+
 /**
  * FR-ADM-011 event-rules half — the *when / to whom / how* of a transactional message, kept
  * separate from the localized content the template editor owns. One rule per (event, channel);
@@ -68,6 +70,7 @@ export class NotificationRuleService {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
+    private readonly templates: TemplateService,
   ) {}
 
   /** Every event that has a template, with its effective rule (saved or default). */
@@ -132,8 +135,36 @@ export class NotificationRuleService {
       .where(and(eq(notificationRule.event, input.event), eq(notificationRule.channel, channel)))
       .limit(1);
 
+    // escalation past the attempt ceiling can never fire — attempts stop at maxAttempts first
+    const effectiveMaxAttempts = input.maxAttempts ?? existing?.maxAttempts ?? 3;
+    const effectiveEscalate =
+      input.escalateAfterAttempts === undefined
+        ? (existing?.escalateAfterAttempts ?? null)
+        : input.escalateAfterAttempts;
+    if (effectiveEscalate != null && effectiveEscalate > effectiveMaxAttempts) {
+      throw AppError.validation([{ path: 'escalateAfterAttempts', code: 'exceeds_max_attempts' }]);
+    }
+
+    const enabled = input.enabled ?? existing?.enabled ?? true;
+    // FR-ADM-011: "validate all supported languages before activation" — turning a rule on
+    // (or creating one already-enabled) must not leave an active language with no ready,
+    // published template for it, or those recipients would get an empty/placeholder message.
+    if (enabled && !existing?.enabled) {
+      const readiness = await this.templates.readiness(input.event, channel);
+      if (!readiness.ready) {
+        const gaps = readiness.perLocale.filter((l) => !l.published || l.issues.length > 0);
+        throw AppError.businessRule(
+          `Cannot enable — ${gaps.length} active language(s) have no ready, published template for this event/channel`,
+          {
+            reason: 'template_coverage_incomplete',
+            locales: gaps.map((l) => l.localeCode).join(','),
+          },
+        );
+      }
+    }
+
     const values = {
-      enabled: input.enabled ?? existing?.enabled ?? true,
+      enabled,
       audience: input.audience ?? (existing?.audience as Audience) ?? 'primary_renter',
       delayMinutes: input.delayMinutes ?? existing?.delayMinutes ?? 0,
       quietHours:
