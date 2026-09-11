@@ -1221,6 +1221,7 @@
   "ops.rp.unpriced": "Aucun plan tarifaire actif : {cats}. Ces catégories n’apparaîtront pas dans la recherche client tant qu’un plan n’est pas publié.",
   "ops.rp.unpricedTitle": "Certaines catégories n’ont pas de prix",
   "ops.rp.updated": "Brouillon enregistré.",
+  "ops.rpt.autoDispatchNotice": "Le motif cron est enregistré avec la planification, mais rien ne la déclenche encore automatiquement — utilisez « Envoyer maintenant » chaque fois que vous voulez l’envoyer.",
   "ops.rpt.cron": "Cron",
   "ops.rpt.cronCustom": "Personnalisé",
   "ops.rpt.cronDaily": "Quotidien (07:00)",

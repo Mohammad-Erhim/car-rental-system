@@ -205,7 +205,15 @@ export async function fetchReportCsv(runId: string): Promise<string> {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     credentials: 'include',
   });
-  if (!res.ok) throw new Error(`Export failed (${res.status})`);
+  if (!res.ok) {
+    // surface the API's own message (e.g. "This report run covers locations outside your
+    // scope") instead of a bare status code — this call bypasses apiFetch/ApiError since it
+    // reads text/csv, not JSON, so the Problem envelope has to be unpacked by hand here.
+    const problem = await res.json().catch(() => null);
+    throw new Error(
+      typeof problem?.title === 'string' ? problem.title : `Export failed (${res.status})`,
+    );
+  }
   return res.text();
 }
 

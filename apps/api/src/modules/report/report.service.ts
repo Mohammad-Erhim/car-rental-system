@@ -15,6 +15,7 @@ import { organization } from '../../database/schema/org';
 import { payment, paymentIntent, recoveryCase } from '../../database/schema/payment';
 import { rental } from '../../database/schema/rental';
 import { reservation, reconciliationException } from '../../database/schema/reservation';
+import { NotifyService } from '../notify/notify.service';
 
 @Injectable()
 export class ReportService {
@@ -23,6 +24,7 @@ export class ReportService {
     private readonly audit: AuditService,
     private readonly rbac: RbacService,
     private readonly outbox: OutboxService,
+    private readonly notify: NotifyService,
   ) {}
 
   private async orgId(): Promise<string> {
@@ -139,6 +141,7 @@ export class ReportService {
         rowCount: rows.length,
         result: rows,
         scopeNote,
+        locationScope: scope ?? [],
         createdBy: actor.accountId,
       })
       .returning({ id: reportRun.id });
@@ -293,10 +296,32 @@ export class ReportService {
     };
   }
 
+  /**
+   * FR-RPT-004 read-time enforcement — `run()` only ever confines the *query* to the requesting
+   * actor's own locations; without this, a scoped actor could still browse/export *any* other
+   * staff member's already-generated run (via the shared `listRuns`/export surface) and see data
+   * for locations outside their scope. A scoped actor may read: their own past runs (whatever
+   * scope they were made under), or any run whose stored scope is entirely inside their own —
+   * never an org-wide run (empty scope) or one covering a location they're not allowed to see.
+   */
+  private canViewRun(
+    actor: Actor,
+    run: { createdBy: string | null; locationScope: unknown },
+  ): boolean {
+    if (!actor.locationScope?.length) return true;
+    if (run.createdBy === actor.accountId) return true;
+    const runScope = (run.locationScope as string[] | null) ?? [];
+    if (!runScope.length) return false;
+    return runScope.every((c) => actor.locationScope!.includes(c));
+  }
+
   async getRun(actor: Actor, runId: string) {
     const [row] = await this.db.select().from(reportRun).where(eq(reportRun.id, runId)).limit(1);
     if (!row) throw AppError.notFound('report run');
     if (actor.kind !== 'staff') throw AppError.forbidden();
+    if (!this.canViewRun(actor, row)) {
+      throw AppError.forbidden('This report run covers locations outside your scope');
+    }
     return row;
   }
 
@@ -321,6 +346,16 @@ export class ReportService {
       recipients: string[];
     },
   ) {
+    // Previously unchecked — a typo'd or since-removed `definitionCode` saved a schedule that
+    // looked fine in the list but could never actually run: `run()` throws `resource_not_found`
+    // the first time anything tries to dispatch it. Fail fast at creation time instead.
+    const [def] = await this.db
+      .select({ code: reportDefinition.code })
+      .from(reportDefinition)
+      .where(eq(reportDefinition.code, input.definitionCode))
+      .limit(1);
+    if (!def) throw AppError.notFound('report');
+
     const orgId = await this.orgId();
     const [row] = await this.db
       .insert(reportSchedule)
@@ -351,8 +386,13 @@ export class ReportService {
    * FR-RPT-006 — dispatch a scheduled report **now**, re-checking the owner's authority at send
    * time (SRS-SEC-014). If the account that created the schedule is no longer an active staff
    * member holding `report.export`, the delivery is skipped, the schedule is paused and the
-   * reason recorded on `last_skip_reason` — a scheduler tick would do exactly this. Otherwise
-   * the report is run under the owner's location scope and handed to the outbox for delivery.
+   * reason recorded on `last_skip_reason` — a scheduler tick would do exactly this. Otherwise the
+   * report is run under the owner's location scope and delivered the same way every other
+   * message in the system is: one `NotifyService.send()` per recipient (this project has no real
+   * outbound carrier anywhere — DEC/S7-DEF-002 — a `notification` row *is* "delivered"). The
+   * `report.delivery.v1` outbox event stays as the durable audit trail alongside it, not as the
+   * only delivery attempt — previously it was the *only* thing this method did, so nothing was
+   * ever actually sent to `recipients` despite the response claiming `sent: true`.
    */
   async sendScheduleNow(actor: Actor, id: string) {
     const orgId = await this.orgId();
@@ -385,6 +425,21 @@ export class ReportService {
     }
 
     const run = await this.run(owner, sch.definitionCode, sch.params);
+    for (const recipient of sch.recipients) {
+      await this.notify.send({
+        event: 'admin.report.delivered',
+        recipient,
+        fallback: {
+          subject: `${run.title} — report`,
+          body:
+            `Your scheduled report "${run.title}" ran with ${run.rowCount} row(s). ` +
+            `Scope: ${run.scopeNote}. Sign in to the operations console → Insights to view or ` +
+            `export the full data.`,
+        },
+        sourceType: 'report_run',
+        sourceId: run.runId,
+      });
+    }
     await this.outbox.emit({
       type: 'report.delivery.v1',
       aggregateType: 'report_schedule',
@@ -439,19 +494,28 @@ export class ReportService {
     };
   }
 
-  async listRuns(code?: string) {
+  async listRuns(actor: Actor, code?: string) {
     const rows = await this.db
       .select({
         id: reportRun.id,
         definitionCode: reportRun.definitionCode,
         rowCount: reportRun.rowCount,
         scopeNote: reportRun.scopeNote,
+        locationScope: reportRun.locationScope,
+        createdBy: reportRun.createdBy,
         createdAt: reportRun.createdAt,
       })
       .from(reportRun)
       .where(code ? eq(reportRun.definitionCode, code) : sql`true`)
       .orderBy(desc(reportRun.createdAt))
       .limit(50);
-    return rows.map((r) => ({ ...r, createdAt: new Date(r.createdAt).toISOString() }));
+    // same FR-RPT-004 read guard as getRun/exportCsv — the "recent runs" list must not surface
+    // (or even hint at, via rowCount/scopeNote) a run outside the viewer's own location scope.
+    return rows
+      .filter((r) => this.canViewRun(actor, r))
+      .map(({ locationScope: _locationScope, createdBy: _createdBy, ...r }) => ({
+        ...r,
+        createdAt: new Date(r.createdAt).toISOString(),
+      }));
   }
 }

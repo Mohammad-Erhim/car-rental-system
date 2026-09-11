@@ -497,6 +497,60 @@ describe('STAGE-006 administration & reporting', () => {
       .expect(403);
   });
 
+  it('TEST-RPT-004 a location-scoped actor cannot view or export a run outside their scope, nor does it appear in their run list (FR-RPT-004 read-time enforcement)', async () => {
+    const wide = await request(server)
+      .post('/api/v1/ops/reports/reservations_by_state/run')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({})
+      .expect(201);
+    expect(wide.body.scopeNote).toBe('All locations');
+
+    // `run()` only ever confined the *query*; without a read-time check, the TST1-scoped actor
+    // could still pull the full org-wide result via the shared runs list / export endpoint.
+    const blocked = await request(server)
+      .get(`/api/v1/ops/reports/runs/${wide.body.runId}/export`)
+      .set('Authorization', `Bearer ${scopedToken}`)
+      .expect(403);
+    expect(blocked.body.code).toBe('forbidden');
+
+    const scopedList = await request(server)
+      .get('/api/v1/ops/reports/runs')
+      .set('Authorization', `Bearer ${scopedToken}`)
+      .expect(200);
+    expect((scopedList.body as Array<{ id: string }>).some((r) => r.id === wide.body.runId)).toBe(
+      false,
+    );
+
+    // the reverse is fine: an org-wide actor can see a scoped run, and the scoped actor can
+    // always re-export their own past work.
+    const narrow = await request(server)
+      .post('/api/v1/ops/reports/reservations_by_state/run')
+      .set('Authorization', `Bearer ${scopedToken}`)
+      .send({})
+      .expect(201);
+    await request(server)
+      .get(`/api/v1/ops/reports/runs/${narrow.body.runId}/export`)
+      .set('Authorization', `Bearer ${managerToken}`)
+      .expect(200);
+    await request(server)
+      .get(`/api/v1/ops/reports/runs/${narrow.body.runId}/export`)
+      .set('Authorization', `Bearer ${scopedToken}`)
+      .expect(200);
+  });
+
+  it('TEST-RPT-005 scheduling an unknown report code is refused up front instead of failing silently at dispatch time', async () => {
+    const res = await request(server)
+      .post('/api/v1/ops/reports/schedules')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({
+        definitionCode: 'not_a_real_report_code',
+        cron: '0 7 * * 1',
+        recipients: ['ops@example.test'],
+      })
+      .expect(404);
+    expect(res.body.code).toBe('resource_not_found');
+  });
+
   it('TEST-ADM-004 the audit trail records the config workflow with actor attribution', async () => {
     const audit = await request(server)
       .get('/api/v1/ops/audit?targetType=config_version')
@@ -563,6 +617,21 @@ describe('STAGE-006 administration & reporting', () => {
       .expect(201);
     expect(sent.body).toMatchObject({ sent: true, recipients: ['ops@example.test'] });
     expect(typeof sent.body.runId).toBe('string');
+
+    // "sent: true" used to mean only an outbox row was written, with no registered consumer —
+    // nothing was ever actually delivered. It must now show up the same way every other message
+    // in the system does: a real `notification` row via NotifyService.
+    type Msg = { event: string; sourceId: string | null; recipient: string; deliveryState: string };
+    let delivered: Msg | undefined;
+    for (let i = 0; i < 20 && !delivered; i++) {
+      const mail = await request(server).get('/api/v1/dev/mail?limit=100').expect(200);
+      delivered = (mail.body.messages as Msg[]).find(
+        (m) => m.event === 'admin.report.delivered' && m.sourceId === sent.body.runId,
+      );
+      if (!delivered) await new Promise((res) => setTimeout(res, 150));
+    }
+    expect(delivered?.recipient).toBe('ops@example.test');
+    expect(delivered?.deliveryState).toBe('sent');
 
     // offboard the owner
     const staff = await request(server)

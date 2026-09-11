@@ -94,6 +94,13 @@ export const reportRun = pgTable(
       .notNull()
       .default(sql`'[]'::jsonb`),
     scopeNote: text('scope_note'),
+    /** the location codes the run's query was actually confined to (FR-RPT-004); `[]` = org-wide.
+     *  Machine-checkable twin of `scopeNote` — read access is enforced against this, never by
+     *  parsing the human-readable note. */
+    locationScope: jsonb('location_scope')
+      .$type<string[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
   },
   (t) => ({
     defIdx: index('report_run_def_idx').on(t.organizationId, t.definitionCode, t.createdAt),
