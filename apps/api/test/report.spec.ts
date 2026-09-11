@@ -718,6 +718,46 @@ describe('STAGE-006 administration & reporting', () => {
     expect(again.dispatched).not.toContain(scheduleId);
   });
 
+  it('TEST-RPT-007 two concurrent sends of the same schedule cannot both go through — no double-send', async () => {
+    const app = await getTestApp();
+    const reportService = app.get(ReportService);
+
+    const created = await request(server)
+      .post('/api/v1/ops/reports/schedules')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({
+        definitionCode: 'fleet_utilisation',
+        cron: '0 7 * * 1',
+        recipients: ['race-test@example.test'],
+      })
+      .expect(201);
+    const scheduleId = created.body.id as string;
+
+    // simulates an automatic tick and a manual "Send now" landing on the same schedule at once
+    const results = await Promise.allSettled([
+      reportService.sendScheduleNow(null, scheduleId),
+      reportService.sendScheduleNow(null, scheduleId),
+    ]);
+    const fulfilled = results.filter((r) => r.status === 'fulfilled');
+    const rejected = results.filter((r) => r.status === 'rejected') as PromiseRejectedResult[];
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0]!.reason as { code?: string }).code).toBe('state_conflict');
+
+    // exactly one notification was actually delivered — not two
+    type Msg = { event: string; recipient: string };
+    let count = 0;
+    for (let i = 0; i < 20; i++) {
+      const mail = await request(server).get('/api/v1/dev/mail?limit=200').expect(200);
+      count = (mail.body.messages as Msg[]).filter(
+        (m) => m.event === 'admin.report.delivered' && m.recipient === 'race-test@example.test',
+      ).length;
+      if (count > 0) break;
+      await new Promise((res) => setTimeout(res, 150));
+    }
+    expect(count).toBe(1);
+  });
+
   it('TEST-ADM-005 the data-quality panel runs its referential-integrity checks; agents are refused', async () => {
     const res = await request(server)
       .get('/api/v1/ops/data-quality')
