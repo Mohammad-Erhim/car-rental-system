@@ -1,6 +1,7 @@
 import type {
   ConsentConfig,
   ConsentConfigResponse,
+  ConsentLogEntry,
   ConsentLogResponse,
 } from '@carrental/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -95,5 +96,40 @@ export function useConsentLog(query: ConsentLogQuery) {
   return useQuery({
     queryKey: ['ops', 'consent-log', query],
     queryFn: ({ signal }) => apiFetch<ConsentLogResponse>(`/ops/consent/log?${qs}`, { signal }),
+  });
+}
+
+const EXPORT_PAGE = 200; // server-side max for a single page (zLogQuery limit)
+const EXPORT_CAP = 20_000; // sanity cap so a runaway filter can't hang the browser tab
+
+/**
+ * CSV export must cover every event matching the current filter, not just the 50-row page on
+ * screen — a GDPR accountability export that silently only contains "whatever happened to be
+ * showing" is the same class of bug as the backend's own aggregation being page/scan-capped
+ * (see consent.service.ts). Pages through the already-correct, SQL-paginated `/ops/consent/log`
+ * at the server's own max page size until either everything matching is fetched or EXPORT_CAP is
+ * hit — `truncated` tells the caller to disclose that rather than silently ship a partial file.
+ */
+export function useConsentLogExport() {
+  return useMutation({
+    mutationFn: async (filters: { from?: string; to?: string; action?: string }) => {
+      const entries: ConsentLogEntry[] = [];
+      let offset = 0;
+      let total = Infinity;
+      while (offset < total && entries.length < EXPORT_CAP) {
+        const qs = new URLSearchParams();
+        if (filters.from) qs.set('from', filters.from);
+        if (filters.to) qs.set('to', filters.to);
+        if (filters.action) qs.set('action', filters.action);
+        qs.set('limit', String(EXPORT_PAGE));
+        qs.set('offset', String(offset));
+        const page = await apiFetch<ConsentLogResponse>(`/ops/consent/log?${qs}`);
+        entries.push(...page.entries);
+        total = page.total;
+        offset += EXPORT_PAGE;
+        if (!page.entries.length) break;
+      }
+      return { entries, truncated: entries.length < total };
+    },
   });
 }

@@ -6,7 +6,7 @@ import {
   type ConsentSubmitResponse,
 } from '@carrental/contracts';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, gte, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
 
 import { AuditService } from '../../common/audit/audit.service';
 import { DB } from '../../database/database.module';
@@ -14,7 +14,6 @@ import type { Database } from '../../database/drizzle';
 import { auditEvent } from '../../database/schema/platform';
 
 const CONSENT_ACTION = 'privacy.consent.captured';
-const SCAN_CAP = 5000;
 
 /** Reduce an IP to a coarse prefix so the audit note keeps locality without storing the address. */
 function ipPrefix(ip: string | undefined): string | null {
@@ -57,7 +56,14 @@ export class ConsentService {
     return { recorded: true, policyVersion: CONSENT_POLICY_VERSION };
   }
 
-  /** Consent log for ops — reads the append-only audit trail. */
+  /**
+   * Consent log for ops — reads the append-only audit trail (GDPR Art. 7 accountability).
+   * `entries`/`summary` must stay correct at any table size: this is a compliance report, not a
+   * best-effort dashboard widget, so both the paging and the aggregate stats (total/byAction/
+   * optInPct) are computed in SQL over the *entire* matching set — never loaded into memory and
+   * truncated — otherwise an org with a long-lived site would get silently wrong GDPR numbers
+   * once past whatever row cap a naive implementation picked.
+   */
   async log(query: {
     from?: string;
     to?: string;
@@ -68,20 +74,43 @@ export class ConsentService {
     const filters = [eq(auditEvent.action, CONSENT_ACTION)];
     if (query.from) filters.push(gte(auditEvent.occurredAt, query.from));
     if (query.to) filters.push(lte(auditEvent.occurredAt, query.to));
+    // Pushed into SQL (not filtered post-fetch) so it composes correctly with paging and with
+    // the aggregate query below — both then see exactly the same matching row set.
+    if (query.action) filters.push(sql`${auditEvent.afterSafe}->>'action' = ${query.action}`);
+    const where = and(...filters);
 
-    const rows = await this.db
-      .select({
-        id: auditEvent.id,
-        at: auditEvent.occurredAt,
-        anonymousId: auditEvent.targetId,
-        after: auditEvent.afterSafe,
-      })
-      .from(auditEvent)
-      .where(and(...filters))
-      .orderBy(desc(auditEvent.occurredAt))
-      .limit(SCAN_CAP);
+    const optIn = (key: 'functional' | 'analytics' | 'marketing') =>
+      sql<number>`(count(*) filter (where (${auditEvent.afterSafe}->'choices'->>${key})::boolean is true))::int`;
 
-    const mapped: ConsentLogEntry[] = rows.map((r) => {
+    const [[agg], rows] = await Promise.all([
+      this.db
+        .select({
+          total: sql<number>`count(*)::int`,
+          acceptAll: sql<number>`(count(*) filter (where ${auditEvent.afterSafe}->>'action' = 'accept_all'))::int`,
+          rejectAll: sql<number>`(count(*) filter (where ${auditEvent.afterSafe}->>'action' = 'reject_all'))::int`,
+          savePreferences: sql<number>`(count(*) filter (where ${auditEvent.afterSafe}->>'action' = 'save_preferences'))::int`,
+          withdraw: sql<number>`(count(*) filter (where ${auditEvent.afterSafe}->>'action' = 'withdraw'))::int`,
+          functional: optIn('functional'),
+          analytics: optIn('analytics'),
+          marketing: optIn('marketing'),
+        })
+        .from(auditEvent)
+        .where(where),
+      this.db
+        .select({
+          id: auditEvent.id,
+          at: auditEvent.occurredAt,
+          anonymousId: auditEvent.targetId,
+          after: auditEvent.afterSafe,
+        })
+        .from(auditEvent)
+        .where(where)
+        .orderBy(desc(auditEvent.occurredAt))
+        .limit(query.limit)
+        .offset(query.offset),
+    ]);
+
+    const entries: ConsentLogEntry[] = rows.map((r) => {
       const a = (r.after ?? {}) as Record<string, unknown>;
       const choices = (a.choices ?? {}) as Record<string, unknown>;
       return {
@@ -103,25 +132,24 @@ export class ConsentService {
       };
     });
 
-    const filtered = query.action ? mapped.filter((e) => e.action === query.action) : mapped;
-
+    const total = agg?.total ?? 0;
     const byAction: Record<string, number> = {};
-    for (const e of filtered) byAction[e.action] = (byAction[e.action] ?? 0) + 1;
-    const pct = (key: 'functional' | 'analytics' | 'marketing') =>
-      filtered.length
-        ? Math.round((filtered.filter((e) => e.choices[key]).length / filtered.length) * 1000) / 10
-        : 0;
+    if (agg?.acceptAll) byAction.accept_all = agg.acceptAll;
+    if (agg?.rejectAll) byAction.reject_all = agg.rejectAll;
+    if (agg?.savePreferences) byAction.save_preferences = agg.savePreferences;
+    if (agg?.withdraw) byAction.withdraw = agg.withdraw;
+    const pct = (n: number) => (total ? Math.round((n / total) * 1000) / 10 : 0);
 
     return {
-      entries: filtered.slice(query.offset, query.offset + query.limit),
-      total: filtered.length,
+      entries,
+      total,
       summary: {
-        total: filtered.length,
+        total,
         byAction,
         optInPct: {
-          functional: pct('functional'),
-          analytics: pct('analytics'),
-          marketing: pct('marketing'),
+          functional: pct(agg?.functional ?? 0),
+          analytics: pct(agg?.analytics ?? 0),
+          marketing: pct(agg?.marketing ?? 0),
         },
         from: query.from ?? null,
         to: query.to ?? null,
