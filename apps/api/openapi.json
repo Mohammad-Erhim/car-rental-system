@@ -3827,14 +3827,6 @@
                                       "en": {
                                         "type": "string",
                                         "maxLength": 120
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 120
-                                      },
-                                      "ar": {
-                                        "type": "string",
-                                        "maxLength": 120
                                       }
                                     },
                                     "required": [
@@ -3845,14 +3837,6 @@
                                     "type": "object",
                                     "properties": {
                                       "en": {
-                                        "type": "string",
-                                        "maxLength": 200
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 200
-                                      },
-                                      "ar": {
                                         "type": "string",
                                         "maxLength": 200
                                       }
@@ -3867,14 +3851,6 @@
                                       "en": {
                                         "type": "string",
                                         "maxLength": 400
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 400
-                                      },
-                                      "ar": {
-                                        "type": "string",
-                                        "maxLength": 400
                                       }
                                     },
                                     "required": [
@@ -3885,14 +3861,6 @@
                                     "type": "object",
                                     "properties": {
                                       "en": {
-                                        "type": "string",
-                                        "maxLength": 80
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 80
-                                      },
-                                      "ar": {
                                         "type": "string",
                                         "maxLength": 80
                                       }
@@ -3908,14 +3876,6 @@
                                         "type": "object",
                                         "properties": {
                                           "en": {
-                                            "type": "string",
-                                            "maxLength": 60
-                                          },
-                                          "fr": {
-                                            "type": "string",
-                                            "maxLength": 60
-                                          },
-                                          "ar": {
                                             "type": "string",
                                             "maxLength": 60
                                           }
@@ -3943,14 +3903,6 @@
                                           "en": {
                                             "type": "string",
                                             "maxLength": 60
-                                          },
-                                          "fr": {
-                                            "type": "string",
-                                            "maxLength": 60
-                                          },
-                                          "ar": {
-                                            "type": "string",
-                                            "maxLength": 60
                                           }
                                         },
                                         "required": [
@@ -3975,14 +3927,6 @@
                                       "type": "object",
                                       "properties": {
                                         "en": {
-                                          "type": "string",
-                                          "maxLength": 80
-                                        },
-                                        "fr": {
-                                          "type": "string",
-                                          "maxLength": 80
-                                        },
-                                        "ar": {
                                           "type": "string",
                                           "maxLength": 80
                                         }
@@ -4061,14 +4005,6 @@
                                       "en": {
                                         "type": "string",
                                         "maxLength": 120
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 120
-                                      },
-                                      "ar": {
-                                        "type": "string",
-                                        "maxLength": 120
                                       }
                                     },
                                     "required": [
@@ -4079,14 +4015,6 @@
                                     "type": "object",
                                     "properties": {
                                       "en": {
-                                        "type": "string",
-                                        "maxLength": 180
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 180
-                                      },
-                                      "ar": {
                                         "type": "string",
                                         "maxLength": 180
                                       }
@@ -4179,14 +4107,6 @@
                                             "en": {
                                               "type": "string",
                                               "maxLength": 80
-                                            },
-                                            "fr": {
-                                              "type": "string",
-                                              "maxLength": 80
-                                            },
-                                            "ar": {
-                                              "type": "string",
-                                              "maxLength": 80
                                             }
                                           },
                                           "required": [
@@ -4197,14 +4117,6 @@
                                           "type": "object",
                                           "properties": {
                                             "en": {
-                                              "type": "string",
-                                              "maxLength": 220
-                                            },
-                                            "fr": {
-                                              "type": "string",
-                                              "maxLength": 220
-                                            },
-                                            "ar": {
                                               "type": "string",
                                               "maxLength": 220
                                             }
@@ -4267,14 +4179,6 @@
                                       "en": {
                                         "type": "string",
                                         "maxLength": 120
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 120
-                                      },
-                                      "ar": {
-                                        "type": "string",
-                                        "maxLength": 120
                                       }
                                     },
                                     "required": [
@@ -4287,14 +4191,6 @@
                                       "en": {
                                         "type": "string",
                                         "maxLength": 160
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 160
-                                      },
-                                      "ar": {
-                                        "type": "string",
-                                        "maxLength": 160
                                       }
                                     },
                                     "required": [
@@ -4305,14 +4201,6 @@
                                     "type": "object",
                                     "properties": {
                                       "en": {
-                                        "type": "string",
-                                        "maxLength": 320
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 320
-                                      },
-                                      "ar": {
                                         "type": "string",
                                         "maxLength": 320
                                       }
@@ -4375,14 +4263,6 @@
                                             "en": {
                                               "type": "string",
                                               "maxLength": 80
-                                            },
-                                            "fr": {
-                                              "type": "string",
-                                              "maxLength": 80
-                                            },
-                                            "ar": {
-                                              "type": "string",
-                                              "maxLength": 80
                                             }
                                           },
                                           "required": [
@@ -4393,14 +4273,6 @@
                                           "type": "object",
                                           "properties": {
                                             "en": {
-                                              "type": "string",
-                                              "maxLength": 260
-                                            },
-                                            "fr": {
-                                              "type": "string",
-                                              "maxLength": 260
-                                            },
-                                            "ar": {
                                               "type": "string",
                                               "maxLength": 260
                                             }
@@ -4463,14 +4335,6 @@
                                       "en": {
                                         "type": "string",
                                         "maxLength": 120
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 120
-                                      },
-                                      "ar": {
-                                        "type": "string",
-                                        "maxLength": 120
                                       }
                                     },
                                     "required": [
@@ -4481,14 +4345,6 @@
                                     "type": "object",
                                     "properties": {
                                       "en": {
-                                        "type": "string",
-                                        "maxLength": 160
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 160
-                                      },
-                                      "ar": {
                                         "type": "string",
                                         "maxLength": 160
                                       }
@@ -4542,14 +4398,6 @@
                                             "en": {
                                               "type": "string",
                                               "maxLength": 80
-                                            },
-                                            "fr": {
-                                              "type": "string",
-                                              "maxLength": 80
-                                            },
-                                            "ar": {
-                                              "type": "string",
-                                              "maxLength": 80
                                             }
                                           },
                                           "required": [
@@ -4560,14 +4408,6 @@
                                           "type": "object",
                                           "properties": {
                                             "en": {
-                                              "type": "string",
-                                              "maxLength": 260
-                                            },
-                                            "fr": {
-                                              "type": "string",
-                                              "maxLength": 260
-                                            },
-                                            "ar": {
                                               "type": "string",
                                               "maxLength": 260
                                             }
@@ -4630,14 +4470,6 @@
                                       "en": {
                                         "type": "string",
                                         "maxLength": 160
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 160
-                                      },
-                                      "ar": {
-                                        "type": "string",
-                                        "maxLength": 160
                                       }
                                     },
                                     "required": [
@@ -4662,14 +4494,6 @@
                                           "type": "object",
                                           "properties": {
                                             "en": {
-                                              "type": "string",
-                                              "maxLength": 60
-                                            },
-                                            "fr": {
-                                              "type": "string",
-                                              "maxLength": 60
-                                            },
-                                            "ar": {
                                               "type": "string",
                                               "maxLength": 60
                                             }
@@ -4731,14 +4555,6 @@
                                       "en": {
                                         "type": "string",
                                         "maxLength": 120
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 120
-                                      },
-                                      "ar": {
-                                        "type": "string",
-                                        "maxLength": 120
                                       }
                                     },
                                     "required": [
@@ -4749,14 +4565,6 @@
                                     "type": "object",
                                     "properties": {
                                       "en": {
-                                        "type": "string",
-                                        "maxLength": 160
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 160
-                                      },
-                                      "ar": {
                                         "type": "string",
                                         "maxLength": 160
                                       }
@@ -4781,14 +4589,6 @@
                                             "en": {
                                               "type": "string",
                                               "maxLength": 80
-                                            },
-                                            "fr": {
-                                              "type": "string",
-                                              "maxLength": 80
-                                            },
-                                            "ar": {
-                                              "type": "string",
-                                              "maxLength": 80
                                             }
                                           },
                                           "required": [
@@ -4799,14 +4599,6 @@
                                           "type": "object",
                                           "properties": {
                                             "en": {
-                                              "type": "string",
-                                              "maxLength": 400
-                                            },
-                                            "fr": {
-                                              "type": "string",
-                                              "maxLength": 400
-                                            },
-                                            "ar": {
                                               "type": "string",
                                               "maxLength": 400
                                             }
@@ -4877,14 +4669,6 @@
                                       "en": {
                                         "type": "string",
                                         "maxLength": 120
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 120
-                                      },
-                                      "ar": {
-                                        "type": "string",
-                                        "maxLength": 120
                                       }
                                     },
                                     "required": [
@@ -4895,14 +4679,6 @@
                                     "type": "object",
                                     "properties": {
                                       "en": {
-                                        "type": "string",
-                                        "maxLength": 160
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 160
-                                      },
-                                      "ar": {
                                         "type": "string",
                                         "maxLength": 160
                                       }
@@ -4917,14 +4693,6 @@
                                       "en": {
                                         "type": "string",
                                         "maxLength": 320
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 320
-                                      },
-                                      "ar": {
-                                        "type": "string",
-                                        "maxLength": 320
                                       }
                                     },
                                     "required": [
@@ -4935,14 +4703,6 @@
                                     "type": "object",
                                     "properties": {
                                       "en": {
-                                        "type": "string",
-                                        "maxLength": 60
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 60
-                                      },
-                                      "ar": {
                                         "type": "string",
                                         "maxLength": 60
                                       }
@@ -5004,14 +4764,6 @@
                                       "en": {
                                         "type": "string",
                                         "maxLength": 120
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 120
-                                      },
-                                      "ar": {
-                                        "type": "string",
-                                        "maxLength": 120
                                       }
                                     },
                                     "required": [
@@ -5024,14 +4776,6 @@
                                       "en": {
                                         "type": "string",
                                         "maxLength": 160
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 160
-                                      },
-                                      "ar": {
-                                        "type": "string",
-                                        "maxLength": 160
                                       }
                                     },
                                     "required": [
@@ -5042,14 +4786,6 @@
                                     "type": "object",
                                     "properties": {
                                       "en": {
-                                        "type": "string",
-                                        "maxLength": 60
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 60
-                                      },
-                                      "ar": {
                                         "type": "string",
                                         "maxLength": 60
                                       }
@@ -5074,14 +4810,6 @@
                                             "en": {
                                               "type": "string",
                                               "maxLength": 200
-                                            },
-                                            "fr": {
-                                              "type": "string",
-                                              "maxLength": 200
-                                            },
-                                            "ar": {
-                                              "type": "string",
-                                              "maxLength": 200
                                             }
                                           },
                                           "required": [
@@ -5092,14 +4820,6 @@
                                           "type": "object",
                                           "properties": {
                                             "en": {
-                                              "type": "string",
-                                              "maxLength": 1200
-                                            },
-                                            "fr": {
-                                              "type": "string",
-                                              "maxLength": 1200
-                                            },
-                                            "ar": {
                                               "type": "string",
                                               "maxLength": 1200
                                             }
@@ -5161,14 +4881,6 @@
                                       "en": {
                                         "type": "string",
                                         "maxLength": 200
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 200
-                                      },
-                                      "ar": {
-                                        "type": "string",
-                                        "maxLength": 200
                                       }
                                     },
                                     "required": [
@@ -5179,14 +4891,6 @@
                                     "type": "object",
                                     "properties": {
                                       "en": {
-                                        "type": "string",
-                                        "maxLength": 400
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 400
-                                      },
-                                      "ar": {
                                         "type": "string",
                                         "maxLength": 400
                                       }
@@ -5202,14 +4906,6 @@
                                         "type": "object",
                                         "properties": {
                                           "en": {
-                                            "type": "string",
-                                            "maxLength": 60
-                                          },
-                                          "fr": {
-                                            "type": "string",
-                                            "maxLength": 60
-                                          },
-                                          "ar": {
                                             "type": "string",
                                             "maxLength": 60
                                           }
@@ -5235,14 +4931,6 @@
                                         "type": "object",
                                         "properties": {
                                           "en": {
-                                            "type": "string",
-                                            "maxLength": 60
-                                          },
-                                          "fr": {
-                                            "type": "string",
-                                            "maxLength": 60
-                                          },
-                                          "ar": {
                                             "type": "string",
                                             "maxLength": 60
                                           }
@@ -5307,14 +4995,6 @@
                                       "en": {
                                         "type": "string",
                                         "maxLength": 120
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 120
-                                      },
-                                      "ar": {
-                                        "type": "string",
-                                        "maxLength": 120
                                       }
                                     },
                                     "required": [
@@ -5325,14 +5005,6 @@
                                     "type": "object",
                                     "properties": {
                                       "en": {
-                                        "type": "string",
-                                        "maxLength": 160
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 160
-                                      },
-                                      "ar": {
                                         "type": "string",
                                         "maxLength": 160
                                       }
@@ -5347,14 +5019,6 @@
                                       "en": {
                                         "type": "string",
                                         "maxLength": 320
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 320
-                                      },
-                                      "ar": {
-                                        "type": "string",
-                                        "maxLength": 320
                                       }
                                     },
                                     "required": [
@@ -5365,14 +5029,6 @@
                                     "type": "object",
                                     "properties": {
                                       "en": {
-                                        "type": "string",
-                                        "maxLength": 120
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 120
-                                      },
-                                      "ar": {
                                         "type": "string",
                                         "maxLength": 120
                                       }
@@ -5387,14 +5043,6 @@
                                       "en": {
                                         "type": "string",
                                         "maxLength": 260
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 260
-                                      },
-                                      "ar": {
-                                        "type": "string",
-                                        "maxLength": 260
                                       }
                                     },
                                     "required": [
@@ -5405,14 +5053,6 @@
                                     "type": "object",
                                     "properties": {
                                       "en": {
-                                        "type": "string",
-                                        "maxLength": 60
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 60
-                                      },
-                                      "ar": {
                                         "type": "string",
                                         "maxLength": 60
                                       }
@@ -5474,14 +5114,6 @@
                                       "en": {
                                         "type": "string",
                                         "maxLength": 120
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 120
-                                      },
-                                      "ar": {
-                                        "type": "string",
-                                        "maxLength": 120
                                       }
                                     },
                                     "required": [
@@ -5494,14 +5126,6 @@
                                       "en": {
                                         "type": "string",
                                         "maxLength": 160
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 160
-                                      },
-                                      "ar": {
-                                        "type": "string",
-                                        "maxLength": 160
                                       }
                                     },
                                     "required": [
@@ -5512,14 +5136,6 @@
                                     "type": "object",
                                     "properties": {
                                       "en": {
-                                        "type": "string",
-                                        "maxLength": 6000
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 6000
-                                      },
-                                      "ar": {
                                         "type": "string",
                                         "maxLength": 6000
                                       }
@@ -5601,14 +5217,6 @@
                                       "en": {
                                         "type": "string",
                                         "maxLength": 200
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 200
-                                      },
-                                      "ar": {
-                                        "type": "string",
-                                        "maxLength": 200
                                       }
                                     },
                                     "required": [
@@ -5619,14 +5227,6 @@
                                     "type": "object",
                                     "properties": {
                                       "en": {
-                                        "type": "string",
-                                        "maxLength": 200
-                                      },
-                                      "fr": {
-                                        "type": "string",
-                                        "maxLength": 200
-                                      },
-                                      "ar": {
                                         "type": "string",
                                         "maxLength": 200
                                       }
@@ -5713,14 +5313,6 @@
                       "en": {
                         "type": "string",
                         "maxLength": 200
-                      },
-                      "fr": {
-                        "type": "string",
-                        "maxLength": 200
-                      },
-                      "ar": {
-                        "type": "string",
-                        "maxLength": 200
                       }
                     },
                     "required": [
@@ -5734,14 +5326,6 @@
                         "type": "object",
                         "properties": {
                           "en": {
-                            "type": "string",
-                            "maxLength": 60
-                          },
-                          "fr": {
-                            "type": "string",
-                            "maxLength": 60
-                          },
-                          "ar": {
                             "type": "string",
                             "maxLength": 60
                           }
@@ -5853,14 +5437,6 @@
                       "en": {
                         "type": "string",
                         "maxLength": 120
-                      },
-                      "fr": {
-                        "type": "string",
-                        "maxLength": 120
-                      },
-                      "ar": {
-                        "type": "string",
-                        "maxLength": 120
                       }
                     },
                     "required": [
@@ -5873,14 +5449,6 @@
                       "en": {
                         "type": "string",
                         "maxLength": 600
-                      },
-                      "fr": {
-                        "type": "string",
-                        "maxLength": 600
-                      },
-                      "ar": {
-                        "type": "string",
-                        "maxLength": 600
                       }
                     },
                     "required": [
@@ -5891,14 +5459,6 @@
                     "type": "object",
                     "properties": {
                       "en": {
-                        "type": "string",
-                        "maxLength": 600
-                      },
-                      "fr": {
-                        "type": "string",
-                        "maxLength": 600
-                      },
-                      "ar": {
                         "type": "string",
                         "maxLength": 600
                       }
@@ -5944,14 +5504,6 @@
                         "en": {
                           "type": "string",
                           "maxLength": 60
-                        },
-                        "fr": {
-                          "type": "string",
-                          "maxLength": 60
-                        },
-                        "ar": {
-                          "type": "string",
-                          "maxLength": 60
                         }
                       },
                       "required": [
@@ -5962,14 +5514,6 @@
                       "type": "object",
                       "properties": {
                         "en": {
-                          "type": "string",
-                          "maxLength": 400
-                        },
-                        "fr": {
-                          "type": "string",
-                          "maxLength": 400
-                        },
-                        "ar": {
                           "type": "string",
                           "maxLength": 400
                         }
@@ -6013,14 +5557,6 @@
                       "type": "object",
                       "properties": {
                         "en": {
-                          "type": "string",
-                          "maxLength": 200
-                        },
-                        "fr": {
-                          "type": "string",
-                          "maxLength": 200
-                        },
-                        "ar": {
                           "type": "string",
                           "maxLength": 200
                         }

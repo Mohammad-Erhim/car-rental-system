@@ -62,6 +62,7 @@ import {
   useDraftBranding,
   usePublishedBranding,
 } from '../../../lib/branding-hooks.js';
+import { useMetaLocales } from '../../../lib/api-hooks.js';
 import {
   useDraftPages,
   usePagesTransition,
@@ -73,8 +74,10 @@ import { ConfigWorkflowHistory } from '../config-workflow-history.js';
 
 import { BLOCK_DEFS, BLOCK_ORDER, ICON_OPTIONS, type FieldDef } from './block-defs.js';
 
-const LOCALES = ['en', 'fr', 'ar'] as const;
-type EditLocale = (typeof LOCALES)[number];
+// A page block's content is `Localized` — `{ en, ...anyOtherLocaleCode }` (DEC-024) — so which
+// tabs this editor offers comes from the *runtime* enabled-locale set, not a fixed list; a
+// language added from /ops/config/languages gets an editable tab here with no code change.
+type EditLocale = string;
 const SITE_ORIGIN = import.meta.env.VITE_SITE_URL || window.location.origin;
 
 const PAGE_NAME_KEY: Record<PageKey, string> = {
@@ -122,6 +125,11 @@ export function PagesPage() {
   const transition = usePagesTransition();
   const upload = useUploadPageAsset();
   const publishedBrand = usePublishedBranding();
+  const metaLocales = useMetaLocales();
+  const editLocales = useMemo(
+    () => metaLocales.data?.locales.filter((l) => !l.testOnly).map((l) => l.code) ?? ['en'],
+    [metaLocales.data],
+  );
 
   const [draft, setDraft] = useState<PagesConfig | null>(null);
   const [brandDraft, setBrandDraft] = useState<BrandConfig | null>(null);
@@ -447,7 +455,7 @@ export function PagesPage() {
                 role="tablist"
                 aria-label={t('ops.pages.locale')}
               >
-                {LOCALES.map((l) => (
+                {editLocales.map((l) => (
                   <button
                     key={l}
                     type="button"
@@ -1065,7 +1073,7 @@ function AnnouncementPanel({
                 message: {
                   ...base.message,
                   [locale]: locale === 'en' ? e.target.value : e.target.value || undefined,
-                },
+                } as Localized,
               })
             }
           />
@@ -1100,7 +1108,7 @@ function AnnouncementPanel({
                 const label = {
                   ...(base.cta?.label ?? { en: '' }),
                   [locale]: locale === 'en' ? e.target.value : e.target.value || undefined,
-                };
+                } as Localized;
                 set({ cta: { label, href: base.cta?.href ?? '' } });
               }}
             />

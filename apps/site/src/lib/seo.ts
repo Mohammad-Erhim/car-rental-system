@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import { ACTIVE_LOCALES, DEFAULT_LOCALE } from './i18n';
+import { getRuntimeLocales } from './i18n';
 import { getSeoConfig } from './seo-config';
 
 /** Env-configured origin — the fallback when the dashboard SEO config has no canonical base. */
@@ -41,9 +41,12 @@ export async function buildMetadata(input: SeoInput): Promise<Metadata> {
   const description = input.description ?? cfg.defaultDescription;
 
   const canonical = localizedUrl(origin, locale, path);
+  // the live enabled-locale set (DEC-024) — a dashboard-added language gets an hreflang
+  // alternate here with no redeploy
+  const runtime = await getRuntimeLocales();
   const languages: Record<string, string> = {};
-  for (const l of ACTIVE_LOCALES) languages[l] = localizedUrl(origin, l, path);
-  languages['x-default'] = localizedUrl(origin, DEFAULT_LOCALE, path);
+  for (const l of runtime.locales) languages[l.code] = localizedUrl(origin, l.code, path);
+  languages['x-default'] = localizedUrl(origin, runtime.defaultLocale, path);
 
   const ogImage = image ?? cfg.ogImageUrl ?? `${origin}/og-default.png`;
   const hidden = noindex || !cfg.indexable;

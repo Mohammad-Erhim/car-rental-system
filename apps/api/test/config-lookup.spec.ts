@@ -364,6 +364,55 @@ describe('config / reference data', () => {
     expect(row.published).toBe('Chercher');
   });
 
+  it('a translation save is optimistically locked — a stale version conflicts, not clobbers', async () => {
+    const KEY = 'action.cancel';
+    const initial = (
+      await request(server)
+        .get('/api/v1/config/translations?namespace=common&locale=fr')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200)
+    ).body.find((r: { key: string }) => r.key === KEY);
+
+    // reviewer A saves a draft, loaded at `initial.version`
+    await request(server)
+      .post('/api/v1/config/translations')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        namespace: 'common',
+        key: KEY,
+        localeCode: 'fr',
+        value: 'Annuler (A)',
+        status: 'draft',
+        expectedVersion: initial.version,
+      })
+      .expect(201);
+
+    // reviewer B, still holding the same stale `initial.version`, tries to save over it
+    const conflict = await request(server)
+      .post('/api/v1/config/translations')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        namespace: 'common',
+        key: KEY,
+        localeCode: 'fr',
+        value: 'Annuler (B)',
+        status: 'draft',
+        expectedVersion: initial.version,
+      })
+      .expect(409);
+    expect(conflict.body.code).toBe('state_conflict');
+
+    // A's save stands — B's was rejected, not silently applied
+    const current = (
+      await request(server)
+        .get('/api/v1/config/translations?namespace=common&locale=fr')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200)
+    ).body.find((r: { key: string }) => r.key === KEY);
+    expect(current.translation).toBe('Annuler (A)');
+    expect(current.version).toBe(initial.version + 1);
+  });
+
   it('a freshly seeded catalogue is not a wall of "outdated" badges', async () => {
     const list = await request(server)
       .get('/api/v1/config/translations?namespace=common&locale=fr')
@@ -414,6 +463,47 @@ describe('config / reference data', () => {
     expect(row.translation).toBe('Route fermée');
     expect(row.published).toBe('Route fermée');
     expect(row.outdated).toBe(false);
+  });
+
+  it('a draft edit from the Translations screen never blanks a live reference-data label', async () => {
+    // the generic Translations screen can open any `lookup:*` namespace and save a draft — the
+    // published-label read path (`GET .../values`, what every <LookupSelect> consumes) must keep
+    // serving the frozen live label while that draft is in progress, not drop it.
+    const type = 'cancel_reason';
+    const code = `weatherclosure_${Date.now()}`;
+    await request(server)
+      .post(`/api/v1/reference-data/types/${type}/values`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ code, label: 'Severe weather', translations: { fr: 'Intempéries' } })
+      .expect(201);
+
+    const before = await request(server)
+      .get(`/api/v1/reference-data/types/${type}/values?locale=fr`)
+      .expect(200);
+    expect(before.body.values.find((v: { code: string }) => v.code === code)?.label).toBe(
+      'Intempéries',
+    );
+
+    // start editing the fr label from the Translations screen — save a draft, don't publish
+    await request(server)
+      .post('/api/v1/config/translations')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        namespace: `lookup:${type}`,
+        key: code,
+        localeCode: 'fr',
+        value: 'Intempéries (wip)',
+        status: 'draft',
+      })
+      .expect(201);
+
+    // the live selector still serves the frozen published label, not the draft and not English
+    const after = await request(server)
+      .get(`/api/v1/reference-data/types/${type}/values?locale=fr`)
+      .expect(200);
+    const value = after.body.values.find((v: { code: string }) => v.code === code);
+    expect(value?.label).toBe('Intempéries');
+    expect(value?.label).not.toBe('Severe weather');
   });
 
   it('reference-data types show up in the translation catalogue with every active value', async () => {

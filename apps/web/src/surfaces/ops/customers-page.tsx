@@ -413,8 +413,8 @@ function RestrictionsCard({ customerId, record }: { customerId: string; record: 
                 onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
                 data-testid="rstr-category"
               >
-                <option value="block">block</option>
-                <option value="review">review</option>
+                <option value="block">{t('ops.cust.rstrCatBlock')}</option>
+                <option value="review">{t('ops.cust.rstrCatReview')}</option>
               </select>
             </label>
             <label className="text-xs">

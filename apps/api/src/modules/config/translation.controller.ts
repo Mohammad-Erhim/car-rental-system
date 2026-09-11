@@ -1,3 +1,4 @@
+import { zUpsertTranslationRequest } from '@carrental/contracts';
 import { Body, Controller, Delete, Get, Post, Query, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -9,14 +10,6 @@ import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 
 import { TranslationService } from './translation.service';
-
-const zUpsertTranslation = z.object({
-  namespace: z.string().min(1).max(120),
-  key: z.string().min(1).max(200),
-  localeCode: z.string().min(2).max(10),
-  value: z.string().min(1).max(4000),
-  status: z.enum(['draft', 'in_review', 'published']).optional(),
-});
 
 const zUpsertLocale = z.object({
   code: z.string().min(2).max(12),
@@ -50,7 +43,8 @@ export class TranslationController {
   @Post('translations')
   @Permissions('config.publish', 'lookup.manage')
   upsert(
-    @Body(new ZodValidationPipe(zUpsertTranslation)) body: z.infer<typeof zUpsertTranslation>,
+    @Body(new ZodValidationPipe(zUpsertTranslationRequest))
+    body: z.infer<typeof zUpsertTranslationRequest>,
     @CurrentActor() actor: Actor,
   ) {
     return this.translations.upsert(actor, body);

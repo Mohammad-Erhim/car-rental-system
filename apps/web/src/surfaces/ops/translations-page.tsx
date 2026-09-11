@@ -178,27 +178,41 @@ function NamespaceEditor({
   canManage: boolean;
   onPick: (ns: string, loc: string) => void;
 }) {
-  const { t } = useI18n();
+  const { t, fmt } = useI18n();
   const { toast } = useToast();
   const entries = useTranslationList(namespace, locale);
   const upsert = useUpsertTranslation();
   const publish = usePublishTranslations();
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
 
-  const saveEntry = (key: string, value: string, status: 'draft' | 'in_review') =>
+  const saveEntry = (
+    key: string,
+    value: string,
+    status: 'draft' | 'in_review',
+    expectedVersion: number,
+  ) =>
     upsert.mutate(
-      { namespace, key, localeCode: locale, value, status },
+      { namespace, key, localeCode: locale, value, status, expectedVersion },
       {
         onSuccess: () =>
           toast({
             title: status === 'draft' ? t('ops.trans.saved') : t('ops.trans.reviewed'),
             variant: 'success',
           }),
-        onError: (err) =>
-          toast({ title: err instanceof ApiError ? err.message : t('ops.trans.saveFail') }),
+        onError: (err) => {
+          // someone else changed this key since the editor loaded — pull the fresh value in
+          if (err instanceof ApiError && err.code === 'state_conflict') {
+            setDrafts((d) => {
+              const { [key]: _drop, ...rest } = d;
+              return rest;
+            });
+            void entries.refetch();
+          }
+          toast({ title: err instanceof ApiError ? err.message : t('ops.trans.saveFail') });
+        },
       },
     );
   const savingKey = upsert.isPending ? upsert.variables?.key : undefined;
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [publishError, setPublishError] = useState<string | null>(null);
   const [confirmPublish, setConfirmPublish] = useState(false);
   const [query, setQuery] = useState('');
@@ -325,6 +339,11 @@ function NamespaceEditor({
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground">{row.source}</p>
+                    {row.reviewedAt ? (
+                      <p className="text-xs text-muted-foreground">
+                        {t('ops.trans.reviewedAt', { date: fmt.dateTime(row.reviewedAt) })}
+                      </p>
+                    ) : null}
                     {row.published != null && row.published !== row.translation ? (
                       <p className="text-xs text-muted-foreground">
                         {t('ops.trans.liveNow', { value: row.published })}
@@ -345,7 +364,7 @@ function NamespaceEditor({
                             variant="ghost"
                             loading={savingKey === row.key}
                             disabled={!draft || draft === row.translation}
-                            onClick={() => saveEntry(row.key, draft, 'draft')}
+                            onClick={() => saveEntry(row.key, draft, 'draft', row.version)}
                           >
                             {t('ops.trans.saveDraft')}
                           </Button>
@@ -356,7 +375,7 @@ function NamespaceEditor({
                               !draft || (row.status === 'in_review' && draft === row.translation)
                             }
                             data-testid={`translation-review-${row.key}`}
-                            onClick={() => saveEntry(row.key, draft, 'in_review')}
+                            onClick={() => saveEntry(row.key, draft, 'in_review', row.version)}
                           >
                             {t('ops.trans.markReviewed')}
                           </Button>
