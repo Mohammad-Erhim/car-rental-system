@@ -14,6 +14,7 @@ describe('config / reference data', () => {
   let server: ReturnType<typeof httpServer>;
   let adminToken: string;
   let agentToken: string;
+  let lookupManagerToken: string;
 
   beforeAll(async () => {
     const app = await getTestApp();
@@ -22,6 +23,9 @@ describe('config / reference data', () => {
       .accessToken;
     agentToken = (await signIn(app, 'test-agent@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
+    lookupManagerToken = (
+      await signIn(app, 'test-lookup-manager@example.test', 'Test-Passw0rd!', 'staff')
+    ).accessToken;
   });
   afterAll(closeTestApp);
 
@@ -121,6 +125,88 @@ describe('config / reference data', () => {
       .post(`/api/v1/reference-data/types/${type}/values/${created.body.id}/restore`)
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(201);
+  });
+
+  it('label resolution walks a locale’s own configured fallback chain, not the static en/fr/ar list (DEC-024)', async () => {
+    // "sw" only exists in this run — a dashboard-added language whose configured fallback goes
+    // through French before English, same shape as the notify-template fallback fix (#67).
+    await request(server)
+      .post('/api/v1/config/locales')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        code: 'sw',
+        nativeName: 'Kiswahili',
+        englishName: 'Swahili',
+        direction: 'ltr',
+        fallbackChain: ['fr'],
+      })
+      .expect(201);
+    await request(server)
+      .post('/api/v1/config/locales/sw/activate')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201);
+
+    const type = 'cancel_reason';
+    const code = `storm_${Date.now()}`;
+    await request(server)
+      .post(`/api/v1/reference-data/types/${type}/values`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ code, label: 'Storm', translations: { fr: 'Tempête' } })
+      .expect(201);
+
+    const res = await request(server)
+      .get(`/api/v1/reference-data/types/${type}/values?locale=sw`)
+      .expect(200);
+    const v = res.body.values.find((x: { code: string }) => x.code === code);
+    // resolved via sw -> fr -> en to the French label, not straight past sw to English
+    expect(v.labelLocale).toBe('fr');
+    expect(v.label).toBe('Tempête');
+  });
+
+  it('lookup.manage alone can browse the translation catalogue (needed to find what to draft)', async () => {
+    await request(server)
+      .get('/api/v1/config/translations/completeness')
+      .set('Authorization', `Bearer ${lookupManagerToken}`)
+      .expect(200);
+    await request(server)
+      .get('/api/v1/config/translations?namespace=lookup:cancel_reason&locale=fr')
+      .set('Authorization', `Bearer ${lookupManagerToken}`)
+      .expect(200);
+  });
+
+  it('lookup.manage alone can draft a lookup:* translation but not reach another namespace or publish directly', async () => {
+    // a bare lookup.manage role can edit the label it owns...
+    const ok = await request(server)
+      .post('/api/v1/config/translations')
+      .set('Authorization', `Bearer ${lookupManagerToken}`)
+      .send({
+        namespace: 'lookup:cancel_reason',
+        key: 'other',
+        localeCode: 'fr',
+        value: 'Autre (test)',
+      })
+      .expect(201);
+    expect(ok.body.status).toBe('draft');
+
+    // ...but not an unrelated UI-copy namespace...
+    await request(server)
+      .post('/api/v1/config/translations')
+      .set('Authorization', `Bearer ${lookupManagerToken}`)
+      .send({ namespace: 'common', key: 'action.save', localeCode: 'fr', value: 'Hacked' })
+      .expect(403);
+
+    // ...nor publish directly, even within its own namespace — that stays config.publish's job.
+    await request(server)
+      .post('/api/v1/config/translations')
+      .set('Authorization', `Bearer ${lookupManagerToken}`)
+      .send({
+        namespace: 'lookup:cancel_reason',
+        key: 'other',
+        localeCode: 'fr',
+        value: 'Autre (test)',
+        status: 'published',
+      })
+      .expect(403);
   });
 
   it('TEST-LKP-014 usage count: real references + in-use deactivation needs confirmation (S7-DEF-006)', async () => {

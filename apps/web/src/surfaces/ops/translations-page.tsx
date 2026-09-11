@@ -33,7 +33,8 @@ import { ApiError } from '../../lib/api.js';
 export function TranslationsPage() {
   const { t } = useI18n();
   const { hasPermission } = useAuth();
-  const canManage = hasPermission('config.publish');
+  const canPublish = hasPermission('config.publish');
+  const canManageLookups = hasPermission('lookup.manage');
   const completeness = useTranslationCompleteness();
 
   const namespaces = Array.from(new Set((completeness.data?.rows ?? []).map((r) => r.namespace)));
@@ -152,7 +153,8 @@ export function TranslationsPage() {
           locale={loc}
           namespaces={namespaces}
           locales={locales}
-          canManage={canManage}
+          canPublish={canPublish}
+          canManageLookups={canManageLookups}
           onPick={(nextNs, nextLoc) => {
             setNamespace(nextNs);
             setLocale(nextLoc);
@@ -168,18 +170,24 @@ function NamespaceEditor({
   locale,
   namespaces,
   locales,
-  canManage,
+  canPublish,
+  canManageLookups,
   onPick,
 }: {
   namespace: string;
   locale: string;
   namespaces: string[];
   locales: string[];
-  canManage: boolean;
+  canPublish: boolean;
+  canManageLookups: boolean;
   onPick: (ns: string, loc: string) => void;
 }) {
   const { t, fmt } = useI18n();
   const { toast } = useToast();
+  // `lookup.manage` alone can draft/review `lookup:*` translations (its own permission
+  // description: "Manage reference data values") but never publish directly — matches
+  // `TranslationService.upsert`'s server-side gate exactly.
+  const canEdit = canPublish || (canManageLookups && namespace.startsWith('lookup:'));
   const entries = useTranslationList(namespace, locale);
   const upsert = useUpsertTranslation();
   const publish = usePublishTranslations();
@@ -272,7 +280,7 @@ function NamespaceEditor({
               </option>
             ))}
           </Select>
-          {canManage ? (
+          {canPublish ? (
             <Button
               variant="outline"
               onClick={() => setConfirmPublish(true)}
@@ -354,10 +362,10 @@ function NamespaceEditor({
                         className="min-w-[16rem] flex-1"
                         value={draft}
                         aria-label={t('ops.trans.editAria', { key: row.key })}
-                        disabled={!canManage}
+                        disabled={!canEdit}
                         onChange={(e) => setDrafts((d) => ({ ...d, [row.key]: e.target.value }))}
                       />
-                      {canManage ? (
+                      {canEdit ? (
                         <>
                           <Button
                             size="sm"

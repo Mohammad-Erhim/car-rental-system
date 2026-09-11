@@ -98,6 +98,23 @@ export async function seedTest(db: Database): Promise<void> {
       set: { permissionActions: ['config.read'], updatedAt: sql`now()` },
     });
 
+  // test-only custom role: exactly `lookup.manage`, no `config.publish` — the kind of narrow
+  // "reference-data editor" role an org would create via the role editor. Proves it can draft a
+  // lookup:* label translation but neither touch an unrelated namespace nor publish directly.
+  await db
+    .insert(role)
+    .values({
+      organizationId: org.id,
+      code: 'lookup_manager',
+      name: 'Lookup manager (test)',
+      isSystem: false,
+      permissionActions: ['lookup.manage'],
+    })
+    .onConflictDoUpdate({
+      target: [role.organizationId, role.code],
+      set: { permissionActions: ['lookup.manage'], updatedAt: sql`now()` },
+    });
+
   const accounts: Array<{
     email: string;
     name: string;
@@ -152,6 +169,13 @@ export async function seedTest(db: Database): Promise<void> {
       name: 'Test Config Viewer',
       kind: 'staff',
       roles: ['config_viewer'],
+    },
+    {
+      // lookup.manage only, no config.publish — proves it can't reach outside lookup:* or publish
+      email: 'test-lookup-manager@example.test',
+      name: 'Test Lookup Manager',
+      kind: 'staff',
+      roles: ['lookup_manager'],
     },
     { email: 'test-customer@example.test', name: 'Test Customer', kind: 'customer', roles: [] },
   ];

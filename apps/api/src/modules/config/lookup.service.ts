@@ -1,4 +1,3 @@
-import { fallbackChain } from '@carrental/i18n';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, isNotNull, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core';
@@ -17,6 +16,8 @@ import { vehicleBlock } from '../../database/schema/fleet';
 import { translation } from '../../database/schema/i18n';
 import { lookupType, lookupValue } from '../../database/schema/lookup';
 import { reservation } from '../../database/schema/reservation';
+
+import { LocaleRepo } from './locale.repo';
 
 const NS = 'lookup';
 
@@ -89,6 +90,7 @@ export class LookupService {
     private readonly audit: AuditService,
     private readonly outbox: OutboxService,
     private readonly cache: CacheBus,
+    private readonly locales: LocaleRepo,
   ) {}
 
   private async etag(typeCode: string): Promise<string> {
@@ -166,8 +168,10 @@ export class LookupService {
 
     // localized labels — read `publishedValue` (the live string, frozen while a later edit is
     // drafted/in-review on the Translations screen) so an in-progress edit never blanks a label
-    // that consumers depend on. Mirrors `TranslationService.publishedBundle`.
-    const chain = fallbackChain(q.locale ?? 'en');
+    // that consumers depend on. Mirrors `TranslationService.publishedBundle`. The chain is the
+    // *runtime* one (DEC-024) — a dashboard-added locale's own configured fallback is honored,
+    // not silently collapsed to English the way the static `@carrental/i18n` helper would.
+    const chain = await this.locales.fallbackChain(q.locale ?? 'en');
     const labelRows = (
       await this.db
         .select()

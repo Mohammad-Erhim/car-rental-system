@@ -6,8 +6,8 @@ import { ENV } from '../../config/config.module';
 import type { Env } from '../../config/env.schema';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
-import { locale as localeTable } from '../../database/schema/i18n';
 import { notification, template } from '../../database/schema/notify';
+import { LocaleRepo } from '../config/locale.repo';
 
 import { NotificationRuleService } from './notification-rule.service';
 
@@ -37,6 +37,7 @@ export class NotifyService {
     @Inject(DB) private readonly db: Database,
     @Inject(ENV) private readonly env: Env,
     private readonly rules: NotificationRuleService,
+    private readonly locales: LocaleRepo,
   ) {}
 
   async send(input: SendInput): Promise<{ id: string }> {
@@ -52,7 +53,7 @@ export class NotifyService {
     // Walk the *runtime* fallback chain (locale.fallback_chain, DEC-024) — a customer on a
     // locale whose template hasn't been translated yet still gets real, reviewed copy (in the
     // chain's next language) instead of the raw-JSON last-resort below.
-    const chain = await this.localeFallbackChain(locale);
+    const chain = await this.locales.fallbackChain(locale);
     let tpl: typeof template.$inferSelect | undefined;
     for (const loc of chain) {
       [tpl] = await this.db
@@ -126,17 +127,6 @@ export class NotifyService {
     }
 
     return { id: row!.id };
-  }
-
-  /** `[code, ...its fallback chain, the runtime default]`, deduped — mirrors how the rest of the
-   *  i18n system resolves a locale that lacks content (DEC-024). Falls back to `[code, 'en']`
-   *  if the locale table is empty/unreachable, so a send never hard-fails on this lookup. */
-  private async localeFallbackChain(code: string): Promise<string[]> {
-    const rows = await this.db.select().from(localeTable).where(eq(localeTable.isActive, true));
-    const def = rows.find((r) => r.code === code) ?? rows.find((r) => r.isDefault);
-    const defaultCode = rows.find((r) => r.isDefault)?.code ?? 'en';
-    if (!def) return [...new Set([code, defaultCode])];
-    return [...new Set([def.code, ...def.fallbackChain, defaultCode])];
   }
 
   /** Dev-only: recent messages for the ops mail viewer. */
