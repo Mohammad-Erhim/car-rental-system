@@ -129,3 +129,40 @@ export const reportSchedule = pgTable(
   },
   (t) => ({ orgIdx: index('report_schedule_org_idx').on(t.organizationId, t.definitionCode) }),
 );
+
+/**
+ * DAT-DATA-QUALITY-FINDING (FR-RPT-006). One row per data-quality check id — the granularity the
+ * checks themselves already work at (an aggregate count + sample, not per offending record).
+ * Tracks the case-management state a live check result alone can't: who owns it, when it was
+ * first/last seen non-zero, and the evidence for why it was closed. Reconciled on every
+ * `dataQuality()` run (manual re-check or the scheduled sweep alike) — see
+ * `ReportService.reconcileFindings` for the state machine and why a resolved finding survives an
+ * identical recurrence but reopens on a materially different one.
+ */
+export const dataQualityFinding = pgTable(
+  'data_quality_finding',
+  {
+    ...auditColumns,
+    ...actorColumns,
+    organizationId: uuid('organization_id').notNull(),
+    checkId: text('check_id').notNull(),
+    title: text('title').notNull(),
+    severity: text('severity').notNull(), // high | medium | low
+    state: text('state').notNull().default('open'), // open | acknowledged | resolved | false_positive
+    count: integer('count').notNull().default(0),
+    /** hash of the sorted sample set — how a resolved/false_positive finding tells "the exact
+     *  same violation, still not fixed" (stays suppressed) from "a different one just showed up
+     *  under the same check id" (reopens). */
+    sampleHash: text('sample_hash').notNull(),
+    firstSeenAt: timestamp('first_seen_at', { withTimezone: true, mode: 'string' }).notNull(),
+    lastSeenAt: timestamp('last_seen_at', { withTimezone: true, mode: 'string' }).notNull(),
+    ownerId: uuid('owner_id'),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true, mode: 'string' }),
+    resolvedBy: uuid('resolved_by'),
+    resolutionNote: text('resolution_note'),
+  },
+  (t) => ({
+    checkUnq: uniqueIndex('data_quality_finding_check_unq').on(t.organizationId, t.checkId),
+    stateIdx: index('data_quality_finding_state_idx').on(t.organizationId, t.state),
+  }),
+);

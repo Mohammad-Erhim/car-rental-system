@@ -368,6 +368,12 @@ const PERMISSION_ACTIONS: Array<[string, string, string, string]> = [
   ['report.read', 'report', 'normal', 'View reports'],
   ['report.export', 'report', 'elevated', 'Export / schedule reports'],
   ['audit.read', 'audit', 'elevated', 'View audit and data-quality'],
+  [
+    'audit.manage',
+    'audit',
+    'high',
+    'Acknowledge / resolve data-quality findings — kept separate from audit.read (SRS-SEC-007: a read permission must never itself unlock a write)',
+  ],
   ['integration.manage', 'admin', 'high', 'Manage integration health / recovery'],
 ];
 
@@ -690,6 +696,17 @@ const REPORT_DEFINITIONS: Array<{
     description: 'Owned items still needing resolution.',
     queryKind: 'open_cases',
     columns: ['kind', 'open'],
+    minPermission: 'audit.read',
+  },
+  {
+    code: 'data_quality_sweep',
+    title: 'Data quality sweep',
+    description:
+      'The referential-integrity / drift checks from the Data quality page (FR-RPT-006) — ' +
+      'schedule this like any other report to get an automatic recurring run with email ' +
+      'delivery, instead of relying on someone remembering to open the page.',
+    queryKind: 'data_quality_sweep',
+    columns: ['id', 'title', 'severity', 'count', 'state', 'sample', 'error'],
     minPermission: 'audit.read',
   },
 ];

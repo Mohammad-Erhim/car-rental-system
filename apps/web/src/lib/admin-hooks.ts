@@ -327,6 +327,14 @@ export interface DataQualityCheck {
   sample: string[];
   /** the check's own query failed — a distinct state from "count is 0"; never treat as clear */
   error: string | null;
+  /** case-management state (FR-RPT-006) — 'clear' is synthesized (no finding row ever needed to
+   *  exist) rather than a state a finding is ever written into. */
+  findingState: 'clear' | 'open' | 'acknowledged' | 'resolved' | 'false_positive';
+  ownerId: string | null;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+  resolvedAt: string | null;
+  resolutionNote: string | null;
 }
 export interface DataQualityReport {
   checkedAt: string;
@@ -339,6 +347,35 @@ export function useDataQuality() {
     queryKey: ['ops', 'data-quality'],
     queryFn: ({ signal }) => apiFetch<DataQualityReport>('/ops/data-quality', { signal }),
   });
+}
+
+function useDataQualityAction(action: 'acknowledge' | 'resolve' | 'false-positive') {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ checkId, note }: { checkId: string; note?: string }) =>
+      apiFetch<void>(`/ops/data-quality/${checkId}/${action}`, {
+        method: 'POST',
+        body: note !== undefined ? { note } : undefined,
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ops', 'data-quality'] }),
+  });
+}
+
+/** Claims a finding — the current actor becomes its owner. No note required, same "claim it"
+ *  ergonomics as picking up a recovery case elsewhere in this app. */
+export function useAcknowledgeFinding() {
+  return useDataQualityAction('acknowledge');
+}
+
+/** Requires a reason (matches config-version reject / recovery-case resolve elsewhere) — closing
+ *  a finding, correctly or as a false positive, is a consequential call that deserves the same
+ *  accountability a rejection reason gets. */
+export function useResolveFinding() {
+  return useDataQualityAction('resolve');
+}
+
+export function useMarkFindingFalsePositive() {
+  return useDataQualityAction('false-positive');
 }
 
 // ---- operational dashboard (SCREEN-OPS-002, FR-RPT-001) ----

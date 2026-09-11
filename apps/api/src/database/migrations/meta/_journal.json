@@ -134,6 +134,13 @@
       "when": 1789132720808,
       "tag": "0018_minor_calypso",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789159945566,
+      "tag": "0019_brainy_scarlet_spider",
+      "breakpoints": true
     }
   ]
 }
