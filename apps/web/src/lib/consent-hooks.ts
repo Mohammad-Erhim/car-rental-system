@@ -82,8 +82,14 @@ export interface ConsentLogQuery {
   from?: string;
   to?: string;
   action?: string;
+  /** the visitor's own opaque consent-cookie id — narrows the trail to one data subject, for a
+   *  GDPR Art. 7 accountability dispute or subject-access request */
+  anonymousId?: string;
   limit?: number;
-  offset?: number;
+  /** Keyset pagination, not offset — see `consent.service.ts#log` for why: an offset page costs
+   *  the database an O(N) walk past every row before it, which only gets worse as a compliance
+   *  log grows. A cursor costs the same as page one at any depth. */
+  cursor?: string;
 }
 
 export function useConsentLog(query: ConsentLogQuery) {
@@ -91,8 +97,9 @@ export function useConsentLog(query: ConsentLogQuery) {
   if (query.from) qs.set('from', query.from);
   if (query.to) qs.set('to', query.to);
   if (query.action) qs.set('action', query.action);
+  if (query.anonymousId) qs.set('anonymousId', query.anonymousId);
   qs.set('limit', String(query.limit ?? 50));
-  qs.set('offset', String(query.offset ?? 0));
+  if (query.cursor) qs.set('cursor', query.cursor);
   return useQuery({
     queryKey: ['ops', 'consent-log', query],
     queryFn: ({ signal }) => apiFetch<ConsentLogResponse>(`/ops/consent/log?${qs}`, { signal }),
@@ -112,22 +119,28 @@ const EXPORT_CAP = 20_000; // sanity cap so a runaway filter can't hang the brow
  */
 export function useConsentLogExport() {
   return useMutation({
-    mutationFn: async (filters: { from?: string; to?: string; action?: string }) => {
+    mutationFn: async (filters: {
+      from?: string;
+      to?: string;
+      action?: string;
+      anonymousId?: string;
+    }) => {
       const entries: ConsentLogEntry[] = [];
-      let offset = 0;
+      let cursor: string | undefined;
       let total = Infinity;
-      while (offset < total && entries.length < EXPORT_CAP) {
+      while (entries.length < total && entries.length < EXPORT_CAP) {
         const qs = new URLSearchParams();
         if (filters.from) qs.set('from', filters.from);
         if (filters.to) qs.set('to', filters.to);
         if (filters.action) qs.set('action', filters.action);
+        if (filters.anonymousId) qs.set('anonymousId', filters.anonymousId);
         qs.set('limit', String(EXPORT_PAGE));
-        qs.set('offset', String(offset));
+        if (cursor) qs.set('cursor', cursor);
         const page = await apiFetch<ConsentLogResponse>(`/ops/consent/log?${qs}`);
         entries.push(...page.entries);
         total = page.total;
-        offset += EXPORT_PAGE;
-        if (!page.entries.length) break;
+        if (!page.nextCursor) break;
+        cursor = page.nextCursor;
       }
       return { entries, truncated: entries.length < total };
     },

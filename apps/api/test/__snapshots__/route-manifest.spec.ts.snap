@@ -66,6 +66,7 @@ GET    /api/v1/meta/seo
 GET    /api/v1/meta/translations
 GET    /api/v1/openapi.json
 GET    /api/v1/ops/audit
+GET    /api/v1/ops/audit/actors
 GET    /api/v1/ops/availability/holds
 POST   /api/v1/ops/availability/holds/:id/release
 GET    /api/v1/ops/cases

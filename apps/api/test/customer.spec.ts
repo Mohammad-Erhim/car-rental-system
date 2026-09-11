@@ -90,7 +90,7 @@ describe('customer records (SCREEN-OPS-021/022 / FR-ADM-001)', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
     expect(
-      (audit.body as Array<{ action: string; after?: { query?: string } }>).some(
+      (audit.body.entries as Array<{ action: string; after?: { query?: string } }>).some(
         (a) => a.action === 'customer.searched' && a.after?.query === 'Test',
       ),
     ).toBe(true);
@@ -123,7 +123,7 @@ describe('customer records (SCREEN-OPS-021/022 / FR-ADM-001)', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
     expect(
-      (audit.body as Array<{ action: string; targetId: string }>).some(
+      (audit.body.entries as Array<{ action: string; targetId: string }>).some(
         (a) => a.action === 'customer.viewed' && a.targetId === id,
       ),
     ).toBe(true);

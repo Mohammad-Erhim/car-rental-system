@@ -74,6 +74,45 @@ describe('STAGE-007 security', () => {
       .then((r) => expect(r.status).not.toBe(429));
   }, 60_000);
 
+  it('TEST-SEC-015 the public consent-capture route has its own burst limit, independent of the auth bucket', async () => {
+    const ip = `198.51.100.${1 + Math.floor(Math.random() * 200)}`;
+    if (!server.listening) {
+      await new Promise<void>((res) => server.listen(0, () => res()));
+    }
+    // limit is 20/60s (consent-submit bucket) — 30 concurrent requests from one IP guarantees at
+    // least one 429 regardless of how the burst lands across the fixed window.
+    const results = await Promise.all(
+      Array.from({ length: 30 }, () =>
+        request(server)
+          .post('/api/v1/consent')
+          .set('X-Forwarded-For', ip)
+          .send({
+            anonymousId: randomUUID(),
+            action: 'accept_all',
+            choices: { necessary: true, functional: true, analytics: true, marketing: true },
+            policyVersion: 1,
+            locale: 'en',
+          }),
+      ),
+    );
+    const limited = results.filter((r) => r.status === 429);
+    expect(limited.length).toBeGreaterThan(0);
+    expect(limited[0]!.headers['retry-after']).toBeTruthy();
+    expect(limited[0]!.body.code).toBe('rate_limited');
+    // a different client IP is unaffected
+    await request(server)
+      .post('/api/v1/consent')
+      .set('X-Forwarded-For', '203.0.113.77')
+      .send({
+        anonymousId: randomUUID(),
+        action: 'accept_all',
+        choices: { necessary: true, functional: true, analytics: true, marketing: true },
+        policyVersion: 1,
+        locale: 'en',
+      })
+      .then((r) => expect(r.status).not.toBe(429));
+  }, 60_000);
+
   // ---- TEST-SEC-015: CORS allow-list ----
 
   it('TEST-SEC-015 CORS does not reflect a disallowed origin', async () => {
@@ -272,8 +311,12 @@ describe('STAGE-007 security', () => {
       .get(`/api/v1/ops/audit?action=${encodeURIComponent("' OR '1'='1")}`)
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
-    expect(Array.isArray(res.body)).toBe(true);
-    expect(res.body.length).toBe(0);
+    // `/ops/audit` returns `{ entries, total, nextCursor }`, not a bare array (this assertion
+    // predates that shape and was silently stale — caught while running the full suite) — the
+    // injection-safety property being tested is unchanged: a nonsense filter matches nothing.
+    expect(Array.isArray(res.body.entries)).toBe(true);
+    expect(res.body.entries.length).toBe(0);
+    expect(res.body.total).toBe(0);
   });
 
   it('TEST-SEC-011 unexpected body fields are ignored (no mass assignment); malformed JSON is a 4xx', async () => {
@@ -308,8 +351,12 @@ describe('STAGE-007 security', () => {
       .get('/api/v1/ops/audit?targetType=config_version')
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
+    // `/ops/audit` returns `{ entries, total, nextCursor }` — this assertion predates that shape
+    // and was silently stale (caught while running the full suite), unrelated to today's change.
     expect(
-      (audit.body as Array<{ action: string }>).some((r) => r.action === 'config.version.approved'),
+      (audit.body.entries as Array<{ action: string }>).some(
+        (r) => r.action === 'config.version.approved',
+      ),
     ).toBe(true);
   });
 

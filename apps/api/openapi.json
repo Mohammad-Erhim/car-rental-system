@@ -3157,16 +3157,6 @@
         "operationId": "consent_submit",
         "summary": "Record a cookie/privacy consent choice (public)",
         "parameters": [],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ConsentSubmitDto"
-              }
-            }
-          }
-        },
         "responses": {
           "202": {
             "description": ""
@@ -5625,69 +5615,6 @@
           "status",
           "checkedAt",
           "components"
-        ]
-      },
-      "ConsentSubmitDto": {
-        "type": "object",
-        "properties": {
-          "anonymousId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "action": {
-            "type": "string",
-            "enum": [
-              "accept_all",
-              "reject_all",
-              "save_preferences",
-              "withdraw"
-            ]
-          },
-          "choices": {
-            "type": "object",
-            "properties": {
-              "necessary": {
-                "type": "boolean"
-              },
-              "functional": {
-                "type": "boolean"
-              },
-              "analytics": {
-                "type": "boolean"
-              },
-              "marketing": {
-                "type": "boolean"
-              }
-            },
-            "required": [
-              "necessary",
-              "functional",
-              "analytics",
-              "marketing"
-            ]
-          },
-          "policyVersion": {
-            "type": "integer",
-            "minimum": 0,
-            "exclusiveMinimum": true,
-            "maximum": 9999,
-            "exclusiveMaximum": false
-          },
-          "locale": {
-            "type": "string",
-            "maxLength": 12
-          },
-          "page": {
-            "type": "string",
-            "maxLength": 300
-          }
-        },
-        "required": [
-          "anonymousId",
-          "action",
-          "choices",
-          "policyVersion",
-          "locale"
         ]
       }
     }

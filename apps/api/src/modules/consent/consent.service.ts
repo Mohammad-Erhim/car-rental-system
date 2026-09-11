@@ -8,6 +8,7 @@ import {
 import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
 
+import { decodeAuditCursor, encodeAuditCursor } from '../../common/audit/audit-cursor';
 import { AuditService } from '../../common/audit/audit.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
@@ -63,13 +64,19 @@ export class ConsentService {
    * optInPct) are computed in SQL over the *entire* matching set — never loaded into memory and
    * truncated — otherwise an org with a long-lived site would get silently wrong GDPR numbers
    * once past whatever row cap a naive implementation picked.
+   *
+   * Keyset (cursor), not offset, for the same reason as `report.service.ts#auditLog` (same table,
+   * same cost profile — `OFFSET` walks and discards every row before the page): a compliance log
+   * only gets longer over time, so a page that gets slower the deeper an auditor pages into it is
+   * exactly the wrong direction for this screen's purpose.
    */
   async log(query: {
     from?: string;
     to?: string;
     action?: string;
+    anonymousId?: string;
     limit: number;
-    offset: number;
+    cursor?: string;
   }): Promise<ConsentLogResponse> {
     const filters = [eq(auditEvent.action, CONSENT_ACTION)];
     if (query.from) filters.push(gte(auditEvent.occurredAt, query.from));
@@ -77,10 +84,19 @@ export class ConsentService {
     // Pushed into SQL (not filtered post-fetch) so it composes correctly with paging and with
     // the aggregate query below — both then see exactly the same matching row set.
     if (query.action) filters.push(sql`${auditEvent.afterSafe}->>'action' = ${query.action}`);
+    if (query.anonymousId) filters.push(eq(auditEvent.targetId, query.anonymousId));
     const where = and(...filters);
 
     const optIn = (key: 'functional' | 'analytics' | 'marketing') =>
       sql<number>`(count(*) filter (where (${auditEvent.afterSafe}->'choices'->>${key})::boolean is true))::int`;
+
+    const cursor = query.cursor ? decodeAuditCursor(query.cursor) : null;
+    const pageWhere = cursor
+      ? and(
+          where,
+          sql`(${auditEvent.occurredAt}, ${auditEvent.seq}) < (${cursor.occurredAt}, ${cursor.seq})`,
+        )
+      : where;
 
     const [[agg], rows] = await Promise.all([
       this.db
@@ -96,21 +112,27 @@ export class ConsentService {
         })
         .from(auditEvent)
         .where(where),
+      // fetch one extra row — cheaply tells us whether a next page exists without a second COUNT
       this.db
         .select({
           id: auditEvent.id,
+          seq: auditEvent.seq,
           at: auditEvent.occurredAt,
           anonymousId: auditEvent.targetId,
           after: auditEvent.afterSafe,
         })
         .from(auditEvent)
-        .where(where)
-        .orderBy(desc(auditEvent.occurredAt))
-        .limit(query.limit)
-        .offset(query.offset),
+        .where(pageWhere)
+        .orderBy(desc(auditEvent.occurredAt), desc(auditEvent.seq))
+        .limit(query.limit + 1),
     ]);
 
-    const entries: ConsentLogEntry[] = rows.map((r) => {
+    const hasMore = rows.length > query.limit;
+    const page = hasMore ? rows.slice(0, query.limit) : rows;
+    const lastRow = page[page.length - 1];
+    const nextCursor = hasMore && lastRow ? encodeAuditCursor(lastRow.at, lastRow.seq) : null;
+
+    const entries: ConsentLogEntry[] = page.map((r) => {
       const a = (r.after ?? {}) as Record<string, unknown>;
       const choices = (a.choices ?? {}) as Record<string, unknown>;
       return {
@@ -143,6 +165,7 @@ export class ConsentService {
     return {
       entries,
       total,
+      nextCursor,
       summary: {
         total,
         byAction,

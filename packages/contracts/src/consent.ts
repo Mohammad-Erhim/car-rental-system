@@ -261,6 +261,9 @@ export type ConsentLogEntry = z.infer<typeof zConsentLogEntry>;
 export const zConsentLogResponse = z.object({
   entries: z.array(zConsentLogEntry),
   total: z.number().int().nonnegative(),
+  /** Opaque keyset cursor for the next page, or `null` if this was the last one. Pass back
+   *  verbatim as `cursor` — never construct or parse it. */
+  nextCursor: z.string().nullable(),
   summary: z.object({
     total: z.number().int().nonnegative(),
     byAction: z.record(z.number().int().nonnegative()),

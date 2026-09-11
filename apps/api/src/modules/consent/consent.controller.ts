@@ -2,13 +2,12 @@ import { zConsentSubmitRequest, type ConsentSubmitRequest } from '@carrental/con
 import { Body, Controller, Header, HttpCode, Post, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { createZodDto, ZodValidationPipe } from 'nestjs-zod';
 
 import { Public } from '../../common/auth/decorators';
+import { RateLimit } from '../../common/security/rate-limit.decorator';
+import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 
 import { ConsentService } from './consent.service';
-
-class ConsentSubmitDto extends createZodDto(zConsentSubmitRequest) {}
 
 /**
  * Public cookie/privacy consent capture. The browser keeps the visitor's choice in a first-party
@@ -24,15 +23,21 @@ export class ConsentController {
   @Post()
   @HttpCode(202)
   @Header('Cache-Control', 'no-store')
+  // SRS-SEC-015 — this is a public, unauthenticated write into the append-only audit trail: with
+  // no cap, a flood here doesn't just cost storage, it corrupts the GDPR opt-in stats this same
+  // trail feeds (see ConsentService.log's summary). A real visitor never needs more than a
+  // handful of choices a minute; a generous literal cap (not the `auth` preset — this is an abuse
+  // control, not a credential-guessing one) still stops a scripted flood cold.
+  @RateLimit({ bucket: 'consent-submit', limit: 20, windowSec: 60 })
   @ApiOperation({
     operationId: 'consent_submit',
     summary: 'Record a cookie/privacy consent choice (public)',
   })
   submit(
-    @Body(new ZodValidationPipe(zConsentSubmitRequest)) body: ConsentSubmitDto,
+    @Body(new ZodValidationPipe(zConsentSubmitRequest)) body: ConsentSubmitRequest,
     @Req() req: Request,
   ) {
-    return this.consent.record(body as unknown as ConsentSubmitRequest, {
+    return this.consent.record(body, {
       ip: req.ip,
       userAgent: req.get('user-agent') ?? undefined,
     });

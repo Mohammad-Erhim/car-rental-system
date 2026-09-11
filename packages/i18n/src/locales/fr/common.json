@@ -358,6 +358,8 @@
   "ops.consent.log.exportDone": "{n} événement(s) exporté(s).",
   "ops.consent.log.exportFail": "Impossible d’exporter le journal de consentement.",
   "ops.consent.log.exportTruncated": "Les {n} premiers événements ont été exportés — d’autres correspondent à ce filtre au-delà de la limite d’export. Réduisez la période pour obtenir le reste.",
+  "ops.consent.log.filterByVisitor": "ID visiteur",
+  "ops.consent.log.filterByVisitorHint": "collez un id, ou cliquez sur une cellule Visiteur ci-dessous",
   "ops.consent.log.from": "Du",
   "ops.consent.log.locale": "Langue",
   "ops.consent.log.next": "Suivant",

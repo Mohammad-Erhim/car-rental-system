@@ -358,6 +358,8 @@
   "ops.consent.log.exportDone": "Exported {n} event(s).",
   "ops.consent.log.exportFail": "Couldn't export the consent log.",
   "ops.consent.log.exportTruncated": "Exported the first {n} events — more match this filter than the export limit. Narrow the date range to get the rest.",
+  "ops.consent.log.filterByVisitor": "Visitor ID",
+  "ops.consent.log.filterByVisitorHint": "paste an id, or click a Visitor cell below",
   "ops.consent.log.from": "From",
   "ops.consent.log.locale": "Locale",
   "ops.consent.log.next": "Next",

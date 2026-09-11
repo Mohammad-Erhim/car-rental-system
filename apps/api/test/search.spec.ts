@@ -209,7 +209,7 @@ describe('unified reservation + rental search (FR-ADM-003)', () => {
       .get('/api/v1/ops/audit?action=ops.search')
       .set('Authorization', `Bearer ${admin}`)
       .expect(200);
-    const rows = audit.body as Array<{ action: string; after?: { query?: string } }>;
+    const rows = audit.body.entries as Array<{ action: string; after?: { query?: string } }>;
     expect(rows.some((r) => r.action === 'ops.search' && r.after?.query === 'D-SRCH-1')).toBe(true);
   });
 });
