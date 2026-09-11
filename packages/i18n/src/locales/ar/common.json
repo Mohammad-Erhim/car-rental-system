@@ -358,6 +358,8 @@
   "ops.consent.log.exportDone": "تم تصدير {n} حدثًا.",
   "ops.consent.log.exportFail": "تعذّر تصدير سجل الموافقة.",
   "ops.consent.log.exportTruncated": "تم تصدير أول {n} حدثًا — هناك المزيد مطابق لهذا الفلتر يتجاوز حد التصدير. ضيّق النطاق الزمني للحصول على الباقي.",
+  "ops.consent.log.filterByVisitor": "معرّف الزائر",
+  "ops.consent.log.filterByVisitorHint": "ألصق معرّفًا، أو انقر على خلية زائر أدناه",
   "ops.consent.log.from": "من",
   "ops.consent.log.locale": "اللغة",
   "ops.consent.log.next": "التالي",

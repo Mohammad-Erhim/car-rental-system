@@ -304,7 +304,9 @@ describe('reservation operations', () => {
       .get('/api/v1/ops/audit?action=recovery_case.resolved')
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
-    expect((audit.body as Array<{ targetId: string }>).some((r) => r.targetId === c.id)).toBe(true);
+    expect(
+      (audit.body.entries as Array<{ targetId: string }>).some((r) => r.targetId === c.id),
+    ).toBe(true);
 
     // resolving it again → 422 (already resolved); a bogus id → 404 (not a silent no-op)
     await request(server)

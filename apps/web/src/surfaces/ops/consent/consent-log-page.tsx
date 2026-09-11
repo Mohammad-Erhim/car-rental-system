@@ -25,6 +25,8 @@ const ACTIONS = ['', 'accept_all', 'reject_all', 'save_preferences', 'withdraw']
 const selectClass = 'h-9 rounded-md border bg-background px-2 text-sm';
 const PAGE = 50;
 
+type Filters = Pick<ConsentLogQuery, 'from' | 'to' | 'action' | 'anonymousId'>;
+
 function toCsv(rows: ConsentLogEntry[]): string {
   const head = [
     'at',
@@ -63,20 +65,48 @@ function toCsv(rows: ConsentLogEntry[]): string {
 export function ConsentLogPage() {
   const { t, fmt } = useI18n();
   const { toast } = useToast();
-  const [draft, setDraft] = useState({ from: '', to: '', action: '' });
-  const [query, setQuery] = useState<ConsentLogQuery>({ limit: PAGE, offset: 0 });
+  const [draft, setDraft] = useState({ from: '', to: '', action: '', anonymousId: '' });
+  const [filters, setFilters] = useState<Filters>({});
+  // Keyset pagination position lives in local state, not `filters` — a cursor only means anything
+  // relative to how you got there (see `consent.service.ts#log`'s docstring on why keyset was
+  // worth it over offset here too), so unlike the filter fields there's no honest way to make
+  // "page 4" independently addressable. Any filter change resets it back to page 1.
+  const [cursorStack, setCursorStack] = useState<string[]>([]);
+  const query: ConsentLogQuery = {
+    ...filters,
+    limit: PAGE,
+    cursor: cursorStack[cursorStack.length - 1],
+  };
   const log = useConsentLog(query);
   const exportMut = useConsentLogExport();
 
   function apply(e: React.FormEvent) {
     e.preventDefault();
-    setQuery({
+    setFilters({
       from: draft.from ? new Date(draft.from).toISOString() : undefined,
       to: draft.to ? new Date(draft.to).toISOString() : undefined,
       action: draft.action || undefined,
-      limit: PAGE,
-      offset: 0,
+      anonymousId: draft.anonymousId.trim() || undefined,
     });
+    setCursorStack([]);
+  }
+
+  // Same drill-down pattern as the Audit log page's actor/target cells: clicking a visitor id
+  // narrows straight to "everything this visitor consented to" — the actual GDPR Art. 7
+  // accountability question ops needs to answer for a dispute or subject-access request — without
+  // ever needing to copy a raw id into the filter field by hand. Refines in place; other filters
+  // (date range, action) stay as they were.
+  function filterByVisitor(anonymousId: string) {
+    setDraft((d) => ({ ...d, anonymousId }));
+    setFilters((f) => ({ ...f, anonymousId }));
+    setCursorStack([]);
+  }
+
+  function goNext() {
+    if (log.data?.nextCursor) setCursorStack((s) => [...s, log.data!.nextCursor!]);
+  }
+  function goPrev() {
+    setCursorStack((s) => s.slice(0, -1));
   }
 
   // Exports every event matching the current filter (not just the page on screen) — see
@@ -84,9 +114,10 @@ export function ConsentLogPage() {
   async function downloadCsv() {
     try {
       const { entries, truncated } = await exportMut.mutateAsync({
-        from: query.from,
-        to: query.to,
-        action: query.action,
+        from: filters.from,
+        to: filters.to,
+        action: filters.action,
+        anonymousId: filters.anonymousId,
       });
       const blob = new Blob([toCsv(entries)], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
@@ -148,11 +179,19 @@ export function ConsentLogPage() {
     {
       key: 'id',
       header: t('ops.consent.log.visitor'),
-      cell: (r) => (
-        <span className="font-mono text-xs text-muted-foreground">
-          {r.anonymousId ? r.anonymousId.slice(0, 8) : '—'}
-        </span>
-      ),
+      cell: (r) =>
+        r.anonymousId ? (
+          <button
+            type="button"
+            className="font-mono text-xs text-muted-foreground underline decoration-dotted hover:text-foreground"
+            title={t('ops.consent.log.filterByVisitor')}
+            onClick={() => filterByVisitor(r.anonymousId!)}
+          >
+            {r.anonymousId.slice(0, 8)}
+          </button>
+        ) : (
+          <span className="font-mono text-xs text-muted-foreground">—</span>
+        ),
     },
   ];
 
@@ -213,6 +252,17 @@ export function ConsentLogPage() {
                 ))}
               </select>
             </label>
+            <label className="space-y-1 text-sm">
+              <span className="block text-muted-foreground">
+                {t('ops.consent.log.filterByVisitor')}
+              </span>
+              <Input
+                className="w-56 font-mono"
+                placeholder={t('ops.consent.log.filterByVisitorHint')}
+                value={draft.anonymousId}
+                onChange={(e) => setDraft((d) => ({ ...d, anonymousId: e.target.value }))}
+              />
+            </label>
             <Button type="submit" variant="outline">
               {t('ops.consent.log.apply')}
             </Button>
@@ -248,8 +298,12 @@ export function ConsentLogPage() {
               <div className="flex items-center justify-between text-sm text-muted-foreground">
                 <span>
                   {t('ops.consent.log.showing', {
-                    from: (query.offset ?? 0) + 1,
-                    to: (query.offset ?? 0) + log.data.entries.length,
+                    // every page in `cursorStack`'s history was, by construction, a full page (it
+                    // only got pushed because it had a `nextCursor`), so this stays exact at any
+                    // depth — the same guarantee the old offset math had, just derived from how
+                    // many pages we've advanced through instead of a literal row offset.
+                    from: cursorStack.length * PAGE + 1,
+                    to: cursorStack.length * PAGE + log.data.entries.length,
                     total: log.data.total,
                   })}
                 </span>
@@ -257,18 +311,16 @@ export function ConsentLogPage() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    disabled={(query.offset ?? 0) === 0}
-                    onClick={() =>
-                      setQuery((q) => ({ ...q, offset: Math.max(0, (q.offset ?? 0) - PAGE) }))
-                    }
+                    disabled={cursorStack.length === 0}
+                    onClick={goPrev}
                   >
                     {t('ops.consent.log.prev')}
                   </Button>
                   <Button
                     size="sm"
                     variant="ghost"
-                    disabled={(query.offset ?? 0) + PAGE >= log.data.total}
-                    onClick={() => setQuery((q) => ({ ...q, offset: (q.offset ?? 0) + PAGE }))}
+                    disabled={!log.data.nextCursor}
+                    onClick={goNext}
                   >
                     {t('ops.consent.log.next')}
                   </Button>

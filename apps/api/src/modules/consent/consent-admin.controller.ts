@@ -11,8 +11,12 @@ const zLogQuery = z.object({
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
   action: z.enum(['accept_all', 'reject_all', 'save_preferences', 'withdraw']).optional(),
+  // the visitor's own opaque consent-cookie id — lets ops answer "what did this specific visitor
+  // consent to" for a GDPR Art. 7 accountability dispute or subject-access request, not just
+  // browse the trail in bulk
+  anonymousId: z.string().uuid().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
-  offset: z.coerce.number().int().min(0).default(0),
+  cursor: z.string().max(200).optional(),
 });
 
 /** Ops-only view over the consent audit trail (proof of consent, opt-in rates). */

@@ -3,6 +3,7 @@ import { parseExpression } from 'cron-parser';
 import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
+import { decodeAuditCursor, encodeAuditCursor } from '../../common/audit/audit-cursor';
 import { AuditService } from '../../common/audit/audit.service';
 import { RbacService } from '../../common/auth/rbac.service';
 import type { Actor } from '../../common/auth/types';
@@ -757,22 +758,5 @@ export function isScheduleDue(cron: string, baseline: string | Date, now: Date):
   return next !== null && next.getTime() <= now.getTime();
 }
 
-/** The audit log's keyset cursor: an opaque token encoding the `(occurred_at, seq)` of the last
- *  row a page ended on. Base64url so it's URL-safe with no extra escaping; deliberately opaque
- *  (not a bare `occurredAt|seq` string) so callers treat it as a token, never construct or parse
- *  one themselves. Exported standalone — no DB — for direct unit coverage of the one part that
- *  would silently corrupt pagination if it were ever wrong: round-tripping exactly. */
-export function encodeAuditCursor(occurredAt: string, seq: number): string {
-  return Buffer.from(`${occurredAt}|${seq}`, 'utf8').toString('base64url');
-}
-
-export function decodeAuditCursor(cursor: string): { occurredAt: string; seq: number } | null {
-  try {
-    const [occurredAt, seqStr] = Buffer.from(cursor, 'base64url').toString('utf8').split('|');
-    const seq = Number(seqStr);
-    if (!occurredAt || !Number.isFinite(seq)) return null;
-    return { occurredAt, seq };
-  } catch {
-    return null;
-  }
-}
+// encodeAuditCursor/decodeAuditCursor moved to common/audit/audit-cursor.ts — shared with
+// consent.service.ts, which pages the same `audit_event` table the same way.
