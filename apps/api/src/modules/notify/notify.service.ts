@@ -11,11 +11,33 @@ import { LocaleRepo } from '../config/locale.repo';
 
 import { NotificationRuleService } from './notification-rule.service';
 
+export interface AudienceRecipient {
+  email: string;
+  ref?: string;
+}
+
+/**
+ * FR-ADM-011 audience routing — the caller's best resolution of each possible audience the event
+ * rule might be configured for, keyed by `NotificationRuleService`'s `Audience` values. `send()`
+ * picks the entry matching the rule's *configured* audience, falling back to the plain
+ * `recipient`/`recipientRef` on `SendInput` when that entry is missing (an unresolvable audience,
+ * e.g. no pickup-location contact on file, must never silently drop the message).
+ */
+export interface AudienceRecipients {
+  primary_renter?: AudienceRecipient;
+  account_holder?: AudienceRecipient;
+  /** every driver on the booking — `all_drivers` fans out to one notification row each. */
+  all_drivers?: AudienceRecipient[];
+  ops?: AudienceRecipient;
+}
+
 export interface SendInput {
   event: string; // notification_event code
   channel?: 'email' | 'sms' | 'push';
+  /** default/fallback recipient — see `audience` below. */
   recipient: string;
   recipientRef?: string;
+  audience?: AudienceRecipients;
   localeCode?: string;
   variables?: Record<string, unknown>;
   sourceType?: string;
@@ -40,7 +62,7 @@ export class NotifyService {
     private readonly locales: LocaleRepo,
   ) {}
 
-  async send(input: SendInput): Promise<{ id: string }> {
+  async send(input: SendInput): Promise<{ ids: string[] }> {
     const channel = input.channel ?? 'email';
     const locale = input.localeCode ?? 'en';
     const vars = input.variables ?? {};
@@ -81,52 +103,81 @@ export class NotifyService {
       body = `[${input.event}] ` + JSON.stringify(vars);
     }
 
-    // FR-ADM-011 event rule — a disabled rule suppresses the send; the sender identity is stamped.
+    // FR-ADM-011 event rule — a disabled rule suppresses the send; the sender identity is
+    // stamped; the configured *audience* determines who actually gets this send.
     const rule = await this.rules.resolve(input.event, channel);
+    const targets = this.resolveTargets(rule.audience, input);
 
-    const [row] = await this.db
-      .insert(notification)
-      .values({
-        event: input.event,
-        channel,
-        recipient: input.recipient,
-        recipientRef: input.recipientRef ?? null,
-        localeCode: locale,
-        templateKey,
-        templateVersion,
-        subject,
-        body,
-        sender: rule.senderIdentity,
-        variables: vars,
-        deliveryState: rule.enabled ? 'queued' : 'suppressed',
-        lastError: rule.enabled ? null : 'rule_disabled',
-        sourceType: input.sourceType ?? null,
-        sourceId: input.sourceId ?? null,
-        traceId: getCorrelation()?.traceId ?? null,
-      })
-      .returning({ id: notification.id });
+    const ids: string[] = [];
+    for (const target of targets) {
+      const [row] = await this.db
+        .insert(notification)
+        .values({
+          event: input.event,
+          channel,
+          recipient: target.recipient,
+          recipientRef: target.recipientRef ?? null,
+          localeCode: locale,
+          templateKey,
+          templateVersion,
+          subject,
+          body,
+          sender: rule.senderIdentity,
+          variables: vars,
+          deliveryState: rule.enabled ? 'queued' : 'suppressed',
+          lastError: rule.enabled ? null : 'rule_disabled',
+          sourceType: input.sourceType ?? null,
+          sourceId: input.sourceId ?? null,
+          traceId: getCorrelation()?.traceId ?? null,
+        })
+        .returning({ id: notification.id });
+      ids.push(row!.id);
 
-    if (!rule.enabled) {
-      this.logger.log(
-        { event: input.event, channel, id: row!.id },
-        'notification suppressed by event rule',
-      );
-      return { id: row!.id };
+      if (!rule.enabled) {
+        this.logger.log(
+          { event: input.event, channel, id: row!.id },
+          'notification suppressed by event rule',
+        );
+        continue;
+      }
+
+      // Local driver: no real carrier. The worker relays; for immediate dev feedback, mark sent.
+      if (this.env.MAIL_DRIVER === 'outbox') {
+        await this.db
+          .update(notification)
+          .set({ deliveryState: 'sent', sentAt: sql`now()`, attempts: 1, updatedAt: sql`now()` })
+          .where(eq(notification.id, row!.id));
+        this.logger.log(
+          { event: input.event, channel, recipient: maskRecipient(target.recipient), id: row!.id },
+          'notification queued (outbox driver)',
+        );
+      }
     }
 
-    // Local driver: no real carrier. The worker relays; for immediate dev feedback, mark sent.
-    if (this.env.MAIL_DRIVER === 'outbox') {
-      await this.db
-        .update(notification)
-        .set({ deliveryState: 'sent', sentAt: sql`now()`, attempts: 1, updatedAt: sql`now()` })
-        .where(eq(notification.id, row!.id));
-      this.logger.log(
-        { event: input.event, channel, recipient: maskRecipient(input.recipient), id: row!.id },
-        'notification queued (outbox driver)',
-      );
-    }
+    return { ids };
+  }
 
-    return { id: row!.id };
+  /** One row per actual recipient for the rule's configured audience; `all_drivers` may fan out
+   *  to several. Falls back to `input.recipient` when the audience has no resolvable entry, so a
+   *  routing gap (e.g. no pickup-location contact on file for `ops`) never silently drops the
+   *  notification instead of just narrowing who gets it. */
+  private resolveTargets(
+    audience: string,
+    input: SendInput,
+  ): Array<{ recipient: string; recipientRef?: string }> {
+    const fallback = { recipient: input.recipient, recipientRef: input.recipientRef };
+    const a = input.audience;
+    if (audience === 'all_drivers') {
+      if (!a?.all_drivers?.length) return [fallback];
+      return a.all_drivers.map((d) => ({ recipient: d.email, recipientRef: d.ref }));
+    }
+    const one =
+      audience === 'account_holder'
+        ? a?.account_holder
+        : audience === 'ops'
+          ? a?.ops
+          : a?.primary_renter;
+    return [one ? { recipient: one.email, recipientRef: one.ref } : fallback];
   }
 
   /** Dev-only: recent messages for the ops mail viewer. */

@@ -7,7 +7,8 @@ import type { Actor } from '../../common/auth/types';
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
-import { organization } from '../../database/schema/org';
+import { account } from '../../database/schema/iam';
+import { location, organization } from '../../database/schema/org';
 import { rental } from '../../database/schema/rental';
 import {
   reconciliationException,
@@ -288,7 +289,7 @@ export class ReservationOpsService {
       before: { state: row.state },
       after: { state: 'cancelled', refundMinor, feeMinor },
     });
-    void this.notifySafe(reference, actor, 'reservation_cancelled', {
+    void this.notifySafe(row, reference, 'reservation_cancelled', {
       reference,
       refund: `${(refundMinor / 100).toFixed(2)} ${row.currency}`,
     });
@@ -576,13 +577,45 @@ export class ReservationOpsService {
     };
   }
 
+  /**
+   * Notify about the *reservation's* own owner/drivers — never the staff member who happened to
+   * perform the action. `actor` used to be passed here directly; for a staff-assisted action that
+   * sent the confirmation to whichever agent clicked the button (`actor.accountId`, not even an
+   * email address) instead of the customer. Takes the loaded reservation row so it can resolve
+   * the real account + drivers + pickup-location contact for FR-ADM-011 audience routing.
+   */
   private async notifySafe(
+    row: { id: string; accountId: string | null; pickupLocationCode: string },
     reference: string,
-    actor: Actor,
     event: string,
     variables: Record<string, unknown>,
   ) {
-    const locale = actor.localeCode ?? 'en';
+    let accountEmail: string | undefined;
+    let localeCode = 'en';
+    if (row.accountId) {
+      const [acc] = await this.db
+        .select({ email: account.email, localeCode: account.localeCode })
+        .from(account)
+        .where(eq(account.id, row.accountId))
+        .limit(1);
+      accountEmail = acc?.email;
+      localeCode = acc?.localeCode ?? 'en';
+    }
+    const drivers = await this.db
+      .select({ role: reservationDriver.role, email: reservationDriver.email })
+      .from(reservationDriver)
+      .where(eq(reservationDriver.reservationId, row.id));
+    const primaryEmail = drivers.find((d) => d.role === 'primary_renter')?.email ?? undefined;
+    const allDrivers = drivers
+      .filter((d): d is typeof d & { email: string } => !!d.email)
+      .map((d) => ({ email: d.email }));
+    const [pickupLocation] = await this.db
+      .select({ contact: location.contact })
+      .from(location)
+      .where(eq(location.code, row.pickupLocationCode))
+      .limit(1);
+    const opsEmail = pickupLocation?.contact?.email;
+
     // Localised last-resort copy for the (rare) case a published template is missing — the
     // normal path renders the seeded `reservation_*` template in the recipient's locale.
     const fallbackByLocale: Record<string, { subject: string; body: string }> = {
@@ -600,13 +633,21 @@ export class ReservationOpsService {
       await this.notify.send({
         event,
         channel: 'email',
-        recipient: actor.accountId,
-        recipientRef: actor.accountId,
-        localeCode: locale,
+        recipient: primaryEmail ?? accountEmail ?? 'unknown',
+        recipientRef: row.accountId ?? undefined,
+        audience: {
+          primary_renter: primaryEmail ? { email: primaryEmail } : undefined,
+          account_holder: accountEmail
+            ? { email: accountEmail, ref: row.accountId ?? undefined }
+            : undefined,
+          all_drivers: allDrivers.length ? allDrivers : undefined,
+          ops: opsEmail ? { email: opsEmail } : undefined,
+        },
+        localeCode,
         sourceType: 'reservation',
         sourceId: reference,
         variables,
-        fallback: fallbackByLocale[locale] ?? fallbackByLocale.en,
+        fallback: fallbackByLocale[localeCode] ?? fallbackByLocale.en,
       });
     } catch {
       /* non-fatal */
