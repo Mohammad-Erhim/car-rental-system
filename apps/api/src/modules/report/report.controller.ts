@@ -132,7 +132,7 @@ export class ReportController {
   }
 
   @Post('config/versions')
-  @Permissions('config.read', 'config.publish')
+  @Permissions('config.publish')
   draft(
     @Body(new ZodValidationPipe(zDraft)) body: z.infer<typeof zDraft>,
     @CurrentActor() actor: Actor,
@@ -140,6 +140,7 @@ export class ReportController {
     return this.config.draft(actor, body);
   }
 
+  // read-only dry-run (no write) — config.read alone is correct here, unlike the writes below
   @Post('config/versions/preview')
   @Permissions('config.read', 'config.publish')
   preview(@Body(new ZodValidationPipe(zPreview)) body: z.infer<typeof zPreview>) {
@@ -147,13 +148,13 @@ export class ReportController {
   }
 
   @Delete('config/versions/:id')
-  @Permissions('config.read', 'config.publish')
+  @Permissions('config.publish')
   removeVersion(@Param('id') id: string, @CurrentActor() actor: Actor) {
     return this.config.remove(actor, id);
   }
 
   @Post('config/versions/:id/submit')
-  @Permissions('config.read', 'config.publish')
+  @Permissions('config.publish')
   submit(@Param('id') id: string, @CurrentActor() actor: Actor) {
     return this.config.submit(actor, id);
   }

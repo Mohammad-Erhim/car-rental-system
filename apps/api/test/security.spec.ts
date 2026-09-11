@@ -20,6 +20,7 @@ describe('STAGE-007 security', () => {
   let managerToken: string;
   let scopedToken: string;
   let customerToken: string;
+  let viewerToken: string; // config.read only — no config.publish
 
   beforeAll(async () => {
     const app = await getTestApp();
@@ -33,6 +34,8 @@ describe('STAGE-007 security', () => {
     scopedToken = (await signIn(app, 'test-scoped@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
     customerToken = (await signIn(app, 'test-customer@example.test', 'Test-Passw0rd!', 'customer'))
+      .accessToken;
+    viewerToken = (await signIn(app, 'test-config-viewer@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
   });
   afterAll(closeTestApp);
@@ -179,6 +182,38 @@ describe('STAGE-007 security', () => {
       .get('/api/v1/ops/reports')
       .set('Authorization', `Bearer ${customerToken}`);
     expect(res.status).toBe(403);
+  });
+
+  it('TEST-SEC-007 config.read alone can view config versions but not draft/submit/delete one', async () => {
+    await request(server)
+      .get('/api/v1/ops/config/versions?kind=policy')
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .expect(200);
+    const forbidden = await request(server)
+      .post('/api/v1/ops/config/versions')
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .send({ kind: 'policy', key: 'x', payload: {} })
+      .expect(403);
+    expect(forbidden.body.code).toBe('forbidden');
+
+    // an actual draft (by a publisher) still can't be submitted or deleted by a viewer
+    const draft = await request(server)
+      .post('/api/v1/ops/config/versions')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        kind: 'policy',
+        key: 'cancellation',
+        payload: { freeCancelHours: 6, lateFeeBps: 250 },
+      })
+      .expect(201);
+    await request(server)
+      .post(`/api/v1/ops/config/versions/${draft.body.id}/submit`)
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .expect(403);
+    await request(server)
+      .delete(`/api/v1/ops/config/versions/${draft.body.id}`)
+      .set('Authorization', `Bearer ${viewerToken}`)
+      .expect(403);
   });
 
   // ---- TEST-SEC-008: scope isolation ----
