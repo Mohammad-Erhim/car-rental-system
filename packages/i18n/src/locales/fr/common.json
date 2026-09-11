@@ -506,6 +506,7 @@
   "ops.dq.card": "Contrôles d’intégrité",
   "ops.dq.check": "Contrôle",
   "ops.dq.checkedAt": "vérifié {at}",
+  "ops.dq.checkFailed": "Échec du contrôle",
   "ops.dq.clear": "RAS",
   "ops.dq.count": "Constats",
   "ops.dq.empty": "Aucun contrôle configuré",

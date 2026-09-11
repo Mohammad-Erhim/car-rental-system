@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isScheduleDue, nextFireAfter } from './report.service';
+import { isScheduleDue, nextFireAfter, runDataQualityCheck } from './report.service';
 
 describe('nextFireAfter', () => {
   it('returns the next occurrence strictly after the baseline, not the baseline itself', () => {
@@ -51,5 +51,47 @@ describe('isScheduleDue', () => {
 
   it('a malformed cron is never due', () => {
     expect(isScheduleDue('garbage', new Date('2020-01-01'), new Date())).toBe(false);
+  });
+});
+
+describe('runDataQualityCheck — one check failing must never look like "clear"', () => {
+  const meta = { id: 'test_check', title: 'A test check', severity: 'medium' as const };
+
+  it('reports a clean result when the query finds nothing', async () => {
+    const result = await runDataQualityCheck(meta, async () => ({ count: 0, sample: [] }));
+    expect(result).toEqual({ ...meta, count: 0, ok: true, sample: [], error: null });
+  });
+
+  it('reports a real finding as not-ok, distinct from a failure', async () => {
+    const result = await runDataQualityCheck(meta, async () => ({
+      count: 3,
+      sample: ['a', 'b', 'c'],
+    }));
+    expect(result).toEqual({ ...meta, count: 3, ok: false, sample: ['a', 'b', 'c'], error: null });
+  });
+
+  it('a query that throws is reported as failed, not as a clean 0 — never masquerades as "clear"', async () => {
+    const result = await runDataQualityCheck(meta, async () => {
+      throw new Error('relation "widget" does not exist');
+    });
+    expect(result.ok).toBe(false);
+    expect(result.count).toBe(0);
+    expect(result.sample).toEqual([]);
+    expect(result.error).toBe('relation "widget" does not exist');
+  });
+
+  it('a thrown non-Error value still produces a safe, generic error string', async () => {
+    const result = await runDataQualityCheck(meta, async () => {
+      throw 'a plain string was thrown';
+    });
+    expect(result.error).toBe('check failed');
+  });
+
+  it('truncates an unexpectedly long error message rather than returning it whole', async () => {
+    const long = 'x'.repeat(5000);
+    const result = await runDataQualityCheck(meta, async () => {
+      throw new Error(long);
+    });
+    expect(result.error?.length).toBe(300);
   });
 });

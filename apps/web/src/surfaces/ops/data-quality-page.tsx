@@ -11,8 +11,19 @@ import {
   Toolbar,
   type DataTableColumn,
 } from '@carrental/ui';
+import { Link } from 'react-router-dom';
 
 import { useDataQuality, type DataQualityCheck } from '../../lib/admin-hooks.js';
+
+/** Checks whose `sample` keys are a record reference this app already has a detail page for —
+ *  the drill-down pattern used across the audit/consent-log/staff-roles pages, so a flagged
+ *  reference is one click away from the actual record instead of a plain string to copy by hand.
+ *  Not every check's key format has a matching route yet (e.g. a plate or a `kind:key` pair) —
+ *  those stay plain text rather than link to a page that can't filter by them. */
+const SAMPLE_LINK: Partial<Record<string, (key: string) => string>> = {
+  reservation_orphan_account: (key) => `/ops/work/${key}`,
+  rental_active_without_unit: (key) => `/ops/rentals/${key}`,
+};
 
 /**
  * SCREEN-OPS-039 — Data quality. A read-only sweep of referential-integrity / drift checks.
@@ -45,7 +56,11 @@ export function DataQualityPage() {
       key: 'count',
       header: t('ops.dq.count'),
       cell: (c) =>
-        c.ok ? (
+        c.error ? (
+          <Badge variant="warning" title={c.error}>
+            {t('ops.dq.checkFailed')}
+          </Badge>
+        ) : c.ok ? (
           <Badge variant="success">{t('ops.dq.clear')}</Badge>
         ) : (
           <span className="font-semibold tabular-nums text-destructive">{c.count}</span>
@@ -54,14 +69,30 @@ export function DataQualityPage() {
     {
       key: 'sample',
       header: t('ops.dq.sample'),
-      cell: (c) =>
-        c.sample.length ? (
-          <span className="bidi-isolate font-mono text-xs text-muted-foreground">
-            {c.sample.join(', ')}
+      cell: (c) => {
+        if (c.error) return <span className="text-xs text-muted-foreground">{c.error}</span>;
+        if (!c.sample.length) return '—';
+        const toHref = SAMPLE_LINK[c.id];
+        return (
+          <span className="bidi-isolate flex flex-wrap gap-x-1 font-mono text-xs text-muted-foreground">
+            {c.sample.map((key, i) => (
+              <span key={key}>
+                {toHref ? (
+                  <Link
+                    to={toHref(key)}
+                    className="underline decoration-dotted hover:text-foreground"
+                  >
+                    {key}
+                  </Link>
+                ) : (
+                  key
+                )}
+                {i < c.sample.length - 1 ? ',' : ''}
+              </span>
+            ))}
           </span>
-        ) : (
-          '—'
-        ),
+        );
+      },
     },
   ];
 

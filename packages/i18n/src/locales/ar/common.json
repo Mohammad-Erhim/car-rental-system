@@ -506,6 +506,7 @@
   "ops.dq.card": "فحوصات السلامة",
   "ops.dq.check": "الفحص",
   "ops.dq.checkedAt": "فُحص {at}",
+  "ops.dq.checkFailed": "فشل الفحص",
   "ops.dq.clear": "سليم",
   "ops.dq.count": "النتائج",
   "ops.dq.empty": "لا توجد فحوصات مُهيّأة",

@@ -506,6 +506,7 @@
   "ops.dq.card": "Integrity checks",
   "ops.dq.check": "Check",
   "ops.dq.checkedAt": "checked {at}",
+  "ops.dq.checkFailed": "Check failed",
   "ops.dq.clear": "clear",
   "ops.dq.count": "Findings",
   "ops.dq.empty": "No checks configured",

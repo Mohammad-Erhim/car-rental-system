@@ -737,6 +737,139 @@ export class ReportService {
       .limit(10);
     return rows.map((r) => ({ id: r.id, label: r.displayName, email: r.email, kind: r.kind }));
   }
+
+  /**
+   * FR-ADM-013 (SCREEN-OPS-039) — a read-only sweep of referential-integrity / drift checks.
+   * Each check is a cheap COUNT plus a short sample of offending keys; a non-zero count is
+   * something ops should work, never a hard failure. Add a check = one more entry in `CHECKS`.
+   *
+   * Several of these columns (`rental.unitId`, `vehicleUnit.currentLocationId`,
+   * `lookupValue.typeCode`, `reservation.accountId`) have no DB-level foreign key — this sweep is
+   * the only thing that would ever notice one of them drift, whether from an app bug, a manual
+   * fix, or a data import. Each check runs in isolation (see `runDataQualityCheck`): one bad
+   * query must never take down the other five results behind a single 500.
+   */
+  async dataQuality(): Promise<{
+    checkedAt: string;
+    ok: boolean;
+    checks: DataQualityCheckResult[];
+  }> {
+    const CHECKS: DataQualityCheckDef[] = [
+      {
+        id: 'rental_active_without_unit',
+        title: 'Active or overdue rentals with no vehicle assigned',
+        severity: 'high',
+        countSql: sql`select count(*)::int as n from rental where state in ('active','overdue') and unit_id is null`,
+        sampleSql: sql`select reference as key from rental where state in ('active','overdue') and unit_id is null limit 8`,
+      },
+      {
+        id: 'unit_orphan_location',
+        title: 'Vehicle units pointing at a location that no longer exists',
+        severity: 'high',
+        countSql: sql`select count(*)::int as n from vehicle_unit u where not exists (select 1 from location l where l.id = u.current_location_id)`,
+        sampleSql: sql`select plate as key from vehicle_unit u where not exists (select 1 from location l where l.id = u.current_location_id) limit 8`,
+      },
+      {
+        id: 'lookup_value_dangling_type',
+        title: 'Lookup values whose type is missing',
+        severity: 'medium',
+        countSql: sql`select count(*)::int as n from lookup_value v where not exists (select 1 from lookup_type t where t.code = v.type_code)`,
+        sampleSql: sql`select (v.type_code || ':' || v.code) as key from lookup_value v where not exists (select 1 from lookup_type t where t.code = v.type_code) limit 8`,
+      },
+      {
+        id: 'reservation_orphan_account',
+        title: 'Reservations linked to an account that no longer exists',
+        severity: 'medium',
+        countSql: sql`select count(*)::int as n from reservation r where r.account_id is not null and not exists (select 1 from account a where a.id = r.account_id)`,
+        sampleSql: sql`select r.reference as key from reservation r where r.account_id is not null and not exists (select 1 from account a where a.id = r.account_id) limit 8`,
+      },
+      {
+        id: 'config_never_published',
+        title: 'Config settings that have revisions but nothing published',
+        severity: 'low',
+        countSql: sql`select count(*)::int as n from (select kind, key from config_version group by kind, key having bool_and(state <> 'published') and bool_or(state <> 'draft')) q`,
+        sampleSql: sql`select (kind || ':' || key) as key from config_version group by kind, key having bool_and(state <> 'published') and bool_or(state <> 'draft') limit 8`,
+      },
+      {
+        id: 'recovery_case_stale',
+        title: 'Recovery cases open longer than 14 days',
+        severity: 'medium',
+        countSql: sql`select count(*)::int as n from recovery_case where state <> 'resolved' and created_at < now() - interval '14 days'`,
+        sampleSql: sql`select (kind || ' · ' || subject_ref) as key from recovery_case where state <> 'resolved' and created_at < now() - interval '14 days' limit 8`,
+      },
+    ];
+
+    const checks = await Promise.all(
+      CHECKS.map((c) =>
+        runDataQualityCheck(c, async () => {
+          const countRows = await this.db.execute<{ n: number }>(c.countSql);
+          const count = Number(countRows[0]?.n ?? 0);
+          const sample =
+            count > 0
+              ? (await this.db.execute<{ key: string }>(c.sampleSql)).map((r) => r.key)
+              : [];
+          return { count, sample };
+        }),
+      ),
+    );
+
+    return {
+      checkedAt: new Date().toISOString(),
+      // a check that couldn't even run is not "clear" — don't let a query failure masquerade as
+      // a clean bill of health
+      ok: checks.every((c) => c.ok && !c.error),
+      checks,
+    };
+  }
+}
+
+export interface DataQualityCheckDef {
+  id: string;
+  title: string;
+  severity: 'high' | 'medium' | 'low';
+  countSql: ReturnType<typeof sql>;
+  sampleSql: ReturnType<typeof sql>;
+}
+
+export interface DataQualityCheckResult {
+  id: string;
+  title: string;
+  severity: 'high' | 'medium' | 'low';
+  count: number;
+  ok: boolean;
+  sample: string[];
+  /** null unless the check's own query failed — a distinct state from "count is 0", surfaced to
+   *  the UI so a failed check is never silently reported as clear. */
+  error: string | null;
+}
+
+/**
+ * Runs one data-quality check's (count, sample) pair, isolating its failure so one broken check
+ * (a table mid-migration, a lock, a typo in a future check someone adds) never takes the other
+ * five results down with it behind a single 500 — the same isolation principle as the report
+ * schedule dispatcher (`dispatchDueSchedules`) not letting one bad schedule starve the rest of a
+ * tick. Exported standalone (no DB — `run` is injected) for direct unit coverage of the isolation
+ * guarantee itself, without needing a real query to fail.
+ */
+export async function runDataQualityCheck(
+  meta: { id: string; title: string; severity: 'high' | 'medium' | 'low' },
+  run: () => Promise<{ count: number; sample: string[] }>,
+): Promise<DataQualityCheckResult> {
+  try {
+    const { count, sample } = await run();
+    return { ...meta, count, ok: count === 0, sample, error: null };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'check failed';
+    return {
+      ...meta,
+      count: 0,
+      ok: false,
+      sample: [],
+      // ops-authenticated audience, and this is diagnostic-by-design — but still capped, never a
+      // full stack trace, in case a future check's error ever got unexpectedly verbose
+      error: message.slice(0, 300),
+    };
+  }
 }
 
 /** The cron expression's next occurrence strictly after `baseline`, or `null` for a malformed

@@ -1,6 +1,5 @@
-import { Inject, Body, Controller, Delete, Get, Param, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { sql } from 'drizzle-orm';
 import type { Response } from 'express';
 import { z } from 'zod';
 
@@ -9,8 +8,6 @@ import { Permissions } from '../../common/auth/permissions.guard';
 import { StepUp } from '../../common/auth/step-up.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
-import { DB } from '../../database/database.module';
-import type { Database } from '../../database/drizzle';
 import { ConfigVersionService } from '../config/config-version.service';
 
 import { ReportService } from './report.service';
@@ -54,7 +51,6 @@ export class ReportController {
   constructor(
     private readonly reports: ReportService,
     private readonly config: ConfigVersionService,
-    @Inject(DB) private readonly db: Database,
   ) {}
 
   // ---- operational dashboard (SCREEN-OPS-002) ----
@@ -199,79 +195,9 @@ export class ReportController {
 
   // ---- data quality (SCREEN-OPS-039) ----
 
-  /**
-   * FR-ADM-013 — a read-only sweep of referential-integrity / drift checks. Each check is a
-   * cheap COUNT plus a short sample of offending keys; a non-zero count is something ops should
-   * work, never a hard failure. Add a check = one more entry in `CHECKS`.
-   */
   @Get('data-quality')
   @Permissions('audit.read', 'config.read')
-  async dataQuality() {
-    const CHECKS: Array<{
-      id: string;
-      title: string;
-      severity: 'high' | 'medium' | 'low';
-      countSql: ReturnType<typeof sql>;
-      sampleSql: ReturnType<typeof sql>;
-    }> = [
-      {
-        id: 'rental_active_without_unit',
-        title: 'Active or overdue rentals with no vehicle assigned',
-        severity: 'high',
-        countSql: sql`select count(*)::int as n from rental where state in ('active','overdue') and unit_id is null`,
-        sampleSql: sql`select reference as key from rental where state in ('active','overdue') and unit_id is null limit 8`,
-      },
-      {
-        id: 'unit_orphan_location',
-        title: 'Vehicle units pointing at a location that no longer exists',
-        severity: 'high',
-        countSql: sql`select count(*)::int as n from vehicle_unit u where not exists (select 1 from location l where l.id = u.current_location_id)`,
-        sampleSql: sql`select plate as key from vehicle_unit u where not exists (select 1 from location l where l.id = u.current_location_id) limit 8`,
-      },
-      {
-        id: 'lookup_value_dangling_type',
-        title: 'Lookup values whose type is missing',
-        severity: 'medium',
-        countSql: sql`select count(*)::int as n from lookup_value v where not exists (select 1 from lookup_type t where t.code = v.type_code)`,
-        sampleSql: sql`select (v.type_code || ':' || v.code) as key from lookup_value v where not exists (select 1 from lookup_type t where t.code = v.type_code) limit 8`,
-      },
-      {
-        id: 'reservation_orphan_account',
-        title: 'Reservations linked to an account that no longer exists',
-        severity: 'medium',
-        countSql: sql`select count(*)::int as n from reservation r where r.account_id is not null and not exists (select 1 from account a where a.id = r.account_id)`,
-        sampleSql: sql`select r.reference as key from reservation r where r.account_id is not null and not exists (select 1 from account a where a.id = r.account_id) limit 8`,
-      },
-      {
-        id: 'config_never_published',
-        title: 'Config settings that have revisions but nothing published',
-        severity: 'low',
-        countSql: sql`select count(*)::int as n from (select kind, key from config_version group by kind, key having bool_and(state <> 'published') and bool_or(state <> 'draft')) q`,
-        sampleSql: sql`select (kind || ':' || key) as key from config_version group by kind, key having bool_and(state <> 'published') and bool_or(state <> 'draft') limit 8`,
-      },
-      {
-        id: 'recovery_case_stale',
-        title: 'Recovery cases open longer than 14 days',
-        severity: 'medium',
-        countSql: sql`select count(*)::int as n from recovery_case where state <> 'resolved' and created_at < now() - interval '14 days'`,
-        sampleSql: sql`select (kind || ' · ' || subject_ref) as key from recovery_case where state <> 'resolved' and created_at < now() - interval '14 days' limit 8`,
-      },
-    ];
-
-    const checks = await Promise.all(
-      CHECKS.map(async (c) => {
-        const countRows = await this.db.execute<{ n: number }>(c.countSql);
-        const count = Number(countRows[0]?.n ?? 0);
-        const sample =
-          count > 0 ? (await this.db.execute<{ key: string }>(c.sampleSql)).map((r) => r.key) : [];
-        return { id: c.id, title: c.title, severity: c.severity, count, ok: count === 0, sample };
-      }),
-    );
-
-    return {
-      checkedAt: new Date().toISOString(),
-      ok: checks.every((c) => c.ok),
-      checks,
-    };
+  dataQuality() {
+    return this.reports.dataQuality();
   }
 }
