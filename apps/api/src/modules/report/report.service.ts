@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { parseExpression } from 'cron-parser';
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
@@ -14,6 +14,7 @@ import { vehicleUnit } from '../../database/schema/fleet';
 import { account, staffProfile } from '../../database/schema/iam';
 import { organization } from '../../database/schema/org';
 import { payment, paymentIntent, recoveryCase } from '../../database/schema/payment';
+import { auditEvent } from '../../database/schema/platform';
 import { rental } from '../../database/schema/rental';
 import { reservation, reconciliationException } from '../../database/schema/reservation';
 import { NotifyService } from '../notify/notify.service';
@@ -607,6 +608,75 @@ export class ReportService {
       }
     }
     return { checked: active.length, dispatched, failed };
+  }
+
+  // ---- audit viewer (SCREEN-OPS-038) ----
+  // Lives here (not a dedicated audit module) because the whole `ops/audit` + `ops/data-quality`
+  // surface was already bundled into this controller — see its own top-of-file note. Not
+  // relocating that as part of this pass; flagged, not silently left as-is.
+
+  /**
+   * FR-ADM-009 — real pagination (`total` + `limit`/`offset`), not the previous hardcoded
+   * newest-200-no-further behaviour: an org whose audit trail has grown past 200 matching rows
+   * for a filter could never see anything older, with no indication that was even happening. Also
+   * adds `targetId`/`actorId`/`outcome`/`surface` filters — the underlying table already carries
+   * (and indexes) all of them; only `action`/`targetType`/`from`/`to` were ever wired up. `targetId`
+   * in particular is what makes a "view history" link from another screen possible (see
+   * staff-roles-page.tsx's use of it) — a raw id isn't something an admin would type by hand, but
+   * every detail screen in the app already has the id of the record it's showing.
+   */
+  async auditLog(query: {
+    action?: string;
+    targetType?: string;
+    targetId?: string;
+    actorId?: string;
+    outcome?: 'accepted' | 'rejected' | 'failed';
+    surface?: string;
+    from?: string;
+    to?: string;
+    limit: number;
+    offset: number;
+  }) {
+    const filters = [];
+    if (query.action) filters.push(eq(auditEvent.action, query.action));
+    if (query.targetType) filters.push(eq(auditEvent.targetType, query.targetType));
+    if (query.targetId) filters.push(eq(auditEvent.targetId, query.targetId));
+    if (query.actorId) filters.push(eq(auditEvent.actorId, query.actorId));
+    if (query.outcome) filters.push(eq(auditEvent.outcome, query.outcome));
+    if (query.surface) filters.push(eq(auditEvent.surface, query.surface));
+    if (query.from) filters.push(gte(auditEvent.occurredAt, query.from));
+    if (query.to) filters.push(lte(auditEvent.occurredAt, query.to));
+    const where = filters.length ? and(...filters) : sql`true`;
+
+    const [countRow] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(auditEvent)
+      .where(where);
+    const rows = await this.db
+      .select({
+        id: auditEvent.id,
+        occurredAt: auditEvent.occurredAt,
+        actor: sql<string>`coalesce(${auditEvent.actorLabel}, ${auditEvent.actorType})`,
+        actorId: auditEvent.actorId,
+        action: auditEvent.action,
+        targetType: auditEvent.targetType,
+        targetId: auditEvent.targetId,
+        outcome: auditEvent.outcome,
+        reason: auditEvent.reason,
+        surface: auditEvent.surface,
+        before: auditEvent.beforeSafe,
+        after: auditEvent.afterSafe,
+      })
+      .from(auditEvent)
+      .where(where)
+      .orderBy(desc(auditEvent.occurredAt))
+      .limit(query.limit)
+      .offset(query.offset);
+
+    return {
+      entries: rows.map((r) => ({ ...r, occurredAt: new Date(r.occurredAt).toISOString() })),
+      total: countRow?.n ?? 0,
+    };
   }
 }
 

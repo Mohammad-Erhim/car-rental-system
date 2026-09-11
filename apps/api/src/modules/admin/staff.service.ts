@@ -241,8 +241,12 @@ export class StaffService {
 
     await this.audit.record({
       action: 'admin.staff.access_changed',
-      targetType: 'staff_profile',
-      targetId: profile.id,
+      // matches `invite()`'s targetType/targetId (the account, not the internal staffProfile
+      // row) so a "view this staff member's history" audit-page filter (targetType=account,
+      // targetId=<accountId>) finds every event for them, not just the ones from one of the two
+      // write paths — before this fix, invite() and changeAccess() disagreed on both fields.
+      targetType: 'account',
+      targetId: accountId,
       actor,
       before,
       after: { ...before, ...input },

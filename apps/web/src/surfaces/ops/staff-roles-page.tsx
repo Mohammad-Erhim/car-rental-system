@@ -19,6 +19,7 @@ import {
 } from '@carrental/ui';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 import { apiFetch } from '../../lib/api.js';
 import { useLocations } from '../../lib/discovery-hooks.js';
@@ -333,6 +334,11 @@ export function StaffRolesPage() {
               {t('ops.staff.deactivate')}
             </Button>
           ) : null}
+          <Button size="sm" variant="ghost" asChild>
+            <Link to={`/audit?targetType=account&targetId=${encodeURIComponent(s.accountId)}`}>
+              {t('ops.staff.history')}
+            </Link>
+          </Button>
         </span>
       ),
     },

@@ -1,6 +1,6 @@
 import { Inject, Body, Controller, Delete, Get, Param, Post, Query, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
-import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import type { Response } from 'express';
 import { z } from 'zod';
 
@@ -11,7 +11,6 @@ import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
-import { auditEvent } from '../../database/schema/platform';
 import { ConfigVersionService } from '../config/config-version.service';
 
 import { ReportService } from './report.service';
@@ -35,6 +34,18 @@ const zPreview = z.object({
   payload: z.record(z.unknown()),
 });
 const zNote = z.object({ note: z.string().min(1).max(1000) });
+const zAuditQuery = z.object({
+  action: z.string().max(100).optional(),
+  targetType: z.string().max(60).optional(),
+  targetId: z.string().max(120).optional(),
+  actorId: z.string().uuid().optional(),
+  outcome: z.enum(['accepted', 'rejected', 'failed']).optional(),
+  surface: z.string().max(30).optional(),
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  offset: z.coerce.number().int().min(0).default(0),
+});
 
 @ApiTags('admin')
 @Controller({ path: 'ops', version: '1' })
@@ -172,35 +183,8 @@ export class ReportController {
 
   @Get('audit')
   @Permissions('audit.read')
-  async audit(
-    @Query('action') action?: string,
-    @Query('targetType') targetType?: string,
-    @Query('from') from?: string,
-    @Query('to') to?: string,
-  ) {
-    const where = [];
-    if (action) where.push(eq(auditEvent.action, action));
-    if (targetType) where.push(eq(auditEvent.targetType, targetType));
-    if (from) where.push(gte(auditEvent.occurredAt, from));
-    if (to) where.push(lte(auditEvent.occurredAt, to));
-    const rows = await this.db
-      .select({
-        id: auditEvent.id,
-        occurredAt: auditEvent.occurredAt,
-        actor: sql<string>`coalesce(${auditEvent.actorLabel}, ${auditEvent.actorType})`,
-        action: auditEvent.action,
-        targetType: auditEvent.targetType,
-        targetId: auditEvent.targetId,
-        outcome: auditEvent.outcome,
-        reason: auditEvent.reason,
-        before: auditEvent.beforeSafe,
-        after: auditEvent.afterSafe,
-      })
-      .from(auditEvent)
-      .where(where.length ? and(...where) : sql`true`)
-      .orderBy(desc(auditEvent.occurredAt))
-      .limit(200);
-    return rows.map((r) => ({ ...r, occurredAt: new Date(r.occurredAt).toISOString() }));
+  audit(@Query(new ZodValidationPipe(zAuditQuery)) q: z.infer<typeof zAuditQuery>) {
+    return this.reports.auditLog(q);
   }
 
   // ---- data quality (SCREEN-OPS-039) ----

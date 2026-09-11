@@ -32,37 +32,52 @@ const COMMON_ACTIONS = [
   'config.published',
   'iam.staff.invited',
 ];
+const OUTCOMES = ['', 'accepted', 'rejected', 'failed'] as const;
+const PAGE = 50;
 
 /**
  * SCREEN-OPS-038 — Audit & activity. An append-only view of consequential actions. Sensitive
  * values in the before/after snapshots are masked at write time (SRS-SEC-011); this screen never
- * un-masks them. Filter by action or target type; the API returns the newest 200 matches and the
- * table renders the most recent 120 of them (narrow the filter to reach older ones).
+ * un-masks them. Every filter drives the URL query string (`action`/`targetType`/`targetId`/
+ * `actorId`/`outcome`/`from`/`to`/`offset`), so this page is a valid deep-link target — other
+ * screens can link straight to "this record's history" (see the Staff & roles page's "History"
+ * action) without the viewer typing anything.
  */
 export function AuditLogPage() {
   const { t, fmt } = useI18n();
   const [params, setParams] = useSearchParams();
+  const offset = Number(params.get('offset') ?? '0') || 0;
   const filter = {
     action: params.get('action') ?? undefined,
     targetType: params.get('targetType') ?? undefined,
+    targetId: params.get('targetId') ?? undefined,
+    actorId: params.get('actorId') ?? undefined,
+    outcome: params.get('outcome') ?? undefined,
     from: params.get('from') ? `${params.get('from')}T00:00:00.000Z` : undefined,
     to: params.get('to') ? `${params.get('to')}T23:59:59.999Z` : undefined,
+    limit: PAGE,
+    offset,
   };
   const [draft, setDraft] = useState({
     action: params.get('action') ?? '',
     targetType: params.get('targetType') ?? '',
+    targetId: params.get('targetId') ?? '',
+    outcome: params.get('outcome') ?? '',
     from: params.get('from') ?? '',
     to: params.get('to') ?? '',
   });
-  const rows = useAuditLog(filter);
+  const log = useAuditLog(filter);
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const hasFilter = !!(filter.action || filter.targetType || filter.from || filter.to);
-
-  // the API returns up to 200; render a bounded slice so a busy log stays responsive
-  const RENDER_CAP = 120;
-  const visibleRows = rows.data?.slice(0, RENDER_CAP) ?? [];
-  const hiddenCount = (rows.data?.length ?? 0) - visibleRows.length;
+  const hasFilter = !!(
+    filter.action ||
+    filter.targetType ||
+    filter.targetId ||
+    filter.actorId ||
+    filter.outcome ||
+    filter.from ||
+    filter.to
+  );
 
   function apply(e: React.FormEvent) {
     e.preventDefault();
@@ -72,13 +87,25 @@ export function AuditLogPage() {
           if (v.trim()) p.set(k, v.trim());
           else p.delete(k);
         }
+        p.delete('offset'); // a new filter always restarts from the first page
         return p;
       },
       { replace: true },
     );
   }
 
-  type Event = NonNullable<typeof rows.data>[number];
+  function setOffset(next: number) {
+    setParams(
+      (p) => {
+        if (next > 0) p.set('offset', String(next));
+        else p.delete('offset');
+        return p;
+      },
+      { replace: true },
+    );
+  }
+
+  type Event = NonNullable<typeof log.data>['entries'][number];
   const columns: Array<DataTableColumn<Event>> = [
     {
       key: 'when',
@@ -129,7 +156,7 @@ export function AuditLogPage() {
       header: '',
       className: 'text-end',
       cell: (r) =>
-        r.before || r.after ? (
+        r.before || r.after || r.reason ? (
           <Button
             size="sm"
             variant="outline"
@@ -185,6 +212,38 @@ export function AuditLogPage() {
                 />
               )}
             </Field>
+            <Field
+              label={t('ops.audit.filterTargetId')}
+              htmlFor="aud-target-id"
+              hint={t('ops.audit.targetIdHint')}
+            >
+              {({ id }) => (
+                <Input
+                  id={id}
+                  data-testid="audit-target-id"
+                  className="font-mono"
+                  value={draft.targetId}
+                  onChange={(e) => setDraft((d) => ({ ...d, targetId: e.target.value }))}
+                />
+              )}
+            </Field>
+            <Field label={t('ops.audit.filterOutcome')} htmlFor="aud-outcome">
+              {({ id }) => (
+                <select
+                  id={id}
+                  data-testid="audit-outcome"
+                  className="h-9 rounded-md border bg-background px-2 text-sm"
+                  value={draft.outcome}
+                  onChange={(e) => setDraft((d) => ({ ...d, outcome: e.target.value }))}
+                >
+                  {OUTCOMES.map((o) => (
+                    <option key={o} value={o}>
+                      {o ? t(`ops.audit.outcome.${o}`) : t('ops.audit.allOutcomes')}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </Field>
             <Field label={t('ops.search.from')} htmlFor="aud-from">
               {({ id }) => (
                 <Input
@@ -215,7 +274,14 @@ export function AuditLogPage() {
                 type="button"
                 variant="outline"
                 onClick={() => {
-                  setDraft({ action: '', targetType: '', from: '', to: '' });
+                  setDraft({
+                    action: '',
+                    targetType: '',
+                    targetId: '',
+                    outcome: '',
+                    from: '',
+                    to: '',
+                  });
                   setParams({}, { replace: true });
                 }}
               >
@@ -223,6 +289,26 @@ export function AuditLogPage() {
               </Button>
             )}
           </form>
+          {filter.actorId ? (
+            <p className="mt-3 text-xs text-muted-foreground">
+              {t('ops.audit.actorIdFiltered')}{' '}
+              <button
+                type="button"
+                className="underline"
+                onClick={() =>
+                  setParams(
+                    (p) => {
+                      p.delete('actorId');
+                      return p;
+                    },
+                    { replace: true },
+                  )
+                }
+              >
+                {t('ops.st.clear')}
+              </button>
+            </p>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -233,11 +319,11 @@ export function AuditLogPage() {
         <CardContent>
           <DataTable
             columns={columns}
-            rows={visibleRows}
+            rows={log.data?.entries}
             rowKey={(r) => r.id}
-            isLoading={rows.isLoading}
-            isError={rows.isError}
-            onRetry={() => rows.refetch()}
+            isLoading={log.isLoading}
+            isError={log.isError}
+            onRetry={() => log.refetch()}
             rowProps={(r) => ({ 'data-action': r.action })}
             rowClassName="align-top"
             testid="audit-table"
@@ -245,23 +331,35 @@ export function AuditLogPage() {
             minWidth="44rem"
             renderSubRow={(r) =>
               expanded === r.id ? (
-                <div className="grid gap-3 bg-muted/30 p-3 sm:grid-cols-2">
-                  <div>
-                    <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
-                      {t('ops.audit.before')}
+                <div className="space-y-3 bg-muted/30 p-3">
+                  {r.reason ? (
+                    <p className="text-sm">
+                      <span className="font-medium text-muted-foreground">
+                        {t('ops.audit.reason')}:
+                      </span>{' '}
+                      {r.reason}
                     </p>
-                    <pre className="overflow-auto rounded border bg-background p-2 text-xs">
-                      {JSON.stringify(r.before ?? {}, null, 2)}
-                    </pre>
-                  </div>
-                  <div>
-                    <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
-                      {t('ops.audit.after')}
-                    </p>
-                    <pre className="overflow-auto rounded border bg-background p-2 text-xs">
-                      {JSON.stringify(r.after ?? {}, null, 2)}
-                    </pre>
-                  </div>
+                  ) : null}
+                  {r.before || r.after ? (
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
+                          {t('ops.audit.before')}
+                        </p>
+                        <pre className="overflow-auto rounded border bg-background p-2 text-xs">
+                          {JSON.stringify(r.before ?? {}, null, 2)}
+                        </pre>
+                      </div>
+                      <div>
+                        <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">
+                          {t('ops.audit.after')}
+                        </p>
+                        <pre className="overflow-auto rounded border bg-background p-2 text-xs">
+                          {JSON.stringify(r.after ?? {}, null, 2)}
+                        </pre>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : null
             }
@@ -272,10 +370,36 @@ export function AuditLogPage() {
               empty: t('ops.audit.empty'),
             }}
           />
-          {hiddenCount > 0 ? (
-            <p className="mt-3 text-xs text-muted-foreground">
-              {t('ops.audit.capped', { n: RENDER_CAP, more: hiddenCount })}
-            </p>
+          {log.data ? (
+            <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
+              <span>
+                {log.data.total
+                  ? t('ops.audit.showing', {
+                      from: offset + 1,
+                      to: offset + log.data.entries.length,
+                      total: log.data.total,
+                    })
+                  : t('ops.audit.empty')}
+              </span>
+              <span className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={offset === 0}
+                  onClick={() => setOffset(Math.max(0, offset - PAGE))}
+                >
+                  {t('ops.audit.prev')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={offset + PAGE >= log.data.total}
+                  onClick={() => setOffset(offset + PAGE)}
+                >
+                  {t('ops.audit.next')}
+                </Button>
+              </span>
+            </div>
           ) : null}
         </CardContent>
       </Card>

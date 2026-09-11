@@ -558,10 +558,68 @@ describe('STAGE-006 administration & reporting', () => {
       .get('/api/v1/ops/audit?targetType=config_version')
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
-    const actions = (audit.body as Array<{ action: string }>).map((r) => r.action);
+    const actions = (audit.body.entries as Array<{ action: string }>).map((r) => r.action);
     expect(actions).toContain('config.version.drafted');
     expect(actions).toContain('config.version.submitted');
     expect(actions).toContain('config.version.approved');
+    expect(typeof audit.body.total).toBe('number');
+    expect(audit.body.total).toBeGreaterThanOrEqual(audit.body.entries.length);
+  });
+
+  it('TEST-ADM-007 the audit log paginates correctly and total reflects the full matching set, not just the page', async () => {
+    const full = await request(server)
+      .get('/api/v1/ops/audit?targetType=config_version&limit=200')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const total = full.body.total as number;
+    expect(total).toBeGreaterThan(2); // this suite alone generates several config_version events
+
+    const page1 = await request(server)
+      .get('/api/v1/ops/audit?targetType=config_version&limit=2&offset=0')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(page1.body.entries).toHaveLength(2);
+    expect(page1.body.total).toBe(total);
+
+    const page2 = await request(server)
+      .get('/api/v1/ops/audit?targetType=config_version&limit=2&offset=2')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(page2.body.entries).toHaveLength(2);
+    expect(page2.body.total).toBe(total);
+    // no overlap between the two pages
+    const ids1 = new Set(page1.body.entries.map((e: { id: string }) => e.id));
+    for (const e of page2.body.entries as Array<{ id: string }>) expect(ids1.has(e.id)).toBe(false);
+  });
+
+  it('TEST-ADM-008 the audit log filters by targetId, and a staff access change is findable by the same account id as its invite', async () => {
+    const invited = await request(server)
+      .post('/api/v1/admin/staff/invite')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        email: 'audit-target-test@example.test',
+        fullName: 'Audit Target Test',
+        roleCodes: ['rental_agent'],
+      })
+      .expect(201);
+    const accountId = invited.body.accountId as string;
+
+    await request(server)
+      .post(`/api/v1/admin/staff/${accountId}/access`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ roleCodes: ['fleet_staff'] })
+      .expect(201);
+
+    const audit = await request(server)
+      .get(`/api/v1/ops/audit?targetType=account&targetId=${accountId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const actions = (audit.body.entries as Array<{ action: string }>).map((r) => r.action);
+    // both events are findable via the *same* targetType/targetId pair — before the fix,
+    // admin.staff.access_changed used a different targetType/targetId (the staffProfile row) and
+    // would have been invisible to this exact query.
+    expect(actions).toContain('admin.staff.invited');
+    expect(actions).toContain('admin.staff.access_changed');
   });
 
   it('TEST-ADM-006 sending a schedule needs a fresh step-up, then re-checks the owner and pauses if they lost access', async () => {
