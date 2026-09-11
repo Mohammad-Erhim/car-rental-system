@@ -162,8 +162,10 @@ function toCsv(rows: AuditRow[]): string {
  * SCREEN-OPS-038 — Audit & activity. An append-only view of consequential actions. Sensitive
  * values in the before/after snapshots are masked at write time (SRS-SEC-011); this screen never
  * un-masks them. Every filter drives the URL query string (`action`/`targetType`/`targetId`/
- * `actorId`/`outcome`/`surface`/`from`/`to`/`offset`), so this page is a valid deep-link target —
- * other screens can link straight to "this record's history" (see the Staff & roles page's
+ * `actorId`/`outcome`/`surface`/`from`/`to`), so this page is a valid deep-link target for any
+ * filter combination — pagination position itself is deliberately local state, not URL, since a
+ * keyset cursor only means anything relative to how you got there (see below). Other screens can
+ * link straight to "this record's history" (see the Staff & roles page's
  * "History" action), and every row's Actor / Target cell is itself a drill-down: clicking either
  * sets that filter in place, so investigating "who else touched this record" or "what else did
  * this person do" never requires copying an id by hand.
@@ -172,7 +174,14 @@ export function AuditLogPage() {
   const { t, fmt } = useI18n();
   const { toast } = useToast();
   const [params, setParams] = useSearchParams();
-  const offset = Number(params.get('offset') ?? '0') || 0;
+  // Keyset pagination position lives in local state, not the URL — a cursor only means anything
+  // relative to how you got there (see `report.service.ts#auditLog`'s docstring on why keyset
+  // was worth it over offset), so unlike the filter fields there's no honest way to make "page 4"
+  // independently bookmarkable. `cursorStack[i]` is the cursor that fetched page `i + 2` (page 1
+  // has none); its length also doubles as "how many full pages behind us" for the Showing X–Y
+  // count below, since a page only ever gets pushed after being confirmed full (it had a
+  // `nextCursor`).
+  const [cursorStack, setCursorStack] = useState<string[]>([]);
   const filter = {
     action: params.get('action') ?? undefined,
     targetType: params.get('targetType') ?? undefined,
@@ -183,15 +192,20 @@ export function AuditLogPage() {
     from: params.get('from') ? `${params.get('from')}T00:00:00.000Z` : undefined,
     to: params.get('to') ? `${params.get('to')}T23:59:59.999Z` : undefined,
     limit: PAGE,
-    offset,
+    cursor: cursorStack[cursorStack.length - 1],
   };
   const [draft, setDraft] = useState(() => draftFromParams(params));
   // keeps the form in sync whenever the URL changes from somewhere *other* than this form —
-  // a row's Actor/Target drill-down, the Staff & roles "History" link, browser back/forward.
-  // Without this, the filter fields could show stale values while the table (which reads
-  // `params` directly, not `draft`) had already moved on, and re-submitting the form would
-  // silently undo the drill-down.
-  useEffect(() => setDraft(draftFromParams(params)), [params]);
+  // a row's Actor/Target drill-down, the Staff & roles "History" link, browser back/forward —
+  // and returns to page 1, since every one of those is "the filter changed" (pagination
+  // position is no longer part of `params` at all, so this is never fighting a page change).
+  // Without the draft part, the filter fields could show stale values while the table (which
+  // reads `params` directly, not `draft`) had already moved on, and re-submitting the form
+  // would silently undo the drill-down.
+  useEffect(() => {
+    setDraft(draftFromParams(params));
+    setCursorStack([]);
+  }, [params]);
   const log = useAuditLog(filter);
   const exportMut = useAuditLogExport();
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -244,32 +258,27 @@ export function AuditLogPage() {
           if (v.trim()) p.set(k, v.trim());
           else p.delete(k);
         }
-        p.delete('offset'); // a new filter always restarts from the first page
         return p;
       },
       { replace: true },
     );
   }
 
-  function setOffset(next: number) {
-    setParams(
-      (p) => {
-        if (next > 0) p.set('offset', String(next));
-        else p.delete('offset');
-        return p;
-      },
-      { replace: true },
-    );
+  function goNext() {
+    if (log.data?.nextCursor) setCursorStack((s) => [...s, log.data!.nextCursor!]);
+  }
+  function goPrev() {
+    setCursorStack((s) => s.slice(0, -1));
   }
 
-  /** Row drill-downs: set one filter dimension, keep everything else (including which page of
-   *  results led here) — "refine to this actor/target", not "start over". */
+  /** Row drill-downs: set one filter dimension, keep everything else — "refine to this
+   *  actor/target", not "start over" (pagination position resets regardless — see the effect
+   *  above — since narrowing the filter makes whatever page you were on meaningless anyway). */
   function setParam(key: string, value: string | null) {
     setParams(
       (p) => {
         if (value) p.set(key, value);
         else p.delete(key);
-        p.delete('offset');
         return p;
       },
       { replace: true },
@@ -280,7 +289,6 @@ export function AuditLogPage() {
       (p) => {
         p.set('targetType', targetType);
         p.set('targetId', targetId);
-        p.delete('offset');
         return p;
       },
       { replace: true },
@@ -588,8 +596,12 @@ export function AuditLogPage() {
               <span>
                 {log.data.total
                   ? t('ops.audit.showing', {
-                      from: offset + 1,
-                      to: offset + log.data.entries.length,
+                      // every page in `cursorStack`'s history was, by construction, a full page
+                      // (it only got pushed because it had a `nextCursor`) — so this stays exact
+                      // at any depth, the same as the old offset math did, just derived from how
+                      // many pages we've advanced through instead of a literal row offset.
+                      from: cursorStack.length * PAGE + 1,
+                      to: cursorStack.length * PAGE + log.data.entries.length,
                       total: log.data.total,
                     })
                   : t('ops.audit.empty')}
@@ -598,17 +610,12 @@ export function AuditLogPage() {
                 <Button
                   size="sm"
                   variant="ghost"
-                  disabled={offset === 0}
-                  onClick={() => setOffset(Math.max(0, offset - PAGE))}
+                  disabled={cursorStack.length === 0}
+                  onClick={goPrev}
                 >
                   {t('ops.audit.prev')}
                 </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={offset + PAGE >= log.data.total}
-                  onClick={() => setOffset(offset + PAGE)}
-                >
+                <Button size="sm" variant="ghost" disabled={!log.data.nextCursor} onClick={goNext}>
                   {t('ops.audit.next')}
                 </Button>
               </span>

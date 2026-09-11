@@ -45,7 +45,7 @@ const zAuditQuery = z.object({
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
-  offset: z.coerce.number().int().min(0).default(0),
+  cursor: z.string().max(200).optional(),
 });
 
 @ApiTags('admin')
