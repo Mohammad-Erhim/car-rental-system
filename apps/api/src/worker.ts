@@ -1,21 +1,27 @@
 /**
  * Worker process (SRS-CMP-WORKER, SRS-ARC-006). Separately runnable; idempotent handlers;
- * bounded retries; poison work → dead-letter. STAGE-000 registers one housekeeping job that
- * reaps expired auth challenges / idempotency keys and logs outbox backlog.
+ * bounded retries; poison work → dead-letter. STAGE-000 registers housekeeping jobs that reap
+ * expired auth challenges / idempotency keys, log outbox backlog, and (FR-RPT-006) dispatch due
+ * report schedules — the only job that needs real domain logic (report generation + the notify
+ * pipeline), so it runs through a headless Nest application context (`createApplicationContext`,
+ * no HTTP listener) instead of duplicating that logic in raw SQL like the others.
  */
 import 'reflect-metadata';
 
+import { NestFactory } from '@nestjs/core';
 import { Queue, Worker, type Job } from 'bullmq';
 import { lt, sql } from 'drizzle-orm';
 import IORedis from 'ioredis';
 import pino from 'pino';
 
+import { AppModule } from './app.module';
 import { runOutboxRelay } from './common/outbox/outbox-relay';
 import { createDb } from './database/drizzle';
 import { authChallenge } from './database/schema/iam';
 import { idempotencyKey, outboxMessage } from './database/schema/platform';
 import { rental } from './database/schema/rental';
 import { bootstrapEnvForScript } from './database/script-env';
+import { ReportService } from './modules/report/report.service';
 
 const log = pino({ name: 'carrental-worker', level: process.env.LOG_LEVEL ?? 'info' });
 
@@ -23,6 +29,8 @@ async function main() {
   const env = bootstrapEnvForScript();
   const connection = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
   const { db, close } = createDb(env.DATABASE_URL);
+  const appCtx = await NestFactory.createApplicationContext(AppModule, { logger: false });
+  const reportService = appCtx.get(ReportService);
 
   const housekeeping = new Queue('housekeeping', { connection });
   const deadLetter = new Queue('housekeeping-dlq', { connection });
@@ -52,6 +60,20 @@ async function main() {
     },
   );
 
+  // FR-RPT-006 — once a minute, dispatch every active report schedule whose next cron occurrence
+  // has arrived. A minute matches the coarsest cron field's own granularity; ticking any faster
+  // buys nothing since cron can't ask for finer than a minute anyway.
+  await housekeeping.add(
+    'report-dispatch',
+    {},
+    {
+      repeat: { every: 60 * 1000 },
+      jobId: 'report-dispatch-tick',
+      removeOnComplete: 50,
+      removeOnFail: 50,
+    },
+  );
+
   const worker = new Worker(
     'housekeeping',
     async (job: Job) => {
@@ -69,6 +91,11 @@ async function main() {
         if (r.delivered || r.failed || r.deadLettered || r.pruned) {
           log.info(r, 'outbox relay tick');
         }
+        return r;
+      }
+      if (job.name === 'report-dispatch') {
+        const r = await reportService.dispatchDueSchedules(new Date());
+        if (r.dispatched.length) log.info(r, 'report schedule dispatch tick');
         return r;
       }
       if (job.name === 'reap') {
@@ -127,6 +154,7 @@ async function main() {
     await deadLetter.close();
     await connection.quit();
     await close();
+    await appCtx.close();
     process.exit(0);
   };
   process.on('SIGINT', shutdown);

@@ -1,6 +1,8 @@
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { ReportService } from '../src/modules/report/report.service';
+
 import { closeTestApp, getTestApp, httpServer } from './helpers/app';
 import { signIn } from './helpers/auth';
 
@@ -670,6 +672,50 @@ describe('STAGE-006 administration & reporting', () => {
       .post(`/api/v1/ops/reports/schedules/${scheduleId}/send`)
       .set('Authorization', `Bearer ${agentToken}`)
       .expect(403);
+  });
+
+  it('TEST-RPT-006 the automated dispatcher sends a schedule once its cron is due, and only then', async () => {
+    const app = await getTestApp();
+    const reportService = app.get(ReportService);
+
+    const created = await request(server)
+      .post('/api/v1/ops/reports/schedules')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({
+        definitionCode: 'fleet_utilisation',
+        cron: '0 7 * * 1', // weekly, Monday 07:00 UTC
+        recipients: ['dispatch-test@example.test'],
+      })
+      .expect(201);
+    const scheduleId = created.body.id as string;
+
+    // freshly created — the next Monday 07:00 hasn't arrived yet, so "now" is a no-op
+    const notYet = await reportService.dispatchDueSchedules(new Date());
+    expect(notYet.dispatched).not.toContain(scheduleId);
+
+    // advance at least a full week out — comfortably past a Monday 07:00 regardless of today
+    const future = new Date();
+    future.setUTCDate(future.getUTCDate() + 8);
+    const result = await reportService.dispatchDueSchedules(future);
+    expect(result.dispatched).toContain(scheduleId);
+
+    // it delivered for real — same `notification` row a manual "Send now" produces
+    type Msg = { event: string; recipient: string; deliveryState: string };
+    let delivered: Msg | undefined;
+    for (let i = 0; i < 20 && !delivered; i++) {
+      const mail = await request(server).get('/api/v1/dev/mail?limit=100').expect(200);
+      delivered = (mail.body.messages as Msg[]).find(
+        (m) => m.event === 'admin.report.delivered' && m.recipient === 'dispatch-test@example.test',
+      );
+      if (!delivered) await new Promise((res) => setTimeout(res, 150));
+    }
+    expect(delivered?.deliveryState).toBe('sent');
+
+    // `lastRunAt` records real wall-clock send time, not the synthetic `future` used above to
+    // simulate the cron becoming due — so a tick at the real "now" right afterward is correctly
+    // a no-op (the next Monday 07:00 after a send made moments ago is days away).
+    const again = await reportService.dispatchDueSchedules(new Date());
+    expect(again.dispatched).not.toContain(scheduleId);
   });
 
   it('TEST-ADM-005 the data-quality panel runs its referential-integrity checks; agents are refused', async () => {

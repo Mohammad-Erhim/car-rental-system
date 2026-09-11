@@ -19,7 +19,7 @@ import { ReportService } from './report.service';
 const zRun = z.object({ params: z.record(z.unknown()).optional() });
 const zSchedule = z.object({
   definitionCode: z.string().max(60),
-  cron: z.string().max(120),
+  cron: z.string().min(1).max(120),
   params: z.record(z.unknown()).optional(),
   recipients: z.array(z.string().email()).min(1).max(20),
 });
