@@ -223,28 +223,42 @@ export interface AuditRow {
   id: string;
   occurredAt: string;
   actor: string;
+  actorId: string | null;
   action: string;
   targetType: string | null;
   targetId: string | null;
   outcome: string;
   reason: string | null;
+  surface: string | null;
   before: Record<string, unknown> | null;
   after: Record<string, unknown> | null;
 }
+export interface AuditLogResponse {
+  entries: AuditRow[];
+  total: number;
+}
 
-export function useAuditLog(filter: {
+export interface AuditLogQuery {
   action?: string;
   targetType?: string;
+  targetId?: string;
+  actorId?: string;
+  outcome?: string;
+  surface?: string;
   from?: string;
   to?: string;
-}) {
+  limit?: number;
+  offset?: number;
+}
+
+export function useAuditLog(filter: AuditLogQuery) {
   const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(filter)) if (v) qs.set(k, v);
+  for (const [k, v] of Object.entries(filter)) if (v) qs.set(k, String(v));
   return useQuery({
     queryKey: ['ops', 'audit', filter],
     placeholderData: keepPreviousData,
     queryFn: ({ signal }) =>
-      apiFetch<AuditRow[]>(`/ops/audit${qs.toString() ? `?${qs}` : ''}`, { signal }),
+      apiFetch<AuditLogResponse>(`/ops/audit${qs.toString() ? `?${qs}` : ''}`, { signal }),
   });
 }
 
