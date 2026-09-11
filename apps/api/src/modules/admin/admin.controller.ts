@@ -28,7 +28,7 @@ export class AdminController {
   constructor(private readonly staff: StaffService) {}
 
   @Get('roles')
-  @Permissions('staff.manage', 'config.read')
+  @Permissions('staff.manage')
   @ApiOperation({ operationId: 'admin_listRoles', summary: 'Roles + permission action catalogue' })
   listRoles() {
     return this.staff.listRoles();
