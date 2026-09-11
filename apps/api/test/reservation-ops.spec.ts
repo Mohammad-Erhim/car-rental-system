@@ -92,6 +92,29 @@ describe('reservation operations', () => {
     expect(cancels).toHaveLength(1); // exactly one event
   });
 
+  it('a staff-initiated cancel notifies the customer, not the staff member who clicked cancel', async () => {
+    const r = await bookEconomyAt(server, customerToken, 41);
+    await request(server)
+      .post(`/api/v1/reservations/${r.reference}/cancel`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ reasonCode: 'goodwill' })
+      .expect(201);
+
+    // the cancellation email is sent fire-and-forget (never blocks the cancel response) — poll
+    // briefly rather than race it
+    type Msg = { event: string; sourceId: string | null; recipient: string };
+    let sent: Msg | undefined;
+    for (let i = 0; i < 20 && !sent; i++) {
+      const mail = await request(server).get('/api/v1/dev/mail?limit=100').expect(200);
+      sent = (mail.body.messages as Msg[]).find(
+        (m) => m.event === 'reservation_cancelled' && m.sourceId === r.reference,
+      );
+      if (!sent) await new Promise((res) => setTimeout(res, 150));
+    }
+    // the driver's email on the booking — never the acting admin's account id
+    expect(sent?.recipient).toBe('ops@example.test');
+  });
+
   it('rejects a cancel reason that is not an active cancel_reason value', async () => {
     const r = await bookEconomyAt(server, customerToken, 40);
     const bad = await request(server)

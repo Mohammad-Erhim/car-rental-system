@@ -12,7 +12,8 @@ import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { hold } from '../../database/schema/booking';
 import { customer } from '../../database/schema/customer';
-import { organization } from '../../database/schema/org';
+import { account } from '../../database/schema/iam';
+import { location, organization } from '../../database/schema/org';
 import {
   consentSnapshot,
   reservation,
@@ -366,11 +367,43 @@ export class BookingService {
       const to = input.drivers.find(
         (d) => (d.role ?? 'primary_renter') === 'primary_renter',
       )?.email;
+      // FR-ADM-011 audience — resolve every audience the event rule could be configured for, so
+      // whichever one is actually selected has a real recipient instead of always going to the
+      // primary renter regardless of what ops configured.
+      let accountEmail: string | undefined;
+      if (input.actor?.kind === 'customer') {
+        const [acc] = await this.db
+          .select({ email: account.email })
+          .from(account)
+          .where(eq(account.id, input.actor.accountId))
+          .limit(1);
+        accountEmail = acc?.email;
+      }
+      const [pickupLocation] = await this.db
+        .select({ contact: location.contact })
+        .from(location)
+        .where(eq(location.code, quote.pickupLocationCode))
+        .limit(1);
+      const opsEmail = pickupLocation?.contact?.email;
+      const allDrivers = input.drivers
+        .filter((d): d is typeof d & { email: string } => !!d.email)
+        .map((d) => ({ email: d.email }));
+
       await this.notify.send({
         event: 'reservation_confirmed',
         channel: 'email',
-        recipient: to ?? input.actor?.accountId ?? 'unknown',
+        // the accountId fallback here was never a real email — an unresolvable primary-renter
+        // address now falls back to the booking account's own email, not its UUID.
+        recipient: to ?? accountEmail ?? 'unknown',
         recipientRef: input.actor?.accountId,
+        audience: {
+          primary_renter: to ? { email: to } : undefined,
+          account_holder: accountEmail
+            ? { email: accountEmail, ref: input.actor?.accountId }
+            : undefined,
+          all_drivers: allDrivers.length ? allDrivers : undefined,
+          ops: opsEmail ? { email: opsEmail } : undefined,
+        },
         localeCode: input.actor?.localeCode ?? 'en',
         sourceType: 'reservation',
         sourceId: reference,

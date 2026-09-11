@@ -26,7 +26,10 @@ describe('notification event rules (FR-ADM-011)', () => {
   let customer: string;
   let dayCursor = 40;
 
-  const book = async (token: string = customer) => {
+  const book = async (
+    token: string = customer,
+    extraDrivers: Array<{ fullName: string; email: string; licenceNumber: string }> = [],
+  ) => {
     const day = (dayCursor += 3);
     const quote = await request(server)
       .post('/api/v1/discovery/quote')
@@ -50,6 +53,7 @@ describe('notification event rules (FR-ADM-011)', () => {
             email: 'nora@example.test',
             licenceNumber: 'D-NR-1',
           },
+          ...extraDrivers.map((d) => ({ role: 'additional', ...d })),
         ],
         acceptTerms: true,
         paymentToken: 'tok_visa_ok',
@@ -65,11 +69,22 @@ describe('notification event rules (FR-ADM-011)', () => {
     subject: string | null;
     localeCode: string;
     templateKey: string | null;
+    recipient: string;
+    sourceId: string | null;
   };
 
   const latestConfirmation = async () => {
     const mail = await request(server).get('/api/v1/dev/mail?limit=100').expect(200);
     return (mail.body.messages as Message[]).find((m) => m.event === EVENT);
+  };
+
+  /** Every message this specific reservation's confirm() produced — for audience-routing tests
+   *  where more than one notification row (e.g. all_drivers) can come out of a single booking. */
+  const confirmationsFor = async (reference: string) => {
+    const mail = await request(server).get('/api/v1/dev/mail?limit=100').expect(200);
+    return (mail.body.messages as Message[]).filter(
+      (m) => m.event === EVENT && m.sourceId === reference,
+    );
   };
 
   /** Register + verify a fresh customer pinned to `localeCode`; returns their access token. */
@@ -285,5 +300,55 @@ describe('notification event rules (FR-ADM-011)', () => {
     expect(sent?.templateKey).toBe(EVENT);
     expect(sent?.subject).toContain('réservation');
     expect(sent?.subject).not.toContain('booking');
+  });
+
+  it('audience "all_drivers" sends the confirmation to every driver, not just the primary renter (FR-ADM-011)', async () => {
+    await request(server)
+      .post('/api/v1/ops/notification-rules')
+      .set('Authorization', `Bearer ${admin}`)
+      .send({ event: EVENT, channel: 'email', audience: 'all_drivers' })
+      .expect(201);
+
+    const res = await book(customer, [
+      { fullName: 'Second Driver', email: 'second-driver@example.test', licenceNumber: 'D-SD-1' },
+    ]);
+    const messages = await confirmationsFor(res.body.reference);
+    expect(messages.map((m) => m.recipient).sort()).toEqual(
+      ['nora@example.test', 'second-driver@example.test'].sort(),
+    );
+  });
+
+  it('audience "account_holder" sends to the signed-in customer\'s account, not the driver on the form', async () => {
+    await request(server)
+      .post('/api/v1/ops/notification-rules')
+      .set('Authorization', `Bearer ${admin}`)
+      .send({ event: EVENT, channel: 'email', audience: 'account_holder' })
+      .expect(201);
+
+    await book(); // the primary_renter driver's email ('nora@…') differs from the account's
+    const sent = await latestConfirmation();
+    expect(sent?.recipient).toBe('test-customer@example.test');
+  });
+
+  it('audience "ops" routes to the pickup location\'s contact email', async () => {
+    await request(server)
+      .post('/api/v1/ops/locations')
+      .set('Authorization', `Bearer ${admin}`)
+      .send({
+        code: 'TST1',
+        name: 'Test Location 1 (24/7)',
+        timezone: 'America/New_York',
+        contact: { email: 'ops-tst1@example.test' },
+      })
+      .expect(201);
+    await request(server)
+      .post('/api/v1/ops/notification-rules')
+      .set('Authorization', `Bearer ${admin}`)
+      .send({ event: EVENT, channel: 'email', audience: 'ops' })
+      .expect(201);
+
+    await book();
+    const sent = await latestConfirmation();
+    expect(sent?.recipient).toBe('ops-tst1@example.test');
   });
 });
