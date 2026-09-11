@@ -104,14 +104,21 @@ describe('migrations (empty -> current)', () => {
     run();
     const h = createDb(MIG_URL, { max: 1 });
     try {
-      const before = await h.db.execute<{ n: string }>(
-        sql`select (select count(*) from lookup_value) + (select count(*) from lookup_type) + (select count(*) from locale) + (select count(*) from permission_action) as n`,
-      );
+      // `role` included deliberately (SRS-DAT-002-ish regression guard): a plain
+      // UNIQUE(organization_id, code) never actually caught a second `(NULL, code)` row — SQL
+      // treats NULL <> NULL — so re-seeding a database that already had roles silently doubled
+      // every system role instead of updating it in place (caught live in the ops roles list,
+      // not by this test, since `role` wasn't part of the aggregate it already checked).
+      const countQuery = sql`select (select count(*) from lookup_value) + (select count(*) from lookup_type) + (select count(*) from locale) + (select count(*) from permission_action) + (select count(*) from role) as n`;
+      const before = await h.db.execute<{ n: string }>(countQuery);
       run();
-      const after = await h.db.execute<{ n: string }>(
-        sql`select (select count(*) from lookup_value) + (select count(*) from lookup_type) + (select count(*) from locale) + (select count(*) from permission_action) as n`,
-      );
+      const after = await h.db.execute<{ n: string }>(countQuery);
       expect(after[0]?.n).toBe(before[0]?.n);
+
+      const roleCounts = await h.db.execute<{ code: string; n: string }>(
+        sql`select code, count(*)::text as n from role group by code having count(*) > 1`,
+      );
+      expect(roleCounts).toEqual([]);
     } finally {
       await h.close();
     }

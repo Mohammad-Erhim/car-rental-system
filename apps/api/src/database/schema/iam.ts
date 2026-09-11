@@ -7,6 +7,7 @@ import {
   pgTable,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
@@ -113,7 +114,16 @@ export const role = pgTable(
       .notNull()
       .default(sql`'[]'::jsonb`),
   },
-  (t) => ({ codeUnq: uniqueIndex('role_org_code_unq').on(t.organizationId, t.code) }),
+  (t) => ({
+    // `NULLS NOT DISTINCT`, not a plain unique index — every system role has organizationId
+    // NULL, and plain SQL uniqueness treats NULL <> NULL, so a bare UNIQUE(organization_id, code)
+    // silently lets the seed script insert a second `(NULL, 'auditor')` row on every re-run
+    // instead of updating the first (caught live: the ops roles list showed every system role
+    // twice after re-seeding for an unrelated permission). This makes two NULL org ids collide
+    // for uniqueness purposes — exactly the "one code per unscoped system role" intent — while
+    // two *different* real orgs can still each have their own role sharing the same code.
+    codeUnq: unique('role_org_code_unq').on(t.organizationId, t.code).nullsNotDistinct(),
+  }),
 );
 
 /** LOOKUP-PERMISSION-ACTION (system-fixed) — the closed set roles are composed from. */
