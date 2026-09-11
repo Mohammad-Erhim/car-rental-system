@@ -12,6 +12,9 @@ const isoIn = (days: number, hour = 10) => {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() + days);
   d.setUTCHours(hour, 0, 0, 0);
+  // the seeded locations are closed at weekends and this suite books real pickup/return times —
+  // nudge onto the next weekday so the fixture dates don't land on a closed day.
+  while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() + 1);
   return d.toISOString();
 };
 
