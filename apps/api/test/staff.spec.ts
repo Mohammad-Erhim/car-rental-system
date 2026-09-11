@@ -166,6 +166,42 @@ describe('staff & roles admin', () => {
     ).toBe('deactivated');
   });
 
+  it('a role change moves the approval limit with it, not just the badge', async () => {
+    const invited = await request(server)
+      .post('/api/v1/admin/staff/invite')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        email: 'staff-approval-limit-test@example.test',
+        fullName: 'Approval Limit Test',
+        roleCodes: ['rental_agent'],
+      })
+      .expect(201);
+    const accountId = invited.body.accountId as string;
+
+    const find = async () => {
+      const list = await request(server)
+        .get('/api/v1/admin/staff')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      return list.body.find((s: { accountId: string }) => s.accountId === accountId);
+    };
+    expect((await find()).approvalLimitMinor).toBe(20_000);
+
+    await request(server)
+      .post(`/api/v1/admin/staff/${accountId}/access`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ roleCodes: ['manager'] })
+      .expect(201);
+    expect((await find()).approvalLimitMinor).toBe(500_000);
+
+    await request(server)
+      .post(`/api/v1/admin/staff/${accountId}/access`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ roleCodes: ['rental_agent'] })
+      .expect(201);
+    expect((await find()).approvalLimitMinor).toBe(20_000);
+  });
+
   it('an administrator cannot demote themselves out of being the last active administrator', async () => {
     const res = await request(server)
       .post(`/api/v1/admin/staff/${adminAccountId}/access`)
@@ -181,6 +217,53 @@ describe('staff & roles admin', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
     const self = staffList.body.find((s: { accountId: string }) => s.accountId === adminAccountId);
+    expect(self.roleCodes).toContain('administrator');
+  });
+
+  it('the same last-admin guard blocks self-suspend and self-deactivate, not just role removal', async () => {
+    for (const status of ['suspended', 'deactivated'] as const) {
+      const res = await request(server)
+        .post(`/api/v1/admin/staff/${adminAccountId}/access`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ status })
+        .expect(422);
+      expect(res.body.code).toBe('business_rule_violation');
+      expect(res.body.params?.reason).toBe('last_admin');
+    }
+
+    // still active afterwards — both attempts were no-ops
+    const staffList = await request(server)
+      .get('/api/v1/admin/staff')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const self = staffList.body.find((s: { accountId: string }) => s.accountId === adminAccountId);
+    expect(self.status).toBe('active');
+  });
+
+  it('the guard also blocks a THIRD PARTY from suspending or demoting the last administrator — not just self-targeting', async () => {
+    // test-manager has staff.manage (role 'manager' = ALL actions) but is not themself an
+    // administrator, so nothing stops *them* personally from hitting zero admins — the guard has
+    // to key off the target's state, not who is making the request.
+    let res = await request(server)
+      .post(`/api/v1/admin/staff/${adminAccountId}/access`)
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({ status: 'deactivated' })
+      .expect(422);
+    expect(res.body.params?.reason).toBe('last_admin');
+
+    res = await request(server)
+      .post(`/api/v1/admin/staff/${adminAccountId}/access`)
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({ roleCodes: ['manager'] })
+      .expect(422);
+    expect(res.body.params?.reason).toBe('last_admin');
+
+    const staffList = await request(server)
+      .get('/api/v1/admin/staff')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const self = staffList.body.find((s: { accountId: string }) => s.accountId === adminAccountId);
+    expect(self.status).toBe('active');
     expect(self.roleCodes).toContain('administrator');
   });
 
