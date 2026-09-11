@@ -625,6 +625,22 @@ export class ReportService {
    * staff-roles-page.tsx's use of it) — a raw id isn't something an admin would type by hand, but
    * every detail screen in the app already has the id of the record it's showing.
    */
+  /**
+   * Keyset (cursor) pagination, not offset — deliberately, not just "the modern way": an
+   * `OFFSET N` page still costs the database an O(N) walk-and-discard of every row before it,
+   * so a deep page against a large, loosely-filtered append-only log gets slower the further in
+   * you go. A keyset cursor ("give me everything strictly after this exact row") costs the same
+   * as page one, at any depth, because it's answered by the `(action, occurred_at)` /
+   * `(target_type, target_id)` / `(actor_type, actor_id)` indexes directly rather than a scan.
+   * `total` is still a plain COUNT (over the filter, never the cursor) — page 1 onward all share
+   * the same honest total; only the row-fetch itself is keyset-based.
+   *
+   * `(occurred_at, seq)` — not `occurred_at` alone — is the cursor: `occurred_at` isn't unique
+   * (several events can share a timestamp), so an `occurred_at`-only cursor could skip or repeat
+   * rows across a page boundary. `seq` (the table's own bigserial PK, strictly insertion-ordered)
+   * makes the pair unique and gives Postgres's native row-comparison (`(a, b) < (x, y)`) an exact,
+   * stable ordering to resume from.
+   */
   async auditLog(query: {
     action?: string;
     targetType?: string;
@@ -635,7 +651,7 @@ export class ReportService {
     from?: string;
     to?: string;
     limit: number;
-    offset: number;
+    cursor?: string;
   }) {
     const filters = [];
     if (query.action) filters.push(eq(auditEvent.action, query.action));
@@ -652,9 +668,20 @@ export class ReportService {
       .select({ n: sql<number>`count(*)::int` })
       .from(auditEvent)
       .where(where);
+
+    const cursor = query.cursor ? decodeAuditCursor(query.cursor) : null;
+    const pageWhere = cursor
+      ? and(
+          where,
+          sql`(${auditEvent.occurredAt}, ${auditEvent.seq}) < (${cursor.occurredAt}, ${cursor.seq})`,
+        )
+      : where;
+
+    // fetch one extra row — cheaply tells us whether a next page exists without a second COUNT
     const rows = await this.db
       .select({
         id: auditEvent.id,
+        seq: auditEvent.seq,
         occurredAt: auditEvent.occurredAt,
         actor: sql<string>`coalesce(${auditEvent.actorLabel}, ${auditEvent.actorType})`,
         actorId: auditEvent.actorId,
@@ -668,14 +695,22 @@ export class ReportService {
         after: auditEvent.afterSafe,
       })
       .from(auditEvent)
-      .where(where)
-      .orderBy(desc(auditEvent.occurredAt))
-      .limit(query.limit)
-      .offset(query.offset);
+      .where(pageWhere)
+      .orderBy(desc(auditEvent.occurredAt), desc(auditEvent.seq))
+      .limit(query.limit + 1);
+
+    const hasMore = rows.length > query.limit;
+    const page = hasMore ? rows.slice(0, query.limit) : rows;
+    const last = page[page.length - 1];
+    const nextCursor = hasMore && last ? encodeAuditCursor(last.occurredAt, last.seq) : null;
 
     return {
-      entries: rows.map((r) => ({ ...r, occurredAt: new Date(r.occurredAt).toISOString() })),
+      entries: page.map(({ seq: _seq, ...r }) => ({
+        ...r,
+        occurredAt: new Date(r.occurredAt).toISOString(),
+      })),
       total: countRow?.n ?? 0,
+      nextCursor,
     };
   }
 
@@ -720,4 +755,24 @@ export function nextFireAfter(cron: string, baseline: string | Date): Date | nul
 export function isScheduleDue(cron: string, baseline: string | Date, now: Date): boolean {
   const next = nextFireAfter(cron, baseline);
   return next !== null && next.getTime() <= now.getTime();
+}
+
+/** The audit log's keyset cursor: an opaque token encoding the `(occurred_at, seq)` of the last
+ *  row a page ended on. Base64url so it's URL-safe with no extra escaping; deliberately opaque
+ *  (not a bare `occurredAt|seq` string) so callers treat it as a token, never construct or parse
+ *  one themselves. Exported standalone — no DB — for direct unit coverage of the one part that
+ *  would silently corrupt pagination if it were ever wrong: round-tripping exactly. */
+export function encodeAuditCursor(occurredAt: string, seq: number): string {
+  return Buffer.from(`${occurredAt}|${seq}`, 'utf8').toString('base64url');
+}
+
+export function decodeAuditCursor(cursor: string): { occurredAt: string; seq: number } | null {
+  try {
+    const [occurredAt, seqStr] = Buffer.from(cursor, 'base64url').toString('utf8').split('|');
+    const seq = Number(seqStr);
+    if (!occurredAt || !Number.isFinite(seq)) return null;
+    return { occurredAt, seq };
+  } catch {
+    return null;
+  }
 }

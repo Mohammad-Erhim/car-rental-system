@@ -566,30 +566,56 @@ describe('STAGE-006 administration & reporting', () => {
     expect(audit.body.total).toBeGreaterThanOrEqual(audit.body.entries.length);
   });
 
-  it('TEST-ADM-007 the audit log paginates correctly and total reflects the full matching set, not just the page', async () => {
+  it('TEST-ADM-007 the audit log paginates by keyset cursor — no overlap, no gaps, honest total at any depth', async () => {
     const full = await request(server)
       .get('/api/v1/ops/audit?targetType=config_version&limit=200')
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
     const total = full.body.total as number;
     expect(total).toBeGreaterThan(2); // this suite alone generates several config_version events
+    expect(full.body.nextCursor).toBeNull(); // asked for up to 200, fewer than that exist
 
     const page1 = await request(server)
-      .get('/api/v1/ops/audit?targetType=config_version&limit=2&offset=0')
+      .get('/api/v1/ops/audit?targetType=config_version&limit=2')
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
     expect(page1.body.entries).toHaveLength(2);
     expect(page1.body.total).toBe(total);
+    expect(typeof page1.body.nextCursor).toBe('string');
 
     const page2 = await request(server)
-      .get('/api/v1/ops/audit?targetType=config_version&limit=2&offset=2')
+      .get(`/api/v1/ops/audit?targetType=config_version&limit=2&cursor=${page1.body.nextCursor}`)
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
     expect(page2.body.entries).toHaveLength(2);
     expect(page2.body.total).toBe(total);
-    // no overlap between the two pages
+    // no overlap between the two pages — walking the full set page by page reconstructs it exactly
     const ids1 = new Set(page1.body.entries.map((e: { id: string }) => e.id));
     for (const e of page2.body.entries as Array<{ id: string }>) expect(ids1.has(e.id)).toBe(false);
+
+    // an unrecognisable cursor degrades to "start over" rather than a crash or a wrong page
+    const garbage = await request(server)
+      .get('/api/v1/ops/audit?targetType=config_version&limit=2&cursor=not-a-real-cursor')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(garbage.body.entries).toEqual(page1.body.entries);
+
+    // walking every page (biggest limit the schema allows) reaches the end — nextCursor eventually null
+    let cursor: string | undefined;
+    let seen = 0;
+    let guard = 0;
+    do {
+      const qs = new URLSearchParams({ targetType: 'config_version', limit: '3' });
+      if (cursor) qs.set('cursor', cursor);
+      const res = await request(server)
+        .get(`/api/v1/ops/audit?${qs}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      seen += res.body.entries.length;
+      cursor = res.body.nextCursor ?? undefined;
+      guard += 1;
+    } while (cursor && guard < 50);
+    expect(seen).toBe(total);
   });
 
   it('TEST-ADM-008 the audit log filters by targetId, and a staff access change is findable by the same account id as its invite', async () => {

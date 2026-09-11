@@ -236,6 +236,9 @@ export interface AuditRow {
 export interface AuditLogResponse {
   entries: AuditRow[];
   total: number;
+  /** Opaque keyset cursor for the next page, or `null` if this was the last one. Pass back
+   *  verbatim as `cursor` — never construct or parse it. */
+  nextCursor: string | null;
 }
 
 export interface AuditLogQuery {
@@ -248,7 +251,10 @@ export interface AuditLogQuery {
   from?: string;
   to?: string;
   limit?: number;
-  offset?: number;
+  /** Keyset pagination, not offset — see `report.service.ts#auditLog` for why: an offset page
+   *  costs the database an O(N) walk past every row before it, which gets slower the deeper you
+   *  page into a large, loosely-filtered log. A cursor costs the same as page one at any depth. */
+  cursor?: string;
 }
 
 export function useAuditLog(filter: AuditLogQuery) {
@@ -290,20 +296,20 @@ const AUDIT_EXPORT_CAP = 20_000; // sanity cap so a very wide filter can't hang 
  *  (never silent) truncation flag if hit. */
 export function useAuditLogExport() {
   return useMutation({
-    mutationFn: async (filters: Omit<AuditLogQuery, 'limit' | 'offset'>) => {
+    mutationFn: async (filters: Omit<AuditLogQuery, 'limit' | 'cursor'>) => {
       const entries: AuditRow[] = [];
-      let offset = 0;
+      let cursor: string | undefined;
       let total = Infinity;
-      while (offset < total && entries.length < AUDIT_EXPORT_CAP) {
+      while (entries.length < AUDIT_EXPORT_CAP) {
         const qs = new URLSearchParams();
         for (const [k, v] of Object.entries(filters)) if (v) qs.set(k, String(v));
         qs.set('limit', String(AUDIT_EXPORT_PAGE));
-        qs.set('offset', String(offset));
+        if (cursor) qs.set('cursor', cursor);
         const page = await apiFetch<AuditLogResponse>(`/ops/audit?${qs}`);
         entries.push(...page.entries);
         total = page.total;
-        offset += AUDIT_EXPORT_PAGE;
-        if (!page.entries.length) break;
+        if (!page.nextCursor) break;
+        cursor = page.nextCursor;
       }
       return { entries, truncated: entries.length < total };
     },
