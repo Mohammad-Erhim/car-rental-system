@@ -134,6 +134,16 @@ describe('notification event rules (FR-ADM-011)', () => {
       .expect(422);
   });
 
+  it('rejects a senderIdentity that is not a bare mail-local-part (defense against header injection)', async () => {
+    for (const bad of ['book ings', 'a@b', 'x\r\nBcc: evil@example.test', '.leading-dot']) {
+      await request(server)
+        .post('/api/v1/ops/notification-rules')
+        .set('Authorization', `Bearer ${admin}`)
+        .send({ event: EVENT, senderIdentity: bad })
+        .expect(422);
+    }
+  });
+
   it('a disabled rule suppresses the send; re-enabling + a sender identity is applied', async () => {
     await request(server)
       .post('/api/v1/ops/notification-rules')
@@ -160,6 +170,63 @@ describe('notification event rules (FR-ADM-011)', () => {
     const sent = await latestConfirmation();
     expect(sent?.deliveryState).not.toBe('suppressed');
     expect(sent?.sender).toBe('bookings');
+  });
+
+  it('cannot turn a rule back on while an active locale has no ready, published template (FR-ADM-011)', async () => {
+    // a language active for this run but never given a reservation_confirmed template
+    await request(server)
+      .post('/api/v1/config/locales')
+      .set('Authorization', `Bearer ${admin}`)
+      .send({ code: 'nb', nativeName: 'Norsk bokmål', englishName: 'Norwegian', direction: 'ltr' })
+      .expect(201);
+    await request(server)
+      .post('/api/v1/config/locales/nb/activate')
+      .set('Authorization', `Bearer ${admin}`)
+      .expect(201);
+
+    // off -> on is the transition the gate checks; off -> off / already-on edits are unaffected
+    await request(server)
+      .post('/api/v1/ops/notification-rules')
+      .set('Authorization', `Bearer ${admin}`)
+      .send({ event: EVENT, channel: 'email', enabled: false })
+      .expect(201);
+
+    const blocked = await request(server)
+      .post('/api/v1/ops/notification-rules')
+      .set('Authorization', `Bearer ${admin}`)
+      .send({ event: EVENT, channel: 'email', enabled: true })
+      .expect(422);
+    expect(blocked.body.params?.reason).toBe('template_coverage_incomplete');
+    expect(blocked.body.params?.locales).toBe('nb');
+
+    // publish the missing locale's template — the same transition now succeeds
+    const draft = await request(server)
+      .post('/api/v1/ops/templates/draft')
+      .set('Authorization', `Bearer ${admin}`)
+      .send({
+        key: EVENT,
+        channel: 'email',
+        localeCode: 'nb',
+        subject: 'Bestilling {{reference}} er bekreftet',
+        bodyTemplate: 'Bestilling {{reference}} er bekreftet. Totalt belastet: {{total}}.',
+        variables: [{ name: 'reference' }, { name: 'total' }],
+      })
+      .expect(201);
+    await request(server)
+      .post(`/api/v1/ops/templates/${draft.body.id}/submit`)
+      .set('Authorization', `Bearer ${admin}`)
+      .expect(201);
+    await request(server)
+      .post(`/api/v1/ops/templates/${draft.body.id}/publish`)
+      .set('Authorization', `Bearer ${admin}`)
+      .expect(201);
+
+    await request(server)
+      .post('/api/v1/ops/notification-rules')
+      .set('Authorization', `Bearer ${admin}`)
+      .send({ event: EVENT, channel: 'email', enabled: true })
+      .expect(201)
+      .expect((r) => expect(r.body.enabled).toBe(true));
   });
 
   it('escalateAfterAttempts beyond maxAttempts is rejected — attempts stop first, it could never fire', async () => {
