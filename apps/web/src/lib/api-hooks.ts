@@ -12,7 +12,6 @@ import type {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiFetch } from './api.js';
-import { useWorkflowError } from './use-workflow-error.js';
 
 // ---- customer profile ----
 
@@ -116,9 +115,7 @@ export function useTranslationList(namespace: string, locale: string) {
 
 export function useUpsertTranslation() {
   const qc = useQueryClient();
-  const onError = useWorkflowError();
   return useMutation({
-    onError,
     mutationFn: (body: {
       namespace: string;
       key: string;
@@ -126,21 +123,25 @@ export function useUpsertTranslation() {
       value: string;
       status?: 'draft' | 'in_review' | 'published';
     }) => apiFetch('/config/translations', { method: 'POST', body }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['translations'] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['translations'] });
+      void qc.invalidateQueries({ queryKey: ['meta', 'translations'] });
+    },
   });
 }
 
 export function usePublishTranslations() {
   const qc = useQueryClient();
-  const onError = useWorkflowError();
   return useMutation({
-    onError,
     mutationFn: (input: { namespace: string; locale: string }) =>
-      apiFetch(
+      apiFetch<{ published: number; entries: TranslationEntry[] }>(
         `/config/translations/${encodeURIComponent(input.namespace)}/${encodeURIComponent(input.locale)}/publish`,
         { method: 'POST' },
       ),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['translations'] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['translations'] });
+      void qc.invalidateQueries({ queryKey: ['meta', 'translations'] });
+    },
   });
 }
 

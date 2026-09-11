@@ -120,6 +120,13 @@
       "when": 1789074562420,
       "tag": "0016_chemical_reaper",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789080860465,
+      "tag": "0017_new_william_stryker",
+      "breakpoints": true
     }
   ]
 }

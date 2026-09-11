@@ -1,6 +1,7 @@
 import { LOCALES, DEFAULT_LOCALE, NAMESPACED_RESOURCES } from '@carrental/i18n';
 import { sql } from 'drizzle-orm';
 
+import { revOf } from '../../common/i18n-source-rev';
 import type { Database } from '../drizzle';
 import { reportDefinition } from '../schema/admin';
 import { locale, translation } from '../schema/i18n';
@@ -472,9 +473,14 @@ export async function seedSystem(db: Database): Promise<void> {
   }
 
   // --- base UI translations (from @carrental/i18n static bundles) ---
+  // Every bundled string is seeded as already published: `value` and `publishedValue` both set, and
+  // `sourceRevision` stamped with the hash of the *English* source so the Translations screen shows
+  // the catalogue as up to date (not a wall of "outdated" badges) straight after a seed.
+  const enBundle = NAMESPACED_RESOURCES.en ?? {};
   for (const [loc, namespaces] of Object.entries(NAMESPACED_RESOURCES)) {
     for (const [ns, entries] of Object.entries(namespaces)) {
       for (const [key, value] of Object.entries(entries)) {
+        const rev = revOf((enBundle as Record<string, Record<string, string>>)[ns]?.[key] ?? value);
         await db
           .insert(translation)
           .values({
@@ -482,12 +488,19 @@ export async function seedSystem(db: Database): Promise<void> {
             key,
             localeCode: loc,
             value,
+            publishedValue: value,
             status: 'published',
-            sourceRevision: 'seed-1.0',
+            sourceRevision: rev,
           })
           .onConflictDoUpdate({
             target: [translation.namespace, translation.key, translation.localeCode],
-            set: { value, status: 'published', updatedAt: sql`now()` },
+            set: {
+              value,
+              publishedValue: value,
+              status: 'published',
+              sourceRevision: rev,
+              updatedAt: sql`now()`,
+            },
           });
       }
     }

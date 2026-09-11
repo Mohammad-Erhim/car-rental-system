@@ -56,9 +56,13 @@ export const translation = pgTable(
     namespace: text('namespace').notNull(), // e.g. 'common', 'checkout', 'lookup:cancel_reason'
     key: text('key').notNull(), // stable translation key, language-neutral
     localeCode: text('locale_code').notNull(),
+    /** the working value — what the draft/in-review editor shows and edits */
     value: text('value').notNull(),
+    /** the value currently live on the site; frozen while an edit is in review so a draft never
+     *  un-publishes a string. Null until this key has been published at least once. */
+    publishedValue: text('published_value'),
     status: text('status').notNull().default('published'), // draft|in_review|published|retired
-    /** revision of the source string this translation was made against (stale detection) */
+    /** hash of the source string this translation was made against (stale detection) */
     sourceRevision: text('source_revision'),
     reviewedBy: uuid('reviewed_by'),
     reviewedAt: timestamp('reviewed_at', { withTimezone: true, mode: 'string' }),
