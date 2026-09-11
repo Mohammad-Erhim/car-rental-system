@@ -1,4 +1,5 @@
 import { useAuth, useFormErrors } from '@carrental/client/react';
+import { SUPPORTED_LOCALE_CODES } from '@carrental/i18n';
 import { useI18n } from '@carrental/i18n/react';
 import {
   Alert,
@@ -283,7 +284,7 @@ export function LanguagesPage() {
                             >
                               {t('ops.languages.makeDefault')}
                             </Button>
-                            {!l.isActive && !['en', 'fr', 'ar'].includes(l.code) ? (
+                            {!l.isActive && !SUPPORTED_LOCALE_CODES.includes(l.code) ? (
                               <Button
                                 size="sm"
                                 variant="ghost"

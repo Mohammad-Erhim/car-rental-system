@@ -1,21 +1,21 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { ACTIVE_LOCALES, DEFAULT_LOCALE, LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE } from './lib/i18n';
+import { getRuntimeLocales, LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE } from './lib/i18n';
 
 const PUBLIC_FILE = /\.(.*)$/;
 
-function negotiate(req: NextRequest): string {
+function negotiate(req: NextRequest, codes: string[], defaultLocale: string): string {
   const cookie = req.cookies.get(LOCALE_COOKIE)?.value;
-  if (cookie && ACTIVE_LOCALES.includes(cookie)) return cookie;
+  if (cookie && codes.includes(cookie)) return cookie;
   const header = req.headers.get('accept-language') ?? '';
   for (const part of header.split(',')) {
     const code = part.split(';')[0]?.trim().split('-')[0]?.toLowerCase();
-    if (code && ACTIVE_LOCALES.includes(code)) return code;
+    if (code && codes.includes(code)) return code;
   }
-  return DEFAULT_LOCALE;
+  return defaultLocale;
 }
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // let API/health rewrites, the /ops dashboard proxy, next internals, and static files through
@@ -31,9 +31,12 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  const pathLocale = ACTIVE_LOCALES.find(
-    (l) => pathname === `/${l}` || pathname.startsWith(`/${l}/`),
-  );
+  // the live enabled-locale set (DEC-024) — a language added/activated from the ops dashboard
+  // is routable here within its short cache TTL, no site rebuild
+  const runtime = await getRuntimeLocales();
+  const codes = runtime.locales.map((l) => l.code);
+
+  const pathLocale = codes.find((l) => pathname === `/${l}` || pathname.startsWith(`/${l}/`));
 
   // A path that already carries a locale always wins — never redirect it. Just keep the cookie
   // in step so a later locale-less visit (`/`, a bare bookmark) resolves to the same language.
@@ -45,7 +48,7 @@ export function middleware(req: NextRequest) {
     return res;
   }
 
-  const locale = negotiate(req);
+  const locale = negotiate(req, codes, runtime.defaultLocale);
   const url = req.nextUrl.clone();
   url.pathname = `/${locale}${pathname === '/' ? '' : pathname}`;
   const res = NextResponse.redirect(url);

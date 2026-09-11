@@ -1,6 +1,6 @@
 import { fallbackChain } from '@carrental/i18n';
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, isNotNull, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core';
 
 import { AppError } from '../../common/app-error';
@@ -164,25 +164,31 @@ export class LookupService {
       )
       .orderBy(asc(lookupValue.sortOrder), asc(lookupValue.code));
 
-    // localized labels — fetch every published locale for this type once, then derive both the
-    // fallback-resolved single label (for consumers) and the full per-locale map (for the editor).
+    // localized labels — read `publishedValue` (the live string, frozen while a later edit is
+    // drafted/in-review on the Translations screen) so an in-progress edit never blanks a label
+    // that consumers depend on. Mirrors `TranslationService.publishedBundle`.
     const chain = fallbackChain(q.locale ?? 'en');
-    const labelRows = await this.db
-      .select()
-      .from(translation)
-      .where(
-        and(eq(translation.namespace, `${NS}:${typeCode}`), eq(translation.status, 'published')),
-      );
+    const labelRows = (
+      await this.db
+        .select()
+        .from(translation)
+        .where(
+          and(
+            eq(translation.namespace, `${NS}:${typeCode}`),
+            isNotNull(translation.publishedValue),
+          ),
+        )
+    ).filter((r): r is typeof r & { publishedValue: string } => r.publishedValue != null);
     const labels = new Map<string, { value: string; locale: string }>();
     for (const loc of [...chain].reverse()) {
       for (const lr of labelRows.filter((r) => r.localeCode === loc)) {
-        labels.set(lr.key, { value: lr.value, locale: loc });
+        labels.set(lr.key, { value: lr.publishedValue, locale: loc });
       }
     }
     const translationsByCode = new Map<string, Record<string, string>>();
     for (const lr of labelRows) {
       const m = translationsByCode.get(lr.key) ?? {};
-      m[lr.localeCode] = lr.value;
+      m[lr.localeCode] = lr.publishedValue;
       translationsByCode.set(lr.key, m);
     }
 
@@ -542,6 +548,7 @@ export class LookupService {
             sourceRevision: rev,
             reviewedBy: actor.accountId,
             reviewedAt: sql`now()`,
+            version: sql`${translation.version} + 1`,
             updatedAt: sql`now()`,
           },
         });

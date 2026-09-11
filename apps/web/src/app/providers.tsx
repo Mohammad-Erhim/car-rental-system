@@ -50,6 +50,7 @@ function I18nBoundary({ children }: { children: ReactNode }) {
         nativeName: l.nativeName,
         englishName: l.englishName,
         direction: l.direction,
+        fallback: l.fallback,
       })),
     [meta.data],
   );

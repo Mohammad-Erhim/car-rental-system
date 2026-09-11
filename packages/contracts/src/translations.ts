@@ -25,6 +25,10 @@ export const zTranslationEntry = z.object({
   published: z.string().nullable(),
   status: z.enum(['missing', 'draft', 'in_review', 'published']),
   outdated: z.boolean(),
+  /** optimistic-lock token — echo back as `expectedVersion` when saving this key. 0 = no row yet. */
+  version: z.number().int(),
+  /** when this key was last reviewed / published (ISO-8601), null if never */
+  reviewedAt: z.string().nullable(),
 });
 export type TranslationEntry = z.infer<typeof zTranslationEntry>;
 
@@ -35,9 +39,12 @@ export const zPublishTranslationsResponse = z.object({
 export type PublishTranslationsResponse = z.infer<typeof zPublishTranslationsResponse>;
 
 export const zUpsertTranslationRequest = z.object({
-  namespace: z.string().min(1).max(80),
+  namespace: z.string().min(1).max(120),
   key: z.string().min(1).max(200),
   localeCode: z.string().min(2).max(10),
-  value: z.string().max(4000),
+  value: z.string().min(1).max(4000),
   status: z.enum(['draft', 'in_review', 'published']).optional(),
+  /** optimistic-lock guard — the `version` of the row being edited. Omit to force-write. */
+  expectedVersion: z.number().int().nonnegative().optional(),
 });
+export type UpsertTranslationRequest = z.infer<typeof zUpsertTranslationRequest>;

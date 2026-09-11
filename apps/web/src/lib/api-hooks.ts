@@ -122,6 +122,7 @@ export function useUpsertTranslation() {
       localeCode: string;
       value: string;
       status?: 'draft' | 'in_review' | 'published';
+      expectedVersion?: number;
     }) => apiFetch('/config/translations', { method: 'POST', body }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['translations'] });

@@ -1,7 +1,6 @@
 'use client';
 
 import { useAuth } from '@carrental/client/react';
-import { getLocaleDefinition, SUPPORTED_LOCALE_CODES } from '@carrental/i18n';
 import { useI18n } from '@carrental/i18n/react';
 import { Button, ThemeToggle } from '@carrental/ui';
 import { CalendarClock, Car, Globe, LogIn, Luggage, Search, UserRound } from 'lucide-react';
@@ -9,10 +8,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
-import { ACTIVE_LOCALES } from '../lib/i18n';
-
 export function SiteHeader({ locale }: { locale: string }) {
-  const { t, setLocale } = useI18n();
+  const { t, setLocale, locales } = useI18n();
   const router = useRouter();
   const pathname = usePathname() || `/${locale}`;
   const { status } = useAuth();
@@ -39,7 +36,10 @@ export function SiteHeader({ locale }: { locale: string }) {
 
   function switchLocale(next: string) {
     setLocale(next);
-    const rest = pathname.replace(new RegExp(`^/(${ACTIVE_LOCALES.join('|')})`), '');
+    // the live enabled-locale set (DEC-024) — not just the launch three — so a dashboard-added
+    // language strips cleanly from the path too
+    const codes = locales.map((l) => l.code);
+    const rest = pathname.replace(new RegExp(`^/(${codes.join('|')})`), '');
     // replace, not push: the old-locale page must not linger in history where Back (or a
     // reloaded tab) would drop the visitor straight back onto it.
     router.replace(`/${next}${rest || ''}`);
@@ -95,9 +95,9 @@ export function SiteHeader({ locale }: { locale: string }) {
                 className="rounded-md border border-hairline bg-surface py-1 pe-6 ps-2 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                 aria-label={t('lang.switcher.label')}
               >
-                {SUPPORTED_LOCALE_CODES.filter((c) => ACTIVE_LOCALES.includes(c)).map((c) => (
-                  <option key={c} value={c} className="bg-surface text-ink">
-                    {getLocaleDefinition(c).nativeName}
+                {locales.map((l) => (
+                  <option key={l.code} value={l.code} className="bg-surface text-ink">
+                    {l.nativeName}
                   </option>
                 ))}
               </select>

@@ -230,8 +230,8 @@ export function BrandingPage() {
                   value={cfg.density}
                   onChange={(e) => assign('density', e.target.value as BrandConfig['density'])}
                 >
-                  <option value="comfortable">comfortable</option>
-                  <option value="compact">compact</option>
+                  <option value="comfortable">{t('ops.branding.densityComfortable')}</option>
+                  <option value="compact">{t('ops.branding.densityCompact')}</option>
                 </select>
               </Row>
               <Row label={t('ops.branding.font')}>

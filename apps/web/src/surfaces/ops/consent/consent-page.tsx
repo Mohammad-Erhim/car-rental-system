@@ -22,8 +22,9 @@ import {
   Textarea,
 } from '@carrental/ui';
 import { Plus, Trash2 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { useMetaLocales } from '../../../lib/api-hooks.js';
 import {
   useConsentPreview,
   useConsentTransition,
@@ -33,8 +34,9 @@ import {
 } from '../../../lib/consent-hooks.js';
 import { ConfigWorkflowHistory } from '../config-workflow-history.js';
 
-const LOCALES = ['en', 'fr', 'ar'] as const;
-type EditLocale = (typeof LOCALES)[number];
+// Consent text is `Localized` — `{ en, ...anyOtherLocaleCode }` (DEC-024) — so which tabs this
+// editor offers comes from the *runtime* enabled-locale set, not a fixed list.
+type EditLocale = string;
 const selectClass = 'h-9 w-full rounded-md border bg-background px-2 text-sm';
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
@@ -82,6 +84,11 @@ export function ConsentPage() {
   const draftMut = useDraftConsent();
   const preview = useConsentPreview();
   const transition = useConsentTransition();
+  const metaLocales = useMetaLocales();
+  const editLocales = useMemo(
+    () => metaLocales.data?.locales.filter((l) => !l.testOnly).map((l) => l.code) ?? ['en'],
+    [metaLocales.data],
+  );
 
   const [cfg, setCfg] = useState<ConsentConfig>(DEFAULT_CONSENT_CONFIG);
   const [editLocale, setEditLocale] = useState<EditLocale>('en');
@@ -162,7 +169,7 @@ export function ConsentPage() {
                 : t('ops.consent.usingDefault')}
             </Badge>
             <div className="flex gap-1 rounded-md border p-0.5" role="tablist">
-              {LOCALES.map((l) => (
+              {editLocales.map((l) => (
                 <button
                   key={l}
                   type="button"

@@ -12,16 +12,15 @@ import { z } from 'zod';
  */
 
 /* ── localized text ─────────────────────────────────────────────────────────
- * `en` is the source of truth; `fr` / `ar` are optional overrides that fall
- * back to `en` at render time. Single-locale content is just `{ en }`. */
+ * `en` is the source of truth; every other key is an optional override for that
+ * locale code, falling back to `en` at render time (`pickText`). Single-locale
+ * content is just `{ en }`. Not pinned to `fr`/`ar` — a locale added from
+ * /ops/config/languages (DEC-024) is immediately a valid key here with no
+ * contract change, so its content is actually editable/renderable. */
 export function zLocalized(max: number) {
-  return z.object({
-    en: z.string().max(max),
-    fr: z.string().max(max).optional(),
-    ar: z.string().max(max).optional(),
-  });
+  return z.object({ en: z.string().max(max) }).catchall(z.string().max(max));
 }
-export type Localized = { en: string; fr?: string; ar?: string };
+export type Localized = { en: string } & Record<string, string>;
 
 /** Resolve a localized field for a locale, falling back to English. */
 export function pickText(v: Localized | undefined | null, locale: string): string {

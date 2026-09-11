@@ -9,7 +9,7 @@ import { SiteHeader } from '../../components/site-header';
 import { brandingCss, getBranding } from '../../lib/branding';
 import { getConsentConfig } from '../../lib/consent-config';
 import { fontClassName } from '../../lib/fonts';
-import { ACTIVE_LOCALES, getMessages, getT, isSupportedLocale, localeDir } from '../../lib/i18n';
+import { ACTIVE_LOCALES, getMessages, getRuntimeLocales, getT, localeDir } from '../../lib/i18n';
 import { getPagesConfig } from '../../lib/pages-config';
 
 export function generateStaticParams() {
@@ -24,16 +24,19 @@ export default async function LocaleLayout({
   params: { locale: string };
 }) {
   const { locale } = params;
-  if (!isSupportedLocale(locale) || !ACTIVE_LOCALES.includes(locale)) notFound();
+  // the live enabled-locale set (DEC-024) — a language added/activated from the ops dashboard
+  // renders here with no redeploy, instead of 404ing against the build-time three
+  const runtimeLocales = await getRuntimeLocales();
+  if (!runtimeLocales.locales.some((l) => l.code === locale)) notFound();
 
-  const [messages, branding, t, pages, consent] = await Promise.all([
+  const [messages, branding, t, pages, consent, dir] = await Promise.all([
     getMessages(locale),
     getBranding(),
     getT(locale),
     getPagesConfig(),
     getConsentConfig(),
+    localeDir(locale),
   ]);
-  const dir = localeDir(locale);
 
   return (
     <html lang={locale} dir={dir} data-density={branding.config.density} suppressHydrationWarning>
@@ -56,7 +59,13 @@ export default async function LocaleLayout({
           branding.config.font,
         )}`}
       >
-        <Providers locale={locale} messages={messages} branding={branding} consent={consent}>
+        <Providers
+          locale={locale}
+          locales={runtimeLocales}
+          messages={messages}
+          branding={branding}
+          consent={consent}
+        >
           <a href="#main" className="skip-link">
             {t.t('common.skipToContent')}
           </a>

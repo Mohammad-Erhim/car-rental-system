@@ -1,7 +1,6 @@
 'use client';
 
 import { useAuth, useFormErrors } from '@carrental/client/react';
-import { LOCALES, SUPPORTED_LOCALE_CODES } from '@carrental/i18n';
 import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
@@ -19,7 +18,7 @@ import { useProfile, useUpdateProfile } from '../../../../lib/customer-hooks';
 
 /** SCREEN-CUS-012 — profile & preferences (FR-IAM-006). Stale concurrent change → 409 → reload. */
 export default function ProfilePage() {
-  const { t, locale, setLocale } = useI18n();
+  const { t, locale, setLocale, locales } = useI18n();
   const router = useRouter();
   const { actor } = useAuth();
   const { data: profile, isLoading, isError, refetch } = useProfile(!!actor);
@@ -138,9 +137,9 @@ export default function ProfilePage() {
                 value={localeCode}
                 onChange={(e) => setLocaleCode(e.target.value)}
               >
-                {SUPPORTED_LOCALE_CODES.map((code) => (
-                  <option key={code} value={code} className="bg-surface text-ink">
-                    {LOCALES[code]?.nativeName} ({LOCALES[code]?.englishName})
+                {locales.map((l) => (
+                  <option key={l.code} value={l.code} className="bg-surface text-ink">
+                    {l.nativeName} ({l.englishName})
                   </option>
                 ))}
               </select>

@@ -31,6 +31,8 @@ export interface RuntimeLocale {
   nativeName: string;
   englishName: string;
   direction: Direction;
+  /** Fallback chain (most-specific first), e.g. `['en']`. Omit to use the static default. */
+  fallback?: string[];
 }
 
 export interface I18nContextValue {
@@ -50,7 +52,22 @@ const STATIC_LOCALES: RuntimeLocale[] = Object.values(LOCALES).map((l) => ({
   nativeName: l.nativeName,
   englishName: l.englishName,
   direction: l.direction,
+  fallback: l.fallback,
 }));
+
+/** Fallback chain for `code` against `locales`, ending at `defaultLocale`. Undefined when `code`
+ *  isn't in `locales` at all — lets `createTranslator` fall through to its own static default. */
+function chainFor(
+  locales: RuntimeLocale[],
+  code: string,
+  defaultLocale: string,
+): string[] | undefined {
+  const def = locales.find((l) => l.code === code);
+  if (!def) return undefined;
+  const chain = [def.code, ...(def.fallback ?? [])];
+  if (!chain.includes(defaultLocale)) chain.push(defaultLocale);
+  return [...new Set(chain)];
+}
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
@@ -121,15 +138,21 @@ export function I18nProvider({
 
   const merged = useMemo(() => mergeResources(resources), [resources]);
 
+  // A runtime (dashboard-added) locale isn't in the static `LOCALES` table `createTranslator`
+  // would otherwise resolve against — pass its chain explicitly so it isn't silently collapsed
+  // to `en` (DEC-024).
+  const chain = useMemo(() => chainFor(locales, locale, rtDefault), [locales, locale, rtDefault]);
+
   const translator = useMemo(
     () =>
       createTranslator({
         locale,
         resources: merged,
+        fallback: chain,
         onMissingKey,
         debugMissing: typeof process !== 'undefined' && process.env?.NODE_ENV === 'development',
       }),
-    [locale, merged, onMissingKey],
+    [locale, merged, chain, onMissingKey],
   );
 
   const fmt = useMemo(() => createFormatters(locale), [locale]);

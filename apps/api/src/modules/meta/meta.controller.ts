@@ -153,11 +153,21 @@ export class MetaController {
     operationId: 'meta_getTranslations',
     summary: 'Published translation overrides for a namespace + locale (public, DEC-024)',
   })
-  getTranslations(
+  async getTranslations(
+    @Res({ passthrough: true }) res: Response,
     @Query('namespace') namespace = 'common',
     @Query('locale') locale = 'en',
   ): Promise<Record<string, string>> {
-    return this.meta.translationsBundle(namespace, locale);
+    const body = await this.meta.translationsBundle(namespace, locale);
+    // let the site / dashboard revalidate cheaply once the 60s TTL lapses — Express turns a
+    // matching If-None-Match into a 304 automatically. Mirrors /meta/pages and /meta/consent.
+    const digest = createHash('sha1')
+      .update(`${namespace}:${locale}:`)
+      .update(JSON.stringify(body))
+      .digest('hex')
+      .slice(0, 16);
+    res.setHeader('ETag', `"trans-${digest}"`);
+    return body;
   }
 
   @Get('health-summary')
