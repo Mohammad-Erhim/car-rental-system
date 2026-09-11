@@ -19,11 +19,20 @@ export type TranslationCompleteness = z.infer<typeof zTranslationCompleteness>;
 export const zTranslationEntry = z.object({
   key: z.string(),
   source: z.string(),
+  /** the working value the editor edits (draft / in-review / published) */
   translation: z.string().nullable(),
+  /** the value currently live on the site — frozen while an edit is in review */
+  published: z.string().nullable(),
   status: z.enum(['missing', 'draft', 'in_review', 'published']),
   outdated: z.boolean(),
 });
 export type TranslationEntry = z.infer<typeof zTranslationEntry>;
+
+export const zPublishTranslationsResponse = z.object({
+  published: z.number().int(),
+  entries: z.array(zTranslationEntry),
+});
+export type PublishTranslationsResponse = z.infer<typeof zPublishTranslationsResponse>;
 
 export const zUpsertTranslationRequest = z.object({
   namespace: z.string().min(1).max(80),

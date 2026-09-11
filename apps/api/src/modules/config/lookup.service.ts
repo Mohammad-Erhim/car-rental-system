@@ -7,6 +7,7 @@ import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
 import type { Actor } from '../../common/auth/types';
 import { CacheBus } from '../../common/cache/cache-bus';
+import { revOf } from '../../common/i18n-source-rev';
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
@@ -480,6 +481,27 @@ export class LookupService {
     actor: Actor,
   ) {
     const touched = new Set<string>();
+    // the `en` label is the source string these translations are made against — stamp its content
+    // hash as `sourceRevision` so the Translations screen's "outdated" check works for lookup rows
+    // the same way it does for bundled strings.
+    const enSource = (
+      labels.en ??
+      (
+        await this.db
+          .select({ value: translation.value })
+          .from(translation)
+          .where(
+            and(
+              eq(translation.namespace, `${NS}:${typeCode}`),
+              eq(translation.key, code),
+              eq(translation.localeCode, 'en'),
+            ),
+          )
+          .limit(1)
+      )[0]?.value ??
+      ''
+    ).trim();
+    const rev = revOf(enSource);
     for (const [locale, raw] of Object.entries(labels)) {
       const value = raw?.trim() ?? '';
       // an explicitly-provided empty label clears that locale's override (falls back to `en`)
@@ -496,6 +518,8 @@ export class LookupService {
         touched.add(locale);
         continue;
       }
+      // lookup labels have no draft/review step — the edit is the publish, so `value` and
+      // `publishedValue` move together.
       await this.db
         .insert(translation)
         .values({
@@ -503,13 +527,23 @@ export class LookupService {
           key: code,
           localeCode: locale,
           value,
+          publishedValue: value,
           status: 'published',
-          sourceRevision: 'lookup-edit',
+          sourceRevision: rev,
           reviewedBy: actor.accountId,
+          reviewedAt: sql`now()`,
         })
         .onConflictDoUpdate({
           target: [translation.namespace, translation.key, translation.localeCode],
-          set: { value, status: 'published', updatedAt: sql`now()` },
+          set: {
+            value,
+            publishedValue: value,
+            status: 'published',
+            sourceRevision: rev,
+            reviewedBy: actor.accountId,
+            reviewedAt: sql`now()`,
+            updatedAt: sql`now()`,
+          },
         });
       touched.add(locale);
     }

@@ -8,11 +8,12 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  DataTable,
+  Checkbox,
+  ConfirmDialog,
   Input,
   PageHeader,
+  Select,
   useToast,
-  type DataTableColumn,
 } from '@carrental/ui';
 import { useState } from 'react';
 
@@ -40,59 +41,113 @@ export function TranslationsPage() {
 
   const [namespace, setNamespace] = useState<string>('');
   const [locale, setLocale] = useState<string>('');
+  const [hideComplete, setHideComplete] = useState(true);
   const ns = namespace || namespaces[0] || '';
   const loc = locale || locales[0] || '';
 
-  type CoverageRow = NonNullable<typeof completeness.data>['rows'][number];
-  const coverageColumns: Array<DataTableColumn<CoverageRow>> = [
-    {
-      key: 'namespace',
-      header: t('ops.tbl.namespace'),
-      cell: (r) => r.namespace,
-      className: 'font-mono text-xs',
-    },
-    { key: 'language', header: t('ops.tbl.language'), cell: (r) => r.locale },
-    {
-      key: 'coverage',
-      header: t('ops.tbl.coverage'),
-      cell: (r) => (
-        <Badge variant={r.coveragePct === 100 ? 'success' : 'warning'}>{r.coveragePct}%</Badge>
-      ),
-    },
-    { key: 'missing', header: t('ops.tbl.missing'), cell: (r) => r.missing },
-  ];
+  // pivot the per-(namespace, locale) rows into one row per namespace with a cell per language,
+  // so the summary stays readable as the catalogue grows (UI strings + every reference-data type).
+  type Cov = NonNullable<typeof completeness.data>['rows'][number];
+  const byNs = new Map<string, Map<string, Cov>>();
+  for (const r of completeness.data?.rows ?? []) {
+    if (!byNs.has(r.namespace)) byNs.set(r.namespace, new Map());
+    byNs.get(r.namespace)!.set(r.locale, r);
+  }
+  const pivot = [...byNs.entries()]
+    .map(([name, cells]) => ({
+      namespace: name,
+      cells,
+      gaps: locales.reduce((sum, l) => sum + (cells.get(l)?.missing ?? 0), 0),
+    }))
+    .sort((a, b) => b.gaps - a.gaps || a.namespace.localeCompare(b.namespace));
+  const visiblePivot = hideComplete ? pivot.filter((row) => row.gaps > 0) : pivot;
+  const totalGaps = pivot.reduce((sum, row) => sum + row.gaps, 0);
 
   return (
     <div className="space-y-6">
       <PageHeader title={t('ops.trans.title')} description={t('ops.trans.subtitle')} />
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex-row items-center justify-between gap-3">
           <CardTitle className="text-base">{t('ops.trans.coverage')}</CardTitle>
+          <label className="flex items-center gap-2 text-xs font-normal text-muted-foreground">
+            <Checkbox
+              checked={hideComplete}
+              onChange={(e) => setHideComplete(e.target.checked)}
+              data-testid="translation-hide-complete"
+            />
+            {t('ops.trans.hideComplete')}
+          </label>
         </CardHeader>
         <CardContent>
-          <DataTable
-            columns={coverageColumns}
-            rows={completeness.data?.rows}
-            rowKey={(r) => `${r.namespace}:${r.locale}`}
-            isLoading={completeness.isLoading}
-            isError={completeness.isError}
-            onRetry={() => completeness.refetch()}
-            rowProps={(r) => ({ 'data-row': `${r.namespace}:${r.locale}` })}
-            testid="translation-coverage"
-            minWidth="28rem"
-            labels={{
-              loading: t('ops.st.loading'),
-              loadFailTitle: t('ops.trans.loadFail'),
-              retry: t('ops.st.retry'),
-              empty: t('ops.st.none'),
-            }}
-          />
+          {completeness.isLoading ? (
+            <AppStateView kind="loading" title={t('ops.st.loading')} inline />
+          ) : completeness.isError ? (
+            <AppStateView
+              kind="failure"
+              inline
+              title={t('ops.trans.loadFail')}
+              primaryAction={{ label: t('ops.st.retry'), onClick: () => completeness.refetch() }}
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[28rem] text-sm" data-testid="translation-coverage">
+                <thead>
+                  <tr className="border-b text-start text-xs text-muted-foreground">
+                    <th className="py-2 pe-3 text-start font-medium">{t('ops.tbl.namespace')}</th>
+                    {locales.map((l) => (
+                      <th key={l} className="px-2 py-2 text-start font-medium uppercase">
+                        {l}
+                      </th>
+                    ))}
+                    <th className="ps-2 py-2 text-start font-medium">{t('ops.tbl.missing')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {visiblePivot.map((row) => (
+                    <tr key={row.namespace} data-row={row.namespace}>
+                      <td className="py-1.5 pe-3 font-mono text-xs">{row.namespace}</td>
+                      {locales.map((l) => {
+                        const c = row.cells.get(l);
+                        const pct = c?.coveragePct ?? 0;
+                        return (
+                          <td key={l} className="px-2 py-1.5">
+                            <button
+                              type="button"
+                              className="rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                              onClick={() => {
+                                setNamespace(row.namespace);
+                                setLocale(l);
+                              }}
+                            >
+                              <Badge variant={pct === 100 ? 'success' : 'warning'}>{pct}%</Badge>
+                            </button>
+                          </td>
+                        );
+                      })}
+                      <td className="ps-2 py-1.5 tabular-nums">{row.gaps}</td>
+                    </tr>
+                  ))}
+                  {visiblePivot.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={locales.length + 2}
+                        className="py-4 text-center text-sm text-muted-foreground"
+                      >
+                        {totalGaps === 0 ? t('ops.trans.allComplete') : t('ops.st.none')}
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
       {ns && loc ? (
         <NamespaceEditor
+          key={`${ns}:${loc}`}
           namespace={ns}
           locale={loc}
           namespaces={namespaces}
@@ -138,11 +193,14 @@ function NamespaceEditor({
             title: status === 'draft' ? t('ops.trans.saved') : t('ops.trans.reviewed'),
             variant: 'success',
           }),
+        onError: (err) =>
+          toast({ title: err instanceof ApiError ? err.message : t('ops.trans.saveFail') }),
       },
     );
   const savingKey = upsert.isPending ? upsert.variables?.key : undefined;
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [publishError, setPublishError] = useState<string | null>(null);
+  const [confirmPublish, setConfirmPublish] = useState(false);
   const [query, setQuery] = useState('');
   const [limit, setLimit] = useState(50);
 
@@ -150,19 +208,22 @@ function NamespaceEditor({
   const q = query.trim().toLowerCase();
   const filtered = q
     ? allRows.filter(
-        (r) => r.key.toLowerCase().includes(q) || (r.source ?? '').toLowerCase().includes(q),
+        (r) =>
+          r.key.toLowerCase().includes(q) ||
+          (r.source ?? '').toLowerCase().includes(q) ||
+          (r.translation ?? '').toLowerCase().includes(q),
       )
     : allRows;
   const visible = filtered.slice(0, limit);
-
-  const selectClass =
-    'flex h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+  const pendingCount = allRows.filter((r) => r.status === 'in_review').length;
 
   async function doPublish() {
     setPublishError(null);
+    setConfirmPublish(false);
     try {
-      await publish.mutateAsync({ namespace, locale });
+      const res = await publish.mutateAsync({ namespace, locale });
       void entries.refetch();
+      toast({ title: t('ops.trans.published', { n: res.published }), variant: 'success' });
     } catch (err) {
       setPublishError(err instanceof ApiError ? err.message : t('ops.trans.publishFail'));
     }
@@ -172,10 +233,10 @@ function NamespaceEditor({
     <Card>
       <CardHeader className="gap-3">
         <CardTitle className="text-base">{t('ops.trans.strings')}</CardTitle>
-        <div className="flex flex-wrap gap-2">
-          <select
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
             aria-label={t('ops.tbl.namespace')}
-            className={selectClass}
+            className="w-auto"
             value={namespace}
             onChange={(e) => onPick(e.target.value, locale)}
           >
@@ -184,10 +245,10 @@ function NamespaceEditor({
                 {n}
               </option>
             ))}
-          </select>
-          <select
+          </Select>
+          <Select
             aria-label={t('ops.tbl.language')}
-            className={selectClass}
+            className="w-auto"
             value={locale}
             onChange={(e) => onPick(namespace, e.target.value)}
           >
@@ -196,15 +257,18 @@ function NamespaceEditor({
                 {l}
               </option>
             ))}
-          </select>
+          </Select>
           {canManage ? (
             <Button
               variant="outline"
-              onClick={doPublish}
+              onClick={() => setConfirmPublish(true)}
               loading={publish.isPending}
+              disabled={pendingCount === 0}
               data-testid="translation-publish"
             >
-              {t('ops.trans.publish')}
+              {pendingCount > 0
+                ? t('ops.trans.publishN', { n: pendingCount })
+                : t('ops.trans.publish')}
             </Button>
           ) : null}
         </div>
@@ -256,11 +320,16 @@ function NamespaceEditor({
                           variant={row.status === 'published' ? 'success' : 'neutral'}
                           data-testid={`translation-status-${row.key}`}
                         >
-                          {row.status}
+                          {t(`ops.trans.state.${row.status}`)}
                         </Badge>
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground">{row.source}</p>
+                    {row.published != null && row.published !== row.translation ? (
+                      <p className="text-xs text-muted-foreground">
+                        {t('ops.trans.liveNow', { value: row.published })}
+                      </p>
+                    ) : null}
                     <div className="flex flex-wrap gap-2">
                       <Input
                         className="min-w-[16rem] flex-1"
@@ -308,6 +377,16 @@ function NamespaceEditor({
           </>
         )}
       </CardContent>
+
+      <ConfirmDialog
+        open={confirmPublish}
+        onOpenChange={setConfirmPublish}
+        title={t('ops.trans.publishTitle')}
+        description={t('ops.trans.publishBody', { n: pendingCount, locale })}
+        confirmLabel={t('ops.trans.publish')}
+        confirmDisabled={publish.isPending}
+        onConfirm={doPublish}
+      />
     </Card>
   );
 }

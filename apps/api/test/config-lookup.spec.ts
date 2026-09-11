@@ -274,7 +274,7 @@ describe('config / reference data', () => {
       .expect(422);
     expect(blocked.body.params?.reason).toBe('missing_mandatory');
 
-    // add the legal fr translation, then publish succeeds
+    // add the legal fr translation, then publish succeeds and reports the count
     await request(server)
       .post('/api/v1/config/translations')
       .set('Authorization', `Bearer ${adminToken}`)
@@ -286,9 +286,171 @@ describe('config / reference data', () => {
         status: 'in_review',
       })
       .expect(201);
-    await request(server)
+    const pub = await request(server)
       .post('/api/v1/config/translations/test_ns/fr/publish')
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(201);
+    expect(pub.body.published).toBe(2); // hello + legal.terms
+  });
+
+  it('the key catalogue + coverage come from the bundled `common` strings', async () => {
+    const list = await request(server)
+      .get('/api/v1/config/translations?namespace=common&locale=fr')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const row = (list.body as Array<{ key: string; source: string }>).find(
+      (r) => r.key === 'action.search',
+    );
+    expect(row?.source).toBe('Search');
+    expect(list.body.length).toBeGreaterThan(1000);
+
+    const cov = await request(server)
+      .get('/api/v1/config/translations/completeness')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const commonFr = (
+      cov.body.rows as Array<{ namespace: string; locale: string; total: number }>
+    ).find((r) => r.namespace === 'common' && r.locale === 'fr');
+    expect(commonFr?.total).toBe(list.body.length);
+  });
+
+  it('an in-progress edit never blanks a live translation (publishedValue is frozen)', async () => {
+    const KEY = 'action.search';
+    // publish an fr override
+    await request(server)
+      .post('/api/v1/config/translations')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        namespace: 'common',
+        key: KEY,
+        localeCode: 'fr',
+        value: 'Chercher',
+        status: 'published',
+      })
+      .expect(201);
+    let bundle = await request(server)
+      .get('/api/v1/meta/translations?namespace=common&locale=fr')
+      .expect(200);
+    expect(bundle.body[KEY]).toBe('Chercher');
+
+    // start editing it — save a draft
+    await request(server)
+      .post('/api/v1/config/translations')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        namespace: 'common',
+        key: KEY,
+        localeCode: 'fr',
+        value: 'Rechercher (wip)',
+        status: 'draft',
+      })
+      .expect(201);
+
+    // the live bundle still serves the last published value
+    bundle = await request(server)
+      .get('/api/v1/meta/translations?namespace=common&locale=fr')
+      .expect(200);
+    expect(bundle.body[KEY]).toBe('Chercher');
+
+    // the editor shows both
+    const list = await request(server)
+      .get('/api/v1/config/translations?namespace=common&locale=fr')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const row = (list.body as Array<{ key: string; translation: string; published: string }>).find(
+      (r) => r.key === KEY,
+    )!;
+    expect(row.translation).toBe('Rechercher (wip)');
+    expect(row.published).toBe('Chercher');
+  });
+
+  it('a freshly seeded catalogue is not a wall of "outdated" badges', async () => {
+    const list = await request(server)
+      .get('/api/v1/config/translations?namespace=common&locale=fr')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const outdated = (list.body as Array<{ outdated: boolean; status: string }>).filter(
+      (r) => r.outdated,
+    );
+    expect(outdated).toHaveLength(0);
+    // and the seeded fr strings are actually published (coverage is not 0)
+    const published = (list.body as Array<{ status: string }>).filter(
+      (r) => r.status === 'published',
+    );
+    expect(published.length).toBeGreaterThan(1000);
+  });
+
+  it('a reference-data label edit publishes immediately (live + counted, no review step)', async () => {
+    const type = 'cancel_reason';
+    const code = `roadclosure_${Date.now()}`;
+    const created = await request(server)
+      .post(`/api/v1/reference-data/types/${type}/values`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ code, label: 'Road closed', translations: { fr: 'Route fermée' } })
+      .expect(201);
+    expect(created.body.code).toBe(code);
+
+    // the fr label is live on the public bundle straight away — no publish action needed
+    const bundle = await request(server)
+      .get(`/api/v1/meta/translations?namespace=lookup:${type}&locale=fr`)
+      .expect(200);
+    expect(bundle.body[code]).toBe('Route fermée');
+
+    // and the Translations screen shows it as published with a frozen live value
+    const list = await request(server)
+      .get(`/api/v1/config/translations?namespace=lookup:${type}&locale=fr`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const row = (
+      list.body as Array<{
+        key: string;
+        translation: string;
+        published: string;
+        status: string;
+        outdated: boolean;
+      }>
+    ).find((r) => r.key === code)!;
+    expect(row.status).toBe('published');
+    expect(row.translation).toBe('Route fermée');
+    expect(row.published).toBe('Route fermée');
+    expect(row.outdated).toBe(false);
+  });
+
+  it('reference-data types show up in the translation catalogue with every active value', async () => {
+    // the source catalogue for a lookup namespace is the type's active values, not just the rows
+    // that happen to have a translation override
+    const list = await request(server)
+      .get('/api/v1/config/translations?namespace=lookup:cancel_reason&locale=fr')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(list.body.length).toBeGreaterThan(1);
+    const codes = (list.body as Array<{ key: string; source: string }>).map((r) => r.key);
+    expect(new Set(codes).size).toBe(codes.length); // no dupes
+
+    const cov = await request(server)
+      .get('/api/v1/config/translations/completeness')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const rowFr = (
+      cov.body.rows as Array<{ namespace: string; locale: string; total: number }>
+    ).find((r) => r.namespace === 'lookup:cancel_reason' && r.locale === 'fr');
+    expect(rowFr?.total).toBe(list.body.length);
+  });
+
+  it('coverage never reports 100% next to a non-zero "missing" count', async () => {
+    const cov = await request(server)
+      .get('/api/v1/config/translations/completeness')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    for (const r of cov.body.rows as Array<{
+      coveragePct: number;
+      missing: number;
+      total: number;
+      published: number;
+    }>) {
+      expect(r.coveragePct === 100).toBe(r.missing === 0);
+      expect(r.published).toBeLessThanOrEqual(r.total);
+      expect(r.missing).toBeGreaterThanOrEqual(0);
+    }
   });
 });
