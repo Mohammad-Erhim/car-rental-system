@@ -32,6 +32,25 @@ interface StoredConsent {
   t: string;
 }
 
+/**
+ * Classifies a preference change as a genuine withdrawal — any optional category the visitor had
+ * already granted (under an existing decision) going from on to off — vs. an ordinary first-time
+ * decision or a save that only adds consent. The published privacy/cookie policy copy tells
+ * visitors they can "withdraw consent... from the Cookie settings link"; that's only true in the
+ * accountability trail if a real revocation is actually recorded as `withdraw`, not folded into
+ * `reject_all`/`save_preferences` indistinguishably from a first-ever choice — matches how real
+ * consent-management platforms (OneTrust, Cookiebot) distinguish an opt-out event from an initial
+ * decision for accountability reporting. Exported standalone (no React) for direct unit coverage.
+ */
+export function isWithdrawal(
+  decided: boolean,
+  prev: ConsentChoices,
+  next: ConsentChoices,
+): boolean {
+  if (!decided) return false;
+  return (['functional', 'analytics', 'marketing'] as const).some((c) => prev[c] && !next[c]);
+}
+
 function readCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
   const hit = document.cookie.split('; ').find((row) => row.startsWith(`${name}=`));
@@ -171,8 +190,18 @@ export function ConsentProvider({
       openPreferences: () => setPrefsOpen(true),
       closePreferences: () => setPrefsOpen(false),
       acceptAll: () => persist(ALL_CONSENT_CHOICES, 'accept_all'),
-      rejectAll: () => persist(DEFAULT_CONSENT_CHOICES, 'reject_all'),
-      savePreferences: (next) => persist({ ...next, necessary: true }, 'save_preferences'),
+      rejectAll: () =>
+        persist(
+          DEFAULT_CONSENT_CHOICES,
+          isWithdrawal(decided, choices, DEFAULT_CONSENT_CHOICES) ? 'withdraw' : 'reject_all',
+        ),
+      savePreferences: (next) => {
+        const sanitized: ConsentChoices = { ...next, necessary: true };
+        persist(
+          sanitized,
+          isWithdrawal(decided, choices, sanitized) ? 'withdraw' : 'save_preferences',
+        );
+      },
     }),
     [ready, decided, choices, config, enabled, prefsOpen, persist],
   );
