@@ -686,6 +686,128 @@ describe('STAGE-006 administration & reporting', () => {
       .expect(403);
   });
 
+  it('TEST-ADM-014 the dashboard analytics trend has a real date spine (no silent gaps), a today-dated booking lands on the right day, and location scope + bounds are enforced', async () => {
+    // deliberately placed before TEST-ADM-006 below, which suspends test-scoped's account as
+    // part of its own scenario — `scopedToken` is only valid for tests that run ahead of that
+    const p = tuesday(45);
+    await book(server, customerToken, {
+      pickupLocationCode: 'TST1',
+      categoryCode: 'intermediate',
+      pickupAt: p,
+      returnAt: plus(p, 3),
+    });
+
+    const res = await request(server)
+      .get('/api/v1/ops/dashboard/analytics?days=14')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(res.body.rangeDays).toBe(14);
+    // the date spine is complete — every day in the window appears exactly once, oldest first,
+    // with no gaps, regardless of which days happen to have activity
+    const dates = (res.body.daily as Array<{ date: string }>).map((d) => d.date);
+    expect(dates).toHaveLength(14);
+    expect(new Set(dates).size).toBe(14);
+    for (let i = 1; i < dates.length; i++) {
+      const prev = new Date(dates[i - 1]!);
+      const cur = new Date(dates[i]!);
+      expect((cur.getTime() - prev.getTime()) / 86_400_000).toBe(1);
+    }
+    // the spine's own last entry is "today" per the database's clock — asserted contiguous and
+    // complete above already; independently recomputing "today" in JS risks a UTC-vs-session-
+    // timezone mismatch with Postgres's `current_date` that has nothing to do with what this
+    // test is actually checking
+    const today = dates[dates.length - 1]!;
+
+    const todayRow = (res.body.daily as Array<{ date: string; bookings: number }>).find(
+      (d) => d.date === today,
+    )!;
+    expect(todayRow.bookings).toBeGreaterThanOrEqual(1);
+
+    const category = (
+      res.body.byCategory as Array<{ categoryCode: string; reservations: number }>
+    ).find((c) => c.categoryCode === 'intermediate');
+    expect(category).toBeTruthy();
+    expect(category!.reservations).toBeGreaterThanOrEqual(1);
+
+    // a location-scoped actor only sees TST1 activity — book one more, at TST2 only, and confirm
+    // it does NOT move the scoped actor's today count but DOES move the org-wide one
+    const scopedBefore = await request(server)
+      .get('/api/v1/ops/dashboard/analytics?days=14')
+      .set('Authorization', `Bearer ${scopedToken}`)
+      .expect(200);
+    expect(scopedBefore.body.scopeNote).toBe('Scoped to TST1');
+    const scopedTodayBefore = (
+      scopedBefore.body.daily as Array<{ date: string; bookings: number }>
+    ).find((d) => d.date === today)!.bookings;
+
+    const p2 = tuesday(46);
+    await book(server, customerToken, {
+      pickupLocationCode: 'TST2',
+      categoryCode: 'economy',
+      pickupAt: p2,
+      returnAt: plus(p2, 2),
+    });
+
+    const scopedAfter = await request(server)
+      .get('/api/v1/ops/dashboard/analytics?days=14')
+      .set('Authorization', `Bearer ${scopedToken}`)
+      .expect(200);
+    const scopedTodayAfter = (
+      scopedAfter.body.daily as Array<{ date: string; bookings: number }>
+    ).find((d) => d.date === today)!.bookings;
+    expect(scopedTodayAfter).toBe(scopedTodayBefore);
+
+    const unscopedAfter = await request(server)
+      .get('/api/v1/ops/dashboard/analytics?days=14')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const unscopedTodayAfter = (
+      unscopedAfter.body.daily as Array<{ date: string; bookings: number }>
+    ).find((d) => d.date === today)!.bookings;
+    expect(unscopedTodayAfter).toBeGreaterThan(todayRow.bookings);
+
+    // bounds: a "trend" under a week isn't one, and 90 days is the cap
+    await request(server)
+      .get('/api/v1/ops/dashboard/analytics?days=3')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(422);
+    await request(server)
+      .get('/api/v1/ops/dashboard/analytics?days=365')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(422);
+    // omitted entirely — defaults to 30
+    const defaulted = await request(server)
+      .get('/api/v1/ops/dashboard/analytics')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(defaulted.body.rangeDays).toBe(30);
+
+    // a customer has no ops permissions
+    await request(server)
+      .get('/api/v1/ops/dashboard/analytics')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(403);
+  });
+
+  it('TEST-ADM-015 the operational dashboard actually works for a location-scoped actor, not just an org-wide one', async () => {
+    // regression: `GET /ops/dashboard`'s scoped branches used a raw `col = any(${scope})` SQL
+    // fragment, which 500s the moment postgres.js is handed a bare JS array as a bound parameter
+    // outside drizzle's own typed query builder ("malformed array literal") — found live while
+    // building the analytics endpoint above. No prior test ever called this endpoint with a
+    // location-scoped actor (only the org-wide assertions existed), which is exactly how a
+    // 500-for-every-scoped-manager bug shipped unnoticed. Placed here, before TEST-ADM-006 below
+    // suspends test-scoped's account, for the same reason TEST-ADM-014 is.
+    const res = await request(server)
+      .get('/api/v1/ops/dashboard')
+      .set('Authorization', `Bearer ${scopedToken}`)
+      .expect(200);
+    expect(res.body.scopeNote).toBe('Scoped to TST1');
+    expect(Number.isInteger(res.body.pickupsToday.total)).toBe(true);
+    expect(Number.isInteger(res.body.returnsToday.total)).toBe(true);
+    expect(Number.isInteger(res.body.overdue)).toBe(true);
+    expect(Number.isInteger(res.body.assignQueue)).toBe(true);
+  });
+
   it('TEST-ADM-006 sending a schedule needs a fresh step-up, then re-checks the owner and pauses if they lost access', async () => {
     // a helper: STEP_UP_MAX_AGE_SEC is 1s in tests, so re-confirm right before each send
     const stepUp = () =>

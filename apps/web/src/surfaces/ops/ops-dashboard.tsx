@@ -21,6 +21,8 @@ import { useOpsDashboard } from '../../lib/admin-hooks.js';
 import { metaApi } from '../../lib/api.js';
 import { formatMinor } from '../../lib/discovery-hooks.js';
 
+import { OpsDashboardAnalytics } from './ops-dashboard-analytics.js';
+
 /**
  * SCREEN-OPS-002 — Operational dashboard. A role- and location-scoped overview: the assignment
  * queue, today's pickups / returns, overdue rentals, fleet utilisation, revenue and
@@ -348,6 +350,8 @@ export function OpsDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <OpsDashboardAnalytics />
 
       <Card id="ops-dash-health" className="scroll-mt-20">
         <CardHeader>

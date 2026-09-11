@@ -2558,6 +2558,20 @@
         ]
       }
     },
+    "/api/v1/ops/dashboard/analytics": {
+      "get": {
+        "operationId": "ReportController_dashboardAnalytics",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/ops/reports": {
       "get": {
         "operationId": "ReportController_listDefinitions",

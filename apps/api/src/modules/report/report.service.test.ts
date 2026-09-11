@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { isScheduleDue, nextFireAfter, runDataQualityCheck, sampleHash } from './report.service';
+import {
+  isScheduleDue,
+  nextFireAfter,
+  runDataQualityCheck,
+  sampleHash,
+  utilizationPercent,
+} from './report.service';
 
 describe('nextFireAfter', () => {
   it('returns the next occurrence strictly after the baseline, not the baseline itself', () => {
@@ -118,5 +124,28 @@ describe('sampleHash — decides whether a resolved data-quality finding stays c
     // guards against a naive join(',')-style implementation where 'a,b' and ['a','b']
     // could hash the same way — JSON.stringify keeps element boundaries unambiguous
     expect(sampleHash(['a,b'])).not.toBe(sampleHash(['a', 'b']));
+  });
+});
+
+describe('utilizationPercent — dashboard analytics', () => {
+  it('rounds the share of the fleet currently occupied', () => {
+    expect(utilizationPercent(5, 10)).toBe(50);
+    expect(utilizationPercent(1, 3)).toBe(33); // rounds, doesn't truncate to 0
+    expect(utilizationPercent(2, 3)).toBe(67);
+  });
+
+  it('is 0%, not null, when nothing is occupied but the fleet exists', () => {
+    expect(utilizationPercent(0, 10)).toBe(0);
+  });
+
+  it('is null, not 0%, when the org has no fleet at all — "nothing to measure" is not "0% used"', () => {
+    expect(utilizationPercent(0, 0)).toBeNull();
+  });
+
+  it('is capped at 100% even if the input momentarily over-counts', () => {
+    // the occupancy count and the fleet-size denominator are read at slightly different moments,
+    // so a brief >100% is possible upstream — showing that verbatim would be a visibly
+    // nonsensical number for a percentage
+    expect(utilizationPercent(12, 10)).toBe(100);
   });
 });

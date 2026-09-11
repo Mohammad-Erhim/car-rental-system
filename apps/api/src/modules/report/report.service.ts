@@ -208,10 +208,16 @@ export class ReportService {
     const orgId = await this.orgId();
     const scope = this.scopeCodes(actor);
     const scopeNote = scope ? `Scoped to ${scope.join(', ')}` : 'All locations';
-    // parameterised `= any($1)` list, or `true` when the scope is org-wide
-    const inPickup = scope ? sql`${rental.pickupLocationCode} = any(${scope})` : sql`true`;
-    const inReturn = scope ? sql`${rental.returnLocationCode} = any(${scope})` : sql`true`;
-    const inResPickup = scope ? sql`${reservation.pickupLocationCode} = any(${scope})` : sql`true`;
+    // `inArray(...)`, not a raw `col = any(${scope})` fragment — the latter hands postgres.js a
+    // bare JS array as a single bound parameter, which it can't serialize as a Postgres array
+    // outside drizzle's own typed query builder ("malformed array literal" / "op ANY/ALL (array)
+    // requires array on right side" — reproduced directly). Found live while building
+    // `dashboardAnalytics()` below: this made `GET /ops/dashboard` 500 for *any* location-scoped
+    // staff member — the exact audience SCREEN-OPS-002 is scoped for — with no prior test ever
+    // exercising this endpoint with a non-empty scope to have caught it.
+    const inPickup = scope ? inArray(rental.pickupLocationCode, scope) : sql`true`;
+    const inReturn = scope ? inArray(rental.returnLocationCode, scope) : sql`true`;
+    const inResPickup = scope ? inArray(reservation.pickupLocationCode, scope) : sql`true`;
 
     const [pickups] = await this.db
       .select({
@@ -323,6 +329,149 @@ export class ReportService {
       fleet,
       fleetTotal,
       utilisation,
+    };
+  }
+
+  /**
+   * SCREEN-OPS-002 analytics — the trend view `opsDashboard()` deliberately doesn't have: that
+   * endpoint is a today-only operational snapshot (FR-RPT-001), this one answers "is this getting
+   * better or worse" over a window. Every series is generated against a real date spine
+   * (`generate_series`) and LEFT JOINed, not just grouped from matching rows — a day with zero
+   * bookings must show up as an honest 0, not silently vanish from the chart (the same "a report
+   * that goes quiet on a bad day is worse than a report that shows a bad day" principle as the
+   * rest of this service's read-time work). `days` is bounded by the controller's zod schema, not
+   * here — this method trusts its caller already validated it.
+   *
+   * Utilization is derived retroactively from realized rental occupancy
+   * (`pickedUpAt`..`returnedAt`, or still open) against the *current* fleet size — there's no
+   * daily fleet-size snapshot table, so a fleet that grew/shrank over the window will read
+   * slightly off for its older days. Disclosed, not hidden: `fleetTotal` is returned alongside so
+   * the frontend can (and does) show that as a caveat rather than presenting it as exact.
+   */
+  async dashboardAnalytics(actor: Actor, days: number) {
+    const orgId = await this.orgId();
+    const scope = this.scopeCodes(actor);
+    const scopeNote = scope ? `Scoped to ${scope.join(', ')}` : 'All locations';
+    const [org] = await this.db
+      .select({ currency: organization.defaultCurrency })
+      .from(organization)
+      .where(eq(organization.id, orgId))
+      .limit(1);
+    const currency = org?.currency ?? 'USD';
+
+    // `IN (...)`, built via `sql.join`, not a raw `col = any(${scope})` fragment — the latter
+    // hands postgres.js a bare JS array as one bound parameter, which it can't serialize as a
+    // Postgres array outside drizzle's own typed query builder (reproduced directly:
+    // "malformed array literal"). Same root cause just fixed in `opsDashboard()` above, here
+    // in its raw-SQL-CTE form since `inArray()` only composes into a `.where()` query builder.
+    const inList = (codes: string[]) =>
+      sql.join(
+        codes.map((c) => sql`${c}`),
+        sql`, `,
+      );
+    const resScope = scope ? sql`and r.pickup_location_code in (${inList(scope)})` : sql``;
+    const rentalScope = scope ? sql`and u.pickup_location_code in (${inList(scope)})` : sql``;
+
+    // bookings made + cancelled per day, by creation/cancellation instant — distinct from
+    // `opsDashboard`'s pickups/returns, which are about *operational* activity on a given day
+    const daily = await this.db.execute<{
+      day: string;
+      bookings: number;
+      booked_minor: number;
+      cancellations: number;
+      revenue_minor: number;
+      active_rentals: number;
+    }>(sql`
+      with days as (
+        select generate_series((current_date - ${days - 1}::int)::date, current_date, interval '1 day')::date as day
+      ),
+      booked as (
+        select r.created_at::date as day, count(*)::int as bookings, coalesce(sum(r.total_minor), 0)::int as booked_minor
+        from reservation r
+        where r.organization_id = ${orgId} and r.created_at::date >= current_date - ${days - 1}::int ${resScope}
+        group by r.created_at::date
+      ),
+      cancelled as (
+        select r.cancelled_at::date as day, count(*)::int as cancellations
+        from reservation r
+        where r.organization_id = ${orgId} and r.cancelled_at is not null
+          and r.cancelled_at::date >= current_date - ${days - 1}::int ${resScope}
+        group by r.cancelled_at::date
+      ),
+      captured as (
+        select p.created_at::date as day,
+          (coalesce(sum(p.amount_minor) filter (where p.type = 'capture'), 0)
+            - coalesce(sum(p.amount_minor) filter (where p.type = 'refund'), 0))::int as revenue_minor
+        from payment p
+        inner join payment_intent pi on pi.id = p.intent_id
+        where pi.organization_id = ${orgId} and p.outcome = 'succeeded'
+          and p.created_at::date >= current_date - ${days - 1}::int
+        group by p.created_at::date
+      ),
+      occupied as (
+        select d.day, count(u.id)::int as active_rentals
+        from days d
+        left join rental u on u.organization_id = ${orgId}
+          and u.picked_up_at is not null
+          and u.picked_up_at::date <= d.day
+          and (u.returned_at is null or u.returned_at::date >= d.day)
+          ${rentalScope}
+        group by d.day
+      )
+      select
+        d.day::text as day,
+        coalesce(b.bookings, 0) as bookings,
+        coalesce(b.booked_minor, 0) as booked_minor,
+        coalesce(c.cancellations, 0) as cancellations,
+        coalesce(cap.revenue_minor, 0) as revenue_minor,
+        coalesce(o.active_rentals, 0) as active_rentals
+      from days d
+      left join booked b on b.day = d.day
+      left join cancelled c on c.day = d.day
+      left join captured cap on cap.day = d.day
+      left join occupied o on o.day = d.day
+      order by d.day
+    `);
+
+    const fleetRows = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(vehicleUnit)
+      .where(eq(vehicleUnit.organizationId, orgId));
+    const fleetTotal = fleetRows[0]?.n ?? 0;
+
+    const byCategory = await this.db.execute<{
+      category_code: string;
+      reservations: number;
+      revenue_minor: number;
+    }>(sql`
+      select r.category_code, count(*)::int as reservations, coalesce(sum(r.total_minor), 0)::int as revenue_minor
+      from reservation r
+      where r.organization_id = ${orgId}
+        and r.state in ('confirmed', 'fulfilled')
+        and r.created_at::date >= current_date - ${days - 1}::int
+        ${resScope}
+      group by r.category_code
+      order by revenue_minor desc
+    `);
+
+    return {
+      scopeNote,
+      rangeDays: days,
+      currency,
+      fleetTotal,
+      daily: daily.map((r) => ({
+        date: r.day,
+        bookings: Number(r.bookings),
+        bookedMinor: Number(r.booked_minor),
+        cancellations: Number(r.cancellations),
+        revenueMinor: Number(r.revenue_minor),
+        utilizationPct: utilizationPercent(Number(r.active_rentals), fleetTotal),
+      })),
+      byCategory: byCategory.map((r) => ({
+        categoryCode: r.category_code,
+        reservations: Number(r.reservations),
+        revenueMinor: Number(r.revenue_minor),
+      })),
     };
   }
 
@@ -1164,3 +1313,14 @@ export function isScheduleDue(cron: string, baseline: string | Date, now: Date):
 
 // encodeAuditCursor/decodeAuditCursor moved to common/audit/audit-cursor.ts — shared with
 // consent.service.ts, which pages the same `audit_event` table the same way.
+
+/** `dashboardAnalytics()`'s one bit of real arithmetic — everything else in that method is SQL.
+ *  `null`, not `0`, when the org has no fleet at all: a 0% utilization line reads as "we have
+ *  cars and none of them are rented," a very different (and false) claim than "we have no cars to
+ *  measure." Capped at 100 — the occupancy count and the fleet-size denominator are read at
+ *  slightly different moments (a unit transferred/retired between the two queries, say), so a
+ *  brief >100% is possible upstream; showing it verbatim would be a visibly nonsensical number for
+ *  what's supposed to be a percentage. Exported standalone for direct unit coverage of both. */
+export function utilizationPercent(activeRentals: number, fleetTotal: number): number | null {
+  return fleetTotal > 0 ? Math.min(100, Math.round((activeRentals / fleetTotal) * 100)) : null;
+}
