@@ -26,6 +26,7 @@ import {
 } from '@carrental/ui';
 import { useMemo, useState, type CSSProperties, type ReactNode } from 'react';
 
+import { useDeleteConfigVersion } from '../../lib/admin-hooks.js';
 import {
   useBrandingPreview,
   useBrandingTransition,
@@ -80,7 +81,8 @@ function Row({ label, children }: { label: ReactNode; children: ReactNode }) {
   );
 }
 
-const selectClass = 'h-10 w-full rounded-md border bg-background px-3 text-sm';
+const selectClass =
+  'h-10 w-full rounded-md border bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50';
 
 export function BrandingPage() {
   const { t } = useI18n();
@@ -94,6 +96,7 @@ export function BrandingPage() {
   const previewMut = useBrandingPreview();
   const transition = useBrandingTransition();
   const uploadAsset = useUploadBrandAsset();
+  const deleteVersion = useDeleteConfigVersion();
 
   const [mode, setMode] = useState<Mode>('light');
   const [draft, setDraft] = useState<BrandConfig | null>(null);
@@ -187,14 +190,16 @@ export function BrandingPage() {
                         type="color"
                         aria-label={`${token} colour`}
                         value={hslTripleToHex(triple)}
+                        disabled={!canPublish}
                         onChange={(e) => {
                           const tr = hexToHslTriple(e.target.value);
                           if (tr) mutate(setToken(cfg, mode, token, tr));
                         }}
-                        className="h-9 w-10 shrink-0 cursor-pointer rounded border bg-transparent"
+                        className="h-9 w-10 shrink-0 cursor-pointer rounded border bg-transparent disabled:cursor-not-allowed disabled:opacity-50"
                       />
                       <Input
                         value={triple}
+                        disabled={!canPublish}
                         onChange={(e) => mutate(setToken(cfg, mode, token, e.target.value))}
                         className="font-mono text-xs"
                         spellCheck={false}
@@ -215,6 +220,7 @@ export function BrandingPage() {
                 <select
                   className={selectClass}
                   value={cfg.radius}
+                  disabled={!canPublish}
                   onChange={(e) => assign('radius', e.target.value as BrandConfig['radius'])}
                 >
                   {Object.keys(RADII).map((r) => (
@@ -228,6 +234,7 @@ export function BrandingPage() {
                 <select
                   className={selectClass}
                   value={cfg.density}
+                  disabled={!canPublish}
                   onChange={(e) => assign('density', e.target.value as BrandConfig['density'])}
                 >
                   <option value="comfortable">{t('ops.branding.densityComfortable')}</option>
@@ -238,6 +245,7 @@ export function BrandingPage() {
                 <select
                   className={selectClass}
                   value={cfg.font}
+                  disabled={!canPublish}
                   onChange={(e) => assign('font', e.target.value as BrandConfig['font'])}
                 >
                   {Object.entries(FONTS).map(([k, v]) => (
@@ -258,6 +266,7 @@ export function BrandingPage() {
               <Row label={t('ops.branding.wordmark')}>
                 <Input
                   value={cfg.assets.wordmark}
+                  disabled={!canPublish}
                   onChange={(e) => assign('assets', { ...cfg.assets, wordmark: e.target.value })}
                 />
               </Row>
@@ -267,17 +276,25 @@ export function BrandingPage() {
                     <Input
                       placeholder="https://…"
                       value={cfg.assets[k] ?? ''}
+                      disabled={!canPublish}
                       onChange={(e) =>
                         assign('assets', { ...cfg.assets, [k]: e.target.value || null })
                       }
                     />
                     <div className="flex items-center gap-2">
-                      <label className="cursor-pointer text-xs text-primary underline underline-offset-2">
+                      <label
+                        className={`text-xs underline underline-offset-2 ${
+                          canPublish
+                            ? 'cursor-pointer text-primary'
+                            : 'cursor-not-allowed text-muted-foreground'
+                        }`}
+                      >
                         {uploadAsset.isPending && uploadingKey === k
                           ? t('ops.branding.uploading')
                           : t('ops.branding.upload')}
                         <input
                           type="file"
+                          disabled={!canPublish}
                           accept={
                             k === 'ogImage'
                               ? 'image/png,image/jpeg,image/webp'
@@ -321,7 +338,7 @@ export function BrandingPage() {
 
           <div className="flex flex-wrap items-center gap-2">
             <Button
-              disabled={!draft || violations.length > 0 || draftMut.isPending}
+              disabled={!canPublish || !draft || violations.length > 0 || draftMut.isPending}
               loading={draftMut.isPending}
               onClick={() =>
                 draft &&
@@ -478,6 +495,7 @@ export function BrandingPage() {
                 canPublish={canPublish}
                 pending={transition.isPending}
                 onAction={transition.mutateAsync}
+                onDelete={deleteVersion.mutateAsync}
               />
             </CardContent>
           </Card>

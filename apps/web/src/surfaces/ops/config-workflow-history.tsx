@@ -22,6 +22,9 @@ interface Props {
   /** Rows to show (default 8). */
   limit?: number;
   onAction: (input: { id: string; action: WorkflowAction; note?: string }) => Promise<unknown>;
+  /** Discard an unsubmitted draft revision (config.publish-gated, same as everything else here —
+   *  omit to hide the control on a screen that doesn't wire it up yet). */
+  onDelete?: (id: string) => Promise<unknown>;
 }
 
 /**
@@ -38,11 +41,14 @@ export function ConfigWorkflowHistory({
   pending,
   limit = 8,
   onAction,
+  onDelete,
 }: Props) {
   const { t, fmt } = useI18n();
   const [approving, setApproving] = useState<ConfigVersion | null>(null);
   const [rejecting, setRejecting] = useState<ConfigVersion | null>(null);
+  const [deleting, setDeleting] = useState<ConfigVersion | null>(null);
   const [reason, setReason] = useState('');
+  const [deletePending, setDeletePending] = useState(false);
 
   if (isLoading) return <p className="text-sm text-muted-foreground">{t('ops.st.loading')}</p>;
   if (!versions?.length)
@@ -62,7 +68,7 @@ export function ConfigWorkflowHistory({
             {v.note ? <span className="text-xs text-muted-foreground">· {v.note}</span> : null}
           </span>
           <span className="flex gap-1">
-            {v.state === 'draft' ? (
+            {v.state === 'draft' && canPublish ? (
               <Button
                 size="sm"
                 variant="ghost"
@@ -70,6 +76,11 @@ export function ConfigWorkflowHistory({
                 onClick={() => onAction({ id: v.id, action: 'submit' })}
               >
                 {t('ops.cfg.submit')}
+              </Button>
+            ) : null}
+            {v.state === 'draft' && canPublish && onDelete ? (
+              <Button size="sm" variant="ghost" disabled={pending} onClick={() => setDeleting(v)}>
+                {t('ops.cfg.delete')}
               </Button>
             ) : null}
             {v.state === 'in_review' && canPublish ? (
@@ -140,6 +151,26 @@ export function ConfigWorkflowHistory({
           if (!reason.trim()) throw new Error('reason required');
           if (rejecting)
             await onAction({ id: rejecting.id, action: 'reject', note: reason.trim() });
+        }}
+      />
+
+      <ConfirmDialog
+        open={!!deleting}
+        onOpenChange={(o) => !o && setDeleting(null)}
+        destructive
+        title={t('ops.cfg.deleteTitle')}
+        description={t('ops.cfg.deleteBody')}
+        confirmLabel={t('ops.cfg.delete')}
+        confirmDisabled={deletePending}
+        onConfirm={async () => {
+          if (!deleting || !onDelete) return;
+          setDeletePending(true);
+          try {
+            await onDelete(deleting.id);
+            setDeleting(null);
+          } finally {
+            setDeletePending(false);
+          }
         }}
       />
     </div>
