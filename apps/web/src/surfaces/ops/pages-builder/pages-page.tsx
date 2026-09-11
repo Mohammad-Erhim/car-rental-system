@@ -182,13 +182,14 @@ export function PagesPage() {
   }, [publishedBrand.data, brandDraft]);
   const brandForPreview = brandDraft ?? publishedBrand.data?.config ?? null;
 
+  // Whole-config invariants the backend's validate() also enforces (config-version.service.ts)
+  // — checked against `cfg` as a whole, never scoped to `editPage`. Scoping this to "only while
+  // viewing the home tab" would let someone break home's search block, switch to editing a
+  // different page, and have Save draft look clean right up until the backend rejects it.
   const issues = useMemo(() => {
     const parsed = zPagesConfig.safeParse(cfg);
     if (parsed.success) {
-      if (
-        editPage === 'home' &&
-        !(cfg.pages.home?.blocks ?? []).some((b) => b.type === 'search-card' && !b.hidden)
-      ) {
+      if (!(cfg.pages.home?.blocks ?? []).some((b) => b.type === 'search-card' && !b.hidden)) {
         return [t('ops.pages.searchRequired')];
       }
       return [];
@@ -196,7 +197,7 @@ export function PagesPage() {
     return parsed.error.issues
       .slice(0, 8)
       .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`);
-  }, [cfg, editPage, t]);
+  }, [cfg, t]);
 
   function mutate(next: PagesConfig) {
     setDraft(clone(next));
@@ -381,6 +382,11 @@ export function PagesPage() {
           <CardContent className="space-y-1.5">
             {blocks.map((b, i) => {
               const def = BLOCK_DEFS[b.type];
+              // `def.required` (search-card) is only actually enforced on the home page (the
+              // backend's validate() checks `pageKey === 'home'`) — on any other page it's a
+              // block like any other and must stay hide/delete-able, or a search-card added by
+              // mistake to e.g. Help would be permanently stuck there.
+              const requiredHere = def.required && editPage === 'home';
               const btn =
                 'rounded p-1 text-muted-foreground hover:bg-background hover:text-foreground disabled:opacity-25';
               return (
@@ -404,7 +410,7 @@ export function PagesPage() {
                     />
                     <def.Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                     <span className="truncate">{t(def.label)}</span>
-                    {def.required ? <span className="text-xs text-muted-foreground">*</span> : null}
+                    {requiredHere ? <span className="text-xs text-muted-foreground">*</span> : null}
                   </button>
                   <div className="flex justify-end gap-0.5 px-1 pb-1">
                     <button
@@ -428,7 +434,7 @@ export function PagesPage() {
                     <button
                       type="button"
                       className={btn}
-                      disabled={!canPublish || def.required}
+                      disabled={!canPublish || requiredHere}
                       aria-label={b.hidden ? t('ops.pages.show') : t('ops.pages.hide')}
                       onClick={() => updateBlock(b.id, (x) => ({ ...x, hidden: !x.hidden }))}
                     >
@@ -437,7 +443,7 @@ export function PagesPage() {
                     <button
                       type="button"
                       className={`${btn} hover:text-destructive`}
-                      disabled={!canPublish || def.required}
+                      disabled={!canPublish || requiredHere}
                       aria-label={t('ops.pages.delete')}
                       onClick={() => setConfirmDelete(b.id)}
                     >
