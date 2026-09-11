@@ -1,0 +1,1 @@
+ALTER TABLE "report_run" ADD COLUMN "location_scope" jsonb DEFAULT '[]'::jsonb NOT NULL;

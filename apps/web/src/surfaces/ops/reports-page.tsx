@@ -124,6 +124,16 @@ export function ReportsPage() {
       cell: (r) => fmt.dateTime(r.createdAt),
       className: 'text-xs text-muted-foreground',
     },
+    {
+      key: 'actions',
+      header: '',
+      className: 'text-end',
+      cell: (r) => (
+        <Button size="sm" variant="ghost" onClick={() => exportPastRun(r.id)}>
+          {t('ops.rpt.export')}
+        </Button>
+      ),
+    },
   ];
 
   const recipientList = sched.recipients
@@ -147,8 +157,8 @@ export function ReportsPage() {
     try {
       const text = await fetchReportCsv(runId);
       setCsvOpen(text);
-    } catch {
-      setCsvOpen(t('ops.rpt.exportFail'));
+    } catch (e) {
+      setCsvOpen(e instanceof Error ? e.message : t('ops.rpt.exportFail'));
     }
   }
 
@@ -160,6 +170,17 @@ export function ReportsPage() {
     a.download = `report-${runId}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  // Recent Runs previously had no way to re-export anything but the run you'd just generated in
+  // this session — every past run was visible (report/scope/rows/when) but otherwise a dead end.
+  async function exportPastRun(runId: string) {
+    try {
+      const text = await fetchReportCsv(runId);
+      downloadCsv(runId, text);
+    } catch (e) {
+      toast({ title: e instanceof Error ? e.message : t('ops.rpt.exportFail') });
+    }
   }
 
   async function submitSchedule(e: React.FormEvent) {
@@ -322,6 +343,9 @@ export function ReportsPage() {
             <CardTitle className="text-base">{t('ops.rpt.schedule')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <Alert variant="info">
+              <AlertDescription>{t('ops.rpt.autoDispatchNotice')}</AlertDescription>
+            </Alert>
             {schedules.isLoading ? (
               <AppStateView kind="loading" inline title={t('ops.st.loading')} />
             ) : !schedules.data?.length ? (

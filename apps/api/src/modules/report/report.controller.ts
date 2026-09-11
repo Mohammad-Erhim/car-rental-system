@@ -1,15 +1,4 @@
-import {
-  Inject,
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Header,
-  Param,
-  Post,
-  Query,
-  Res,
-} from '@nestjs/common';
+import { Inject, Body, Controller, Delete, Get, Param, Post, Query, Res } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { and, desc, eq, gte, lte, sql } from 'drizzle-orm';
 import type { Response } from 'express';
@@ -74,8 +63,8 @@ export class ReportController {
 
   @Get('reports/runs')
   @Permissions('report.read')
-  listRuns(@Query('code') code?: string) {
-    return this.reports.listRuns(code);
+  listRuns(@CurrentActor() actor: Actor, @Query('code') code?: string) {
+    return this.reports.listRuns(actor, code);
   }
 
   @Post('reports/:code/run')
@@ -90,13 +79,17 @@ export class ReportController {
 
   @Get('reports/runs/:runId/export')
   @Permissions('report.export', 'report.read')
-  @Header('Content-Type', 'text/csv')
   async exportCsv(
     @Param('runId') runId: string,
     @CurrentActor() actor: Actor,
     @Res({ passthrough: true }) res: Response,
   ) {
+    // `@Header()` sets the response header unconditionally, even when the handler throws — a
+    // not-found/forbidden run (see canViewRun above) was coming back mislabeled as
+    // `Content-Type: text/csv` on a JSON Problem body instead of `application/json`. Setting it
+    // by hand, only after the call succeeds, keeps error responses correctly typed.
     const csv = await this.reports.exportCsv(actor, runId);
+    res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="report-${runId}.csv"`);
     return csv;
   }
