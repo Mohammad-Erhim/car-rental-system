@@ -438,45 +438,80 @@ export class ReportService {
       return { sent: false, reason: 'owner_not_authorized' as const };
     }
 
-    const run = await this.run(owner, sch.definitionCode, sch.params);
-    for (const recipient of sch.recipients) {
-      await this.notify.send({
-        event: 'admin.report.delivered',
-        recipient,
-        fallback: {
-          subject: `${run.title} — report`,
-          body:
-            `Your scheduled report "${run.title}" ran with ${run.rowCount} row(s). ` +
-            `Scope: ${run.scopeNote}. Sign in to the operations console → Insights to view or ` +
-            `export the full data.`,
-        },
-        sourceType: 'report_run',
-        sourceId: run.runId,
+    // Claim before doing any real work: an atomic compare-and-swap on `lastRunAt` (a single
+    // `UPDATE … WHERE … RETURNING` is inherently race-free under Postgres's row-level locking —
+    // no advisory lock or shared transaction across `run()`/`notify.send()` needed). Closes the
+    // gap between the automatic dispatcher tick and a manual "Send now" (or two overlapping
+    // ticks, if a slow run ever outlasts the 60s repeat interval) landing on the same schedule at
+    // once — without this, both could pass the checks above and double-send. 10s is far wider
+    // than any realistic race window but short enough not to block a deliberate quick re-send.
+    const [claimed] = await this.db
+      .update(reportSchedule)
+      .set({ lastRunAt: sql`now()` })
+      .where(
+        and(
+          eq(reportSchedule.id, id),
+          sql`(${reportSchedule.lastRunAt} is null or ${reportSchedule.lastRunAt} < now() - interval '10 seconds')`,
+        ),
+      )
+      .returning({ id: reportSchedule.id });
+    if (!claimed) {
+      throw new AppError('state_conflict', {
+        title: 'This schedule was just dispatched by another request — try again shortly',
+        params: { reason: 'already_in_flight' },
       });
     }
-    await this.outbox.emit({
-      type: 'report.delivery.v1',
-      aggregateType: 'report_schedule',
-      aggregateId: id,
-      payload: {
-        runId: run.runId,
-        definitionCode: sch.definitionCode,
-        recipients: sch.recipients,
-        rowCount: run.rowCount,
-      },
-    });
-    await this.db
-      .update(reportSchedule)
-      .set({ lastRunAt: sql`now()`, lastSkipReason: null, updatedAt: sql`now()` })
-      .where(eq(reportSchedule.id, id));
-    await this.audit.record({
-      action: 'report.schedule.sent',
-      targetType: 'report_schedule',
-      targetId: id,
-      actor,
-      after: { runId: run.runId, recipients: sch.recipients.length },
-    });
-    return { sent: true as const, runId: run.runId, recipients: sch.recipients };
+
+    try {
+      const run = await this.run(owner, sch.definitionCode, sch.params);
+      for (const recipient of sch.recipients) {
+        await this.notify.send({
+          event: 'admin.report.delivered',
+          recipient,
+          fallback: {
+            subject: `${run.title} — report`,
+            body:
+              `Your scheduled report "${run.title}" ran with ${run.rowCount} row(s). ` +
+              `Scope: ${run.scopeNote}. Sign in to the operations console → Insights to view or ` +
+              `export the full data.`,
+          },
+          sourceType: 'report_run',
+          sourceId: run.runId,
+        });
+      }
+      await this.outbox.emit({
+        type: 'report.delivery.v1',
+        aggregateType: 'report_schedule',
+        aggregateId: id,
+        payload: {
+          runId: run.runId,
+          definitionCode: sch.definitionCode,
+          recipients: sch.recipients,
+          rowCount: run.rowCount,
+        },
+      });
+      await this.db
+        .update(reportSchedule)
+        .set({ lastSkipReason: null, updatedAt: sql`now()` })
+        .where(eq(reportSchedule.id, id));
+      await this.audit.record({
+        action: 'report.schedule.sent',
+        targetType: 'report_schedule',
+        targetId: id,
+        actor,
+        after: { runId: run.runId, recipients: sch.recipients.length },
+      });
+      return { sent: true as const, runId: run.runId, recipients: sch.recipients };
+    } catch (err) {
+      // the claim must not cost a legitimate retry: if generating the report or notifying any
+      // recipient actually fails, put `lastRunAt` back so the very next tick (or another manual
+      // click) can try again immediately instead of waiting out a cron cycle.
+      await this.db
+        .update(reportSchedule)
+        .set({ lastRunAt: sch.lastRunAt })
+        .where(eq(reportSchedule.id, id));
+      throw err;
+    }
   }
 
   /** The Actor the schedule runs as, or `null` if that account may no longer receive it. */
@@ -540,7 +575,11 @@ export class ReportService {
    * exact same owner-re-check / run / notify / outbox path a manual "Send now" click uses, so
    * automated and manual dispatch can never drift apart into two different behaviors.
    */
-  async dispatchDueSchedules(now: Date): Promise<{ checked: number; dispatched: string[] }> {
+  async dispatchDueSchedules(now: Date): Promise<{
+    checked: number;
+    dispatched: string[];
+    failed: Array<{ id: string; error: string }>;
+  }> {
     const active = await this.db
       .select({
         id: reportSchedule.id,
@@ -551,15 +590,23 @@ export class ReportService {
       .from(reportSchedule)
       .where(eq(reportSchedule.isActive, 'true'));
     const dispatched: string[] = [];
+    const failed: Array<{ id: string; error: string }> = [];
     for (const sch of active) {
       const baseline = sch.lastRunAt ?? sch.createdAt;
       if (!isScheduleDue(sch.cron, baseline, now)) continue;
-      // a null actor records this audit trail as system-triggered (AuditService already has a
-      // 'system' actorType fallback for exactly this) — there is no human to attribute it to.
-      await this.sendScheduleNow(null, sch.id);
-      dispatched.push(sch.id);
+      try {
+        // a null actor records this audit trail as system-triggered (AuditService already has a
+        // 'system' actorType fallback for exactly this) — there is no human to attribute it to.
+        await this.sendScheduleNow(null, sch.id);
+        dispatched.push(sch.id);
+      } catch (err) {
+        // isolated per schedule — one bad/failing row (or a benign `already_in_flight` conflict
+        // from an overlapping tick) must never stop every *other* due schedule in this same
+        // batch from being dispatched. The next tick retries automatically.
+        failed.push({ id: sch.id, error: err instanceof Error ? err.message : String(err) });
+      }
     }
-    return { checked: active.length, dispatched };
+    return { checked: active.length, dispatched, failed };
   }
 }
 

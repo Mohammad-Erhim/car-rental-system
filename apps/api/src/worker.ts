@@ -96,6 +96,11 @@ async function main() {
       if (job.name === 'report-dispatch') {
         const r = await reportService.dispatchDueSchedules(new Date());
         if (r.dispatched.length) log.info(r, 'report schedule dispatch tick');
+        if (r.failed.length)
+          log.error(
+            { failed: r.failed },
+            'report schedule dispatch: some due schedules failed — will retry next tick',
+          );
         return r;
       }
       if (job.name === 'reap') {
