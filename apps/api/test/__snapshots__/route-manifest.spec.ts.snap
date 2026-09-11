@@ -100,6 +100,9 @@ POST   /api/v1/ops/customers/:id/restrictions/:rid/reject
 POST   /api/v1/ops/customers/:id/unmerge
 GET    /api/v1/ops/dashboard
 GET    /api/v1/ops/data-quality
+POST   /api/v1/ops/data-quality/:checkId/acknowledge
+POST   /api/v1/ops/data-quality/:checkId/false-positive
+POST   /api/v1/ops/data-quality/:checkId/resolve
 GET    /api/v1/ops/fleet/blocks
 POST   /api/v1/ops/fleet/blocks
 POST   /api/v1/ops/fleet/blocks/:id/release

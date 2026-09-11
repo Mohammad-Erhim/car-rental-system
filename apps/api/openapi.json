@@ -2881,6 +2881,75 @@
         ]
       }
     },
+    "/api/v1/ops/data-quality/{checkId}/acknowledge": {
+      "post": {
+        "operationId": "ReportController_acknowledgeFinding",
+        "parameters": [
+          {
+            "name": "checkId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/data-quality/{checkId}/resolve": {
+      "post": {
+        "operationId": "ReportController_resolveFinding",
+        "parameters": [
+          {
+            "name": "checkId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/data-quality/{checkId}/false-positive": {
+      "post": {
+        "operationId": "ReportController_markFindingFalsePositive",
+        "parameters": [
+          {
+            "name": "checkId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/ops/search": {
       "get": {
         "operationId": "ops_search",

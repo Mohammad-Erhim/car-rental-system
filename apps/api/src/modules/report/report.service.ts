@@ -1,4 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { createHash } from 'node:crypto';
+
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { parseExpression } from 'cron-parser';
 import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from 'drizzle-orm';
 
@@ -10,7 +12,12 @@ import type { Actor } from '../../common/auth/types';
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
-import { reportDefinition, reportRun, reportSchedule } from '../../database/schema/admin';
+import {
+  dataQualityFinding,
+  reportDefinition,
+  reportRun,
+  reportSchedule,
+} from '../../database/schema/admin';
 import { vehicleUnit } from '../../database/schema/fleet';
 import { account, staffProfile } from '../../database/schema/iam';
 import { organization } from '../../database/schema/org';
@@ -22,6 +29,8 @@ import { NotifyService } from '../notify/notify.service';
 
 @Injectable()
 export class ReportService {
+  private readonly logger = new Logger('ReportService');
+
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
@@ -126,6 +135,24 @@ export class ReportService {
           { kind: 'recovery_case', open: cases?.n ?? 0 },
           { kind: 'reconciliation_exception', open: exc?.n ?? 0 },
         ];
+        break;
+      }
+      case 'data_quality_sweep': {
+        // reuses this same generic run/schedule/export/notify machinery (FR-RPT-006 automation —
+        // instead of building a parallel scheduler+notifier for data quality, one more
+        // `report_definition` row on the system already built and hardened for report_schedule
+        // (PR #81-83): cron dispatch, atomic claim against a double-fire, per-schedule failure
+        // isolation, "send now" with step-up, CSV export, and run history for free.
+        const report = await this.dataQuality();
+        rows = report.checks.map((c) => ({
+          id: c.id,
+          title: c.title,
+          severity: c.severity,
+          count: c.count,
+          state: c.findingState,
+          sample: c.sample.join('; '),
+          error: c.error ?? '',
+        }));
         break;
       }
       default:
@@ -752,7 +779,7 @@ export class ReportService {
   async dataQuality(): Promise<{
     checkedAt: string;
     ok: boolean;
-    checks: DataQualityCheckResult[];
+    checks: DataQualityCheckWithFinding[];
   }> {
     const CHECKS: DataQualityCheckDef[] = [
       {
@@ -816,14 +843,255 @@ export class ReportService {
       ),
     );
 
+    const orgId = await this.orgId();
+    const findingInfo = await this.reconcileFindings(orgId, checks);
+    const withFindings: DataQualityCheckWithFinding[] = checks.map((c) => {
+      const info = findingInfo.get(c.id);
+      return {
+        ...c,
+        findingState: info?.findingState ?? 'clear',
+        ownerId: info?.ownerId ?? null,
+        firstSeenAt: info?.firstSeenAt ?? null,
+        lastSeenAt: info?.lastSeenAt ?? null,
+        resolvedAt: info?.resolvedAt ?? null,
+        resolutionNote: info?.resolutionNote ?? null,
+      };
+    });
+
     return {
       checkedAt: new Date().toISOString(),
       // a check that couldn't even run is not "clear" — don't let a query failure masquerade as
       // a clean bill of health
-      ok: checks.every((c) => c.ok && !c.error),
-      checks,
+      ok: withFindings.every((c) => c.ok && !c.error),
+      checks: withFindings,
     };
   }
+
+  /**
+   * Upserts each check's tracked finding against its live result (FR-RPT-006's "owner, status,
+   * first/last seen, resolution evidence" — one finding row per check id, the granularity the
+   * checks themselves already work at). A finding already resolved/false_positive for the *exact
+   * same* violating set (same `sampleHash`) stays closed — re-surfacing an identical, already-
+   * dispositioned result every run would be exactly the alert fatigue this feature exists to
+   * prevent. A *different* set under the same check id (a materially different occurrence, per
+   * FR-RPT-006's acceptance evidence) reopens it. The underlying data getting fixed (count back to
+   * 0) auto-resolves an open/acknowledged finding — nobody should have to manually close something
+   * the system already knows is gone.
+   *
+   * Never allowed to block the actual check results from reaching the caller: a write failure
+   * here is logged and swallowed, not thrown — this is bookkeeping on the read path, not the
+   * reason for it.
+   */
+  private async reconcileFindings(
+    orgId: string,
+    checks: DataQualityCheckResult[],
+  ): Promise<Map<string, DataQualityFindingInfo>> {
+    const info = new Map<string, DataQualityFindingInfo>();
+    for (const c of checks) {
+      if (c.error) continue; // a check that couldn't even run leaves its finding state untouched
+      try {
+        const now = new Date().toISOString();
+        const [existing] = await this.db
+          .select()
+          .from(dataQualityFinding)
+          .where(
+            and(eq(dataQualityFinding.organizationId, orgId), eq(dataQualityFinding.checkId, c.id)),
+          )
+          .limit(1);
+        const hash = sampleHash(c.sample);
+
+        if (c.count > 0) {
+          if (!existing) {
+            const [row] = await this.db
+              .insert(dataQualityFinding)
+              .values({
+                organizationId: orgId,
+                checkId: c.id,
+                title: c.title,
+                severity: c.severity,
+                state: 'open',
+                count: c.count,
+                sampleHash: hash,
+                firstSeenAt: now,
+                lastSeenAt: now,
+              })
+              .returning();
+            info.set(c.id, toFindingInfo(row!));
+          } else if (existing.state === 'resolved' || existing.state === 'false_positive') {
+            const [row] =
+              existing.sampleHash === hash
+                ? // same violation, already dispositioned — stays closed, just confirm still seen
+                  await this.db
+                    .update(dataQualityFinding)
+                    .set({ count: c.count, lastSeenAt: now, updatedAt: sql`now()` })
+                    .where(eq(dataQualityFinding.id, existing.id))
+                    .returning()
+                : // materially different occurrence — reopens
+                  await this.db
+                    .update(dataQualityFinding)
+                    .set({
+                      state: 'open',
+                      count: c.count,
+                      sampleHash: hash,
+                      firstSeenAt: now,
+                      lastSeenAt: now,
+                      ownerId: null,
+                      resolvedAt: null,
+                      resolvedBy: null,
+                      resolutionNote: null,
+                      updatedAt: sql`now()`,
+                    })
+                    .where(eq(dataQualityFinding.id, existing.id))
+                    .returning();
+            info.set(c.id, toFindingInfo(row!));
+          } else {
+            // open or acknowledged — keep the state, refresh the live numbers
+            const [row] = await this.db
+              .update(dataQualityFinding)
+              .set({ count: c.count, sampleHash: hash, lastSeenAt: now, updatedAt: sql`now()` })
+              .where(eq(dataQualityFinding.id, existing.id))
+              .returning();
+            info.set(c.id, toFindingInfo(row!));
+          }
+        } else if (existing && (existing.state === 'open' || existing.state === 'acknowledged')) {
+          const [row] = await this.db
+            .update(dataQualityFinding)
+            .set({
+              state: 'resolved',
+              count: 0,
+              resolvedAt: now,
+              resolvedBy: null,
+              resolutionNote: '(auto-resolved — the underlying data was fixed)',
+              updatedAt: sql`now()`,
+            })
+            .where(eq(dataQualityFinding.id, existing.id))
+            .returning();
+          info.set(c.id, toFindingInfo(row!));
+        } else if (existing) {
+          info.set(c.id, toFindingInfo(existing));
+        }
+        // else: count is 0 and no finding row ever existed — nothing to track, stays "clear"
+      } catch (e) {
+        this.logger.warn(
+          `data-quality finding reconciliation failed for ${c.id}: ${(e as Error).message}`,
+        );
+      }
+    }
+    return info;
+  }
+
+  private async loadFinding(orgId: string, checkId: string) {
+    const [row] = await this.db
+      .select()
+      .from(dataQualityFinding)
+      .where(
+        and(eq(dataQualityFinding.organizationId, orgId), eq(dataQualityFinding.checkId, checkId)),
+      )
+      .limit(1);
+    if (!row) throw AppError.notFound('data-quality finding');
+    return row;
+  }
+
+  /** Claims a finding — the current actor becomes its owner. Matches this app's own "claim it"
+   *  ergonomics elsewhere (e.g. picking up a recovery case) rather than a separate assignee
+   *  picker; reassigning to someone else isn't built yet — a disclosed, deliberate scope
+   *  boundary, not an oversight. */
+  async acknowledgeFinding(actor: Actor, checkId: string): Promise<void> {
+    const orgId = await this.orgId();
+    const row = await this.loadFinding(orgId, checkId);
+    if (row.state !== 'open' && row.state !== 'acknowledged') {
+      throw AppError.businessRule(`A ${row.state} finding cannot be acknowledged`, {
+        reason: row.state,
+      });
+    }
+    await this.db
+      .update(dataQualityFinding)
+      .set({ state: 'acknowledged', ownerId: actor.accountId, updatedAt: sql`now()` })
+      .where(eq(dataQualityFinding.id, row.id));
+    await this.audit.record({
+      action: 'data_quality.finding.acknowledged',
+      targetType: 'data_quality_finding',
+      targetId: checkId,
+      actor,
+    });
+  }
+
+  async resolveFinding(actor: Actor, checkId: string, note: string): Promise<void> {
+    return this.closeFinding(actor, checkId, 'resolved', note);
+  }
+
+  async markFindingFalsePositive(actor: Actor, checkId: string, note: string): Promise<void> {
+    return this.closeFinding(actor, checkId, 'false_positive', note);
+  }
+
+  /** Requires a reason either way (matches `reject()`/recovery-case `resolve()` elsewhere in this
+   *  app) — "clear" and "false positive" are both consequential calls on a compliance-adjacent
+   *  signal and deserve the same accountability a rejection reason gets. */
+  private async closeFinding(
+    actor: Actor,
+    checkId: string,
+    state: 'resolved' | 'false_positive',
+    note: string,
+  ): Promise<void> {
+    const orgId = await this.orgId();
+    const row = await this.loadFinding(orgId, checkId);
+    if (row.state === 'resolved' || row.state === 'false_positive') {
+      throw AppError.businessRule(`This finding is already ${row.state}`, { reason: row.state });
+    }
+    await this.db
+      .update(dataQualityFinding)
+      .set({
+        state,
+        resolvedAt: sql`now()`,
+        resolvedBy: actor.accountId,
+        resolutionNote: note,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(dataQualityFinding.id, row.id));
+    await this.audit.record({
+      action:
+        state === 'resolved'
+          ? 'data_quality.finding.resolved'
+          : 'data_quality.finding.false_positive',
+      targetType: 'data_quality_finding',
+      targetId: checkId,
+      actor,
+      reason: note,
+    });
+  }
+}
+
+export interface DataQualityFindingInfo {
+  findingState: 'clear' | 'open' | 'acknowledged' | 'resolved' | 'false_positive';
+  ownerId: string | null;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+  resolvedAt: string | null;
+  resolutionNote: string | null;
+}
+
+export type DataQualityCheckWithFinding = DataQualityCheckResult & DataQualityFindingInfo;
+
+function toFindingInfo(row: typeof dataQualityFinding.$inferSelect): DataQualityFindingInfo {
+  return {
+    findingState: row.state as DataQualityFindingInfo['findingState'],
+    ownerId: row.ownerId,
+    firstSeenAt: row.firstSeenAt,
+    lastSeenAt: row.lastSeenAt,
+    resolvedAt: row.resolvedAt,
+    resolutionNote: row.resolutionNote,
+  };
+}
+
+/** Hash of the sorted sample set — how a resolved/false_positive finding tells "the exact same
+ *  violation, still not fixed" (stays suppressed) from "a different one just showed up under the
+ *  same check id" (reopens). Exported standalone (no DB) for direct unit coverage: this is the
+ *  one piece of the reconciliation state machine that would silently either spam ops with
+ *  re-alerts on an already-handled issue, or hide a genuinely new one, if it were ever wrong. */
+export function sampleHash(sample: string[]): string {
+  return createHash('sha256')
+    .update(JSON.stringify([...sample].sort()))
+    .digest('hex');
 }
 
 export interface DataQualityCheckDef {

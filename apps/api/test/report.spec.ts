@@ -62,6 +62,7 @@ async function book(
 describe('STAGE-006 administration & reporting', () => {
   let server: ReturnType<typeof httpServer>;
   let adminToken: string;
+  let adminAccountId: string;
   let managerToken: string;
   let scopedToken: string;
   let agentToken: string;
@@ -70,8 +71,9 @@ describe('STAGE-006 administration & reporting', () => {
   beforeAll(async () => {
     const app = await getTestApp();
     server = httpServer(app);
-    adminToken = (await signIn(app, 'test-admin@example.test', 'Test-Passw0rd!', 'staff'))
-      .accessToken;
+    const admin = await signIn(app, 'test-admin@example.test', 'Test-Passw0rd!', 'staff');
+    adminToken = admin.accessToken;
+    adminAccountId = admin.actor.accountId;
     managerToken = (await signIn(app, 'test-manager@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
     scopedToken = (await signIn(app, 'test-scoped@example.test', 'Test-Passw0rd!', 'staff'))
@@ -905,7 +907,21 @@ describe('STAGE-006 administration & reporting', () => {
       // whole check definition as `runDataQualityCheck`'s `meta` instead of just the display
       // fields, caught live in the dev environment right after this shipped.
       expect(Object.keys(c).sort()).toEqual(
-        ['count', 'error', 'id', 'ok', 'sample', 'severity', 'title'].sort(),
+        [
+          'count',
+          'error',
+          'findingState',
+          'firstSeenAt',
+          'id',
+          'lastSeenAt',
+          'ok',
+          'ownerId',
+          'resolutionNote',
+          'resolvedAt',
+          'sample',
+          'severity',
+          'title',
+        ].sort(),
       );
     }
     // the referential-integrity checks stay clean — no test creates orphans or dangling rows
@@ -1001,6 +1017,205 @@ describe('STAGE-006 administration & reporting', () => {
     expect(stale.error).toBeNull();
     // the report as a whole is honestly non-ok now that real issues exist
     expect(res.body.ok).toBe(false);
+  });
+
+  it('TEST-ADM-011 a data-quality finding can be acknowledged, resolved (with a required reason), and the identical violation stays resolved on the next run', async () => {
+    // guarantee an open `config_never_published` finding exists for this test's own key,
+    // independent of what TEST-ADM-010 or anything else left behind
+    const uniqueKey = `dq-lifecycle-${randomUUID().slice(0, 8)}`;
+    const draft = await request(server)
+      .post('/api/v1/ops/config/versions')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ kind: 'pricing', key: uniqueKey, payload: { note: 'finding lifecycle test' } })
+      .expect(201);
+    await request(server)
+      .post(`/api/v1/ops/config/versions/${draft.body.id}/submit`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({})
+      .expect(201);
+    await request(server)
+      .post(`/api/v1/ops/config/versions/${draft.body.id}/reject`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ note: 'rejecting for the finding-lifecycle test' })
+      .expect(201);
+
+    // GET reconciles the finding into existence
+    const firstRead = await request(server)
+      .get('/api/v1/ops/data-quality')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const checkOf = (body: unknown, id: string) =>
+      (
+        body as {
+          checks: Array<{
+            id: string;
+            findingState: string;
+            ownerId: string | null;
+            resolutionNote: string | null;
+          }>;
+        }
+      ).checks.find((c) => c.id === id)!;
+    expect(checkOf(firstRead.body, 'config_never_published').findingState).toBe('open');
+
+    // a permission that isn't audit.manage — read access to the page never implies write access
+    // to its findings (SRS-SEC-007; the exact bug class this session's own permission sweep found
+    // twice elsewhere in this app)
+    await request(server)
+      .post('/api/v1/ops/data-quality/config_never_published/acknowledge')
+      .set('Authorization', `Bearer ${agentToken}`)
+      .expect(403);
+    await request(server)
+      .post('/api/v1/ops/data-quality/config_never_published/resolve')
+      .set('Authorization', `Bearer ${agentToken}`)
+      .send({ note: 'nope' })
+      .expect(403);
+
+    // acknowledge — claims ownership
+    await request(server)
+      .post('/api/v1/ops/data-quality/config_never_published/acknowledge')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201);
+    const afterAck = await request(server)
+      .get('/api/v1/ops/data-quality')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const acked = checkOf(afterAck.body, 'config_never_published');
+    expect(acked.findingState).toBe('acknowledged');
+    expect(acked.ownerId).toBe(adminAccountId);
+
+    // resolving with no reason is refused — this is a consequential call, same as a config reject
+    await request(server)
+      .post('/api/v1/ops/data-quality/config_never_published/resolve')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({})
+      .expect(422);
+
+    // resolve, with a reason
+    await request(server)
+      .post('/api/v1/ops/data-quality/config_never_published/resolve')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ note: 'accepted — will publish a superseding revision next sprint' })
+      .expect(201);
+    const afterResolve = await request(server)
+      .get('/api/v1/ops/data-quality')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const resolved = checkOf(afterResolve.body, 'config_never_published');
+    expect(resolved.findingState).toBe('resolved');
+    expect(resolved.resolutionNote).toBe(
+      'accepted — will publish a superseding revision next sprint',
+    );
+
+    // resolving an already-resolved finding is refused, not silently accepted
+    await request(server)
+      .post('/api/v1/ops/data-quality/config_never_published/resolve')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ note: 'again' })
+      .expect(422);
+
+    // re-running the sweep with the *exact same* unpublished-draft set (nothing about it
+    // changed) must not re-open a finding a human already dispositioned
+    const afterRerun = await request(server)
+      .get('/api/v1/ops/data-quality')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(checkOf(afterRerun.body, 'config_never_published').findingState).toBe('resolved');
+  });
+
+  it('TEST-ADM-012 a data-quality finding can be marked a false positive, separately from resolving it', async () => {
+    const q = await request(server)
+      .post('/api/v1/discovery/quote')
+      .send({
+        pickupLocationCode: 'TST1',
+        pickupAt: tuesday(61),
+        returnAt: plus(tuesday(61), 3),
+        categoryCode: 'suv',
+        holderKey: `dq-fp-${randomUUID().slice(0, 8)}`,
+      })
+      .expect(201);
+    await request(server)
+      .post('/api/v1/bookings/confirm')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        quoteReference: q.body.reference,
+        drivers: [{ role: 'primary_renter', fullName: 'DQ FP', email: 'dq-fp@example.test' }],
+        acceptTerms: true,
+        paymentToken: 'tok_ok',
+        simulateWriteFailure: true,
+      })
+      .expect(500);
+    const cases = await request(server)
+      .get('/api/v1/ops/cases')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const kase = (cases.body as Array<{ id: string; kind: string }>).find(
+      (c) => c.kind === 'write_after_charge',
+    )!;
+    const app = await getTestApp();
+    const db = app.get<Database>(DB);
+    await db
+      .update(recoveryCase)
+      .set({ createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString() })
+      .where(eq(recoveryCase.id, kase.id));
+
+    await request(server)
+      .get('/api/v1/ops/data-quality')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    await request(server)
+      .post('/api/v1/ops/data-quality/recovery_case_stale/false-positive')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({})
+      .expect(422); // reason required, same as resolve
+
+    await request(server)
+      .post('/api/v1/ops/data-quality/recovery_case_stale/false-positive')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ note: 'this case is intentionally long-running, tracked elsewhere' })
+      .expect(201);
+
+    const after = await request(server)
+      .get('/api/v1/ops/data-quality')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const stale = (
+      after.body.checks as Array<{ id: string; findingState: string; resolutionNote: string }>
+    ).find((c) => c.id === 'recovery_case_stale')!;
+    expect(stale.findingState).toBe('false_positive');
+    expect(stale.resolutionNote).toBe('this case is intentionally long-running, tracked elsewhere');
+  });
+
+  it('TEST-ADM-013 the data-quality sweep is a real, schedulable report — reuses the report machinery instead of a parallel scheduler', async () => {
+    const defs = await request(server)
+      .get('/api/v1/ops/reports')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(
+      (defs.body as Array<{ code: string }>).some((d) => d.code === 'data_quality_sweep'),
+    ).toBe(true);
+
+    const run = await request(server)
+      .post('/api/v1/ops/reports/data_quality_sweep/run')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({})
+      .expect(201);
+    const rows = run.body.rows as Array<{ id: string; title: string; severity: string }>;
+    expect(rows.length).toBeGreaterThanOrEqual(5);
+    expect(rows.some((r) => r.id === 'rental_active_without_unit')).toBe(true);
+
+    // schedulable exactly like every other report — no separate data-quality-specific scheduling
+    // surface needed
+    const schedule = await request(server)
+      .post('/api/v1/ops/reports/schedules')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        definitionCode: 'data_quality_sweep',
+        cron: '0 8 * * *',
+        recipients: ['ops-alerts@example.test'],
+      })
+      .expect(201);
+    expect(schedule.body.definitionCode).toBe('data_quality_sweep');
   });
 
   it('SCREEN-OPS-002 the operational dashboard returns scoped counts, never below zero; a customer is refused', async () => {

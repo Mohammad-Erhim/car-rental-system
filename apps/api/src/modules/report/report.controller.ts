@@ -200,4 +200,33 @@ export class ReportController {
   dataQuality() {
     return this.reports.dataQuality();
   }
+
+  // Gated behind `audit.manage`, never `audit.read` — a read permission must never itself unlock
+  // a write (SRS-SEC-007; the exact bug class this session's own permission sweep found twice
+  // elsewhere in this app).
+  @Post('data-quality/:checkId/acknowledge')
+  @Permissions('audit.manage')
+  acknowledgeFinding(@Param('checkId') checkId: string, @CurrentActor() actor: Actor) {
+    return this.reports.acknowledgeFinding(actor, checkId);
+  }
+
+  @Post('data-quality/:checkId/resolve')
+  @Permissions('audit.manage')
+  resolveFinding(
+    @Param('checkId') checkId: string,
+    @Body(new ZodValidationPipe(zNote)) body: z.infer<typeof zNote>,
+    @CurrentActor() actor: Actor,
+  ) {
+    return this.reports.resolveFinding(actor, checkId, body.note);
+  }
+
+  @Post('data-quality/:checkId/false-positive')
+  @Permissions('audit.manage')
+  markFindingFalsePositive(
+    @Param('checkId') checkId: string,
+    @Body(new ZodValidationPipe(zNote)) body: z.infer<typeof zNote>,
+    @CurrentActor() actor: Actor,
+  ) {
+    return this.reports.markFindingFalsePositive(actor, checkId, body.note);
+  }
 }
