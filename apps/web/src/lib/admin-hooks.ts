@@ -262,6 +262,36 @@ export function useAuditLog(filter: AuditLogQuery) {
   });
 }
 
+const AUDIT_EXPORT_PAGE = 200; // server-side max for a single page (zAuditQuery limit)
+const AUDIT_EXPORT_CAP = 20_000; // sanity cap so a very wide filter can't hang the browser tab
+
+/** Exports every event matching the current filter, not just the page on screen — same reasoning
+ *  (and same shape) as the consent log's export: a compliance/investigation export that silently
+ *  only contains "whatever happened to be showing" defeats its own purpose. Pages through the
+ *  server's own max page size until the full filtered set is fetched, capped with a disclosed
+ *  (never silent) truncation flag if hit. */
+export function useAuditLogExport() {
+  return useMutation({
+    mutationFn: async (filters: Omit<AuditLogQuery, 'limit' | 'offset'>) => {
+      const entries: AuditRow[] = [];
+      let offset = 0;
+      let total = Infinity;
+      while (offset < total && entries.length < AUDIT_EXPORT_CAP) {
+        const qs = new URLSearchParams();
+        for (const [k, v] of Object.entries(filters)) if (v) qs.set(k, String(v));
+        qs.set('limit', String(AUDIT_EXPORT_PAGE));
+        qs.set('offset', String(offset));
+        const page = await apiFetch<AuditLogResponse>(`/ops/audit?${qs}`);
+        entries.push(...page.entries);
+        total = page.total;
+        offset += AUDIT_EXPORT_PAGE;
+        if (!page.entries.length) break;
+      }
+      return { entries, truncated: entries.length < total };
+    },
+  });
+}
+
 // ---- data quality (SCREEN-OPS-039, FR-ADM-013) ----
 
 export interface DataQualityCheck {
