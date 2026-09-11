@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { parseExpression } from 'cron-parser';
-import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
@@ -677,6 +677,29 @@ export class ReportService {
       entries: rows.map((r) => ({ ...r, occurredAt: new Date(r.occurredAt).toISOString() })),
       total: countRow?.n ?? 0,
     };
+  }
+
+  /** Typeahead for the audit log's "filter by actor" search — an actor is only ever a raw id in
+   *  the trail itself (`auditEvent.actorId`), so finding "everything Alice did" otherwise meant
+   *  already having a row of hers in view to click. Matches on display name or email, either
+   *  staff or customer (both can be audit actors) — capped small since it's a typeahead, not a
+   *  report. */
+  async searchActors(
+    q: string,
+  ): Promise<Array<{ id: string; label: string; email: string; kind: string }>> {
+    const like = `%${q.replace(/[%_\\]/g, (m) => `\\${m}`)}%`;
+    const rows = await this.db
+      .select({
+        id: account.id,
+        displayName: account.displayName,
+        email: account.email,
+        kind: account.kind,
+      })
+      .from(account)
+      .where(or(ilike(account.displayName, like), ilike(account.email, like)))
+      .orderBy(asc(account.displayName))
+      .limit(10);
+    return rows.map((r) => ({ id: r.id, label: r.displayName, email: r.email, kind: r.kind }));
   }
 }
 

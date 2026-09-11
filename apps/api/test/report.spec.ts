@@ -622,6 +622,36 @@ describe('STAGE-006 administration & reporting', () => {
     expect(actions).toContain('admin.staff.access_changed');
   });
 
+  it('TEST-ADM-009 the actor typeahead finds an account by display name or email, and enforces a minimum query length', async () => {
+    const byName = await request(server)
+      .get('/api/v1/ops/audit/actors?q=Test Admin')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(byName.body.some((a: { email: string }) => a.email === 'test-admin@example.test')).toBe(
+      true,
+    );
+
+    const byEmail = await request(server)
+      .get('/api/v1/ops/audit/actors?q=test-admin@example.test')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(byEmail.body.some((a: { email: string }) => a.email === 'test-admin@example.test')).toBe(
+      true,
+    );
+
+    // a one-character query is rejected rather than matching everything
+    await request(server)
+      .get('/api/v1/ops/audit/actors?q=a')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(422);
+
+    // gated the same as the rest of the audit page — audit.read required
+    await request(server)
+      .get('/api/v1/ops/audit/actors?q=Test Admin')
+      .set('Authorization', `Bearer ${agentToken}`)
+      .expect(403);
+  });
+
   it('TEST-ADM-006 sending a schedule needs a fresh step-up, then re-checks the owner and pauses if they lost access', async () => {
     // a helper: STEP_UP_MAX_AGE_SEC is 1s in tests, so re-confirm right before each send
     const stepUp = () =>

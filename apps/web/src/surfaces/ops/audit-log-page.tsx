@@ -16,7 +16,13 @@ import {
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-import { useAuditLog, useAuditLogExport, type AuditRow } from '../../lib/admin-hooks.js';
+import {
+  useAuditActorSearch,
+  useAuditLog,
+  useAuditLogExport,
+  type AuditActor,
+  type AuditRow,
+} from '../../lib/admin-hooks.js';
 
 /** Common actions, for the filter's autocomplete — the field still accepts anything. */
 const COMMON_ACTIONS = [
@@ -46,6 +52,80 @@ const draftFromParams = (p: URLSearchParams) => ({
   from: p.get('from') ?? '',
   to: p.get('to') ?? '',
 });
+
+/** Typeahead for "filter by actor" — the trail only ever records a raw id, so searching by a
+ *  name/email an admin actually knows was otherwise impossible without already having a row of
+ *  theirs on screen to click. Lives outside the filter `<form>` (not the Enter/Apply flow — a
+ *  pick here applies immediately, same as clicking an actor cell in the table does). */
+function ActorSearchField({ onSelect }: { onSelect: (actor: AuditActor) => void }) {
+  const { t } = useI18n();
+  const [q, setQ] = useState('');
+  const [debounced, setDebounced] = useState('');
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(q), 300);
+    return () => clearTimeout(id);
+  }, [q]);
+  const results = useAuditActorSearch(debounced);
+  const showDropdown = open && debounced.trim().length >= 2;
+
+  return (
+    <div className="relative">
+      <Field
+        label={t('ops.audit.filterByActorName')}
+        htmlFor="aud-actor-search"
+        hint={t('ops.audit.actorSearchHint')}
+      >
+        {({ id }) => (
+          <Input
+            id={id}
+            autoComplete="off"
+            data-testid="audit-actor-search"
+            value={q}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setOpen(true);
+            }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setTimeout(() => setOpen(false), 150)}
+          />
+        )}
+      </Field>
+      {showDropdown ? (
+        <div className="absolute z-10 mt-1 w-72 rounded-md border bg-background shadow-md">
+          {results.isLoading ? (
+            <p className="p-2 text-xs text-muted-foreground">{t('ops.st.loading')}</p>
+          ) : !results.data?.length ? (
+            <p className="p-2 text-xs text-muted-foreground">{t('ops.audit.noActorMatch')}</p>
+          ) : (
+            <ul>
+              {results.data.map((a) => (
+                <li key={a.id}>
+                  <button
+                    type="button"
+                    className="block w-full px-3 py-2 text-start text-sm hover:bg-muted"
+                    // keeps focus on the input through the click so `onBlur` above doesn't close
+                    // the dropdown before this handler fires
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      onSelect(a);
+                      setQ('');
+                      setDebounced('');
+                      setOpen(false);
+                    }}
+                  >
+                    <span className="font-medium">{a.label}</span>
+                    <span className="ms-1.5 text-xs text-muted-foreground">{a.email}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function toCsv(rows: AuditRow[]): string {
   const head = [
@@ -437,7 +517,11 @@ export function AuditLogPage() {
                 {t('ops.st.clear')}
               </button>
             </p>
-          ) : null}
+          ) : (
+            <div className="mt-3 max-w-xs">
+              <ActorSearchField onSelect={(a) => setParam('actorId', a.id)} />
+            </div>
+          )}
         </CardContent>
       </Card>
 
