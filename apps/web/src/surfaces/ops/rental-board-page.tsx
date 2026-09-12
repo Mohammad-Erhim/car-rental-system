@@ -448,6 +448,7 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
               <Field
                 label={t('ops.rent.odoOut')}
                 htmlFor={`odo-${r.reference}`}
+                required
                 error={odo && !numOk(odo) ? t('ops.rent.numberOnly') : undefined}
               >
                 {({ id }) => (
@@ -463,6 +464,7 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
               <Field
                 label={t('ops.rent.fuelOut')}
                 htmlFor={`fuel-${r.reference}`}
+                required
                 error={fuel && !pctOk(fuel) ? t('ops.rent.pct0to100') : undefined}
               >
                 {({ id }) => (
@@ -474,7 +476,7 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
                   />
                 )}
               </Field>
-              <Field label={t('ops.rent.driverName')} htmlFor={`drv-${r.reference}`}>
+              <Field label={t('ops.rent.driverName')} htmlFor={`drv-${r.reference}`} required>
                 {({ id }) => (
                   <Input
                     id={id}
@@ -487,6 +489,7 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
               <Field
                 label={t('ops.rent.licence')}
                 htmlFor={`lic-${r.reference}`}
+                required
                 hint={t('ops.rent.licenceHint')}
               >
                 {({ id }) => (
@@ -529,6 +532,7 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
               <Field
                 label={t('ops.rent.odoIn')}
                 htmlFor={`odoi-${r.reference}`}
+                required
                 hint={
                   r.odometerOutKm != null
                     ? t('ops.rent.odoOutWas', { km: r.odometerOutKm })
@@ -555,6 +559,7 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
               <Field
                 label={t('ops.rent.fuelIn')}
                 htmlFor={`fueli-${r.reference}`}
+                required
                 hint={t('ops.rent.fuelInHint')}
                 error={fuel && !pctOk(fuel) ? t('ops.rent.pct0to100') : undefined}
               >
@@ -716,14 +721,25 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
         ) : null}
 
         {r.state === 'closed' ? (
-          <Button
-            variant="outline"
-            onClick={doReadiness}
-            loading={readiness.isPending}
-            data-testid={`readiness-${r.reference}`}
-          >
-            {t('ops.rent.markReady')}
-          </Button>
+          r.readinessOutcome ? (
+            <Badge
+              variant={r.readinessOutcome === 'passed' ? 'success' : 'warning'}
+              data-testid={`readiness-outcome-${r.reference}`}
+            >
+              {r.readinessOutcome === 'passed'
+                ? t('ops.rent.readyOutcomePassed')
+                : t('ops.rent.readyOutcomeFailed')}
+            </Badge>
+          ) : (
+            <Button
+              variant="outline"
+              onClick={doReadiness}
+              loading={readiness.isPending}
+              data-testid={`readiness-${r.reference}`}
+            >
+              {t('ops.rent.markReady')}
+            </Button>
+          )
         ) : null}
       </CardContent>
 

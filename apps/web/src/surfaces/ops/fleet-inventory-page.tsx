@@ -487,7 +487,7 @@ export function FleetInventoryPage() {
         description={
           <div className="space-y-3">
             <p>{t('ops.fleet.transferBody')}</p>
-            <Field label={t('ops.fleet.transferTo')} htmlFor="xfer-to">
+            <Field label={t('ops.fleet.transferTo')} htmlFor="xfer-to" required>
               {({ id }) => (
                 <select
                   id={id}
@@ -509,6 +509,7 @@ export function FleetInventoryPage() {
           </div>
         }
         confirmLabel={t('ops.fleet.transfer')}
+        confirmDisabled={!xferTo}
         onConfirm={runTransfer}
       />
 

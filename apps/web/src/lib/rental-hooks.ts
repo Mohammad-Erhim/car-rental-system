@@ -18,6 +18,9 @@ export interface Rental {
   currency: string;
   settlementMinor: number;
   agreementVersion: string | null;
+  /** the readiness check's outcome (FR-RNT-013) — `null` until it's been run once; a `closed`
+   *  rental's own `state` never changes when this runs, so this is the only signal that it has */
+  readinessOutcome: 'passed' | 'failed' | null;
   history?: Array<{
     type: string;
     at: string;

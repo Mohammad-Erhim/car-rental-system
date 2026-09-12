@@ -269,7 +269,7 @@ export function RentalDetailPage() {
         <CardContent className="space-y-4">
           {canExtend && extendable ? (
             <div className="flex flex-wrap items-end gap-3">
-              <Field label={t('ops.rentd.newReturn')} htmlFor="rentd-newreturn">
+              <Field label={t('ops.rentd.newReturn')} htmlFor="rentd-newreturn" required>
                 {({ id }) => (
                   <Input
                     id={id}
@@ -292,22 +292,33 @@ export function RentalDetailPage() {
           ) : null}
 
           {canReady && d.state === 'closed' ? (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                loading={readiness.isPending}
-                onClick={() => setConfirmReady(true)}
+            d.readinessOutcome ? (
+              <Badge
+                variant={d.readinessOutcome === 'passed' ? 'success' : 'warning'}
+                data-testid="readiness-outcome"
               >
-                {t('ops.rentd.readyPassBtn')}
-              </Button>
-              <Button
-                variant="destructive"
-                loading={readiness.isPending}
-                onClick={() => setConfirmReady(false)}
-              >
-                {t('ops.rentd.readyFailBtn')}
-              </Button>
-            </div>
+                {d.readinessOutcome === 'passed'
+                  ? t('ops.rent.readyOutcomePassed')
+                  : t('ops.rent.readyOutcomeFailed')}
+              </Badge>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  loading={readiness.isPending}
+                  onClick={() => setConfirmReady(true)}
+                >
+                  {t('ops.rentd.readyPassBtn')}
+                </Button>
+                <Button
+                  variant="destructive"
+                  loading={readiness.isPending}
+                  onClick={() => setConfirmReady(false)}
+                >
+                  {t('ops.rentd.readyFailBtn')}
+                </Button>
+              </div>
+            )
           ) : null}
 
           {!(canExtend && extendable) && !(canReady && d.state === 'closed') ? (

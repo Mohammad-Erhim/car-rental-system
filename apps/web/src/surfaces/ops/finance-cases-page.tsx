@@ -341,6 +341,7 @@ export function FinanceCasesPage() {
             <Field
               label={t('ops.fin.resolutionNote')}
               htmlFor="fin-note"
+              required
               error={noteError ? t('ops.fin.noteRequired') : undefined}
             >
               {({ id }) => (

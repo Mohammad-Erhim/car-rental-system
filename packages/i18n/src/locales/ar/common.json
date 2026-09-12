@@ -1127,6 +1127,8 @@
   "ops.rent.pickupFail": "فشل الاستلام.",
   "ops.rent.readyDoneBoard": "اجتاز {ref} فحص الجاهزية — عاد المركبة إلى قائمة التوفّر.",
   "ops.rent.readyFailBoard": "تعذّر إكمال فحص الجاهزية.",
+  "ops.rent.readyOutcomeFailed": "أُرسل للصيانة",
+  "ops.rent.readyOutcomePassed": "جاهز — اجتاز",
   "ops.rent.removeFinding": "إزالة",
   "ops.rent.reportIncident": "الإبلاغ عن حادثة",
   "ops.rent.return": "إتمام الإرجاع",
