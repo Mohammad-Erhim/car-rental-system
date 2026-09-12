@@ -639,6 +639,7 @@ export function ConfigVersionsPage() {
             <Field
               label={t('ops.cfg.rejectReason')}
               htmlFor="cfg-reject-reason"
+              required
               error={
                 rejecting && !rejectReason.trim() ? t('ops.cfg.rejectReasonRequired') : undefined
               }

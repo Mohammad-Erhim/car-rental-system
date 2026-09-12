@@ -739,6 +739,7 @@
   "ops.loc.create": "إنشاء الموقع",
   "ops.loc.email": "البريد الإلكتروني",
   "ops.loc.exClosed": "مغلق طوال اليوم",
+  "ops.loc.exDateRequired": "اختر تاريخًا للاستثناء.",
   "ops.loc.exInverted": "يجب أن يسبق وقت الفتح وقت الإغلاق.",
   "ops.loc.exReduced": "ساعات مخفَّضة",
   "ops.loc.exSaveFail": "تعذّر تحديث استثناء الإغلاق.",

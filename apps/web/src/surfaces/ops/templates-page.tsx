@@ -262,7 +262,7 @@ export function TemplatesPage() {
                     />
                   )}
                 </Field>
-                <Field label={t('ops.tpl.body')} hint={t('ops.tpl.bodyHint')}>
+                <Field label={t('ops.tpl.body')} required hint={t('ops.tpl.bodyHint')}>
                   {({ id }) => (
                     <Textarea
                       id={id}
