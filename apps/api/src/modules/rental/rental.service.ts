@@ -300,7 +300,10 @@ export class RentalService {
       purpose: `extension-${Date.now()}`,
       amountMinor: deltaMinor,
       currency: row.currency,
-      token: input.paymentToken ?? 'tok_ok',
+      // No fallback to a fixed token here: an omitted token lets PaymentService fall back to
+      // the reservation's saved payment method (off-session reuse) — see payment.service.ts.
+      // Only the simulator's own tokens ever look like literal strings such as `tok_ok`.
+      token: input.paymentToken,
       actor,
     });
 

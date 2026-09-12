@@ -11,6 +11,7 @@ import { LookupSelect } from '../../../../components/lookup-select';
 import { RequireAuth } from '../../../../components/require-auth';
 import {
   formatMinor,
+  usePaymentMode,
   useCancelReservation,
   useExtendRental,
   useModifyReservation,
@@ -57,6 +58,12 @@ function ReservationDetail() {
   const modify = useModifyReservation(reference);
   const rental = useMyRental(reference);
   const extend = useExtendRental(rental.data?.reference ?? '');
+  const paymentMode = usePaymentMode();
+  // Under a real Stripe mode, omit the token entirely: PaymentService automatically reuses the
+  // reservation's saved payment method from the original booking charge (STAGE-003) — no card
+  // re-entry needed for an extend/modify. The simulator has no such saved-method concept, so it
+  // keeps using its fixed always-approves test token exactly as before.
+  const simulatorToken = !paymentMode.data || paymentMode.data.driver === 'simulator';
 
   const [showCancel, setShowCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
@@ -77,7 +84,7 @@ function ReservationDetail() {
     try {
       const res = await extend.mutateAsync({
         newReturnAt: new Date(extendReturn).toISOString(),
-        paymentToken: 'tok_ok',
+        paymentToken: simulatorToken ? 'tok_ok' : undefined,
       });
       setExtendMsg(
         t('reservation.extendOk', { amount: formatMinor(res.deltaMinor, res.currency, uiLocale) }),
@@ -93,7 +100,7 @@ function ReservationDetail() {
     try {
       const res = await modify.mutateAsync({
         returnAt: new Date(newReturn).toISOString(),
-        paymentToken: 'tok_ok',
+        paymentToken: simulatorToken ? 'tok_ok' : undefined,
       });
       setModifyMsg(
         res.deltaMinor >= 0

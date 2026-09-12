@@ -68,9 +68,11 @@ Append-only. Do not rewrite history. Newest at the bottom of each area.
 - Decision: Provider-neutral `PaymentPort`; the only implementation wired by default is the
   local deterministic simulator with named scenarios (success, decline, action-required,
   timeout-before-effect, timeout-after-effect/unknown, duplicate/out-of-order webhook,
-  signature failure, outage, recovery) and an event-replay endpoint. Stripe adapter left as a
-  stub implementing the same port.
+  signature failure, outage, recovery) and an event-replay endpoint.
 - Source IDs: SRS DEC-008, SRS §4.3, §12.3, TEST-ERR-005/006.
+- Superseded by: DEC-027 adds a real Stripe implementation of the same port, dashboard-switchable
+  against the simulator. (Note: this entry previously and inaccurately claimed a Stripe adapter
+  was "left as a stub" — no such file ever existed; corrected 2026-09-12.)
 
 ---
 
@@ -286,3 +288,47 @@ Append-only. Do not rewrite history. Newest at the bottom of each area.
   `apps/site/src/middleware.ts`, `deploy/Dockerfile.site`, `compose.yaml`, `.env.example`, root
   `package.json`, `e2e/playwright.config.ts` (`E2E_WEB_URL` default → `:3100`) updated. Verified
   in-browser: 40/40 route + session checks, 9/9 responsive-evidence checks.
+
+### DEC-027 — Real Stripe adapter, dashboard-configurable (supersedes DEC-006's "stub" note)
+
+- Date: 2026-09-12
+- Context: DEC-006 shipped only the simulator; no Stripe code existed anywhere in the repo
+  (verified by exhaustive search on user request). The user asked for a professional, fully
+  dashboard-configurable Stripe integration — test and live accounts, including secret keys,
+  switchable live against the simulator, with a deliberately narrower permission than every
+  other admin action, and guaranteed correctness across every payment scenario the system has.
+- Decision:
+  - `StripePaymentAdapter implements PaymentPort` — the same port DEC-006 defined, so the
+    simulator and Stripe are interchangeable from every caller's point of view. Constructed with
+    an already-configured `Stripe` client (dependency injection), not reading credentials itself.
+  - Runtime driver selection is DB-backed and dashboard-editable (`payment_provider_config`
+    table, one row per org), not a static NestJS DI binding or an env var — a new
+    `RoutingPaymentAdapter` resolves the active adapter fresh on every call (never cached; a
+    switch must take effect on the very next payment, not the next deploy).
+  - Secret keys are AES-256-GCM encrypted at rest (`PAYMENT_CONFIG_ENCRYPTION_KEY`, same operator-
+    secret tier as `PASSWORD_PEPPER`), and validated with a real, side-effect-free
+    `stripe.balance.retrieve()` call before being stored — a bad paste is caught at save time, not
+    at a guest's checkout.
+  - `payment.manage` is deliberately excluded from every role's blanket `'ALL'` grant — only
+    `administrator` holds it (a new, stricter allow-list pattern than the existing `audit.manage`
+    precedent, which both `administrator` and `manager` get) — plus `@StepUp()` on every write.
+  - Off-session saved-payment-method reuse (Stripe Customer + `setup_future_usage: 'off_session'`
+    on the first charge) lets extend/modify charges reuse the card already on file with no new UI.
+  - Webhook signature verification (`req.rawBody`) + idempotent event dedup (existing
+    `IdempotencyService`); any local/remote ledger mismatch opens a `reconciliation_exception`
+    for human review rather than auto-correcting — same rule this app already applies to every
+    other money discrepancy.
+  - Disclosed, deliberate scope boundary: a PaymentIntent returning `requires_action` (3-D Secure)
+    is mapped to a decline rather than driving a client-side confirmation/redirect flow — that is
+    a materially different, larger checkout architecture than this system's current single-
+    request confirm flow.
+- Source IDs: user request (2026-09-12, Telegram), DEC-006, SRS §4.3/§12.3, FR-PAY-010,
+  SCREEN-OPS-041.
+- Consequences: `apps/api/src/modules/payment/{stripe-payment.adapter,payment-config.service,
+routing-payment.adapter,payment-config.controller,stripe-webhook.controller}.ts`,
+  `apps/api/src/common/crypto/secret-cipher.ts`, migration `0021_fresh_warbird.sql`,
+  `apps/web/src/surfaces/ops/payments-page.tsx`, `apps/site` checkout (`@stripe/react-stripe-js`
+  Payment Element, deferred/no-`clientSecret` pattern) and trip-extend token omission. 18 backend
+  unit tests + 8 integration tests added, zero regressions in the full API suite. No live Stripe
+  test-mode account was available to verify against the real Stripe API end-to-end — the adapter
+  is verified against the documented Stripe error/response shape and a mocked SDK client only.

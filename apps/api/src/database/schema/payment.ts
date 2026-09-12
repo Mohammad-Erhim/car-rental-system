@@ -1,4 +1,5 @@
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -38,6 +39,12 @@ export const paymentIntent = pgTable(
     capturedAt: timestamp('captured_at', { withTimezone: true, mode: 'string' }),
     /** amount refunded so far (minor) */
     refundedMinor: integer('refunded_minor').notNull().default(0),
+    /** Stripe only — the customer + payment method behind this charge, saved on the *first*
+     *  (booking) intent so a later extension/incidental charge on the same reservation can be
+     *  an off-session reuse instead of asking the guest to re-enter a card (FR-PAY / DEC-006
+     *  follow-up). Always null under the simulator. */
+    providerCustomerRef: text('provider_customer_ref'),
+    providerMethodRef: text('provider_method_ref'),
   },
   (t) => ({
     unq: uniqueIndex('payment_intent_res_purpose_unq').on(t.reservationReference, t.purpose),
@@ -94,3 +101,36 @@ export const recoveryCase = pgTable(
     subjectIdx: index('recovery_case_subject_idx').on(t.subjectType, t.subjectRef),
   }),
 );
+
+/**
+ * DAT-PAYMENT-PROVIDER-CONFIG (SCREEN-OPS-041, FR-PAY-010). One row per organization — the
+ * dashboard-configurable payment driver switch (simulator | stripe_test | stripe_live) plus the
+ * Stripe credentials for each Stripe mode. Secret keys are never stored in plaintext: only the
+ * AES-256-GCM ciphertext (secret-cipher.ts) is persisted, decrypted in memory only for the
+ * instant a `StripePaymentAdapter` needs it to call the Stripe API. `*KeyLast4`/`*ConfiguredAt`
+ * are plaintext-safe display metadata so the settings screen can show "configured, ending 4242"
+ * without ever round-tripping the real key back to a browser. Writes are `payment.manage`-gated
+ * (administrator only, never bundled into the generic 'ALL' role grant) and step-up-confirmed —
+ * this is the one config screen in the app that can move real money.
+ */
+export const paymentProviderConfig = pgTable('payment_provider_config', {
+  ...auditColumns,
+  ...actorColumns,
+  organizationId: uuid('organization_id').notNull().unique(),
+  activeDriver: text('active_driver').notNull().default('simulator'), // simulator|stripe_test|stripe_live
+  testPublishableKey: text('test_publishable_key'),
+  testSecretKeyCiphertext: text('test_secret_key_ciphertext'),
+  testSecretKeyLast4: text('test_secret_key_last4'),
+  testWebhookSecretCiphertext: text('test_webhook_secret_ciphertext'),
+  testConfiguredAt: timestamp('test_configured_at', { withTimezone: true, mode: 'string' }),
+  livePublishableKey: text('live_publishable_key'),
+  liveSecretKeyCiphertext: text('live_secret_key_ciphertext'),
+  liveSecretKeyLast4: text('live_secret_key_last4'),
+  liveWebhookSecretCiphertext: text('live_webhook_secret_ciphertext'),
+  liveConfiguredAt: timestamp('live_configured_at', { withTimezone: true, mode: 'string' }),
+  /** a lightweight real Stripe API call (`balance.retrieve`) made at save time so a bad key is
+   *  rejected immediately rather than discovered on a guest's actual checkout (FR-PAY-010). */
+  testKeyVerifiedAt: timestamp('test_key_verified_at', { withTimezone: true, mode: 'string' }),
+  liveKeyVerifiedAt: timestamp('live_key_verified_at', { withTimezone: true, mode: 'string' }),
+  liveModeAcknowledged: boolean('live_mode_acknowledged').notNull().default(false),
+});

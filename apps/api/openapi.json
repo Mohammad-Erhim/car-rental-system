@@ -2292,6 +2292,46 @@
         ]
       }
     },
+    "/api/v1/ops/payments/config": {
+      "get": {
+        "operationId": "PaymentConfigController_getConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-payments"
+        ]
+      },
+      "put": {
+        "operationId": "PaymentConfigController_updateConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-payments"
+        ]
+      }
+    },
+    "/api/v1/ops/payments/mode": {
+      "get": {
+        "operationId": "PaymentConfigController_getMode",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-payments"
+        ]
+      }
+    },
     "/api/v1/rentals/mine": {
       "get": {
         "operationId": "RentalController_mine",

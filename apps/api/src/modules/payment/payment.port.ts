@@ -1,8 +1,12 @@
 /**
  * PaymentPort — the boundary to a card processor (SRS-ARC-001 ports pattern, FR-PAY-001..003).
- * The only implementation here is a deterministic simulator: card data never enters the system,
- * only an opaque token whose value selects the outcome so error paths are testable.
+ * Two implementations: a deterministic simulator (card data never enters the system, only an
+ * opaque token whose value selects the outcome so error paths are testable) and a real Stripe
+ * adapter (stripe-payment.adapter.ts). Which one is *active* is a dashboard-configurable, DB-
+ * backed setting (payment-config.service.ts) — never a hardcoded DI binding — so switching
+ * between simulator / Stripe test / Stripe live needs no redeploy.
  *
+ * Simulator tokens:
  *   tok_ok / tok_visa_...     → authorize + capture succeed
  *   tok_decline               → authorize declines (card_declined)
  *   tok_timeout               → authorize throws a timeout (no definite result)
@@ -14,14 +18,27 @@ export interface AuthorizeInput {
   idempotencyKey: string;
   amountMinor: number;
   currency: string;
-  token: string;
+  /** a fresh, client-collected payment method reference (a Stripe PaymentMethod id, or a
+   *  simulator token) — required unless `reuse` is set. */
+  token?: string;
   reference: string;
+  /** charge a customer + payment method saved from an earlier charge on the same reservation
+   *  off-session, instead of `token` — the extend-hire / incidental-charge path, so a guest is
+   *  never asked to re-enter a card for a reservation they've already paid on (FR-PAY-010). */
+  reuse?: { customerRef: string; methodRef: string };
+  /** true on a reservation's first charge — save the resulting customer + payment method so a
+   *  later call can pass `reuse` instead of `token`. */
+  saveForReuse?: boolean;
 }
 
 export interface PaymentResult {
   providerRef: string;
   brand: string;
   last4: string;
+  /** present when `saveForReuse` was honored (or `reuse` was used, echoing it back) — null when
+   *  the active provider doesn't support saved methods (e.g. an old simulator charge). */
+  customerRef?: string | null;
+  methodRef?: string | null;
 }
 
 export class PaymentDeclinedError extends Error {
@@ -35,6 +52,16 @@ export class PaymentTimeoutError extends Error {
   constructor() {
     super('payment provider timed out — outcome unknown');
     this.name = 'PaymentTimeoutError';
+  }
+}
+
+/** Thrown by a live Stripe adapter when the configured secret key itself is invalid/revoked —
+ *  distinct from a card decline (that's the *guest's* card; this is *our* configuration) so the
+ *  caller can surface "payments are misconfigured," not "your card didn't work." */
+export class PaymentProviderConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'PaymentProviderConfigError';
   }
 }
 
@@ -56,13 +83,21 @@ export class SimulatorPaymentAdapter extends PaymentPort {
   private captured = new Set<string>();
 
   async authorize(input: AuthorizeInput): Promise<PaymentResult> {
-    if (input.token === 'tok_timeout') throw new PaymentTimeoutError();
-    if (input.token === 'tok_decline') throw new PaymentDeclinedError('card_declined');
+    // a reuse call carries no fresh token by design — the simulator's "saved method" is just the
+    // reuse reference echoed back through `brandFor`, so tests exercise the same shape a real
+    // off-session Stripe charge would without needing a real saved card.
+    const tokenLike = input.reuse ? input.reuse.methodRef : (input.token ?? '');
+    if (tokenLike === 'tok_timeout') throw new PaymentTimeoutError();
+    if (tokenLike === 'tok_decline') throw new PaymentDeclinedError('card_declined');
     if (input.amountMinor <= 0) throw new PaymentDeclinedError('invalid_amount');
-    const { brand, last4 } = brandFor(input.token);
+    const { brand, last4 } = brandFor(tokenLike);
     // stable providerRef per idempotency key so a retry of the same key maps to the same auth
     const providerRef = `sim_auth_${hash(input.idempotencyKey)}`;
-    return { providerRef, brand, last4 };
+    const customerRef =
+      input.reuse?.customerRef ?? (input.saveForReuse ? `sim_cus_${hash(input.reference)}` : null);
+    const methodRef =
+      input.reuse?.methodRef ?? (input.saveForReuse ? `sim_pm_${hash(tokenLike)}` : null);
+    return { providerRef, brand, last4, customerRef, methodRef };
   }
 
   async capture(providerRef: string, _amountMinor: number): Promise<PaymentResult> {

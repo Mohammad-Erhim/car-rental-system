@@ -997,3 +997,49 @@ export function useUpsertNotificationRule() {
     onSuccess: () => void qc.invalidateQueries({ queryKey: RULE_KEY }),
   });
 }
+
+// ---- payment provider config (SCREEN-OPS-041) ----
+
+export type PaymentDriver = 'simulator' | 'stripe_test' | 'stripe_live';
+
+export interface PaymentModeConfig {
+  configured: boolean;
+  publishableKey: string | null;
+  secretKeyLast4: string | null;
+  configuredAt: string | null;
+  verifiedAt: string | null;
+}
+export interface PaymentConfigSummary {
+  activeDriver: PaymentDriver;
+  test: PaymentModeConfig;
+  live: PaymentModeConfig & { acknowledged: boolean };
+  updatedAt: string | null;
+}
+export interface UpdatePaymentConfigInput {
+  activeDriver?: PaymentDriver;
+  test?: { publishableKey?: string; secretKey?: string; webhookSecret?: string };
+  live?: {
+    publishableKey?: string;
+    secretKey?: string;
+    webhookSecret?: string;
+    acknowledgeLive?: boolean;
+  };
+}
+
+const PAYMENT_CONFIG_KEY = ['ops', 'payments', 'config'];
+
+export function usePaymentConfig() {
+  return useQuery({
+    queryKey: PAYMENT_CONFIG_KEY,
+    queryFn: ({ signal }) => apiFetch<PaymentConfigSummary>('/ops/payments/config', { signal }),
+  });
+}
+
+export function useUpdatePaymentConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: UpdatePaymentConfigInput) =>
+      apiFetch<PaymentConfigSummary>('/ops/payments/config', { method: 'PUT', body }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: PAYMENT_CONFIG_KEY }),
+  });
+}
