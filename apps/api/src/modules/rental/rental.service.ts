@@ -631,6 +631,21 @@ export class RentalService {
       throw AppError.businessRule('This rental has no vehicle to check', { reason: 'no_unit' });
     }
     await this.db.transaction(async (tx) => {
+      // a rental only ever gets ONE readiness check — re-running it (double-click, a stale tab)
+      // would silently re-flip the unit's *current* state, which by then may belong to a
+      // completely different, later rental cycle. Recovering a unit that's already failed
+      // readiness goes through the fleet block/release workflow instead (SCREEN-OPS-018), not by
+      // re-running this on the same closed rental.
+      const [already] = await tx
+        .select({ id: rentalEvent.id })
+        .from(rentalEvent)
+        .where(and(eq(rentalEvent.rentalId, row.id), eq(rentalEvent.type, 'readiness')))
+        .limit(1);
+      if (already) {
+        throw AppError.businessRule('Readiness has already been checked for this rental', {
+          reason: 'already_checked',
+        });
+      }
       await tx
         .update(vehicleUnit)
         .set({ state: passed ? 'available' : 'maintenance', updatedAt: sql`now()` })
@@ -751,6 +766,17 @@ export class RentalService {
       .from(rental)
       .where(whereSql);
 
+    // the readiness check (FR-RNT-013) has no state of its own on `rental` — a checked rental
+    // stays `closed` forever, same as an unchecked one — so without this the "mark ready" button
+    // has nothing to tell it apart from before the click. Correlated subquery for the most recent
+    // `readiness` event, mapped to its outcome; `null` means never checked.
+    const readinessOutcome = sql<string | null>`(
+      select case when re.note = 'passed' then 'passed' else 'failed' end
+      from rental_event re
+      where re.rental_id = ${rental.id} and re.type = 'readiness'
+      order by re.created_at desc
+      limit 1
+    )`;
     const rows = await this.db
       .select({
         r: rental,
@@ -761,6 +787,7 @@ export class RentalService {
         categoryCode: reservation.categoryCode,
         driverName: reservationDriver.fullName,
         customerName: account.displayName,
+        readinessOutcome,
       })
       .from(rental)
       .leftJoin(vehicleUnit, eq(vehicleUnit.id, rental.unitId))
@@ -790,6 +817,7 @@ export class RentalService {
         categoryCode: row.categoryCode ?? null,
         driverName: row.driverName ?? null,
         customerName: row.customerName ?? null,
+        readinessOutcome: row.readinessOutcome as 'passed' | 'failed' | null,
       };
     });
     const total = countRow?.total ?? results.length;
@@ -832,6 +860,16 @@ export class RentalService {
       .innerJoin(inspection, eq(inspection.id, inspectionFinding.inspectionId))
       .innerJoin(rental, eq(rental.id, inspection.rentalId))
       .where(eq(rental.reference, reference));
+    // same "no state of its own" gap as `list()` above — derived here from `base.history`
+    // (already fetched by `detailTx`) instead of a second query; `history` is oldest-first, so
+    // the *last* readiness entry is the current outcome if the check was ever re-run historically.
+    const readinessEvents = base.history.filter((e) => e.type === 'readiness');
+    const lastReadiness = readinessEvents[readinessEvents.length - 1];
+    const readinessOutcome: 'passed' | 'failed' | null = lastReadiness
+      ? lastReadiness.note === 'passed'
+        ? 'passed'
+        : 'failed'
+      : null;
     return {
       ...base,
       plate: ctx?.plate ?? null,
@@ -840,6 +878,7 @@ export class RentalService {
       driverName: ctx?.driverName ?? null,
       customerName: ctx?.customerName ?? null,
       findings,
+      readinessOutcome,
     };
   }
 

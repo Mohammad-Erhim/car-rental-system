@@ -370,6 +370,72 @@ describe('rental lifecycle', () => {
     ).toBe(true);
   });
 
+  it('a rental only ever gets ONE readiness check — the board/detail reflect the outcome, and a repeat click is refused', async () => {
+    const resRef = await book(server, customerToken, 'compact', 141, 3);
+    const assigned = await request(server)
+      .post(`/api/v1/ops/reservations/${resRef}/assign`)
+      .set(auth(agentToken))
+      .send({})
+      .expect(201);
+    const ref = assigned.body.reference as string;
+    await request(server)
+      .post(`/api/v1/ops/rentals/${ref}/pickup`)
+      .set(auth(agentToken))
+      .send({ odometerKm: 3000, fuelPct: 100, driverName: 'Rex Renter', licenceNumber: 'D-11' })
+      .expect(201);
+    await request(server)
+      .post(`/api/v1/ops/rentals/${ref}/return`)
+      .set(auth(agentToken))
+      .send({ odometerKm: 3200, fuelPct: 100 })
+      .expect(201);
+
+    // before the check: the board carries no outcome yet
+    const boardBefore = await request(server)
+      .get('/api/v1/ops/rentals?state=closed')
+      .set(auth(adminToken))
+      .expect(200);
+    expect(
+      (
+        boardBefore.body.results as Array<{
+          reference: string;
+          readinessOutcome: string | null;
+        }>
+      ).find((r) => r.reference === ref)?.readinessOutcome,
+    ).toBeNull();
+
+    await request(server)
+      .post(`/api/v1/ops/rentals/${ref}/readiness`)
+      .set(auth(agentToken))
+      .send({ passed: true })
+      .expect(201);
+
+    // after: both the board row and the detail view carry the outcome — this is the only signal
+    // that the check ran at all, since a closed rental's own `state` never changes
+    const boardAfter = await request(server)
+      .get('/api/v1/ops/rentals?state=closed')
+      .set(auth(adminToken))
+      .expect(200);
+    expect(
+      (
+        boardAfter.body.results as Array<{ reference: string; readinessOutcome: string | null }>
+      ).find((r) => r.reference === ref)?.readinessOutcome,
+    ).toBe('passed');
+
+    const detail = await request(server)
+      .get(`/api/v1/rentals/${ref}`)
+      .set(auth(adminToken))
+      .expect(200);
+    expect(detail.body.readinessOutcome).toBe('passed');
+
+    // a repeat click (double-click, a stale tab) is refused, not silently re-applied
+    const repeat = await request(server)
+      .post(`/api/v1/ops/rentals/${ref}/readiness`)
+      .set(auth(agentToken))
+      .send({ passed: true })
+      .expect(422);
+    expect(repeat.body.title).toMatch(/already been checked/i);
+  });
+
   it('TEST-RNT-003 the overdue sweep runs (staff only) and reports a count (FR-RNT-014)', async () => {
     // the worker runs this on its housekeeping tick; the endpoint is the manual trigger
     const swept = await request(server)

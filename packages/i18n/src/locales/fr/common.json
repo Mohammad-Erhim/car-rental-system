@@ -1127,6 +1127,8 @@
   "ops.rent.pickupFail": "Échec de la prise en charge.",
   "ops.rent.readyDoneBoard": "{ref} a passé le contrôle — le véhicule est de nouveau disponible.",
   "ops.rent.readyFailBoard": "Impossible d’effectuer le contrôle de préparation.",
+  "ops.rent.readyOutcomeFailed": "Envoyé en maintenance",
+  "ops.rent.readyOutcomePassed": "Prêt — validé",
   "ops.rent.removeFinding": "Retirer",
   "ops.rent.reportIncident": "Signaler un incident",
   "ops.rent.return": "Finaliser le retour",

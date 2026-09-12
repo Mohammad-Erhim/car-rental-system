@@ -1127,6 +1127,8 @@
   "ops.rent.pickupFail": "Pickup failed.",
   "ops.rent.readyDoneBoard": "{ref} passed readiness — the vehicle is back on the availability list.",
   "ops.rent.readyFailBoard": "Couldn’t complete the readiness check.",
+  "ops.rent.readyOutcomeFailed": "Sent to maintenance",
+  "ops.rent.readyOutcomePassed": "Ready — passed",
   "ops.rent.removeFinding": "Remove",
   "ops.rent.reportIncident": "Report incident",
   "ops.rent.return": "Complete return",
