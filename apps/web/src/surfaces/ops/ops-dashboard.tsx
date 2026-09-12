@@ -13,13 +13,26 @@ import {
   CardTitle,
 } from '@carrental/ui';
 import { useQuery } from '@tanstack/react-query';
-import { CheckCircle2, RefreshCw } from 'lucide-react';
+import {
+  AlertTriangle,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  CarFront,
+  CheckCircle2,
+  ClipboardList,
+  Gauge,
+  RefreshCw,
+  Wallet,
+  XCircle,
+  type LucideIcon,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 import { useOpsDashboard } from '../../lib/admin-hooks.js';
 import { metaApi } from '../../lib/api.js';
 import { formatMinor } from '../../lib/discovery-hooks.js';
+import { useLocationScope } from '../../lib/location-scope.js';
 
 import { OpsDashboardAnalytics } from './ops-dashboard-analytics.js';
 
@@ -55,6 +68,7 @@ function StatCard({
   tone,
   zeroLabel,
   error,
+  Icon,
 }: {
   label: string;
   value: string | number;
@@ -64,11 +78,19 @@ function StatCard({
   tone?: 'alert';
   zeroLabel?: string;
   error?: boolean;
+  Icon: LucideIcon;
 }) {
   const { t } = useI18n();
   const numeric = typeof value === 'number' ? value : Number(value);
   const isZero = !error && tone === 'alert' && Number.isFinite(numeric) && numeric === 0;
   const isAlerting = !error && tone === 'alert' && Number.isFinite(numeric) && numeric > 0;
+  // the same tinted-icon-badge language as the sidebar logo mark (ops-layout.tsx) — carried onto
+  // every KPI card so the brand accent shows up throughout the dashboard, not just in the shell
+  const badgeClass = isAlerting
+    ? 'bg-destructive/10 text-destructive'
+    : isZero
+      ? 'bg-success/10 text-success'
+      : 'bg-primary/10 text-primary';
 
   return (
     <Link
@@ -77,7 +99,10 @@ function StatCard({
       data-testid="ops-stat-card"
     >
       <Card className="h-full transition-colors group-hover:border-primary/50 group-hover:bg-accent/40">
-        <CardHeader className="pb-2">
+        <CardHeader className="flex-row items-center gap-3 space-y-0 pb-2">
+          <span className={`grid size-9 shrink-0 place-items-center rounded-md ${badgeClass}`}>
+            <Icon className="size-4" aria-hidden="true" />
+          </span>
           <CardDescription>{label}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-1">
@@ -109,9 +134,23 @@ function StatCard({
   );
 }
 
+/** The tinted-icon-badge + title pairing used throughout the shell (sidebar logo mark, stat
+ *  cards above) — lets a section card's header carry the same brand accent as everything else. */
+function SectionTitle({ Icon, children }: { Icon: LucideIcon; children: string }) {
+  return (
+    <CardTitle className="flex items-center gap-2.5 text-base">
+      <span className="grid size-7 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+        <Icon className="size-3.5" aria-hidden="true" />
+      </span>
+      {children}
+    </CardTitle>
+  );
+}
+
 export function OpsDashboard() {
   const { t, fmt } = useI18n();
-  const dash = useOpsDashboard();
+  const { selected: locationCode } = useLocationScope();
+  const dash = useOpsDashboard(locationCode);
   const now = useNow();
   const health = useQuery({
     queryKey: ['meta', 'health-summary'],
@@ -205,6 +244,7 @@ export function OpsDashboard() {
           tone="alert"
           zeroLabel={t('ops.dash.zero.assignQueue')}
           error={err}
+          Icon={ClipboardList}
         />
         <StatCard
           label={t('ops.dash.pickups')}
@@ -219,6 +259,7 @@ export function OpsDashboard() {
           }
           to={`/rentals?flow=pickup&from=${today}&to=${today}`}
           error={err}
+          Icon={ArrowDownToLine}
         />
         <StatCard
           label={t('ops.dash.returns')}
@@ -233,6 +274,7 @@ export function OpsDashboard() {
           }
           to={`/rentals?flow=return&from=${today}&to=${today}`}
           error={err}
+          Icon={ArrowUpFromLine}
         />
         <StatCard
           label={t('ops.dash.overdue')}
@@ -241,6 +283,7 @@ export function OpsDashboard() {
           tone="alert"
           zeroLabel={t('ops.dash.zero.overdue')}
           error={err}
+          Icon={AlertTriangle}
         />
       </div>
 
@@ -258,12 +301,14 @@ export function OpsDashboard() {
           }
           to="/fleet?state=on_rent"
           error={err}
+          Icon={Gauge}
         />
         <StatCard
           label={t('ops.dash.revenueToday')}
           value={d?.revenueToday ? formatMinor(d.revenueToday.minor, d.revenueToday.currency) : '—'}
           to="/finance"
           error={err}
+          Icon={Wallet}
         />
         <StatCard
           label={t('ops.dash.cancellations')}
@@ -272,13 +317,14 @@ export function OpsDashboard() {
           tone="alert"
           zeroLabel={t('ops.dash.zero.cancellations')}
           error={err}
+          Icon={XCircle}
         />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2 [&>*]:min-w-0">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">{t('ops.dash.fleetReadiness')}</CardTitle>
+            <SectionTitle Icon={CarFront}>{t('ops.dash.fleetReadiness')}</SectionTitle>
           </CardHeader>
           <CardContent>
             {err || !fleet ? (
@@ -321,7 +367,7 @@ export function OpsDashboard() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">{t('ops.dash.financeExceptions')}</CardTitle>
+            <SectionTitle Icon={Wallet}>{t('ops.dash.financeExceptions')}</SectionTitle>
           </CardHeader>
           <CardContent className="space-y-1">
             {err || !d ? (
@@ -341,6 +387,9 @@ export function OpsDashboard() {
                 </Badge>
               </p>
             )}
+            {locationCode ? (
+              <p className="text-xs text-muted-foreground">{t('ops.dash.financeOrgWide')}</p>
+            ) : null}
             <Link
               to="/finance"
               className="inline-block text-xs font-medium text-primary hover:underline"
@@ -351,11 +400,11 @@ export function OpsDashboard() {
         </Card>
       </div>
 
-      <OpsDashboardAnalytics />
+      <OpsDashboardAnalytics locationCode={locationCode} />
 
       <Card id="ops-dash-health" className="scroll-mt-20">
         <CardHeader>
-          <CardTitle className="text-base">{t('ops.dash.health')}</CardTitle>
+          <SectionTitle Icon={CheckCircle2}>{t('ops.dash.health')}</SectionTitle>
           <CardDescription>
             {health.data
               ? t('ops.dash.checkedAt', { time: fmt.time(health.data.checkedAt) })

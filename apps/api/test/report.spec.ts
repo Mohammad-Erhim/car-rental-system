@@ -808,6 +808,128 @@ describe('STAGE-006 administration & reporting', () => {
     expect(Number.isInteger(res.body.assignQueue)).toBe(true);
   });
 
+  it("TEST-ADM-016 a caller-requested locationCode narrows within (never replaces) the actor's own scope, on the dashboard, analytics, and report-runner endpoints alike", async () => {
+    // placed here, before TEST-ADM-006 suspends test-scoped's account, for the same reason
+    // TEST-ADM-014/015 are — this test needs `scopedToken` (locationScope = ['TST1']) live.
+    const p1 = tuesday(50);
+    await book(server, customerToken, {
+      pickupLocationCode: 'TST1',
+      categoryCode: 'economy',
+      pickupAt: p1,
+      returnAt: plus(p1, 2),
+    });
+    const p2 = tuesday(51);
+    await book(server, customerToken, {
+      pickupLocationCode: 'TST2',
+      categoryCode: 'economy',
+      pickupAt: p2,
+      returnAt: plus(p2, 2),
+    });
+    const bookingsOf = (body: unknown) =>
+      (body as { daily: Array<{ bookings: number }> }).daily.reduce((n, d) => n + d.bookings, 0);
+
+    // an org-wide admin, narrowed via ?locationCode= to one location at a time — each narrowed
+    // view sees its own booking and nothing double-counted from the other
+    const analyticsTst1 = await request(server)
+      .get('/api/v1/ops/dashboard/analytics?days=90&locationCode=TST1')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(analyticsTst1.body.scopeNote).toBe('Scoped to TST1');
+    expect(bookingsOf(analyticsTst1.body)).toBeGreaterThanOrEqual(1);
+
+    const analyticsTst2 = await request(server)
+      .get('/api/v1/ops/dashboard/analytics?days=90&locationCode=TST2')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(analyticsTst2.body.scopeNote).toBe('Scoped to TST2');
+    expect(bookingsOf(analyticsTst2.body)).toBeGreaterThanOrEqual(1);
+
+    // a location-scoped actor (TST1 only) requesting a location OUTSIDE their own scope is
+    // rejected outright (SRS-SEC-007) — narrowing can never broaden a scope into a bypass, and a
+    // scope violation must be a visible 403, never a silently-empty 200 indistinguishable from
+    // "this branch just has no data today."
+    const outOfScope = await request(server)
+      .get('/api/v1/ops/dashboard/analytics?days=90&locationCode=TST2')
+      .set('Authorization', `Bearer ${scopedToken}`)
+      .expect(403);
+    expect(outOfScope.body.title).toMatch(/don't have access/i);
+
+    // requesting a location genuinely inside the actor's own scope is a no-op narrowing
+    const inScope = await request(server)
+      .get('/api/v1/ops/dashboard/analytics?days=90&locationCode=TST1')
+      .set('Authorization', `Bearer ${scopedToken}`)
+      .expect(200);
+    expect(inScope.body.scopeNote).toBe('Scoped to TST1');
+
+    // same narrowing on the base (today-only) dashboard endpoint
+    const dashTst2 = await request(server)
+      .get('/api/v1/ops/dashboard?locationCode=TST2')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(dashTst2.body.scopeNote).toBe('Scoped to TST2');
+
+    // and on the generic report runner (reservations_by_state is keyed by pickupLocationCode)
+    const reportTst1 = await request(server)
+      .post('/api/v1/ops/reports/reservations_by_state/run')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ params: { locationCode: 'TST1' } })
+      .expect(201);
+    expect(reportTst1.body.scopeNote).toBe('Scoped to TST1');
+
+    const reportOutOfScope = await request(server)
+      .post('/api/v1/ops/reports/reservations_by_state/run')
+      .set('Authorization', `Bearer ${scopedToken}`)
+      .send({ params: { locationCode: 'TST2' } })
+      .expect(403);
+    expect(reportOutOfScope.body.title).toMatch(/don't have access/i);
+
+    // requesting a location outside scope on the base dashboard endpoint is rejected the same way
+    const dashOutOfScope = await request(server)
+      .get('/api/v1/ops/dashboard?locationCode=TST2')
+      .set('Authorization', `Bearer ${scopedToken}`)
+      .expect(403);
+    expect(dashOutOfScope.body.title).toMatch(/don't have access/i);
+  });
+
+  it('TEST-ADM-017 the dashboard fleet breakdown and revenue are branch-scoped too, not just reservation/rental counts', async () => {
+    // placed here, before TEST-ADM-006 suspends test-scoped's account, for the same reason
+    // TEST-ADM-014/015/016 are — this test needs `scopedToken` (locationScope = ['TST1']) live.
+
+    // fleet: TST1's own breakdown must be a strict subset of the org-wide fleet (the fixture
+    // seeds units at both TST1 and TST2) — proves `opsDashboard()`'s fleet count actually joins
+    // through `location` rather than counting every unit in the org regardless of the filter.
+    const orgWide = await request(server)
+      .get('/api/v1/ops/dashboard')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const tst1Only = await request(server)
+      .get('/api/v1/ops/dashboard')
+      .set('Authorization', `Bearer ${scopedToken}`)
+      .expect(200);
+    expect(tst1Only.body.fleetTotal).toBeGreaterThan(0);
+    expect(tst1Only.body.fleetTotal).toBeLessThan(orgWide.body.fleetTotal);
+
+    // same join, requested explicitly by an org-wide admin via ?locationCode=
+    const adminTst1 = await request(server)
+      .get('/api/v1/ops/dashboard?locationCode=TST1')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(adminTst1.body.fleetTotal).toBe(tst1Only.body.fleetTotal);
+
+    // analytics: the utilization trend's fleet-size denominator narrows the same way
+    const analyticsTst1 = await request(server)
+      .get('/api/v1/ops/dashboard/analytics?days=7&locationCode=TST1')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(analyticsTst1.body.fleetTotal).toBe(tst1Only.body.fleetTotal);
+
+    // revenue: no schema change was needed — payments trace back to the reservation they were
+    // collected for, so a location filter still applies even though `payment` itself carries no
+    // location column. A branch's revenue can never exceed the org-wide total for the same window.
+    expect(tst1Only.body.revenueToday.minor).toBeLessThanOrEqual(orgWide.body.revenueToday.minor);
+    expect(typeof tst1Only.body.revenueToday.minor).toBe('number');
+  });
+
   it('TEST-ADM-006 sending a schedule needs a fresh step-up, then re-checks the owner and pauses if they lost access', async () => {
     // a helper: STEP_UP_MAX_AGE_SEC is 1s in tests, so re-confirm right before each send
     const stepUp = () =>

@@ -259,6 +259,15 @@ describe('fleet operations', () => {
       ),
     ).toBe(true);
 
+    // explicitly requesting a location outside the actor's own scope is a 403, not a silently
+    // empty result (SRS-SEC-007)
+    const rejected = await request(server)
+      .get('/api/v1/ops/fleet/units')
+      .query({ locationCode: 'TST2' })
+      .set(auth(scopedToken))
+      .expect(403);
+    expect(rejected.body.title).toMatch(/don't have access/i);
+
     // admin blocks a TST2 unit; the scoped staffer must not see it or be able to release it
     const tst2 = (await unitsAt('TST2')).find((u) => u.state === 'available');
     expect(tst2).toBeTruthy();

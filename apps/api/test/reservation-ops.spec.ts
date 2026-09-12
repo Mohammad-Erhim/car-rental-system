@@ -462,6 +462,14 @@ describe('reservation operations', () => {
           (r) => r.pickupLocationCode === 'TST1',
         ),
       ).toBe(true);
+
+      // explicitly requesting a location outside the actor's own scope is a 403, not a silently
+      // empty result (SRS-SEC-007)
+      const rejected = await request(server)
+        .get('/api/v1/ops/reservations?view=all&locationCode=TST2')
+        .set('Authorization', `Bearer ${scoped}`)
+        .expect(403);
+      expect(rejected.body.title).toMatch(/don't have access/i);
     });
   });
 

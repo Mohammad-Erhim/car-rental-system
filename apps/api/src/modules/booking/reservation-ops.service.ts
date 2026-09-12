@@ -3,6 +3,7 @@ import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
+import { assertLocationAccess } from '../../common/auth/location-scope';
 import type { Actor } from '../../common/auth/types';
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
@@ -100,13 +101,16 @@ export class ReservationOpsService {
       limit?: number;
     },
   ) {
+    // a location outside the actor's own scope is a 403, not a silently-empty result (SRS-SEC-007)
+    assertLocationAccess(actor, filter.locationCode);
     const scope = actor.locationScope?.length ? actor.locationScope : null;
     const noRental = sql`not exists (select 1 from rental r where r.reservation_reference = ${reservation.reference})`;
 
     const where: Array<ReturnType<typeof eq> | typeof noRental> = [];
-    if (scope) where.push(inArray(reservation.pickupLocationCode, scope));
     if (filter.locationCode) {
       where.push(eq(reservation.pickupLocationCode, filter.locationCode));
+    } else if (scope) {
+      where.push(inArray(reservation.pickupLocationCode, scope));
     }
     if (filter.view === 'queue') {
       where.push(eq(reservation.state, 'confirmed'));

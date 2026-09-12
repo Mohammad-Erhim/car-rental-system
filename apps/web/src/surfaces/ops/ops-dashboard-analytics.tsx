@@ -1,5 +1,6 @@
 import { useI18n } from '@carrental/i18n/react';
 import { AppStateView, Button, Card, CardContent, CardHeader, CardTitle } from '@carrental/ui';
+import { TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import {
   Area,
@@ -84,10 +85,10 @@ function themedTooltip(format: (v: number) => string, label: string) {
  * bookings" is never a question of two charts silently covering different windows. Loading/error
  * states use the same `AppStateView` contract as the rest of the page, not a bespoke skeleton.
  */
-export function OpsDashboardAnalytics() {
+export function OpsDashboardAnalytics({ locationCode }: { locationCode?: string }) {
   const { t, fmt } = useI18n();
   const [days, setDays] = useState<(typeof RANGE_OPTIONS)[number]>(30);
-  const analytics = useDashboardAnalytics(days);
+  const analytics = useDashboardAnalytics(days, locationCode);
   const a = analytics.data;
 
   const money = (minor: number) => formatMinor(minor, a?.currency ?? 'USD');
@@ -105,7 +106,12 @@ export function OpsDashboardAnalytics() {
     <Card>
       <CardHeader className="flex-row flex-wrap items-center justify-between gap-3 space-y-0">
         <div>
-          <CardTitle className="text-base">{t('ops.dash.analytics.title')}</CardTitle>
+          <CardTitle className="flex items-center gap-2.5 text-base">
+            <span className="grid size-7 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+              <TrendingUp className="size-3.5" aria-hidden="true" />
+            </span>
+            {t('ops.dash.analytics.title')}
+          </CardTitle>
           {a ? (
             <p className="mt-0.5 text-xs text-muted-foreground">
               {a.scopeNote} · {t('ops.dash.analytics.utilCaveat', { n: a.fleetTotal })}

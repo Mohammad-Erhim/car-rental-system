@@ -12,10 +12,11 @@ import {
   type DataTableColumn,
 } from '@carrental/ui';
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 import { useOpsSearch, opsSearchReady, type SearchHit } from '../../lib/admin-hooks.js';
-import { useLocations } from '../../lib/discovery-hooks.js';
+import { useLocationScope } from '../../lib/location-scope.js';
+import { useUrlParams } from '../../lib/use-url-param.js';
 
 /**
  * SCREEN-OPS-004 / FR-ADM-003 — one search across reservations and rentals. Free text matches a
@@ -33,8 +34,7 @@ const selectClass =
 
 export function SearchPage() {
   const { t, fmt } = useI18n();
-  const locations = useLocations();
-  const [params, setParams] = useSearchParams();
+  const { params, setParams, setParam } = useUrlParams();
 
   const q = params.get('q') ?? '';
   const kind = (params.get('kind') ?? '') as '' | 'reservation' | 'rental';
@@ -43,6 +43,16 @@ export function SearchPage() {
   const from = params.get('from') ?? '';
   const to = params.get('to') ?? '';
 
+  // seed from the global location switcher on first load only — never fights a filter the
+  // operator has since set (or explicitly cleared) on this page themselves. `options` is the
+  // full org location list narrowed to what this actor can actually see — the same list the
+  // global switcher itself offers, so this page's own filter never offers a branch that would
+  // just come back empty.
+  const { selected: globalLocation, options: locations } = useLocationScope();
+  useEffect(() => {
+    if (!params.get('location') && globalLocation) setParam('location', globalLocation);
+  }, []);
+
   // The text box is debounced into the URL; everything else writes immediately.
   const [draft, setDraft] = useState(q);
   useEffect(() => setDraft(q), [q]);
@@ -50,27 +60,14 @@ export function SearchPage() {
     const next = draft.trim();
     if (next === q) return;
     const id = setTimeout(() => {
-      setParams(
-        (p) => {
-          if (next) p.set('q', next);
-          else p.delete('q');
-          return p;
-        },
-        { replace: true },
-      );
+      setParams((p) => {
+        if (next) p.set('q', next);
+        else p.delete('q');
+        return p;
+      });
     }, 350);
     return () => clearTimeout(id);
   }, [draft, q, setParams]);
-
-  const setParam = (key: string, value: string) =>
-    setParams(
-      (p) => {
-        if (value) p.set(key, value);
-        else p.delete(key);
-        return p;
-      },
-      { replace: true },
-    );
 
   const searchParams = useMemo(
     () => ({
@@ -248,7 +245,7 @@ export function SearchPage() {
                   onChange={(e) => setParam('location', e.target.value)}
                 >
                   <option value="">{t('ops.search.anyLocation')}</option>
-                  {(locations.data ?? []).map((l) => (
+                  {locations.map((l) => (
                     <option key={l.code} value={l.code}>
                       {l.name} ({l.code})
                     </option>
@@ -284,7 +281,7 @@ export function SearchPage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setParams({}, { replace: true })}
+              onClick={() => setParams({})}
               data-testid="ops-search-clear"
             >
               {t('ops.search.clearAll')}
