@@ -123,6 +123,9 @@ POST   /api/v1/ops/notification-rules
 GET    /api/v1/ops/notification-rules/:event/:channel
 POST   /api/v1/ops/notification-rules/:event/:channel/disable
 POST   /api/v1/ops/notification-rules/:event/:channel/enable
+GET    /api/v1/ops/payments/config
+PUT    /api/v1/ops/payments/config
+GET    /api/v1/ops/payments/mode
 GET    /api/v1/ops/payments/reconciliation
 POST   /api/v1/ops/payments/reconciliation/:id/resolve
 POST   /api/v1/ops/payments/reconciliation/run
@@ -170,5 +173,6 @@ GET    /api/v1/reservations/:reference
 POST   /api/v1/reservations/:reference/cancel
 GET    /api/v1/reservations/:reference/history
 POST   /api/v1/reservations/:reference/modify
-GET    /api/v1/reservations/mine"
+GET    /api/v1/reservations/mine
+POST   /api/v1/webhooks/stripe"
 `;

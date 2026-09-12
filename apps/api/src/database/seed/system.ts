@@ -375,7 +375,21 @@ const PERMISSION_ACTIONS: Array<[string, string, string, string]> = [
     'Acknowledge / resolve data-quality findings — kept separate from audit.read (SRS-SEC-007: a read permission must never itself unlock a write)',
   ],
   ['integration.manage', 'admin', 'high', 'Manage integration health / recovery'],
+  [
+    'payment.manage',
+    'admin',
+    'high',
+    'Configure the payment provider (Stripe keys, live/test switch) — deliberately excluded from every other role\'s "all permissions" grant; only `administrator` holds it. Whoever can change where the money goes is a narrower list than whoever can do everything else.',
+  ],
 ];
+
+/** Permissions this narrow even the org's own 'ALL'-permission roles don't all get by default —
+ *  only the roles explicitly listed here. Currently just the payment provider switch: every
+ *  other admin action bundles into `manager`/`administrator`'s 'ALL' grant, but "who can point
+ *  this system at a different Stripe account" is deliberately a strictly smaller list. */
+const ADMIN_ONLY_ACTIONS: Record<string, string[]> = {
+  'payment.manage': ['administrator'],
+};
 
 const SYSTEM_ROLES: Array<{ code: string; name: string; actions: string[] | 'ALL' }> = [
   {
@@ -526,7 +540,13 @@ export async function seedSystem(db: Database): Promise<void> {
   // --- system roles ---
   const allActionCodes = PERMISSION_ACTIONS.map(([c]) => c);
   for (const r of SYSTEM_ROLES) {
-    const actions = r.actions === 'ALL' ? allActionCodes : r.actions;
+    const actions =
+      r.actions === 'ALL'
+        ? allActionCodes.filter((code) => {
+            const allowList = ADMIN_ONLY_ACTIONS[code];
+            return !allowList || allowList.includes(r.code);
+          })
+        : r.actions;
     await db
       .insert(role)
       .values({

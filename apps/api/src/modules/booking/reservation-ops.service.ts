@@ -390,7 +390,9 @@ export class ReservationOpsService {
           purpose: `modification-${Date.now()}`,
           amountMinor: deltaMinor,
           currency: row.currency,
-          token: input.paymentToken ?? 'tok_ok',
+          // No fallback to a fixed token: an omitted token lets PaymentService fall back to the
+          // reservation's saved payment method (off-session reuse) — see payment.service.ts.
+          token: input.paymentToken,
           actor,
         });
       } else if (deltaMinor < 0) {

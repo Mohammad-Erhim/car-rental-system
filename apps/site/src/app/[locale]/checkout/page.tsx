@@ -15,18 +15,33 @@ import {
   Field,
   Input,
 } from '@carrental/ui';
+import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
+import { loadStripe, type Stripe, type StripeElementLocale } from '@stripe/stripe-js';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Suspense, useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 
 import {
   formatMinor,
   useAvailableProducts,
   useConfirmBooking,
+  usePaymentMode,
   useQuoteByRef,
   type ReservationResult,
 } from '../../../lib/customer-hooks';
 import { useLocale } from '../../../lib/nav';
+
+// One `loadStripe()` call per publishable key for the lifetime of the tab — `loadStripe` injects
+// a <script> and is not meant to be called on every render; a dashboard-driven key change (test
+// <-> live) is rare enough that a simple last-key cache (not a full LRU) is the right amount of
+// machinery here.
+let stripePromiseCache: { key: string; promise: Promise<Stripe | null> } | null = null;
+function getStripePromise(publishableKey: string): Promise<Stripe | null> {
+  if (stripePromiseCache?.key !== publishableKey) {
+    stripePromiseCache = { key: publishableKey, promise: loadStripe(publishableKey) };
+  }
+  return stripePromiseCache.promise;
+}
 
 const TEST_CARD_TOKENS = ['tok_visa_ok', 'tok_mastercard_ok', 'tok_decline'] as const;
 type CardToken = (typeof TEST_CARD_TOKENS)[number];
@@ -46,6 +61,7 @@ function CheckoutInner() {
   const { status } = useAuth();
   const quote = useQuoteByRef(ref);
   const confirm = useConfirmBooking();
+  const mode = usePaymentMode();
   const products = useAvailableProducts(
     quote.data?.categoryCode ?? null,
     quote.data?.pickupLocationCode ?? null,
@@ -94,14 +110,23 @@ function CheckoutInner() {
     );
   }, [extras, products.data, billableDays]);
 
-  async function pay(e: FormEvent) {
-    e.preventDefault();
+  // Shared by both payment branches: the primary-driver name and terms acceptance are required
+  // regardless of which provider actually takes the card (SCREEN-CUS-006/007).
+  function validateDriver(): boolean {
     setLocalError(null);
     if (!fullName.trim()) {
       setLocalError(t('checkout.enterDriverName'));
-      return;
+      return false;
     }
-    if (!accepted) return;
+    if (!accepted) return false;
+    return true;
+  }
+
+  // The one call that actually books & charges, regardless of where `token` came from — the
+  // simulator's fixed test tokens, or a real Stripe PaymentMethod id created client-side by
+  // `StripePaymentForm` below. Card data itself never reaches our servers either way.
+  async function doConfirm(token: string) {
+    setLocalError(null);
     try {
       const r = await confirm.mutateAsync({
         quoteReference: ref!,
@@ -114,7 +139,7 @@ function CheckoutInner() {
           },
         ],
         acceptTerms: true,
-        paymentToken: card,
+        paymentToken: token,
         extraCodes: extraCodes.length ? extraCodes : undefined,
       });
       setResult(r);
@@ -122,6 +147,43 @@ function CheckoutInner() {
       setLocalError(err instanceof ApiError ? err.message : t('checkout.genericError'));
     }
   }
+
+  async function paySimulator(e: FormEvent) {
+    e.preventDefault();
+    if (!validateDriver()) return;
+    await doConfirm(card);
+  }
+
+  const totalWithExtrasMinor = (quote.data?.totalMinor ?? 0) + extrasEstimateMinor;
+  const payLabel = quote.data
+    ? t('checkout.payConfirm', {
+        amount: formatMinor(totalWithExtrasMinor, quote.data.currency, uiLocale),
+      })
+    : '';
+  const termsAndErrors = (
+    <>
+      <label className="flex items-start gap-2 text-sm">
+        <Checkbox
+          checked={accepted}
+          onChange={(e) => setAccepted(e.target.checked)}
+          data-testid="co-terms"
+        />
+        <span>{t('checkout.acceptTerms')}</span>
+      </label>
+      {localError ? (
+        <p className="text-sm text-destructive" data-testid="co-error">
+          {localError}
+        </p>
+      ) : null}
+      {quote.data && extrasEstimateMinor > 0 ? (
+        <p className="text-xs text-muted-foreground" data-testid="co-extras-note">
+          {t('checkout.extrasChargeNote', {
+            amount: formatMinor(totalWithExtrasMinor, quote.data.currency, uiLocale),
+          })}
+        </p>
+      ) : null}
+    </>
+  );
 
   if (result) {
     return <Confirmation result={result} authed={status === 'authenticated'} locale={locale} />;
@@ -289,96 +351,173 @@ function CheckoutInner() {
             <CardHeader>
               <CardTitle className="text-base">{t('checkout.driverPayment')}</CardTitle>
             </CardHeader>
-            <CardContent>
-              <form onSubmit={pay} className="space-y-4" noValidate>
-                <Field label={t('checkout.primaryDriverName')} htmlFor="co-name" required>
+            <CardContent className="space-y-4">
+              <Field label={t('checkout.primaryDriverName')} htmlFor="co-name" required>
+                {({ id }) => (
+                  <Input
+                    id={id}
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                  />
+                )}
+              </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label={t('checkout.confirmationEmail')} htmlFor="co-email">
                   {({ id }) => (
                     <Input
                       id={id}
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                      required
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                     />
                   )}
                 </Field>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <Field label={t('checkout.confirmationEmail')} htmlFor="co-email">
-                    {({ id }) => (
-                      <Input
-                        id={id}
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                      />
-                    )}
-                  </Field>
-                  <Field label={t('checkout.licenceNumber')} htmlFor="co-licence">
-                    {({ id }) => (
-                      <Input id={id} value={licence} onChange={(e) => setLicence(e.target.value)} />
-                    )}
-                  </Field>
-                </div>
-                <Field label={t('checkout.paymentMethod')} htmlFor="co-card">
+                <Field label={t('checkout.licenceNumber')} htmlFor="co-licence">
                   {({ id }) => (
-                    <select
-                      id={id}
-                      className="flex h-11 w-full rounded-md border border-hairline bg-surface px-3 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
-                      value={card}
-                      onChange={(e) => setCard(e.target.value as CardToken)}
-                      data-testid="co-card"
-                    >
-                      {TEST_CARD_TOKENS.map((tok) => (
-                        <option key={tok} value={tok} className="bg-surface text-ink">
-                          {t(CARD_LABEL_KEY[tok])}
-                        </option>
-                      ))}
-                    </select>
+                    <Input id={id} value={licence} onChange={(e) => setLicence(e.target.value)} />
                   )}
                 </Field>
-                <label className="flex items-start gap-2 text-sm">
-                  <Checkbox
-                    checked={accepted}
-                    onChange={(e) => setAccepted(e.target.checked)}
-                    data-testid="co-terms"
-                  />
-                  <span>{t('checkout.acceptTerms')}</span>
-                </label>
-                {localError ? (
-                  <p className="text-sm text-destructive" data-testid="co-error">
-                    {localError}
-                  </p>
-                ) : null}
-                {extrasEstimateMinor > 0 ? (
-                  <p className="text-xs text-muted-foreground" data-testid="co-extras-note">
-                    {t('checkout.extrasChargeNote', {
-                      amount: formatMinor(
-                        quote.data.totalMinor + extrasEstimateMinor,
-                        quote.data.currency,
-                        uiLocale,
-                      ),
-                    })}
-                  </p>
-                ) : null}
-                <Button
-                  type="submit"
-                  loading={confirm.isPending}
-                  disabled={!accepted || expired}
-                  data-testid="co-pay"
+              </div>
+
+              {mode.isLoading ? (
+                <AppStateView kind="loading" inline title={t('checkout.stripeLoading')} />
+              ) : !mode.data || mode.data.driver === 'simulator' ? (
+                <form onSubmit={paySimulator} className="space-y-4" noValidate>
+                  <Field label={t('checkout.paymentMethod')} htmlFor="co-card">
+                    {({ id }) => (
+                      <select
+                        id={id}
+                        className="flex h-11 w-full rounded-md border border-hairline bg-surface px-3 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                        value={card}
+                        onChange={(e) => setCard(e.target.value as CardToken)}
+                        data-testid="co-card"
+                      >
+                        {TEST_CARD_TOKENS.map((tok) => (
+                          <option key={tok} value={tok} className="bg-surface text-ink">
+                            {t(CARD_LABEL_KEY[tok])}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </Field>
+                  {termsAndErrors}
+                  <Button
+                    type="submit"
+                    loading={confirm.isPending}
+                    disabled={!accepted || expired}
+                    data-testid="co-pay"
+                  >
+                    {payLabel}
+                  </Button>
+                </form>
+              ) : mode.data.publishableKey ? (
+                <Elements
+                  key={mode.data.publishableKey}
+                  stripe={getStripePromise(mode.data.publishableKey)}
+                  options={{
+                    mode: 'payment',
+                    amount: Math.max(1, totalWithExtrasMinor),
+                    currency: quote.data.currency.toLowerCase(),
+                    locale: uiLocale as StripeElementLocale,
+                  }}
                 >
-                  {t('checkout.payConfirm', {
-                    amount: formatMinor(
-                      quote.data.totalMinor + extrasEstimateMinor,
-                      quote.data.currency,
-                      uiLocale,
-                    ),
-                  })}
-                </Button>
-              </form>
+                  <StripePaymentForm
+                    onToken={doConfirm}
+                    validate={validateDriver}
+                    disabled={!accepted || expired}
+                    loading={confirm.isPending}
+                    payLabel={payLabel}
+                    extra={termsAndErrors}
+                  />
+                </Elements>
+              ) : (
+                <AppStateView
+                  kind="failure"
+                  inline
+                  title={t('checkout.paymentUnavailable')}
+                  description={t('checkout.paymentUnavailableHint')}
+                />
+              )}
             </CardContent>
           </Card>
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * Lives inside `<Elements>` — `useStripe`/`useElements` only resolve there. Uses the "deferred"
+ * Payment Element pattern (no `clientSecret` passed to `<Elements>`): `stripe.createPaymentMethod`
+ * hands back a `pm_...` id without our ever creating a PaymentIntent client-side, matching this
+ * system's existing single-request confirm flow — the backend creates *and* confirms the
+ * PaymentIntent itself (see `StripePaymentAdapter.authorize`).
+ */
+function StripePaymentForm({
+  onToken,
+  validate,
+  disabled,
+  loading,
+  payLabel,
+  extra,
+}: {
+  onToken: (token: string) => Promise<void>;
+  validate: () => boolean;
+  disabled: boolean;
+  loading: boolean;
+  payLabel: string;
+  extra: ReactNode;
+}) {
+  const { t } = useI18n();
+  const stripe = useStripe();
+  const elements = useElements();
+  const [submitting, setSubmitting] = useState(false);
+  const [stripeError, setStripeError] = useState<string | null>(null);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!validate()) return;
+    if (!stripe || !elements) return;
+    setStripeError(null);
+    setSubmitting(true);
+    try {
+      const { error: submitError } = await elements.submit();
+      if (submitError) {
+        setStripeError(submitError.message ?? t('checkout.stripeError'));
+        return;
+      }
+      const { error, paymentMethod } = await stripe.createPaymentMethod({ elements });
+      if (error || !paymentMethod) {
+        setStripeError(error?.message ?? t('checkout.stripeError'));
+        return;
+      }
+      await onToken(paymentMethod.id);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+      <Field label={t('checkout.cardDetails')} htmlFor="co-stripe-card">
+        {() => <PaymentElement id="co-stripe-card" />}
+      </Field>
+      {stripeError ? (
+        <p className="text-sm text-destructive" data-testid="co-stripe-error">
+          {stripeError}
+        </p>
+      ) : null}
+      {extra}
+      <Button
+        type="submit"
+        loading={loading || submitting}
+        disabled={disabled || !stripe || !elements}
+        data-testid="co-pay"
+      >
+        {payLabel}
+      </Button>
+    </form>
   );
 }
 

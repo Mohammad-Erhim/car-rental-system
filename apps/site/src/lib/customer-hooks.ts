@@ -116,6 +116,26 @@ export function useLocations() {
   });
 }
 
+/**
+ * The org's live payment provider mode (SCREEN-CUS-004/006, STAGE-003) — read anonymously so
+ * checkout can decide, before rendering the payment step, whether to show the simulator's test
+ * card picker or a real Stripe Payment Element. Never cached across a long session: a dashboard
+ * switch (e.g. simulator -> stripe_live) must be reflected on the very next checkout load.
+ */
+export interface PaymentMode {
+  driver: 'simulator' | 'stripe_test' | 'stripe_live';
+  publishableKey: string | null;
+}
+
+export function usePaymentMode() {
+  return useQuery({
+    queryKey: ['payments', 'mode'],
+    queryFn: ({ signal }) =>
+      apiFetch<PaymentMode>('/ops/payments/mode', { signal, anonymous: true }),
+    staleTime: 60 * 1000,
+  });
+}
+
 export function useCategory(code: string | null) {
   return useQuery({
     queryKey: ['catalogue', 'category', code],

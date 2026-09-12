@@ -23,6 +23,10 @@ export async function createApp(): Promise<NestExpressApplication> {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
     cors: false,
+    // preserves the raw request body alongside normal JSON parsing (req.rawBody) — the Stripe
+    // webhook endpoint needs the exact original bytes to verify a signature; re-serializing the
+    // parsed JSON would silently break verification on the smallest formatting difference.
+    rawBody: true,
   });
 
   app.useLogger(app.get(Logger));

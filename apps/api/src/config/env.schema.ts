@@ -47,10 +47,21 @@ export const envSchema = z.object({
   SMS_DRIVER: z.enum(['outbox', 'twilio']).default('outbox'),
   PUSH_DRIVER: z.enum(['outbox', 'fcm']).default('outbox'),
 
+  // Legacy env-only switch — superseded by the DB-backed `payment_provider_config` row
+  // (dashboard-configurable, SCREEN-OPS-041) so the active driver and Stripe keys can change
+  // without a redeploy; kept only as the seed default for a brand-new install.
   PAYMENT_DRIVER: z.enum(['simulator', 'stripe']).default('simulator'),
   PAYMENT_WEBHOOK_SECRET: z.string().min(16).default('dev-payment-webhook-secret-change'),
   STRIPE_SECRET_KEY: z.string().optional(),
   STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  /** At-rest encryption key for Stripe secret keys stored in the database (secret-cipher.ts) —
+   *  an operator secret, same tier as PASSWORD_PEPPER/COOKIE_SECRET. MUST be overridden in
+   *  production; the default here is a dev-only placeholder Zod rejects nowhere on purpose so a
+   *  fresh checkout still boots, but every real deployment must set its own. */
+  PAYMENT_CONFIG_ENCRYPTION_KEY: z
+    .string()
+    .min(16)
+    .default('dev-payment-config-encryption-key-change'),
 
   MAPS_ENABLED: z.coerce.boolean().default(false),
   MAP_STYLE_URL: z.string().optional(),

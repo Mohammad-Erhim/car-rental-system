@@ -10,7 +10,12 @@ import type { Database } from '../../database/drizzle';
 import { payment, paymentIntent, recoveryCase } from '../../database/schema/payment';
 import { reconciliationException } from '../../database/schema/reservation';
 
-import { PaymentDeclinedError, PaymentPort, PaymentTimeoutError } from './payment.port';
+import {
+  PaymentDeclinedError,
+  PaymentPort,
+  PaymentProviderConfigError,
+  PaymentTimeoutError,
+} from './payment.port';
 
 export interface AuthorizeAndCaptureInput {
   organizationId: string;
@@ -18,7 +23,10 @@ export interface AuthorizeAndCaptureInput {
   purpose?: string;
   amountMinor: number;
   currency: string;
-  token: string;
+  /** omit to charge the reservation's saved payment method off-session (extend-hire / an
+   *  incidental charge on a reservation that already has a captured booking payment) — see
+   *  `findSavedMethod`. Required on a reservation's first charge. */
+  token?: string;
   actor: Actor | null;
 }
 
@@ -114,7 +122,23 @@ export class PaymentService {
     }
 
     // ---- authorize ----
-    let auth: { providerRef: string; brand: string; last4: string };
+    // a caller-omitted token means "charge the reservation's saved method off-session" (extend /
+    // incidental charges) — look up whichever earlier intent on this reservation saved one.
+    const saved = input.token ? null : await this.findSavedMethod(input.reservationReference);
+    if (!input.token && !saved) {
+      throw new AppError('business_rule_violation', {
+        title: 'No saved payment method on file for this reservation and no card was provided',
+        params: { reason: 'no_payment_method' },
+      });
+    }
+
+    let auth: {
+      providerRef: string;
+      brand: string;
+      last4: string;
+      customerRef?: string | null;
+      methodRef?: string | null;
+    };
     try {
       auth = await this.port.authorize({
         idempotencyKey: `${input.reservationReference}:${purpose}`,
@@ -122,6 +146,8 @@ export class PaymentService {
         currency: input.currency,
         token: input.token,
         reference: input.reservationReference,
+        reuse: saved ?? undefined,
+        saveForReuse: !saved,
       });
     } catch (err) {
       if (err instanceof PaymentTimeoutError) {
@@ -156,6 +182,23 @@ export class PaymentService {
           .where(eq(paymentIntent.id, intentId));
         throw AppError.businessRule('The payment was declined', { reason: err.failureCode });
       }
+      if (err instanceof PaymentProviderConfigError) {
+        // this is OUR misconfiguration, never the guest's card — recorded the same way any other
+        // "a consequential step failed for reasons the customer can't fix" case is (FR-INT-002),
+        // and surfaced as its own distinct error so the UI never tells a guest their card failed.
+        await this.openCase({
+          organizationId: input.organizationId,
+          kind: 'payment_orphan',
+          subjectType: 'payment_intent',
+          subjectRef: intentId,
+          summary: 'Stripe rejected the configured API key',
+          detail: { message: err.message },
+        });
+        throw new AppError('business_rule_violation', {
+          title: 'Payments are temporarily unavailable — this has been flagged for the team',
+          params: { reason: 'payment_provider_misconfigured' },
+        });
+      }
       throw err;
     }
 
@@ -166,6 +209,8 @@ export class PaymentService {
         providerRef: auth.providerRef,
         methodBrand: auth.brand,
         methodLast4: auth.last4,
+        providerCustomerRef: auth.customerRef ?? saved?.customerRef ?? null,
+        providerMethodRef: auth.methodRef ?? saved?.methodRef ?? null,
         authorizedAt: sql`now()`,
         updatedAt: sql`now()`,
       })
@@ -316,6 +361,32 @@ export class PaymentService {
       payload: { kind: input.kind, subjectRef: input.subjectRef },
     });
     return row!.id;
+  }
+
+  /** Any earlier successfully-authorized intent on this reservation that saved a reusable
+   *  customer + payment method (whichever purpose it was — usually the original booking
+   *  charge), oldest first, so an extend/incidental charge always reuses the *first* card a
+   *  guest paid with rather than whichever charge happened most recently. */
+  private async findSavedMethod(
+    reservationReference: string,
+  ): Promise<{ customerRef: string; methodRef: string } | null> {
+    const [row] = await this.db
+      .select({
+        customerRef: paymentIntent.providerCustomerRef,
+        methodRef: paymentIntent.providerMethodRef,
+      })
+      .from(paymentIntent)
+      .where(
+        and(
+          eq(paymentIntent.reservationReference, reservationReference),
+          sql`${paymentIntent.providerCustomerRef} is not null`,
+          sql`${paymentIntent.providerMethodRef} is not null`,
+        ),
+      )
+      .orderBy(paymentIntent.createdAt)
+      .limit(1);
+    if (!row?.customerRef || !row.methodRef) return null;
+    return { customerRef: row.customerRef, methodRef: row.methodRef };
   }
 
   async intentFor(reservationReference: string, purpose = 'booking') {
