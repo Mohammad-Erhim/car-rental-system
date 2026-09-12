@@ -739,6 +739,7 @@
   "ops.loc.create": "Créer l’agence",
   "ops.loc.email": "E-mail",
   "ops.loc.exClosed": "Fermé toute la journée",
+  "ops.loc.exDateRequired": "Choisissez une date pour l’exception.",
   "ops.loc.exInverted": "L’heure d’ouverture doit précéder l’heure de fermeture.",
   "ops.loc.exReduced": "Horaires réduits",
   "ops.loc.exSaveFail": "Impossible de mettre à jour la fermeture exceptionnelle.",

@@ -354,6 +354,7 @@ export function LocationsPage() {
                   {creating ? (
                     <Field
                       label={t('ops.loc.code')}
+                      required
                       hint={t('ops.loc.codeHint')}
                       error={
                         creating.code && !/^[A-Z0-9]{2,20}$/.test(creating.code)
@@ -724,7 +725,10 @@ export function LocationsPage() {
                         className="flex flex-wrap items-end gap-2"
                         onSubmit={(e) => {
                           e.preventDefault();
-                          if (!ex.date) return;
+                          if (!ex.date) {
+                            toast({ title: t('ops.loc.exDateRequired') });
+                            return;
+                          }
                           if (!ex.closed && ex.open >= ex.close) {
                             toast({ title: t('ops.loc.exInverted') });
                             return;
@@ -760,7 +764,7 @@ export function LocationsPage() {
                           );
                         }}
                       >
-                        <Field label={t('ops.loc.exceptionDate')}>
+                        <Field label={t('ops.loc.exceptionDate')} required>
                           {({ id }) => (
                             <Input
                               id={id}

@@ -228,6 +228,7 @@ export function ConfigWorkflowHistory({
             <Field
               label={t('ops.cfg.rejectReason')}
               htmlFor="cfg-reject-reason"
+              required
               error={rejecting && !reason.trim() ? t('ops.cfg.rejectReasonRequired') : undefined}
             >
               {({ id }) => (

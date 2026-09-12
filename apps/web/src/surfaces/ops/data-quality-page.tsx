@@ -322,6 +322,7 @@ export function DataQualityPage() {
             <Field
               label={t('ops.dq.resolveReason')}
               htmlFor="dq-resolve-note"
+              required
               error={resolving && !resolveNote.trim() ? t('ops.dq.reasonRequired') : undefined}
             >
               {({ id }) => (
@@ -355,6 +356,7 @@ export function DataQualityPage() {
             <Field
               label={t('ops.dq.falsePositiveReason')}
               htmlFor="dq-fp-note"
+              required
               error={
                 markingFalsePositive && !fpNote.trim() ? t('ops.dq.reasonRequired') : undefined
               }

@@ -739,6 +739,7 @@
   "ops.loc.create": "Create location",
   "ops.loc.email": "Email",
   "ops.loc.exClosed": "Closed all day",
+  "ops.loc.exDateRequired": "Choose a date for the exception.",
   "ops.loc.exInverted": "The opening time must be before the closing time.",
   "ops.loc.exReduced": "Reduced hours",
   "ops.loc.exSaveFail": "Couldn’t update the closure exception.",
