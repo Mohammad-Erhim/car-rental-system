@@ -27,6 +27,10 @@ import { rental } from '../../database/schema/rental';
 import { reservation, reconciliationException } from '../../database/schema/reservation';
 import { NotifyService } from '../notify/notify.service';
 
+/** `report_definition.queryKind`s that actually filter by `reservation.pickupLocationCode` — the
+ *  only ones an explicit `params.locationCode` narrowing can honestly apply to. */
+const LOCATION_KEYED_REPORTS = new Set(['reservations_by_state', 'revenue_by_category']);
+
 @Injectable()
 export class ReportService {
   private readonly logger = new Logger('ReportService');
@@ -58,6 +62,22 @@ export class ReportService {
     return actor.locationScope?.length ? actor.locationScope : null;
   }
 
+  /**
+   * The actor's own permission scope, narrowed by an optional caller-requested location — the
+   * same "AND of two independent conditions" shape already established for reservation/rental/
+   * fleet/search list queries (never a *replacement* of the actor's scope, since the request is
+   * never trusted to broaden it). A requested code outside the actor's own scope resolves to a
+   * real empty array, not a special sentinel — `inArray(col, [])` compiles to a normal
+   * always-false predicate (verified directly against this driver), so it composes exactly like
+   * any other scope value rather than needing its own branch at every call site.
+   */
+  private effectiveScope(actor: Actor, requested?: string): string[] | null {
+    const own = this.scopeCodes(actor);
+    if (!requested) return own;
+    if (own && !own.includes(requested)) return [];
+    return [requested];
+  }
+
   async run(actor: Actor, code: string, params: Record<string, unknown> = {}) {
     const [def] = await this.db
       .select()
@@ -70,8 +90,22 @@ export class ReportService {
     }
 
     const orgId = await this.orgId();
-    const scope = this.scopeCodes(actor);
-    const scopeNote = scope ? `Scoped to ${scope.join(', ')}` : 'All locations';
+    // `params.locationCode` narrows *within* the actor's own scope, same as the dashboard
+    // endpoints above — never a replacement of it. Only applied for `reservations_by_state` and
+    // `revenue_by_category` (the only two query kinds keyed by `pickupLocationCode`) — every
+    // other kind ignores it entirely, so `scope`/`scopeNote` must too, or a caller narrowed to
+    // one location while running e.g. `fleet_utilisation` (genuinely org-wide, no location
+    // column at all) would see "Scoped to X" on numbers that were never actually filtered by X.
+    const requestedLocation =
+      typeof params.locationCode === 'string' ? params.locationCode : undefined;
+    const scope = LOCATION_KEYED_REPORTS.has(def.queryKind)
+      ? this.effectiveScope(actor, requestedLocation)
+      : this.scopeCodes(actor);
+    const scopeNote = !scope
+      ? 'All locations'
+      : scope.length
+        ? `Scoped to ${scope.join(', ')}`
+        : 'No accessible locations';
 
     let rows: Array<Record<string, unknown>> = [];
     switch (def.queryKind) {
@@ -204,10 +238,14 @@ export class ReportService {
    * location). A metric that cannot be read is `null`, never `0` (FR-RPT-001) — the caller
    * surfaces "unavailable".
    */
-  async opsDashboard(actor: Actor) {
+  async opsDashboard(actor: Actor, locationCode?: string) {
     const orgId = await this.orgId();
-    const scope = this.scopeCodes(actor);
-    const scopeNote = scope ? `Scoped to ${scope.join(', ')}` : 'All locations';
+    const scope = this.effectiveScope(actor, locationCode);
+    const scopeNote = !scope
+      ? 'All locations'
+      : scope.length
+        ? `Scoped to ${scope.join(', ')}`
+        : 'No accessible locations';
     // `inArray(...)`, not a raw `col = any(${scope})` fragment — the latter hands postgres.js a
     // bare JS array as a single bound parameter, which it can't serialize as a Postgres array
     // outside drizzle's own typed query builder ("malformed array literal" / "op ANY/ALL (array)
@@ -348,10 +386,14 @@ export class ReportService {
    * slightly off for its older days. Disclosed, not hidden: `fleetTotal` is returned alongside so
    * the frontend can (and does) show that as a caveat rather than presenting it as exact.
    */
-  async dashboardAnalytics(actor: Actor, days: number) {
+  async dashboardAnalytics(actor: Actor, days: number, locationCode?: string) {
     const orgId = await this.orgId();
-    const scope = this.scopeCodes(actor);
-    const scopeNote = scope ? `Scoped to ${scope.join(', ')}` : 'All locations';
+    const scope = this.effectiveScope(actor, locationCode);
+    const scopeNote = !scope
+      ? 'All locations'
+      : scope.length
+        ? `Scoped to ${scope.join(', ')}`
+        : 'No accessible locations';
     const [org] = await this.db
       .select({ currency: organization.defaultCurrency })
       .from(organization)
@@ -369,8 +411,19 @@ export class ReportService {
         codes.map((c) => sql`${c}`),
         sql`, `,
       );
-    const resScope = scope ? sql`and r.pickup_location_code in (${inList(scope)})` : sql``;
-    const rentalScope = scope ? sql`and u.pickup_location_code in (${inList(scope)})` : sql``;
+    // `scope` can now be a real empty array (a requested location outside the actor's own
+    // scope) as well as `null` (unrestricted) — an empty `IN ()` is a Postgres syntax error, so
+    // that case gets its own always-false predicate instead of an empty `inList(...)`.
+    const resScope = !scope
+      ? sql``
+      : scope.length
+        ? sql`and r.pickup_location_code in (${inList(scope)})`
+        : sql`and false`;
+    const rentalScope = !scope
+      ? sql``
+      : scope.length
+        ? sql`and u.pickup_location_code in (${inList(scope)})`
+        : sql`and false`;
 
     // bookings made + cancelled per day, by creation/cancellation instant — distinct from
     // `opsDashboard`'s pickups/returns, which are about *operational* activity on a given day

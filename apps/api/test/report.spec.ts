@@ -808,6 +808,82 @@ describe('STAGE-006 administration & reporting', () => {
     expect(Number.isInteger(res.body.assignQueue)).toBe(true);
   });
 
+  it("TEST-ADM-016 a caller-requested locationCode narrows within (never replaces) the actor's own scope, on the dashboard, analytics, and report-runner endpoints alike", async () => {
+    // placed here, before TEST-ADM-006 suspends test-scoped's account, for the same reason
+    // TEST-ADM-014/015 are — this test needs `scopedToken` (locationScope = ['TST1']) live.
+    const p1 = tuesday(50);
+    await book(server, customerToken, {
+      pickupLocationCode: 'TST1',
+      categoryCode: 'economy',
+      pickupAt: p1,
+      returnAt: plus(p1, 2),
+    });
+    const p2 = tuesday(51);
+    await book(server, customerToken, {
+      pickupLocationCode: 'TST2',
+      categoryCode: 'economy',
+      pickupAt: p2,
+      returnAt: plus(p2, 2),
+    });
+    const bookingsOf = (body: unknown) =>
+      (body as { daily: Array<{ bookings: number }> }).daily.reduce((n, d) => n + d.bookings, 0);
+
+    // an org-wide admin, narrowed via ?locationCode= to one location at a time — each narrowed
+    // view sees its own booking and nothing double-counted from the other
+    const analyticsTst1 = await request(server)
+      .get('/api/v1/ops/dashboard/analytics?days=90&locationCode=TST1')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(analyticsTst1.body.scopeNote).toBe('Scoped to TST1');
+    expect(bookingsOf(analyticsTst1.body)).toBeGreaterThanOrEqual(1);
+
+    const analyticsTst2 = await request(server)
+      .get('/api/v1/ops/dashboard/analytics?days=90&locationCode=TST2')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(analyticsTst2.body.scopeNote).toBe('Scoped to TST2');
+    expect(bookingsOf(analyticsTst2.body)).toBeGreaterThanOrEqual(1);
+
+    // a location-scoped actor (TST1 only) requesting a location OUTSIDE their own scope gets
+    // honest zero rows — narrowing can never broaden a scope into a bypass, and it never errors
+    const outOfScope = await request(server)
+      .get('/api/v1/ops/dashboard/analytics?days=90&locationCode=TST2')
+      .set('Authorization', `Bearer ${scopedToken}`)
+      .expect(200);
+    expect(outOfScope.body.scopeNote).toBe('No accessible locations');
+    expect(bookingsOf(outOfScope.body)).toBe(0);
+
+    // requesting a location genuinely inside the actor's own scope is a no-op narrowing
+    const inScope = await request(server)
+      .get('/api/v1/ops/dashboard/analytics?days=90&locationCode=TST1')
+      .set('Authorization', `Bearer ${scopedToken}`)
+      .expect(200);
+    expect(inScope.body.scopeNote).toBe('Scoped to TST1');
+
+    // same narrowing on the base (today-only) dashboard endpoint
+    const dashTst2 = await request(server)
+      .get('/api/v1/ops/dashboard?locationCode=TST2')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(dashTst2.body.scopeNote).toBe('Scoped to TST2');
+
+    // and on the generic report runner (reservations_by_state is keyed by pickupLocationCode)
+    const reportTst1 = await request(server)
+      .post('/api/v1/ops/reports/reservations_by_state/run')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ params: { locationCode: 'TST1' } })
+      .expect(201);
+    expect(reportTst1.body.scopeNote).toBe('Scoped to TST1');
+
+    const reportOutOfScope = await request(server)
+      .post('/api/v1/ops/reports/reservations_by_state/run')
+      .set('Authorization', `Bearer ${scopedToken}`)
+      .send({ params: { locationCode: 'TST2' } })
+      .expect(201);
+    expect(reportOutOfScope.body.scopeNote).toBe('No accessible locations');
+    expect(reportOutOfScope.body.rowCount).toBe(0);
+  });
+
   it('TEST-ADM-006 sending a schedule needs a fresh step-up, then re-checks the owner and pauses if they lost access', async () => {
     // a helper: STEP_UP_MAX_AGE_SEC is 1s in tests, so re-confirm right before each send
     const stepUp = () =>

@@ -32,6 +32,7 @@ import {
   type ReportRunResult,
 } from '../../lib/admin-hooks.js';
 import { ApiError } from '../../lib/api.js';
+import { useLocationScope } from '../../lib/location-scope.js';
 
 /**
  * SCREEN-OPS-035 — Reports. Each report is a whitelisted aggregate (no free SQL). Rows are
@@ -44,12 +45,18 @@ const CRON_PRESETS: Array<{ value: string; labelKey: string }> = [
   { value: '0 7 1 * *', labelKey: 'ops.rpt.cronMonthly' },
 ];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// keep in sync with `LOCATION_KEYED_REPORTS` in report.service.ts — the only query kinds keyed by
+// `pickupLocationCode`. Every other report kind ignores `locationCode` server-side, so the
+// pre-run hint below must only promise narrowing for these — the *actual* scope used is always
+// shown truthfully after the fact via `scopeNote` on the result and on every past run.
+const LOCATION_KEYED_REPORTS = new Set(['reservations_by_state', 'revenue_by_category']);
 
 export function ReportsPage() {
   const { t, fmt } = useI18n();
   const { toast } = useToast();
   const { hasPermission } = useAuth();
   const canSchedule = hasPermission('report.export');
+  const { selected: locationCode, options: locationOptions } = useLocationScope();
 
   const defs = useReportDefinitions();
   const runs = useReportRuns();
@@ -146,7 +153,10 @@ export function ReportsPage() {
     setRunError(null);
     setCsvOpen(null);
     try {
-      const r = await run.mutateAsync({ code });
+      // narrows within the actor's own scope, same "AND of two filters" the dashboard uses — a
+      // report kind that doesn't filter by location (fleet_utilisation, refunds, …) ignores it
+      // server-side rather than showing a misleading "Scoped to X" on numbers it never filtered.
+      const r = await run.mutateAsync({ code, params: locationCode ? { locationCode } : {} });
       setResult(r);
     } catch (err) {
       setRunError(err instanceof ApiError ? err.message : t('ops.rpt.runFail'));
@@ -251,6 +261,14 @@ export function ReportsPage() {
               <p className="text-sm text-muted-foreground">
                 {defs.data?.find((d) => d.code === code)?.description}
               </p>
+              {locationCode && locationOptions.length > 1 && LOCATION_KEYED_REPORTS.has(code) ? (
+                <p className="text-xs text-muted-foreground" data-testid="report-location-filter">
+                  {t('ops.rpt.locationFilter', {
+                    name:
+                      locationOptions.find((o) => o.code === locationCode)?.name ?? locationCode,
+                  })}
+                </p>
+              ) : null}
             </>
           )}
 

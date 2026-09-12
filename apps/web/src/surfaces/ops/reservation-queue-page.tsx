@@ -11,11 +11,14 @@ import {
   useToast,
   type DataTableColumn,
 } from '@carrental/ui';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 
 import { useLocations } from '../../lib/discovery-hooks.js';
+import { useLocationScope } from '../../lib/location-scope.js';
 import { useAssignVehicle } from '../../lib/rental-hooks.js';
 import { useOpsReservations, type OpsReservationRow } from '../../lib/reservation-hooks.js';
+import { useUrlParams } from '../../lib/use-url-param.js';
 
 /**
  * SCREEN-OPS-004 — the staff reservation queue. Two views: "Needs action" (the actionable
@@ -44,7 +47,7 @@ export function ReservationQueuePage() {
   const { t, fmt } = useI18n();
   const { toast } = useToast();
   const locations = useLocations();
-  const [params, setParams] = useSearchParams();
+  const { params, setParams, setParam } = useUrlParams();
 
   const view: 'queue' | 'all' = params.get('view') === 'all' ? 'all' : 'queue';
   const state = params.get('state') ?? '';
@@ -53,30 +56,25 @@ export function ReservationQueuePage() {
   const to = params.get('to') ?? '';
   const focusRef = params.get('ref') ?? '';
 
-  const setParam = (key: string, value: string) =>
-    setParams(
-      (p) => {
-        if (value) p.set(key, value);
-        else p.delete(key);
-        return p;
-      },
-      { replace: true },
-    );
+  // seed from the global location switcher on first load only — never fights a filter the
+  // operator has since set (or explicitly cleared) on this page themselves
+  const { selected: globalLocation } = useLocationScope();
+  useEffect(() => {
+    if (!params.get('location') && globalLocation) setParam('location', globalLocation);
+  }, []);
+
   const setView = (v: 'queue' | 'all') =>
-    setParams(
-      (p) => {
-        if (v === 'all') p.set('view', 'all');
-        else {
-          p.delete('view');
-          p.delete('state');
-          p.delete('location');
-          p.delete('from');
-          p.delete('to');
-        }
-        return p;
-      },
-      { replace: true },
-    );
+    setParams((p) => {
+      if (v === 'all') p.set('view', 'all');
+      else {
+        p.delete('view');
+        p.delete('state');
+        p.delete('location');
+        p.delete('from');
+        p.delete('to');
+      }
+      return p;
+    });
 
   const list = useOpsReservations({
     view,
