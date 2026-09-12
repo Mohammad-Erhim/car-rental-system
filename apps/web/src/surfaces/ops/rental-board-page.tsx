@@ -19,7 +19,6 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { ApiError } from '../../lib/api.js';
-import { useLocations } from '../../lib/discovery-hooks.js';
 import { useLocationScope } from '../../lib/location-scope.js';
 import { useOpsUnits } from '../../lib/ops-discovery-hooks.js';
 import {
@@ -54,7 +53,6 @@ const today = () => new Date().toISOString().slice(0, 10);
  */
 export function RentalBoardPage() {
   const { t } = useI18n();
-  const locations = useLocations();
   const { params, setParams, setParam } = useUrlParams();
 
   const state = params.get('state') ?? '';
@@ -65,8 +63,10 @@ export function RentalBoardPage() {
   const focusRef = params.get('ref') ?? '';
 
   // seed from the global location switcher on first load only — never fights a filter the
-  // operator has since set (or explicitly cleared) on this page themselves
-  const { selected: globalLocation } = useLocationScope();
+  // operator has since set (or explicitly cleared) on this page themselves. `options` is already
+  // narrowed to what this actor can see, so this page's own filter never offers a branch that
+  // would just come back empty.
+  const { selected: globalLocation, options: locations } = useLocationScope();
   useEffect(() => {
     if (!params.get('location') && globalLocation) setParam('location', globalLocation);
   }, []);
@@ -126,7 +126,7 @@ export function RentalBoardPage() {
             onChange={(e) => setParam('location', e.target.value)}
           >
             <option value="">{t('ops.search.anyLocation')}</option>
-            {(locations.data ?? []).map((l) => (
+            {locations.map((l) => (
               <option key={l.code} value={l.code}>
                 {l.name} ({l.code})
               </option>

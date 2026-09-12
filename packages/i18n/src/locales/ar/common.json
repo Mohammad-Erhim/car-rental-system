@@ -484,6 +484,7 @@
   "ops.dash.checking": "جارٍ فحص التبعيات…",
   "ops.dash.doneOfTotal": "{done} من {total} مُنجَز",
   "ops.dash.financeExceptions": "استثناءات مالية",
+  "ops.dash.financeOrgWide": "استثناءات المالية على مستوى المؤسسة بالكامل — لا يمكن تتبعها بعد لكل فرع.",
   "ops.dash.fleet.available": "متاح",
   "ops.dash.fleet.maintenance": "صيانة",
   "ops.dash.fleet.onRent": "قيد الإيجار",

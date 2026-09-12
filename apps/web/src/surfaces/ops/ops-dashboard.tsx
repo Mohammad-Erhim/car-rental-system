@@ -387,6 +387,9 @@ export function OpsDashboard() {
                 </Badge>
               </p>
             )}
+            {locationCode ? (
+              <p className="text-xs text-muted-foreground">{t('ops.dash.financeOrgWide')}</p>
+            ) : null}
             <Link
               to="/finance"
               className="inline-block text-xs font-medium text-primary hover:underline"

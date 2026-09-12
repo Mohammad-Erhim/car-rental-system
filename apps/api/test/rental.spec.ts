@@ -430,6 +430,23 @@ describe('rental lifecycle', () => {
       expect(typeof row.overdue).toBe('boolean');
     });
 
+    it('a location-scoped actor requesting a location outside their own scope gets a 403 (FR-RPT-004)', async () => {
+      const app = await getTestApp();
+      const scoped = (await signIn(app, 'test-scoped@example.test', 'Test-Passw0rd!', 'staff'))
+        .accessToken;
+      // in-scope: TST1 is this actor's own location, so it's a no-op narrowing, never rejected
+      await request(server)
+        .get('/api/v1/ops/rentals?locationCode=TST1')
+        .set('Authorization', `Bearer ${scoped}`)
+        .expect(200);
+      // out-of-scope: a 403, not a silently empty result (SRS-SEC-007)
+      const rejected = await request(server)
+        .get('/api/v1/ops/rentals?locationCode=TST2')
+        .set('Authorization', `Bearer ${scoped}`)
+        .expect(403);
+      expect(rejected.body.title).toMatch(/don't have access/i);
+    });
+
     it('state=overdue also catches an active rental past its scheduled return (live, no sweep)', async () => {
       // book a 1-day rental starting well in the past window is not possible via quote (future
       // only), so instead pick up a short rental and rely on the sweep-independent predicate:

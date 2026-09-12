@@ -7,6 +7,7 @@ import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from 'drizzle-o
 import { AppError } from '../../common/app-error';
 import { decodeAuditCursor, encodeAuditCursor } from '../../common/audit/audit-cursor';
 import { AuditService } from '../../common/audit/audit.service';
+import { assertLocationAccess } from '../../common/auth/location-scope';
 import { RbacService } from '../../common/auth/rbac.service';
 import type { Actor } from '../../common/auth/types';
 import { OutboxService } from '../../common/outbox/outbox.service';
@@ -20,7 +21,7 @@ import {
 } from '../../database/schema/admin';
 import { vehicleUnit } from '../../database/schema/fleet';
 import { account, staffProfile } from '../../database/schema/iam';
-import { organization } from '../../database/schema/org';
+import { location, organization } from '../../database/schema/org';
 import { payment, paymentIntent, recoveryCase } from '../../database/schema/payment';
 import { auditEvent } from '../../database/schema/platform';
 import { rental } from '../../database/schema/rental';
@@ -63,19 +64,23 @@ export class ReportService {
   }
 
   /**
-   * The actor's own permission scope, narrowed by an optional caller-requested location — the
-   * same "AND of two independent conditions" shape already established for reservation/rental/
-   * fleet/search list queries (never a *replacement* of the actor's scope, since the request is
-   * never trusted to broaden it). A requested code outside the actor's own scope resolves to a
-   * real empty array, not a special sentinel — `inArray(col, [])` compiles to a normal
-   * always-false predicate (verified directly against this driver), so it composes exactly like
-   * any other scope value rather than needing its own branch at every call site.
+   * The actor's own permission scope, narrowed by an optional caller-requested location — never
+   * a *replacement* of the actor's scope, since the request is never trusted to broaden it. A
+   * requested code outside the actor's own scope is rejected with an explicit 403
+   * (`assertLocationAccess`, SRS-SEC-007) rather than silently narrowed to zero rows — a
+   * scope violation must be visible and actionable, not indistinguishable from "no data."
    */
   private effectiveScope(actor: Actor, requested?: string): string[] | null {
+    assertLocationAccess(actor, requested);
     const own = this.scopeCodes(actor);
     if (!requested) return own;
-    if (own && !own.includes(requested)) return [];
     return [requested];
+  }
+
+  /** `null` scope reads as "All locations"; a non-empty scope (this method's only other possible
+   *  input — an out-of-scope request is rejected before it ever reaches here) names it. */
+  private scopeNoteFor(scope: string[] | null): string {
+    return scope ? `Scoped to ${scope.join(', ')}` : 'All locations';
   }
 
   async run(actor: Actor, code: string, params: Record<string, unknown> = {}) {
@@ -101,11 +106,7 @@ export class ReportService {
     const scope = LOCATION_KEYED_REPORTS.has(def.queryKind)
       ? this.effectiveScope(actor, requestedLocation)
       : this.scopeCodes(actor);
-    const scopeNote = !scope
-      ? 'All locations'
-      : scope.length
-        ? `Scoped to ${scope.join(', ')}`
-        : 'No accessible locations';
+    const scopeNote = this.scopeNoteFor(scope);
 
     let rows: Array<Record<string, unknown>> = [];
     switch (def.queryKind) {
@@ -232,20 +233,21 @@ export class ReportService {
   /**
    * SCREEN-OPS-002 — the operational dashboard aggregate. Read-only counts for the `/ops`
    * landing cards: today's pickups / returns (with a done/total split), overdue rentals, the
-   * assignment queue, finance/integration exceptions, and the fleet-readiness breakdown.
-   * Rental + reservation counts are confined to the actor's `locationScope` (FR-RPT-004);
-   * fleet + finance exceptions are org-wide (units belong to the org; payment issues carry no
-   * location). A metric that cannot be read is `null`, never `0` (FR-RPT-001) — the caller
-   * surfaces "unavailable".
+   * assignment queue, revenue, finance/integration exceptions, and the fleet-readiness breakdown.
+   * Rental + reservation counts are confined to the actor's `locationScope` (FR-RPT-004); so is
+   * the fleet breakdown (via `vehicleUnit.currentLocationId` -> `location.code`) and revenue
+   * (via `paymentIntent.reservationReference` -> `reservation.pickupLocationCode` — payments
+   * carry no location column of their own, but every one traces back to the reservation it was
+   * collected for). `financeExceptions` stays org-wide: `recoveryCase.subjectRef` is a
+   * polymorphic reference whose meaning (and therefore location) varies by `kind`, so it can't be
+   * reliably attributed to one location without per-kind resolution logic — a known, disclosed
+   * gap rather than a silently-wrong number. A metric that cannot be read is `null`, never `0`
+   * (FR-RPT-001) — the caller surfaces "unavailable".
    */
   async opsDashboard(actor: Actor, locationCode?: string) {
     const orgId = await this.orgId();
     const scope = this.effectiveScope(actor, locationCode);
-    const scopeNote = !scope
-      ? 'All locations'
-      : scope.length
-        ? `Scoped to ${scope.join(', ')}`
-        : 'No accessible locations';
+    const scopeNote = this.scopeNoteFor(scope);
     // `inArray(...)`, not a raw `col = any(${scope})` fragment — the latter hands postgres.js a
     // bare JS array as a single bound parameter, which it can't serialize as a Postgres array
     // outside drizzle's own typed query builder ("malformed array literal" / "op ANY/ALL (array)
@@ -300,10 +302,19 @@ export class ReportService {
       .from(reconciliationException)
       .where(eq(reconciliationException.state, 'open'));
 
+    // fleet units carry their location as `currentLocationId` (a location FK, not a code) — join
+    // to `location` to get the code the actor's scope is expressed in, same as every other
+    // scoped count here.
     const fleetRows = await this.db
       .select({ state: vehicleUnit.state, n: sql<number>`count(*)::int` })
       .from(vehicleUnit)
-      .where(eq(vehicleUnit.organizationId, orgId))
+      .innerJoin(location, eq(location.id, vehicleUnit.currentLocationId))
+      .where(
+        and(
+          eq(vehicleUnit.organizationId, orgId),
+          scope ? inArray(location.code, scope) : sql`true`,
+        ),
+      )
       .groupBy(vehicleUnit.state);
     const fleet = { available: 0, on_rent: 0, prep: 0, maintenance: 0, other: 0 };
     for (const r of fleetRows) {
@@ -316,8 +327,11 @@ export class ReportService {
     const utilisation = fleetTotal > 0 ? Math.round((fleet.on_rent / fleetTotal) * 100) : null;
 
     // net cash captured today — successful captures minus refunds from the payment ledger (the
-    // per-transaction source of truth), org-wide (payments carry no location). Reported in the
-    // org's default currency.
+    // per-transaction source of truth). Reported in the org's default currency. Payments carry no
+    // location column of their own, but every payment intent names the reservation it was
+    // collected for — LEFT JOIN so a payment whose reservation reference is missing/stale still
+    // counts in the org-wide total, but is correctly excluded once a specific location is chosen
+    // (it can't be honestly attributed to one).
     const [org] = await this.db
       .select({ currency: organization.defaultCurrency })
       .from(organization)
@@ -330,11 +344,13 @@ export class ReportService {
       })
       .from(payment)
       .innerJoin(paymentIntent, eq(paymentIntent.id, payment.intentId))
+      .leftJoin(reservation, eq(reservation.reference, paymentIntent.reservationReference))
       .where(
         and(
           eq(paymentIntent.organizationId, orgId),
           eq(payment.outcome, 'succeeded'),
           sql`${payment.createdAt}::date = current_date`,
+          scope ? inArray(reservation.pickupLocationCode, scope) : sql`true`,
         ),
       );
 
@@ -385,15 +401,14 @@ export class ReportService {
    * daily fleet-size snapshot table, so a fleet that grew/shrank over the window will read
    * slightly off for its older days. Disclosed, not hidden: `fleetTotal` is returned alongside so
    * the frontend can (and does) show that as a caveat rather than presenting it as exact.
+   * `fleetTotal` itself is scoped the same as everything else here (a branch's utilization must
+   * divide by *that branch's* fleet, not the org's), and the revenue series is scoped via each
+   * payment's reservation (payments carry no location column of their own).
    */
   async dashboardAnalytics(actor: Actor, days: number, locationCode?: string) {
     const orgId = await this.orgId();
     const scope = this.effectiveScope(actor, locationCode);
-    const scopeNote = !scope
-      ? 'All locations'
-      : scope.length
-        ? `Scoped to ${scope.join(', ')}`
-        : 'No accessible locations';
+    const scopeNote = this.scopeNoteFor(scope);
     const [org] = await this.db
       .select({ currency: organization.defaultCurrency })
       .from(organization)
@@ -411,19 +426,11 @@ export class ReportService {
         codes.map((c) => sql`${c}`),
         sql`, `,
       );
-    // `scope` can now be a real empty array (a requested location outside the actor's own
-    // scope) as well as `null` (unrestricted) — an empty `IN ()` is a Postgres syntax error, so
-    // that case gets its own always-false predicate instead of an empty `inList(...)`.
-    const resScope = !scope
-      ? sql``
-      : scope.length
-        ? sql`and r.pickup_location_code in (${inList(scope)})`
-        : sql`and false`;
-    const rentalScope = !scope
-      ? sql``
-      : scope.length
-        ? sql`and u.pickup_location_code in (${inList(scope)})`
-        : sql`and false`;
+    // `scope`, when non-null, is always a non-empty array here — a requested location outside
+    // the actor's own scope is rejected by `assertLocationAccess()` inside `effectiveScope()`
+    // before this point, never silently narrowed to an empty (and SQL-invalid `IN ()`) scope.
+    const resScope = scope ? sql`and r.pickup_location_code in (${inList(scope)})` : sql``;
+    const rentalScope = scope ? sql`and u.pickup_location_code in (${inList(scope)})` : sql``;
 
     // bookings made + cancelled per day, by creation/cancellation instant — distinct from
     // `opsDashboard`'s pickups/returns, which are about *operational* activity on a given day
@@ -452,13 +459,19 @@ export class ReportService {
         group by r.cancelled_at::date
       ),
       captured as (
+        -- payments carry no location column of their own; LEFT JOIN to the reservation each
+        -- intent names so a specific-location filter can attribute revenue correctly. A payment
+        -- whose reservation reference is missing/stale still counts in the org-wide total
+        -- (LEFT, not INNER) but is honestly excluded once a specific location is chosen.
         select p.created_at::date as day,
           (coalesce(sum(p.amount_minor) filter (where p.type = 'capture'), 0)
             - coalesce(sum(p.amount_minor) filter (where p.type = 'refund'), 0))::int as revenue_minor
         from payment p
         inner join payment_intent pi on pi.id = p.intent_id
+        left join reservation r on r.reference = pi.reservation_reference
         where pi.organization_id = ${orgId} and p.outcome = 'succeeded'
           and p.created_at::date >= current_date - ${days - 1}::int
+          ${resScope}
         group by p.created_at::date
       ),
       occupied as (
@@ -486,10 +499,19 @@ export class ReportService {
       order by d.day
     `);
 
+    // same location join as `opsDashboard()` — a branch's utilization % must divide by *that
+    // branch's* fleet, not the whole org's, or narrowing to one location would make every
+    // branch's utilization read artificially tiny against the org-wide total.
     const fleetRows = await this.db
       .select({ n: sql<number>`count(*)::int` })
       .from(vehicleUnit)
-      .where(eq(vehicleUnit.organizationId, orgId));
+      .innerJoin(location, eq(location.id, vehicleUnit.currentLocationId))
+      .where(
+        and(
+          eq(vehicleUnit.organizationId, orgId),
+          scope ? inArray(location.code, scope) : sql`true`,
+        ),
+      );
     const fleetTotal = fleetRows[0]?.n ?? 0;
 
     const byCategory = await this.db.execute<{

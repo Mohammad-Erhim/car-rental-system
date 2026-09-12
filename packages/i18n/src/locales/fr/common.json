@@ -484,6 +484,7 @@
   "ops.dash.checking": "Vérification des dépendances…",
   "ops.dash.doneOfTotal": "{done} sur {total} traités",
   "ops.dash.financeExceptions": "Anomalies financières",
+  "ops.dash.financeOrgWide": "Les exceptions financières sont globales à l’organisation — pas encore suivies par site.",
   "ops.dash.fleet.available": "Disponible",
   "ops.dash.fleet.maintenance": "Maintenance",
   "ops.dash.fleet.onRent": "En location",

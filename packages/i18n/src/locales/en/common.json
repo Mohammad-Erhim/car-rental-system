@@ -484,6 +484,7 @@
   "ops.dash.checking": "Checking dependencies…",
   "ops.dash.doneOfTotal": "{done} of {total} done",
   "ops.dash.financeExceptions": "Finance exceptions",
+  "ops.dash.financeOrgWide": "Finance exceptions are organization-wide — not yet trackable per branch.",
   "ops.dash.fleet.available": "Available",
   "ops.dash.fleet.maintenance": "Maintenance",
   "ops.dash.fleet.onRent": "On rent",

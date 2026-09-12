@@ -3,6 +3,7 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
+import { assertLocationAccess } from '../../common/auth/location-scope';
 import type { Actor } from '../../common/auth/types';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
@@ -113,6 +114,8 @@ export class FleetService {
       state?: string;
     },
   ): Promise<{ count: number; total: number; results: UnitRow[] }> {
+    // a location outside the actor's own scope is a 403, not a silently-empty result (SRS-SEC-007)
+    assertLocationAccess(actor, filter.locationCode);
     const scope = actor.locationScope?.length ? actor.locationScope : null;
     const rows = await this.db
       .select({

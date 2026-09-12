@@ -5,6 +5,7 @@ import { and, asc, desc, eq, gte, inArray, lte, sql, type SQL } from 'drizzle-or
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
+import { assertLocationAccess } from '../../common/auth/location-scope';
 import type { Actor } from '../../common/auth/types';
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
@@ -705,12 +706,14 @@ export class RentalService {
       limit?: number;
     },
   ) {
+    // a location outside the actor's own scope is a 403, not a silently-empty result (SRS-SEC-007)
+    assertLocationAccess(actor, filter.locationCode);
     const scope = actor.locationScope?.length ? actor.locationScope : null;
     const liveOverdue = sql`(${rental.state} = 'active' and ${rental.scheduledReturnAt} < now())`;
 
     const where: SQL[] = [];
-    if (scope) where.push(inArray(rental.pickupLocationCode, scope));
     if (filter.locationCode) where.push(eq(rental.pickupLocationCode, filter.locationCode));
+    else if (scope) where.push(inArray(rental.pickupLocationCode, scope));
     if (filter.state === 'overdue') {
       where.push(sql`(${rental.state} = 'overdue' or ${liveOverdue})`);
     } else if (filter.state) {

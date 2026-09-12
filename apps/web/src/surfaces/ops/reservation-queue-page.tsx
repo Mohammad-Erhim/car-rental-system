@@ -14,7 +14,6 @@ import {
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
-import { useLocations } from '../../lib/discovery-hooks.js';
 import { useLocationScope } from '../../lib/location-scope.js';
 import { useAssignVehicle } from '../../lib/rental-hooks.js';
 import { useOpsReservations, type OpsReservationRow } from '../../lib/reservation-hooks.js';
@@ -46,7 +45,6 @@ const stateVariant = (s: string) =>
 export function ReservationQueuePage() {
   const { t, fmt } = useI18n();
   const { toast } = useToast();
-  const locations = useLocations();
   const { params, setParams, setParam } = useUrlParams();
 
   const view: 'queue' | 'all' = params.get('view') === 'all' ? 'all' : 'queue';
@@ -57,8 +55,10 @@ export function ReservationQueuePage() {
   const focusRef = params.get('ref') ?? '';
 
   // seed from the global location switcher on first load only — never fights a filter the
-  // operator has since set (or explicitly cleared) on this page themselves
-  const { selected: globalLocation } = useLocationScope();
+  // operator has since set (or explicitly cleared) on this page themselves. `options` is already
+  // narrowed to what this actor can see, so this page's own filter never offers a branch that
+  // would just come back empty.
+  const { selected: globalLocation, options: locations } = useLocationScope();
   useEffect(() => {
     if (!params.get('location') && globalLocation) setParam('location', globalLocation);
   }, []);
@@ -256,7 +256,7 @@ export function ReservationQueuePage() {
                   onChange={(e) => setParam('location', e.target.value)}
                 >
                   <option value="">{t('ops.search.anyLocation')}</option>
-                  {(locations.data ?? []).map((l) => (
+                  {locations.map((l) => (
                     <option key={l.code} value={l.code}>
                       {l.name} ({l.code})
                     </option>

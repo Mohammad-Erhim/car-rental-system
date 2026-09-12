@@ -86,7 +86,7 @@ export function FleetInventoryPage() {
   // seed the page's own filter from the global location switcher on first load only — once the
   // operator has touched (or explicitly cleared) this page's filter, the global selector never
   // overwrites it again
-  const { selected: globalLocation } = useLocationScope();
+  const { selected: globalLocation, options: scopedLocations } = useLocationScope();
   useEffect(() => {
     if (!params.get('location') && globalLocation) setParam('location', globalLocation);
   }, []);
@@ -96,6 +96,10 @@ export function FleetInventoryPage() {
     categoryCode: categoryCode || undefined,
     state: stateFilter || undefined,
   });
+  // the *filter* dropdown only offers branches this actor can actually see (matches the global
+  // switcher); `useLocations()` (the full, unfiltered org list) is still used below for the
+  // transfer-target picker, which is a write destination, not a view filter — a fleet.manage
+  // holder may legitimately transfer a unit to a branch outside their own view scope.
   const locations = useLocations();
   const categories = useOpsCategories();
   const blocks = useFleetBlocks('active');
@@ -330,7 +334,7 @@ export function FleetInventoryPage() {
               onChange={(e) => setParam('location', e.target.value)}
             >
               <option value="">{t('ops.search.anyLocation')}</option>
-              {(locations.data ?? []).map((l) => (
+              {scopedLocations.map((l) => (
                 <option key={l.code} value={l.code}>
                   {l.name} ({l.code})
                 </option>

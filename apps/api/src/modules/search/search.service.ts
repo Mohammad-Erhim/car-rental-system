@@ -3,6 +3,7 @@ import { and, desc, eq, gte, ilike, inArray, lte, or, sql, type SQL } from 'driz
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
+import { assertLocationAccess } from '../../common/auth/location-scope';
 import type { Actor } from '../../common/auth/types';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
@@ -93,6 +94,8 @@ export class SearchService {
     const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 50, 1), 100);
     const from = this.parseDate(params.from, 'from');
     const to = this.parseDate(params.to, 'to');
+    // a location outside the actor's own scope is a 403, not a silently-empty result (SRS-SEC-007)
+    assertLocationAccess(actor, params.locationCode);
     const scope = this.scopeCodes(actor);
 
     const wantReservations = canReservations && params.kind !== 'rental';

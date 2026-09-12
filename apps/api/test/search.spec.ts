@@ -196,6 +196,14 @@ describe('unified reservation + rental search (FR-ADM-003)', () => {
       ),
     ).toBe(true);
     expect(scoped.body.total).toBeLessThan(orgWide.body.total);
+
+    // explicitly requesting a location outside the actor's own scope is a 403, not a silently
+    // empty result (SRS-SEC-007) — the scoped actor cannot even probe for TST2's existence
+    const rejected = await request(server)
+      .get('/api/v1/ops/search?q=Sydney%20Searcher&locationCode=TST2')
+      .set('Authorization', `Bearer ${scopedAgent}`)
+      .expect(403);
+    expect(rejected.body.title).toMatch(/don't have access/i);
   });
 
   it('records every search to the audit trail (PII lookup — SRS-SEC-016)', async () => {
