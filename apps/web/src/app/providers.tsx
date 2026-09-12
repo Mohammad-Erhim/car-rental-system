@@ -9,7 +9,6 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useMetaLocales, usePublishedCommonTranslations } from '../lib/api-hooks.js';
 import { usePublishedBranding } from '../lib/branding-hooks.js';
 import { detectInitialLocale, storeLocale } from '../lib/locale-storage.js';
-import { LocationScopeProvider } from '../lib/location-scope.js';
 import { StepUpProvider } from '../lib/step-up.js';
 
 const MISSING_KEYS = new Set<string>();
@@ -97,11 +96,9 @@ export function AppProviders({ children }: { children: ReactNode }) {
         <I18nBoundary>
           <LocalisedUiStrings>
             <AuthProvider>
-              <LocationScopeProvider>
-                <ToastProvider>
-                  <StepUpProvider>{children}</StepUpProvider>
-                </ToastProvider>
-              </LocationScopeProvider>
+              <ToastProvider>
+                <StepUpProvider>{children}</StepUpProvider>
+              </ToastProvider>
             </AuthProvider>
           </LocalisedUiStrings>
         </I18nBoundary>

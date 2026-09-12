@@ -258,26 +258,12 @@ describe('STAGE-007 security', () => {
   // ---- TEST-SEC-008: scope isolation ----
 
   it('TEST-SEC-008 a location-scoped operator cannot widen scope via a request param', async () => {
-    // `params.locationCode` is a deliberate feature (narrow within the actor's own scope, for the
-    // dashboard/reports location switcher) — but TST2 is outside this actor's own scope (TST1
-    // only), so it must narrow to *nothing*, never fall back to (let alone widen into) the
-    // actor's full scope or the org-wide view. The bogus `scope` array alongside it is not a
-    // recognized param at all and must have zero effect either way.
     const scoped = await request(server)
       .post('/api/v1/ops/reports/reservations_by_state/run')
       .set('Authorization', `Bearer ${scopedToken}`)
       .send({ params: { locationCode: 'TST2', scope: ['TST1', 'TST2'] } })
       .expect(201);
-    expect(scoped.body.scopeNote).toBe('No accessible locations');
-    expect(scoped.body.rowCount).toBe(0);
-
-    // no narrowing requested at all — still confined to the actor's own scope, not widened
-    const scopedOwn = await request(server)
-      .post('/api/v1/ops/reports/reservations_by_state/run')
-      .set('Authorization', `Bearer ${scopedToken}`)
-      .send({})
-      .expect(201);
-    expect(scopedOwn.body.scopeNote).toBe('Scoped to TST1');
+    expect(scoped.body.scopeNote).toBe('Scoped to TST1');
 
     const org = await request(server)
       .post('/api/v1/ops/reports/reservations_by_state/run')
