@@ -37,11 +37,9 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 
 import { LanguageSwitcher } from '../../components/language-switcher.js';
 import { SystemStatus } from '../../components/system-status.js';
-import { useLocationScope } from '../../lib/location-scope.js';
 
 import { Breadcrumbs } from './breadcrumbs.js';
 import { CommandPalette } from './command-palette.js';
-import { LocationSwitcher } from './location-switcher.js';
 import { SidebarNav, type OpsNavGroup } from './sidebar-nav.js';
 
 /**
@@ -258,10 +256,6 @@ export function OpsLayout() {
   const { pathname } = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { collapsed, toggle: toggleSidebar } = useSidebarCollapsed();
-  // a dropdown is only worth showing when there's an actual choice — an actor confined to one
-  // location (or an org with only one) has nothing to switch between
-  const { options: locationOptions } = useLocationScope();
-  const canSwitchLocation = authed && locationOptions.length > 1;
 
   // Close the drawer on any route change (covers the command palette, breadcrumbs, back button).
   useEffect(() => setDrawerOpen(false), [pathname]);
@@ -352,9 +346,7 @@ export function OpsLayout() {
             >
               {scopeLabel}
             </span>
-            {authed && actor && canSwitchLocation ? (
-              <LocationSwitcher />
-            ) : authed && actor ? (
+            {authed && actor ? (
               <span className="hidden whitespace-nowrap text-sm text-muted-foreground xl:inline">
                 {actor.locationScope.length
                   ? t('ops.header.locations', { n: actor.locationScope.length })
@@ -424,24 +416,20 @@ export function OpsLayout() {
                   </Dialog.Close>
                 </div>
                 {actor ? (
-                  <div className="shrink-0 space-y-2 border-b px-4 py-3 text-sm">
-                    <div>
-                      <p className="font-medium">{actor.displayName}</p>
-                      {actor.organizationId ? (
-                        <p className="text-xs text-muted-foreground">
-                          {actor.organizationName ?? t('ops.header.org')}
-                        </p>
-                      ) : null}
-                    </div>
-                    {canSwitchLocation ? (
-                      <LocationSwitcher variant="drawer" />
-                    ) : (
-                      <p className="text-xs text-muted-foreground">
-                        {actor.locationScope.length
+                  <div className="shrink-0 border-b px-4 py-3 text-sm">
+                    <p className="font-medium">{actor.displayName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {[
+                        actor.organizationId
+                          ? (actor.organizationName ?? t('ops.header.org'))
+                          : null,
+                        actor.locationScope.length
                           ? t('ops.header.locations', { n: actor.locationScope.length })
-                          : t('ops.header.allLocations')}
-                      </p>
-                    )}
+                          : t('ops.header.allLocations'),
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
                   </div>
                 ) : null}
                 <div className="flex-1 overflow-y-auto px-3 py-4">

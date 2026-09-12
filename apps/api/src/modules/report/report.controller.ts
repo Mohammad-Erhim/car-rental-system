@@ -34,14 +34,7 @@ const zNote = z.object({ note: z.string().min(1).max(1000) });
 const zActorSearch = z.object({ q: z.string().min(2).max(60) });
 // 7 days minimum (a "trend" over less than a week isn't one); 90-day cap to bound the query cost
 // of the retroactive-occupancy join in dashboardAnalytics()
-const zDashboardAnalytics = z.object({
-  days: z.coerce.number().int().min(7).max(90).default(30),
-  // narrows *within* the actor's own locationScope — never broadens it; a code outside the
-  // actor's scope yields honest zero rows (same AND-of-two-filters pattern already established
-  // in reservation-ops/rental/fleet/search), not an error or a scope bypass
-  locationCode: z.string().max(20).optional(),
-});
-const zDashboardQuery = z.object({ locationCode: z.string().max(20).optional() });
+const zDashboardAnalytics = z.object({ days: z.coerce.number().int().min(7).max(90).default(30) });
 const zAuditQuery = z.object({
   action: z.string().max(100).optional(),
   targetType: z.string().max(60).optional(),
@@ -67,11 +60,8 @@ export class ReportController {
 
   @Get('dashboard')
   @Permissions('reservation.read')
-  dashboard(
-    @Query(new ZodValidationPipe(zDashboardQuery)) q: z.infer<typeof zDashboardQuery>,
-    @CurrentActor() actor: Actor,
-  ) {
-    return this.reports.opsDashboard(actor, q.locationCode);
+  dashboard(@CurrentActor() actor: Actor) {
+    return this.reports.opsDashboard(actor);
   }
 
   @Get('dashboard/analytics')
@@ -80,7 +70,7 @@ export class ReportController {
     @Query(new ZodValidationPipe(zDashboardAnalytics)) q: z.infer<typeof zDashboardAnalytics>,
     @CurrentActor() actor: Actor,
   ) {
-    return this.reports.dashboardAnalytics(actor, q.days, q.locationCode);
+    return this.reports.dashboardAnalytics(actor, q.days);
   }
 
   // ---- reports ----
