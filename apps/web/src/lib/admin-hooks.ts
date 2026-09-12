@@ -402,10 +402,14 @@ export interface OpsDashboard {
   utilisation: number | null;
 }
 
-export function useOpsDashboard() {
+export function useOpsDashboard(locationCode?: string) {
   return useQuery({
-    queryKey: ['ops', 'dashboard'],
-    queryFn: ({ signal }) => apiFetch<OpsDashboard>('/ops/dashboard', { signal }),
+    queryKey: ['ops', 'dashboard', locationCode ?? null],
+    queryFn: ({ signal }) =>
+      apiFetch<OpsDashboard>(
+        `/ops/dashboard${locationCode ? `?locationCode=${encodeURIComponent(locationCode)}` : ''}`,
+        { signal },
+      ),
     refetchInterval: 60_000,
   });
 }
@@ -431,11 +435,14 @@ export interface DashboardAnalytics {
   byCategory: Array<{ categoryCode: string; reservations: number; revenueMinor: number }>;
 }
 
-export function useDashboardAnalytics(days: number) {
+export function useDashboardAnalytics(days: number, locationCode?: string) {
   return useQuery({
-    queryKey: ['ops', 'dashboard', 'analytics', days],
-    queryFn: ({ signal }) =>
-      apiFetch<DashboardAnalytics>(`/ops/dashboard/analytics?days=${days}`, { signal }),
+    queryKey: ['ops', 'dashboard', 'analytics', days, locationCode ?? null],
+    queryFn: ({ signal }) => {
+      const qs = new URLSearchParams({ days: String(days) });
+      if (locationCode) qs.set('locationCode', locationCode);
+      return apiFetch<DashboardAnalytics>(`/ops/dashboard/analytics?${qs.toString()}`, { signal });
+    },
     staleTime: 60_000,
   });
 }
