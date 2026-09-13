@@ -20,6 +20,8 @@ import type {
 } from '@carrental/contracts';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
+import { useLocale } from './nav';
+
 // ---- profile (SCREEN-CUS-011/012) ----
 
 export function useProfile(enabled: boolean) {
@@ -137,10 +139,14 @@ export function usePaymentMode() {
 }
 
 export function useCategory(code: string | null) {
+  const locale = useLocale();
   return useQuery({
-    queryKey: ['catalogue', 'category', code],
+    queryKey: ['catalogue', 'category', code, locale],
     queryFn: ({ signal }) =>
-      apiFetch<VehicleCategory>(`/catalogue/categories/${code}`, { signal, anonymous: true }),
+      apiFetch<VehicleCategory>(
+        `/catalogue/categories/${code}?locale=${encodeURIComponent(locale)}`,
+        { signal, anonymous: true },
+      ),
     enabled: !!code,
   });
 }

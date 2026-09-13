@@ -25,8 +25,11 @@ import {
   useCatalogueCategories,
   useCatalogueFeatures,
   useSetCategoryActive,
+  useSetFeatureActive,
   useUpsertCategory,
+  useUpsertFeature,
   type CategoryView,
+  type FeatureView,
 } from '../../lib/admin-hooks.js';
 
 /**
@@ -47,6 +50,22 @@ interface FormState {
   featureCodes: string[];
   version: number | null;
 }
+
+interface FeatureFormState {
+  code: string;
+  label: string;
+  group: 'comfort' | 'safety' | 'tech' | 'utility';
+  sortOrder: string;
+  version: number | null;
+}
+
+const emptyFeatureForm = (): FeatureFormState => ({
+  code: '',
+  label: '',
+  group: 'comfort',
+  sortOrder: '0',
+  version: null,
+});
 
 const emptyForm = (): FormState => ({
   code: '',
@@ -180,6 +199,82 @@ export function CategoriesPage() {
     } catch (err) {
       toast({ title: err instanceof Error ? err.message : t('ops.cat.toggleFail') });
       throw err; // keep the confirm dialog open on failure
+    }
+  }
+
+  // ---- feature management (its own small CRUD, separate from picking features onto a
+  // category above — deactivating a feature here doesn't remove it from a category that
+  // already has it, see the checkbox picker's inactive handling) ----
+  const upsertFeature = useUpsertFeature();
+  const setFeatureActive = useSetFeatureActive();
+  const [featureForm, setFeatureForm] = useState<FeatureFormState>(emptyFeatureForm());
+  const [editingFeature, setEditingFeature] = useState<string | null>(null);
+  const [confirmFeatureOff, setConfirmFeatureOff] = useState<FeatureView | null>(null);
+  const featureErrs = useFormErrors({
+    code: t('ops.cat.featureCode'),
+    label: t('ops.cat.featureLabel'),
+  });
+  const setFeatureField = (patch: Partial<FeatureFormState>) =>
+    setFeatureForm((f) => ({ ...f, ...patch }));
+
+  function editFeatureRow(f: FeatureView) {
+    setFeatureForm({
+      code: f.code,
+      label: f.label,
+      group: f.group,
+      sortOrder: String(f.sortOrder),
+      version: f.version,
+    });
+    setEditingFeature(f.code);
+    featureErrs.clear();
+  }
+
+  function clearFeatureForm() {
+    setFeatureForm(emptyFeatureForm());
+    setEditingFeature(null);
+    featureErrs.clear();
+  }
+
+  async function submitFeature(e: React.FormEvent) {
+    e.preventDefault();
+    featureErrs.clear();
+    const local: Array<{ path: string; code: string }> = [];
+    if (!featureForm.code.trim()) local.push({ path: 'code', code: 'required' });
+    else if (!/^[a-z0-9_]{2,60}$/.test(featureForm.code.trim()))
+      local.push({ path: 'code', code: 'invalid' });
+    if (!featureForm.label.trim()) local.push({ path: 'label', code: 'required' });
+    if (local.length) {
+      featureErrs.setLocal(local);
+      return;
+    }
+    try {
+      await upsertFeature.mutateAsync({
+        code: featureForm.code.trim(),
+        label: featureForm.label.trim(),
+        group: featureForm.group,
+        sortOrder: Math.round(num(featureForm.sortOrder) || 0),
+        ifMatch: editingFeature && featureForm.version != null ? featureForm.version : undefined,
+      });
+      toast({
+        title: editingFeature ? t('ops.cat.featureSaved') : t('ops.cat.featureCreated'),
+        variant: 'success',
+      });
+      clearFeatureForm();
+    } catch (err) {
+      featureErrs.fromError(err);
+    }
+  }
+
+  async function toggleFeature(f: FeatureView) {
+    try {
+      await setFeatureActive.mutateAsync({ code: f.code, active: !f.isActive });
+      toast({
+        title: f.isActive ? t('ops.cat.featureDeactivated') : t('ops.cat.featureRestored'),
+        variant: 'success',
+      });
+    } catch (err) {
+      toast({ title: err instanceof Error ? err.message : t('ops.cat.toggleFail') });
+      throw err;
     }
   }
 
@@ -449,23 +544,35 @@ export function CategoriesPage() {
                   {form.featureCodes.length
                     ? t('ops.cat.featureCount', { n: form.featureCodes.length })
                     : t('ops.cat.noFeatures')}
+                  {' — '}
+                  {t('ops.cat.manageFeaturesHint')}
                 </p>
                 <div className="flex flex-wrap gap-x-4 gap-y-1" data-testid="category-features">
-                  {(features.data ?? []).map((f) => (
-                    <label key={f.code} className="flex items-center gap-1.5 text-sm">
-                      <Checkbox
-                        checked={form.featureCodes.includes(f.code)}
-                        onChange={() =>
-                          set({
-                            featureCodes: form.featureCodes.includes(f.code)
-                              ? form.featureCodes.filter((x) => x !== f.code)
-                              : [...form.featureCodes, f.code],
-                          })
-                        }
-                      />
-                      {f.label}
-                    </label>
-                  ))}
+                  {(features.data ?? []).map((f) => {
+                    const checked = form.featureCodes.includes(f.code);
+                    const selectable = f.isActive || checked;
+                    return (
+                      <label
+                        key={f.code}
+                        className={`flex items-center gap-1.5 text-sm ${selectable ? '' : 'opacity-50'}`}
+                        title={f.isActive ? undefined : t('ops.cat.featureInactiveHint')}
+                      >
+                        <Checkbox
+                          checked={checked}
+                          disabled={!selectable}
+                          onChange={() =>
+                            set({
+                              featureCodes: checked
+                                ? form.featureCodes.filter((x) => x !== f.code)
+                                : [...form.featureCodes, f.code],
+                            })
+                          }
+                        />
+                        {f.label}
+                        {f.isActive ? null : ` (${t('ops.cat.inactive').toLowerCase()})`}
+                      </label>
+                    );
+                  })}
                 </div>
               </fieldset>
 
@@ -479,6 +586,144 @@ export function CategoriesPage() {
         </Card>
       ) : null}
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t('ops.cat.featuresCard')}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">{t('ops.cat.featuresCardHint')}</p>
+          <ul className="divide-y divide-hairline" data-testid="features-list">
+            {(features.data ?? []).map((f) => (
+              <li
+                key={f.code}
+                className="flex flex-wrap items-center justify-between gap-2 py-2"
+                data-code={f.code}
+                data-active={String(f.isActive)}
+              >
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="font-medium">{f.label}</span>
+                  <span className="font-mono text-xs text-muted-foreground">{f.code}</span>
+                  <Badge variant="neutral">{t(`ops.cat.group.${f.group}`)}</Badge>
+                  <Badge variant={f.isActive ? 'success' : 'neutral'}>
+                    {f.isActive ? t('ops.cat.active') : t('ops.cat.inactive')}
+                  </Badge>
+                </div>
+                {canManage ? (
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="ghost" onClick={() => editFeatureRow(f)}>
+                      {t('ops.cat.edit')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => (f.isActive ? setConfirmFeatureOff(f) : toggleFeature(f))}
+                      data-testid={`feature-toggle-${f.code}`}
+                    >
+                      {f.isActive ? t('ops.cat.deactivate') : t('ops.cat.restore')}
+                    </Button>
+                  </div>
+                ) : null}
+              </li>
+            ))}
+            {!features.data?.length ? (
+              <li className="py-2 text-sm text-muted-foreground">{t('ops.cat.noFeaturesYet')}</li>
+            ) : null}
+          </ul>
+
+          {canManage ? (
+            <form
+              onSubmit={submitFeature}
+              className="grid gap-3 border-t border-hairline pt-4 sm:grid-cols-2"
+              noValidate
+            >
+              <ErrorSummary title={t('ops.cfg.checkFields')} errors={featureErrs.summary} />
+              <Field
+                label={t('ops.cat.featureCode')}
+                htmlFor="feature-code"
+                required
+                hint={t('ops.cat.codeHint')}
+                error={featureErrs.fieldError('code')}
+              >
+                {({ id, invalid }) =>
+                  editingFeature ? (
+                    <p className="bidi-isolate pt-2 font-mono text-sm" data-testid="feature-code">
+                      {featureForm.code}
+                    </p>
+                  ) : (
+                    <Input
+                      id={id}
+                      invalid={invalid}
+                      value={featureForm.code}
+                      onChange={(e) =>
+                        setFeatureField({
+                          code: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''),
+                        })
+                      }
+                      data-testid="feature-code"
+                    />
+                  )
+                }
+              </Field>
+              <Field
+                label={t('ops.cat.featureLabel')}
+                htmlFor="feature-label"
+                required
+                error={featureErrs.fieldError('label')}
+              >
+                {({ id, invalid }) => (
+                  <Input
+                    id={id}
+                    invalid={invalid}
+                    value={featureForm.label}
+                    onChange={(e) => setFeatureField({ label: e.target.value })}
+                    data-testid="feature-label"
+                  />
+                )}
+              </Field>
+              <Field label={t('ops.cat.group')} htmlFor="feature-group">
+                {({ id }) => (
+                  <Select
+                    id={id}
+                    value={featureForm.group}
+                    onChange={(e) =>
+                      setFeatureField({
+                        group: e.target.value as FeatureFormState['group'],
+                      })
+                    }
+                    data-testid="feature-group"
+                  >
+                    <option value="comfort">{t('ops.cat.group.comfort')}</option>
+                    <option value="safety">{t('ops.cat.group.safety')}</option>
+                    <option value="tech">{t('ops.cat.group.tech')}</option>
+                    <option value="utility">{t('ops.cat.group.utility')}</option>
+                  </Select>
+                )}
+              </Field>
+              <Field label={t('ops.cat.sortOrder')} htmlFor="feature-sort">
+                {({ id }) => (
+                  <Input
+                    id={id}
+                    inputMode="numeric"
+                    value={featureForm.sortOrder}
+                    onChange={(e) => setFeatureField({ sortOrder: e.target.value })}
+                  />
+                )}
+              </Field>
+              <div className="flex gap-2 sm:col-span-2">
+                <Button type="submit" loading={upsertFeature.isPending} data-testid="feature-save">
+                  {editingFeature ? t('ops.cat.saveEdit') : t('ops.cat.featureAdd')}
+                </Button>
+                {editingFeature ? (
+                  <Button type="button" variant="ghost" onClick={clearFeatureForm}>
+                    {t('ops.cat.cancelEdit')}
+                  </Button>
+                ) : null}
+              </div>
+            </form>
+          ) : null}
+        </CardContent>
+      </Card>
+
       <ConfirmDialog
         open={!!confirmOff}
         onOpenChange={(v) => !v && setConfirmOff(null)}
@@ -488,6 +733,18 @@ export function CategoriesPage() {
         confirmLabel={t('ops.cat.deactivate')}
         onConfirm={async () => {
           if (confirmOff) await toggle(confirmOff);
+        }}
+      />
+
+      <ConfirmDialog
+        open={!!confirmFeatureOff}
+        onOpenChange={(v) => !v && setConfirmFeatureOff(null)}
+        destructive
+        title={t('ops.cat.featureDeactivateTitle', { name: confirmFeatureOff?.label ?? '' })}
+        description={t('ops.cat.featureDeactivateBody')}
+        confirmLabel={t('ops.cat.deactivate')}
+        onConfirm={async () => {
+          if (confirmFeatureOff) await toggleFeature(confirmFeatureOff);
         }}
       />
     </div>

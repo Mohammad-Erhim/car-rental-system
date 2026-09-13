@@ -41,6 +41,32 @@ export const zUpsertVehicleCategory = z.object({
   featureCodes: z.array(z.string().max(60)).max(40).optional(),
 });
 
+/** A selectable vehicle feature (SCREEN-OPS-013/025) — the checklist `zUpsertVehicleCategory`'s
+ *  `featureCodes` picks from. Managed on its own (create/deactivate/restore) so the list isn't
+ *  fixed to whatever was seeded. */
+export const zVehicleFeature = z.object({
+  code: z.string(),
+  label: z.string(),
+  group: z.string(),
+  icon: z.string().nullable(),
+  sortOrder: z.number().int(),
+  isActive: z.boolean(),
+  version: z.number().int(),
+});
+export type VehicleFeature = z.infer<typeof zVehicleFeature>;
+
+export const zUpsertVehicleFeature = z.object({
+  code: z
+    .string()
+    .min(2)
+    .max(60)
+    .regex(/^[a-z0-9_]+$/),
+  label: z.string().min(1).max(120),
+  group: z.enum(['comfort', 'safety', 'tech', 'utility']).optional(),
+  icon: z.string().max(60).optional(),
+  sortOrder: z.number().int().min(0).max(9999).optional(),
+});
+
 /** Fleet inventory row (SCREEN-OPS-013, read this stage). */
 export const zVehicleUnit = z.object({
   id: zId,

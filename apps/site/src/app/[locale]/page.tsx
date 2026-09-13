@@ -37,9 +37,9 @@ export default async function HomePage({
   const preview = searchParams?.preview === '1';
   const t = await getT(locale);
   const [categories, locations, origin, seo, pages] = await Promise.all([
-    apiGet<FleetCategory[]>('/catalogue/categories', { revalidate: preview ? 0 : 300 }).catch(
-      () => [] as FleetCategory[],
-    ),
+    apiGet<FleetCategory[]>(`/catalogue/categories?locale=${encodeURIComponent(locale)}`, {
+      revalidate: preview ? 0 : 300,
+    }).catch(() => [] as FleetCategory[]),
     apiGet<Array<{ code: string; name: string }>>('/config/locations', {
       revalidate: preview ? 0 : 300,
     })

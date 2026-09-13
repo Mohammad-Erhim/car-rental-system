@@ -44,14 +44,17 @@ export class DiscoveryController {
   @Get('catalogue/categories')
   @OptionalAuth()
   @ApiOperation({ operationId: 'catalogue_listCategories', summary: 'Bookable vehicle categories' })
-  async categories(@Query('includeInactive') includeInactive?: string) {
-    return this.catalogue.listCategories({ includeInactive: includeInactive === 'true' });
+  async categories(
+    @Query('includeInactive') includeInactive?: string,
+    @Query('locale') locale?: string,
+  ) {
+    return this.catalogue.listCategories({ includeInactive: includeInactive === 'true', locale });
   }
 
   @Get('catalogue/categories/:code')
   @OptionalAuth()
-  category(@Param('code') code: string) {
-    return this.catalogue.getCategory(code);
+  category(@Param('code') code: string, @Query('locale') locale?: string) {
+    return this.catalogue.getCategory(code, locale);
   }
 
   @Post('discovery/search')

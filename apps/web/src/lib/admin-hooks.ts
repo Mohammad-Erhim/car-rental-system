@@ -773,6 +773,27 @@ export interface CategoryFeature {
   group: string;
 }
 
+/** The full, manageable feature record — distinct from `CategoryFeature` above, which is the
+ *  lighter shape embedded on a category (no `isActive`/`version`, since a category's own feature
+ *  list is a point-in-time snapshot of codes, not something you deactivate/restore on its own). */
+export interface FeatureView {
+  code: string;
+  label: string;
+  group: 'comfort' | 'safety' | 'tech' | 'utility';
+  icon: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  version: number;
+}
+
+export interface FeatureInput {
+  code: string;
+  label: string;
+  group?: 'comfort' | 'safety' | 'tech' | 'utility';
+  icon?: string;
+  sortOrder?: number;
+}
+
 export interface CategoryView {
   id: string;
   code: string;
@@ -813,11 +834,33 @@ export function useCatalogueCategories() {
   });
 }
 
+const FEATURE_KEY = ['ops', 'catalogue-features'];
+
 export function useCatalogueFeatures() {
   return useQuery({
-    queryKey: ['ops', 'catalogue-features'],
-    queryFn: ({ signal }) =>
-      apiFetch<CategoryFeature[]>('/ops/catalogue/features', { signal }),
+    queryKey: FEATURE_KEY,
+    queryFn: ({ signal }) => apiFetch<FeatureView[]>('/ops/catalogue/features', { signal }),
+  });
+}
+
+export function useUpsertFeature() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ifMatch, ...body }: FeatureInput & { ifMatch?: number }) =>
+      apiFetch<FeatureView>('/ops/catalogue/features', { method: 'POST', body, ifMatch }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: FEATURE_KEY }),
+  });
+}
+
+export function useSetFeatureActive() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ code, active }: { code: string; active: boolean }) =>
+      apiFetch<FeatureView>(
+        `/ops/catalogue/features/${code}/${active ? 'restore' : 'deactivate'}`,
+        { method: 'POST' },
+      ),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: FEATURE_KEY }),
   });
 }
 

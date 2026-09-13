@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
@@ -13,9 +13,22 @@ import {
   vehicleCategoryFeature,
   vehicleFeature,
 } from '../../database/schema/catalogue';
+import { translation } from '../../database/schema/i18n';
 import { organization } from '../../database/schema/org';
+import { LocaleRepo } from '../config/locale.repo';
 
 const CACHE_NS = 'catalogue';
+
+/** Translation namespaces for category/feature display text (SRS-I18N-003) — the exact same
+ *  mechanism `lookup:*` namespaces use: the DB row's own field is the English source, a
+ *  `translation` row under this namespace carries every other locale, and staff translate it
+ *  through the existing Translations screen with zero new UI (that screen's namespace list is
+ *  fully generic — see `TranslationService.allSourceCatalogues`). `${code}.description` is a
+ *  second key under the category namespace so the description can be translated independently
+ *  of the display name. */
+const CATEGORY_NS = 'catalogue:category';
+const FEATURE_NS = 'catalogue:feature';
+const DESCRIPTION_SUFFIX = '.description';
 
 export interface CategoryView {
   id: string;
@@ -36,6 +49,16 @@ export interface CategoryView {
   version: number;
 }
 
+export interface FeatureView {
+  code: string;
+  label: string;
+  group: string;
+  icon: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  version: number;
+}
+
 @Injectable()
 export class CatalogueService {
   constructor(
@@ -43,7 +66,36 @@ export class CatalogueService {
     private readonly audit: AuditService,
     private readonly outbox: OutboxService,
     private readonly cache: CacheBus,
+    private readonly locales: LocaleRepo,
   ) {}
+
+  /** Every published translation in `namespace` for `locale`'s runtime fallback chain, keyed by
+   *  translation key, overlaid least-specific first so the most specific locale in the chain
+   *  wins — the identical technique `LookupService.getValues` uses for reference-data labels.
+   *  Returns an empty map for `locale` undefined or `'en'`: the DB row's own field already *is*
+   *  the English source, nothing to overlay. */
+  private async translatedText(
+    namespace: string,
+    locale: string | undefined,
+  ): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    if (!locale || locale === 'en') return out;
+    const chain = await this.locales.fallbackChain(locale);
+    const rows = (
+      await this.db
+        .select({
+          key: translation.key,
+          localeCode: translation.localeCode,
+          publishedValue: translation.publishedValue,
+        })
+        .from(translation)
+        .where(and(eq(translation.namespace, namespace), isNotNull(translation.publishedValue)))
+    ).filter((r): r is typeof r & { publishedValue: string } => r.publishedValue != null);
+    for (const loc of [...chain].reverse()) {
+      for (const r of rows.filter((r) => r.localeCode === loc)) out.set(r.key, r.publishedValue);
+    }
+    return out;
+  }
 
   private async orgId(): Promise<string> {
     const [org] = await this.db.select({ id: organization.id }).from(organization).limit(1);
@@ -57,7 +109,7 @@ export class CatalogueService {
   }
 
   async listCategories(
-    opts: { includeInactive?: boolean; codes?: string[] } = {},
+    opts: { includeInactive?: boolean; codes?: string[]; locale?: string } = {},
   ): Promise<CategoryView[]> {
     const orgId = await this.orgId();
     const where = [eq(vehicleCategory.organizationId, orgId)];
@@ -92,12 +144,19 @@ export class CatalogueService {
       .where(eq(vehicleFeature.organizationId, orgId));
     const featByCode = new Map(feats.map((f) => [f.code, f]));
 
+    const [categoryText, featureText] = await Promise.all([
+      this.translatedText(CATEGORY_NS, opts.locale),
+      this.translatedText(FEATURE_NS, opts.locale),
+    ]);
+
     return cats.map((c) => ({
       id: c.id,
       code: c.code,
       class: c.class,
-      displayName: c.displayName,
-      description: c.description,
+      displayName: categoryText.get(c.code) ?? c.displayName,
+      description: c.description
+        ? (categoryText.get(`${c.code}${DESCRIPTION_SUFFIX}`) ?? c.description)
+        : null,
       passengers: c.passengers,
       luggage: c.luggage,
       doors: c.doors,
@@ -109,26 +168,137 @@ export class CatalogueService {
         .filter((m) => m.categoryId === c.id)
         .map((m) => {
           const f = featByCode.get(m.code);
-          return { code: m.code, label: f?.label ?? m.code, group: f?.group ?? 'comfort' };
+          return {
+            code: m.code,
+            label: featureText.get(m.code) ?? f?.label ?? m.code,
+            group: f?.group ?? 'comfort',
+          };
         }),
       version: c.version,
     }));
   }
 
-  async getCategory(code: string): Promise<CategoryView> {
-    const [row] = await this.listCategories({ includeInactive: true, codes: [code] });
+  async getCategory(code: string, locale?: string): Promise<CategoryView> {
+    const [row] = await this.listCategories({ includeInactive: true, codes: [code], locale });
     if (!row) throw AppError.notFound('category');
     return row;
   }
 
-  async listFeatures(): Promise<Array<{ code: string; label: string; group: string }>> {
+  async listFeatures(
+    opts: { includeInactive?: boolean; locale?: string } = {},
+  ): Promise<FeatureView[]> {
     const orgId = await this.orgId();
+    const where = [eq(vehicleFeature.organizationId, orgId)];
+    if (!opts.includeInactive) where.push(eq(vehicleFeature.isActive, true));
     const rows = await this.db
       .select()
       .from(vehicleFeature)
-      .where(and(eq(vehicleFeature.organizationId, orgId), eq(vehicleFeature.isActive, true)))
+      .where(and(...where))
       .orderBy(asc(vehicleFeature.sortOrder), asc(vehicleFeature.code));
-    return rows.map((r) => ({ code: r.code, label: r.label, group: r.group }));
+    const featureText = await this.translatedText(FEATURE_NS, opts.locale);
+    return rows.map((r) => ({
+      code: r.code,
+      label: featureText.get(r.code) ?? r.label,
+      group: r.group,
+      icon: r.icon,
+      sortOrder: r.sortOrder,
+      isActive: r.isActive,
+      version: r.version,
+    }));
+  }
+
+  async upsertFeature(
+    actor: Actor,
+    input: {
+      code: string;
+      label: string;
+      group?: string;
+      icon?: string;
+      sortOrder?: number;
+    },
+    expectedVersion?: number,
+  ): Promise<FeatureView> {
+    const orgId = await this.orgId();
+    const [existing] = await this.db
+      .select()
+      .from(vehicleFeature)
+      .where(and(eq(vehicleFeature.organizationId, orgId), eq(vehicleFeature.code, input.code)))
+      .limit(1);
+
+    if (existing && expectedVersion !== undefined && expectedVersion !== existing.version) {
+      throw AppError.conflict(existing.version);
+    }
+
+    const values = {
+      organizationId: orgId,
+      code: input.code,
+      label: input.label,
+      group: input.group ?? existing?.group ?? 'comfort',
+      icon: input.icon ?? existing?.icon ?? null,
+      sortOrder: input.sortOrder ?? existing?.sortOrder ?? 0,
+    };
+
+    let featureId: string;
+    if (existing) {
+      await this.db
+        .update(vehicleFeature)
+        .set({
+          ...values,
+          version: existing.version + 1,
+          updatedAt: sql`now()`,
+          updatedBy: actor.accountId,
+        })
+        .where(eq(vehicleFeature.id, existing.id));
+      featureId = existing.id;
+    } else {
+      const [row] = await this.db
+        .insert(vehicleFeature)
+        .values({ ...values, createdBy: actor.accountId })
+        .returning();
+      featureId = row!.id;
+    }
+
+    await this.afterMutation(
+      actor,
+      existing ? 'catalogue.feature.updated' : 'catalogue.feature.created',
+      featureId,
+      values,
+      'vehicle_feature',
+    );
+    const created = (await this.listFeatures({ includeInactive: true })).find(
+      (f) => f.code === input.code,
+    );
+    if (!created) throw AppError.notFound('feature');
+    return created;
+  }
+
+  async setFeatureActive(actor: Actor, code: string, active: boolean): Promise<FeatureView> {
+    const orgId = await this.orgId();
+    const [existing] = await this.db
+      .select()
+      .from(vehicleFeature)
+      .where(and(eq(vehicleFeature.organizationId, orgId), eq(vehicleFeature.code, code)))
+      .limit(1);
+    if (!existing) throw AppError.notFound('feature');
+    await this.db
+      .update(vehicleFeature)
+      .set({
+        isActive: active,
+        version: existing.version + 1,
+        updatedAt: sql`now()`,
+        updatedBy: actor.accountId,
+      })
+      .where(eq(vehicleFeature.id, existing.id));
+    await this.afterMutation(
+      actor,
+      active ? 'catalogue.feature.restored' : 'catalogue.feature.deactivated',
+      existing.id,
+      { code, active },
+      'vehicle_feature',
+    );
+    const found = (await this.listFeatures({ includeInactive: true })).find((f) => f.code === code);
+    if (!found) throw AppError.notFound('feature');
+    return found;
   }
 
   async upsertCategory(
@@ -248,11 +418,12 @@ export class CatalogueService {
     action: string,
     targetId: string,
     after: Record<string, unknown>,
+    targetType: 'vehicle_category' | 'vehicle_feature' = 'vehicle_category',
   ): Promise<void> {
-    await this.audit.record({ action, targetType: 'vehicle_category', targetId, actor, after });
+    await this.audit.record({ action, targetType, targetId, actor, after });
     await this.outbox.emit({
       type: 'catalogue.changed.v1',
-      aggregateType: 'vehicle_category',
+      aggregateType: targetType,
       aggregateId: targetId,
       payload: { action },
     });

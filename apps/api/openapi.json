@@ -1406,6 +1406,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "locale",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1426,6 +1434,14 @@
             "name": "code",
             "required": true,
             "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locale",
+            "required": true,
+            "in": "query",
             "schema": {
               "type": "string"
             }
@@ -1604,6 +1620,18 @@
         "tags": [
           "ops-catalogue"
         ]
+      },
+      "post": {
+        "operationId": "OpsCatalogueController_upsertFeature",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
       }
     },
     "/api/v1/ops/catalogue/categories/{code}/deactivate": {
@@ -1632,6 +1660,52 @@
     "/api/v1/ops/catalogue/categories/{code}/restore": {
       "post": {
         "operationId": "OpsCatalogueController_restoreCategory",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/catalogue/features/{code}/deactivate": {
+      "post": {
+        "operationId": "OpsCatalogueController_deactivateFeature",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/catalogue/features/{code}/restore": {
+      "post": {
+        "operationId": "OpsCatalogueController_restoreFeature",
         "parameters": [
           {
             "name": "code",

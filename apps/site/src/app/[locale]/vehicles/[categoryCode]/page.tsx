@@ -33,11 +33,12 @@ export async function generateStaticParams() {
   }
 }
 
-async function load(code: string): Promise<Category | null> {
+async function load(code: string, locale: string): Promise<Category | null> {
   try {
-    return await apiGet<Category>(`/catalogue/categories/${encodeURIComponent(code)}`, {
-      revalidate: 600,
-    });
+    return await apiGet<Category>(
+      `/catalogue/categories/${encodeURIComponent(code)}?locale=${encodeURIComponent(locale)}`,
+      { revalidate: 600 },
+    );
   } catch {
     return null;
   }
@@ -49,7 +50,7 @@ export async function generateMetadata({
   params: { locale: string; categoryCode: string };
 }): Promise<Metadata> {
   const t = await getT(params.locale);
-  const cat = await load(params.categoryCode);
+  const cat = await load(params.categoryCode, params.locale);
   if (!cat)
     return buildMetadata({
       locale: params.locale,
@@ -75,7 +76,7 @@ export default async function VehicleDetailPage({
   const { locale, categoryCode } = params;
   const t = await getT(locale);
   const [cat, origin, locations] = await Promise.all([
-    load(categoryCode),
+    load(categoryCode, locale),
     seoOrigin(),
     apiGet<Array<{ code: string; name: string }>>('/config/locations', { revalidate: 300 })
       .then((rows) => rows.map((r) => ({ code: r.code, name: r.name })))
