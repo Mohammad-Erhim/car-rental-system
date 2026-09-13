@@ -98,7 +98,12 @@ export class StripeWebhookController {
   }
 
   private async reconcile(event: Stripe.Event): Promise<void> {
-    const obj = event.data.object as { id: string; payment_intent?: string };
+    const obj = event.data.object as {
+      id: string;
+      payment_intent?: string;
+      amount_received?: number;
+      amount_refunded?: number;
+    };
     const providerRef = event.type.startsWith('charge.') ? obj.payment_intent : obj.id;
     if (!providerRef) return;
 
@@ -116,17 +121,45 @@ export class StripeWebhookController {
       'charge.refunded': ['refunded', 'partially_refunded'],
     };
     const okStates = expected[event.type];
-    if (okStates && okStates.includes(local.state)) return; // agrees with our ledger — nothing to do
+    if (!okStates || !okStates.includes(local.state)) {
+      await this.payments.openReconciliationException({
+        organizationId: local.organizationId,
+        reservationReference: local.reservationReference,
+        intentId: local.id,
+        kind: 'missing_in_ledger',
+      });
+      this.logger.warn(
+        { providerRef, eventType: event.type, localState: local.state },
+        'stripe webhook disagrees with local payment ledger — reconciliation exception opened',
+      );
+      return;
+    }
 
-    await this.payments.openReconciliationException({
-      organizationId: local.organizationId,
-      reservationReference: local.reservationReference,
-      intentId: local.id,
-      kind: 'missing_in_ledger',
-    });
-    this.logger.warn(
-      { providerRef, eventType: event.type, localState: local.state },
-      'stripe webhook disagrees with local payment ledger — reconciliation exception opened',
-    );
+    // The state alone can agree by coincidence — e.g. the ledger is already
+    // `partially_refunded` from an earlier, smaller refund when this webhook reports a second,
+    // different-amount one. Cross-check the actual amount Stripe reports against the ledger so
+    // a same-state-wrong-amount drift is never mistaken for "nothing to do".
+    const providerAmount =
+      event.type === 'charge.refunded'
+        ? obj.amount_refunded
+        : event.type === 'payment_intent.succeeded'
+          ? obj.amount_received
+          : undefined;
+    const ledgerAmount =
+      event.type === 'charge.refunded' ? local.refundedMinor : local.amountMinor;
+    if (providerAmount != null && providerAmount !== ledgerAmount) {
+      await this.payments.openReconciliationException({
+        organizationId: local.organizationId,
+        reservationReference: local.reservationReference,
+        intentId: local.id,
+        kind: 'amount_mismatch',
+        ledgerAmountMinor: ledgerAmount,
+        providerAmountMinor: providerAmount,
+      });
+      this.logger.warn(
+        { providerRef, eventType: event.type, ledgerAmount, providerAmount },
+        'stripe webhook amount disagrees with local payment ledger — reconciliation exception opened',
+      );
+    }
   }
 }

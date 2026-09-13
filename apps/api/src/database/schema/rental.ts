@@ -16,7 +16,10 @@ import { actorColumns, auditColumns } from './_helpers';
  * DAT-RENTAL (SRS §9.2, FR-RNT-*). The physical rental created when a reservation is picked up.
  * A specific `unitId` is assigned; `state` is the system-fixed `rental_state` machine
  * (awaiting_pickup | active | overdue | returned | closed). The partial unique index on
- * `unitId WHERE state in ('active','overdue')` enforces "one open rental per unit".
+ * `unitId WHERE state in ('awaiting_pickup','active','overdue')` enforces "one open rental per
+ * unit" — 'awaiting_pickup' is included because a unit is already committed to a rental the
+ * moment it's assigned, not only once it's physically on rent; without it, the same unit could
+ * be assigned to two different reservations before either is picked up.
  */
 export const rental = pgTable(
   'rental',
@@ -67,7 +70,7 @@ export const rental = pgTable(
     stateIdx: index('rental_state_idx').on(t.organizationId, t.state),
     openUnitUnq: uniqueIndex('rental_open_unit_unq')
       .on(t.unitId)
-      .where(sql`state in ('active','overdue')`),
+      .where(sql`state in ('awaiting_pickup','active','overdue')`),
   }),
 );
 

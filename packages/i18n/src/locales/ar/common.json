@@ -1621,6 +1621,7 @@
   "privacy.status.received": "مُستلَم",
   "privacy.status.rejected": "مرفوض",
   "privacy.submit": "إرسال الطلب",
+  "privacy.submitErr": "تعذّر إرسال طلبك. يرجى المحاولة مرة أخرى.",
   "privacy.title": "طلبات البيانات وإغلاق الحساب",
   "privacy.yourRequests": "طلباتك",
   "profile.emailNote": "يتطلب تغيير بريد إلكتروني موثَّق إعادة التوثيق (متاح قريبًا).",

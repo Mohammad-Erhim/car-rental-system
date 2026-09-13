@@ -22,6 +22,7 @@ const isoIn = (days: number) => {
 describe('notification event rules (FR-ADM-011)', () => {
   let server: ReturnType<typeof httpServer>;
   let admin: string;
+  let manager: string;
   let agent: string;
   let customer: string;
   let dayCursor = 40;
@@ -114,6 +115,10 @@ describe('notification event rules (FR-ADM-011)', () => {
     const app = await getTestApp();
     server = httpServer(app);
     admin = (await signIn(app, 'test-admin@example.test', 'Test-Passw0rd!', 'staff')).accessToken;
+    // a second config-publisher account — separation of duties (FR-ADM-006) requires a
+    // different actor from the one who drafted a template to publish it.
+    manager = (await signIn(app, 'test-manager@example.test', 'Test-Passw0rd!', 'staff'))
+      .accessToken;
     agent = (await signIn(app, 'test-agent@example.test', 'Test-Passw0rd!', 'staff')).accessToken;
     customer = (await signIn(app, 'test-customer@example.test', 'Test-Passw0rd!', 'customer'))
       .accessToken;
@@ -233,7 +238,7 @@ describe('notification event rules (FR-ADM-011)', () => {
       .expect(201);
     await request(server)
       .post(`/api/v1/ops/templates/${draft.body.id}/publish`)
-      .set('Authorization', `Bearer ${admin}`)
+      .set('Authorization', `Bearer ${manager}`)
       .expect(201);
 
     await request(server)

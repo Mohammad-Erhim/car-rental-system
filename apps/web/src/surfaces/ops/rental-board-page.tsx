@@ -244,6 +244,7 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
   const incident = useRaiseIncident(r.reference);
   const [open, setOpen] = useState(false);
   const [confirmReturn, setConfirmReturn] = useState(false);
+  const [confirmReady, setConfirmReady] = useState<null | boolean>(null);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   const [odo, setOdo] = useState('');
@@ -339,13 +340,15 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
     }
   }
 
-  async function doReadiness() {
+  async function doReadiness(passed: boolean) {
     setMsg(null);
     try {
-      await readiness.mutateAsync(true);
+      await readiness.mutateAsync(passed);
       ok(t('ops.rent.readyDoneBoard', { ref: r.reference }));
     } catch (e) {
       setMsg({ ok: false, text: err(e, t('ops.rent.readyFailBoard')) });
+    } finally {
+      setConfirmReady(null);
     }
   }
 
@@ -731,14 +734,24 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
                 : t('ops.rent.readyOutcomeFailed')}
             </Badge>
           ) : (
-            <Button
-              variant="outline"
-              onClick={doReadiness}
-              loading={readiness.isPending}
-              data-testid={`readiness-${r.reference}`}
-            >
-              {t('ops.rent.markReady')}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setConfirmReady(true)}
+                loading={readiness.isPending}
+                data-testid={`readiness-${r.reference}`}
+              >
+                {t('ops.rentd.readyPassBtn')}
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => setConfirmReady(false)}
+                loading={readiness.isPending}
+                data-testid={`readiness-fail-${r.reference}`}
+              >
+                {t('ops.rentd.readyFailBtn')}
+              </Button>
+            </div>
           )
         ) : null}
       </CardContent>
@@ -780,6 +793,22 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
         }
         confirmLabel={t('ops.rent.confirmReturn')}
         onConfirm={doReturn}
+      />
+
+      <ConfirmDialog
+        open={confirmReady !== null}
+        onOpenChange={(v) => !v && setConfirmReady(null)}
+        destructive={confirmReady === false}
+        title={
+          confirmReady === false ? t('ops.rentd.readyFailTitle') : t('ops.rentd.readyPassTitle')
+        }
+        description={
+          confirmReady === false ? t('ops.rentd.readyFailBody') : t('ops.rentd.readyPassBody')
+        }
+        confirmLabel={
+          confirmReady === false ? t('ops.rentd.readyFailBtn') : t('ops.rentd.readyPassBtn')
+        }
+        onConfirm={() => doReadiness(confirmReady === true)}
       />
     </Card>
   );

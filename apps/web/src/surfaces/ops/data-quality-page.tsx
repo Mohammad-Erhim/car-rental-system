@@ -68,8 +68,10 @@ export function DataQualityPage() {
 
   const [resolving, setResolving] = useState<DataQualityCheck | null>(null);
   const [resolveNote, setResolveNote] = useState('');
+  const [resolveNoteError, setResolveNoteError] = useState(false);
   const [markingFalsePositive, setMarkingFalsePositive] = useState<DataQualityCheck | null>(null);
   const [fpNote, setFpNote] = useState('');
+  const [fpNoteError, setFpNoteError] = useState(false);
 
   const sevVariant = (s: string) =>
     s === 'high' ? 'destructive' : s === 'medium' ? 'warning' : 'neutral';
@@ -86,7 +88,11 @@ export function DataQualityPage() {
   async function doResolve() {
     // throwing (not just returning) keeps ConfirmDialog open with the inline error visible,
     // instead of silently closing on an empty reason
-    if (!resolveNote.trim() || !resolving) throw new Error('reason required');
+    if (!resolveNote.trim() || !resolving) {
+      setResolveNoteError(true);
+      throw new Error('reason required');
+    }
+    setResolveNoteError(false);
     try {
       await resolve.mutateAsync({ checkId: resolving.id, note: resolveNote.trim() });
       toast({ title: t('ops.dq.resolveDone'), variant: 'success' });
@@ -99,7 +105,11 @@ export function DataQualityPage() {
   }
 
   async function doFalsePositive() {
-    if (!fpNote.trim() || !markingFalsePositive) throw new Error('reason required');
+    if (!fpNote.trim() || !markingFalsePositive) {
+      setFpNoteError(true);
+      throw new Error('reason required');
+    }
+    setFpNoteError(false);
     try {
       await falsePositive.mutateAsync({ checkId: markingFalsePositive.id, note: fpNote.trim() });
       toast({ title: t('ops.dq.falsePositiveDone'), variant: 'success' });
@@ -313,6 +323,7 @@ export function DataQualityPage() {
           if (!v) {
             setResolving(null);
             setResolveNote('');
+            setResolveNoteError(false);
           }
         }}
         title={t('ops.dq.resolveTitle')}
@@ -323,14 +334,17 @@ export function DataQualityPage() {
               label={t('ops.dq.resolveReason')}
               htmlFor="dq-resolve-note"
               required
-              error={resolving && !resolveNote.trim() ? t('ops.dq.reasonRequired') : undefined}
+              error={resolveNoteError ? t('ops.dq.reasonRequired') : undefined}
             >
               {({ id }) => (
                 <Textarea
                   id={id}
                   rows={3}
                   value={resolveNote}
-                  onChange={(e) => setResolveNote(e.target.value)}
+                  onChange={(e) => {
+                    setResolveNote(e.target.value);
+                    if (e.target.value.trim()) setResolveNoteError(false);
+                  }}
                   data-testid="dq-resolve-note"
                 />
               )}
@@ -347,6 +361,7 @@ export function DataQualityPage() {
           if (!v) {
             setMarkingFalsePositive(null);
             setFpNote('');
+            setFpNoteError(false);
           }
         }}
         title={t('ops.dq.falsePositiveTitle')}
@@ -357,16 +372,17 @@ export function DataQualityPage() {
               label={t('ops.dq.falsePositiveReason')}
               htmlFor="dq-fp-note"
               required
-              error={
-                markingFalsePositive && !fpNote.trim() ? t('ops.dq.reasonRequired') : undefined
-              }
+              error={fpNoteError ? t('ops.dq.reasonRequired') : undefined}
             >
               {({ id }) => (
                 <Textarea
                   id={id}
                   rows={3}
                   value={fpNote}
-                  onChange={(e) => setFpNote(e.target.value)}
+                  onChange={(e) => {
+                    setFpNote(e.target.value);
+                    if (e.target.value.trim()) setFpNoteError(false);
+                  }}
                   data-testid="dq-fp-note"
                 />
               )}

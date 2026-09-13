@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from './api-error';
 import { apiFetch } from './api-fetch';
 import { configureClient } from './config';
-import { registerRefreshHandler, setAccessToken } from './token-store';
+import { registerRefreshHandler, registerStepUpHandler, setAccessToken } from './token-store';
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -26,6 +26,7 @@ describe('apiFetch', () => {
     configureClient({ baseUrl: '/api/v1', correlationPrefix: 'test' });
     setAccessToken(null);
     registerRefreshHandler(null);
+    registerStepUpHandler(null);
   });
   afterEach(() => {
     vi.restoreAllMocks();
@@ -94,5 +95,43 @@ describe('apiFetch', () => {
 
     await expect(apiFetch('/auth/me')).rejects.toBeInstanceOf(ApiError);
     expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it('a burst of concurrent 401s shares one refresh, not one per call', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(jsonResponse(401, problem({ code: 'auth_session_expired', status: 401 }))),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    let resolveRefresh!: (ok: boolean) => void;
+    const refresh = vi.fn(() => new Promise<boolean>((res) => (resolveRefresh = res)));
+    registerRefreshHandler(refresh);
+
+    // three requests hit the 401 before the (slow) refresh resolves — all three must await the
+    // *same* in-flight refresh call, not each kick off their own
+    const calls = [apiFetch('/trips'), apiFetch('/trips'), apiFetch('/trips')];
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalled());
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3)); // all 3 reached the guard
+    expect(refresh).toHaveBeenCalledTimes(1); // …but only one actually called refresh
+    resolveRefresh(false); // resolve however — this test only asserts the dedup, not the retry
+    await Promise.allSettled(calls);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('a burst of concurrent step-up-required responses shares one prompt, not one per call', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(jsonResponse(422, problem({ code: 'auth_step_up_required', status: 422 }))),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    let resolveStepUp!: (ok: boolean) => void;
+    const stepUp = vi.fn(() => new Promise<boolean>((res) => (resolveStepUp = res)));
+    registerStepUpHandler(stepUp);
+
+    const calls = [apiFetch('/trips'), apiFetch('/trips'), apiFetch('/trips')];
+    await vi.waitFor(() => expect(stepUp).toHaveBeenCalled());
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3)); // all 3 reached the guard
+    expect(stepUp).toHaveBeenCalledTimes(1); // …but only one actually called stepUp
+    resolveStepUp(false);
+    await Promise.allSettled(calls);
+    expect(stepUp).toHaveBeenCalledTimes(1);
   });
 });

@@ -6,6 +6,8 @@ import {
 import { Injectable } from '@nestjs/common';
 
 import { AppError } from '../../common/app-error';
+import { AuditService } from '../../common/audit/audit.service';
+import type { Actor } from '../../common/auth/types';
 import {
   rasterDimensions,
   sanitizeSvg,
@@ -29,9 +31,12 @@ const LIMITS: Record<
 
 @Injectable()
 export class BrandAssetService {
-  constructor(private readonly storage: ObjectStorageService) {}
+  constructor(
+    private readonly storage: ObjectStorageService,
+    private readonly audit: AuditService,
+  ) {}
 
-  async upload(input: BrandAssetUploadRequest): Promise<BrandAssetUploadResponse> {
+  async upload(input: BrandAssetUploadRequest, actor: Actor): Promise<BrandAssetUploadResponse> {
     const limit = LIMITS[input.purpose];
 
     const b64 = input.dataBase64.includes(',')
@@ -115,6 +120,16 @@ export class BrandAssetService {
       ownerId: 'default',
       data: out,
       mediaType,
+    });
+
+    // Every other admin write path in this module records itself — logo/favicon/OG uploads were
+    // the one silent gap, invisible in the audit trail even though they're config.publish-gated.
+    await this.audit.record({
+      action: 'config.branding.asset_uploaded',
+      targetType: 'brand_asset',
+      targetId: stored.ref,
+      actor,
+      after: { purpose: input.purpose, mediaType, sizeBytes: stored.sizeBytes, width, height },
     });
 
     return {

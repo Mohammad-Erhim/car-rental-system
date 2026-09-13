@@ -10,7 +10,7 @@ import {
   Input,
   PasswordInput,
 } from '@carrental/ui';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { AuthPanel } from './auth-panel.js';
@@ -30,7 +30,12 @@ export function SignInPage({ audience = 'customer' as 'customer' | 'staff' }) {
   const errs = useFormErrors({ email: t('auth.email'), password: t('auth.password') });
 
   const returnParam = params.get('returnTo');
-  if (returnParam && returnParam.startsWith('/')) stashReturnTo(returnParam);
+  // A localStorage write is a side effect and must not run during render (doubles under
+  // StrictMode, and runs on every re-render rather than once per navigation) — effect, not the
+  // component body.
+  useEffect(() => {
+    if (returnParam && returnParam.startsWith('/')) stashReturnTo(returnParam);
+  }, [returnParam]);
 
   const isStaff = audience === 'staff';
 

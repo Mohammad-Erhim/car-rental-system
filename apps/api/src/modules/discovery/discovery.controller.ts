@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { AppError } from '../../common/app-error';
 import { MaybeCurrentActor, OptionalAuth } from '../../common/auth/auth.guard';
 import type { Actor } from '../../common/auth/types';
+import { RateLimit } from '../../common/security/rate-limit.decorator';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
@@ -16,8 +17,11 @@ import { CatalogueService } from '../catalogue/catalogue.service';
 import { ProductService } from '../catalogue/product.service';
 import { PricingService } from '../pricing/pricing.service';
 
+// Serves 'catalogue/*' and 'discovery/*' routes, each declared in full on its own method —
+// `path: ''` makes the controller's own path explicit rather than an implicit default
+// (CLAUDE.md: every controller sets an explicit path).
 @ApiTags('discovery')
-@Controller({ version: '1' })
+@Controller({ path: '', version: '1' })
 export class DiscoveryController {
   constructor(
     private readonly availability: AvailabilityService,
@@ -68,6 +72,9 @@ export class DiscoveryController {
 
   @Post('discovery/quote')
   @OptionalAuth()
+  // Unauthenticated with `hold: true` this places a real inventory hold — without a limit, a
+  // script can squat scarce categories by repeatedly requesting-and-holding with no throttle.
+  @RateLimit({ preset: 'discovery-quote' })
   @ApiOperation({
     operationId: 'discovery_quote',
     summary: 'Itemised quote + optional checkout hold',

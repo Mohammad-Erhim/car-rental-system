@@ -1621,6 +1621,7 @@
   "privacy.status.received": "received",
   "privacy.status.rejected": "rejected",
   "privacy.submit": "Submit request",
+  "privacy.submitErr": "Could not submit your request. Please try again.",
   "privacy.title": "Data requests & account closure",
   "privacy.yourRequests": "Your requests",
   "profile.emailNote": "Changing a verified email requires re-verification (available soon).",

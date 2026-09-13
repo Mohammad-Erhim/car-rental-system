@@ -17,27 +17,19 @@ import {
   useToast,
   type DataTableColumn,
 } from '@carrental/ui';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
-import { apiFetch } from '../../lib/api.js';
+import {
+  useInviteStaff,
+  useResendStaffInvite,
+  useStaffAccessChange,
+  useStaffList,
+  useStaffRoles,
+  type StaffRole as Role,
+  type StaffRow,
+} from '../../lib/admin-hooks.js';
 import { useLocations } from '../../lib/discovery-hooks.js';
-
-interface Role {
-  code: string;
-  name: string;
-  isSystem: boolean;
-  permissionActions: string[];
-}
-interface StaffRow {
-  accountId: string;
-  displayName: string;
-  email: string;
-  status: 'invited' | 'active' | 'suspended' | 'deactivated';
-  roleCodes: string[];
-  locationScope: string[];
-}
 
 const STATUS_VARIANT: Record<
   StaffRow['status'],
@@ -122,20 +114,12 @@ function LocationCheckboxes({
 /** SCREEN-OPS-032 — Staff & roles (FR-ADM-009, FLOW-OPS-015). */
 export function StaffRolesPage() {
   const { t } = useI18n();
-  const qc = useQueryClient();
   const { toast } = useToast();
   const { actor } = useAuth();
   const isAdmin = actor?.roleCodes.includes('administrator') ?? false;
 
-  const roles = useQuery({
-    queryKey: ['admin', 'roles'],
-    queryFn: ({ signal }) =>
-      apiFetch<{ roles: Role[]; permissionActions: unknown[] }>('/admin/roles', { signal }),
-  });
-  const staff = useQuery({
-    queryKey: ['admin', 'staff'],
-    queryFn: ({ signal }) => apiFetch<StaffRow[]>('/admin/staff', { signal }),
-  });
+  const roles = useStaffRoles();
+  const staff = useStaffList();
   const locations = useLocations();
   const roleName = useMemo(() => {
     const m = new Map((roles.data?.roles ?? []).map((r) => [r.code, r.name]));
@@ -156,62 +140,45 @@ export function StaffRolesPage() {
   const [inviteRoles, setInviteRoles] = useState<string[]>(['rental_agent']);
   const [inviteScope, setInviteScope] = useState<string[]>([]);
 
-  const invite = useMutation({
-    mutationFn: () =>
-      apiFetch('/admin/staff/invite', {
-        method: 'POST',
-        body: { email, fullName, roleCodes: inviteRoles, locationScope: inviteScope },
-      }),
-    onSuccess: () => {
-      setEmail('');
-      setFullName('');
-      setInviteRoles(['rental_agent']);
-      setInviteScope([]);
-      errs.clear();
-      toast({
-        title: t('ops.staff.inviteSent'),
-        description: t('ops.staff.inviteSentBody'),
-        variant: 'success',
-      });
-      void qc.invalidateQueries({ queryKey: ['admin', 'staff'] });
-    },
-    onError: (e) => errs.fromError(e),
-  });
+  const invite = useInviteStaff();
+  const resend = useResendStaffInvite();
+  const access = useStaffAccessChange();
 
-  // Re-invites an already-invited account: same backend endpoint (it upserts + re-sends the
-  // set-password challenge), pre-filled from the row so the admin doesn't retype anything.
-  const resend = useMutation({
-    mutationFn: (row: StaffRow) =>
-      apiFetch('/admin/staff/invite', {
-        method: 'POST',
-        body: {
-          email: row.email,
-          fullName: row.displayName,
-          roleCodes: row.roleCodes,
-          locationScope: row.locationScope,
+  function doInvite() {
+    invite.mutate(
+      { email, fullName, roleCodes: inviteRoles, locationScope: inviteScope },
+      {
+        onSuccess: () => {
+          setEmail('');
+          setFullName('');
+          setInviteRoles(['rental_agent']);
+          setInviteScope([]);
+          errs.clear();
+          toast({
+            title: t('ops.staff.inviteSent'),
+            description: t('ops.staff.inviteSentBody'),
+            variant: 'success',
+          });
         },
-      }),
-    onSuccess: () => {
-      toast({ title: t('ops.staff.inviteResent'), variant: 'success' });
-      void qc.invalidateQueries({ queryKey: ['admin', 'staff'] });
-    },
-    onError: (e) => toast({ title: e instanceof Error ? e.message : t('ops.staff.statusFail') }),
-  });
-
-  interface AccessInput {
-    accountId: string;
-    body: { roleCodes?: string[]; locationScope?: string[]; status?: StaffRow['status'] };
-    successKey: string;
+        onError: (e) => errs.fromError(e),
+      },
+    );
   }
-  const access = useMutation({
-    mutationFn: (input: AccessInput) =>
-      apiFetch(`/admin/staff/${input.accountId}/access`, { method: 'POST', body: input.body }),
-    onSuccess: (_d, v) => {
-      void qc.invalidateQueries({ queryKey: ['admin', 'staff'] });
-      toast({ title: t(v.successKey), variant: 'success' });
-    },
-    onError: (e) => toast({ title: e instanceof Error ? e.message : t('ops.staff.statusFail') }),
-  });
+
+  function doResend(row: StaffRow) {
+    resend.mutate(row, {
+      onSuccess: () => toast({ title: t('ops.staff.inviteResent'), variant: 'success' }),
+      onError: (e) => toast({ title: e instanceof Error ? e.message : t('ops.staff.statusFail') }),
+    });
+  }
+
+  type AccessInput = Parameters<(typeof access)['mutate']>[0];
+  function doAccessChange(input: AccessInput) {
+    return access.mutateAsync(input, {
+      onSuccess: () => toast({ title: t(input.successKey), variant: 'success' }),
+      onError: (e) => toast({ title: e instanceof Error ? e.message : t('ops.staff.statusFail') }),
+    });
+  }
 
   const [statusTarget, setStatusTarget] = useState<{
     accountId: string;
@@ -283,7 +250,7 @@ export function StaffRolesPage() {
               size="sm"
               variant="ghost"
               loading={resend.isPending}
-              onClick={() => resend.mutate(s)}
+              onClick={() => doResend(s)}
             >
               {t('ops.staff.resendInvite')}
             </Button>
@@ -309,7 +276,7 @@ export function StaffRolesPage() {
               variant="ghost"
               loading={access.isPending}
               onClick={() =>
-                access.mutate({
+                doAccessChange({
                   accountId: s.accountId,
                   body: { status: 'active' },
                   successKey: 'ops.staff.reactivatedMsg',
@@ -358,7 +325,7 @@ export function StaffRolesPage() {
             className="space-y-4"
             onSubmit={(e) => {
               e.preventDefault();
-              invite.mutate();
+              doInvite();
             }}
           >
             <div className="grid gap-3 sm:grid-cols-2">
@@ -484,7 +451,7 @@ export function StaffRolesPage() {
         }
         onConfirm={async () => {
           if (!statusTarget) return;
-          await access.mutateAsync({
+          await doAccessChange({
             accountId: statusTarget.accountId,
             body: { status: statusTarget.status },
             successKey:
@@ -528,7 +495,7 @@ export function StaffRolesPage() {
         confirmDisabled={!changeRoles.length}
         onConfirm={async () => {
           if (!changeTarget) return;
-          await access.mutateAsync({
+          await doAccessChange({
             accountId: changeTarget.accountId,
             body: { roleCodes: changeRoles, locationScope: changeScope },
             successKey: 'ops.staff.changeSaved',

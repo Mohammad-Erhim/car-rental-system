@@ -42,7 +42,15 @@ export class ActorService {
       .from(staffProfile)
       .where(eq(staffProfile.accountId, acc.id))
       .limit(1);
-    if (!profile || profile.status === 'suspended' || profile.status === 'deactivated') {
+    // 'invited' means the staffer has not accepted yet — sign-in already rejects a still-pending
+    // account, but this is the defense-in-depth check: a real session must never resolve real
+    // permissions for a profile that hasn't been activated, regardless of how it got a token.
+    if (
+      !profile ||
+      profile.status === 'suspended' ||
+      profile.status === 'deactivated' ||
+      profile.status === 'invited'
+    ) {
       return { ...base, kind: 'staff' };
     }
 

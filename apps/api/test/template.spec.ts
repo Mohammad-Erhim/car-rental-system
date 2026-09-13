@@ -12,6 +12,7 @@ import { signIn } from './helpers/auth';
 describe('notification templates (SCREEN-OPS-033 / FR-ADM-011)', () => {
   let server: ReturnType<typeof httpServer>;
   let adminToken: string;
+  let managerToken: string;
   let agentToken: string;
   let viewerToken: string;
 
@@ -19,6 +20,10 @@ describe('notification templates (SCREEN-OPS-033 / FR-ADM-011)', () => {
     const app = await getTestApp();
     server = httpServer(app);
     adminToken = (await signIn(app, 'test-admin@example.test', 'Test-Passw0rd!', 'staff'))
+      .accessToken;
+    // a second config-publisher account — separation of duties (FR-ADM-006) requires a
+    // different actor from the one who drafted a template to publish it, same as config-version.
+    managerToken = (await signIn(app, 'test-manager@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
     agentToken = (await signIn(app, 'test-agent@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
@@ -121,9 +126,16 @@ describe('notification templates (SCREEN-OPS-033 / FR-ADM-011)', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(201);
 
-    const published = await request(server)
+    // separation of duties (FR-ADM-006): the drafting actor cannot publish their own change
+    const selfPublish = await request(server)
       .post(`/api/v1/ops/templates/${id}/publish`)
       .set('Authorization', `Bearer ${adminToken}`)
+      .expect(403);
+    expect(selfPublish.body.params?.reason).toBe('author_cannot_approve');
+
+    const published = await request(server)
+      .post(`/api/v1/ops/templates/${id}/publish`)
+      .set('Authorization', `Bearer ${managerToken}`)
       .expect(201);
     expect(published.body.status).toBe('published');
     expect(published.body.version).toBe('1.1'); // bumped from the seeded 1.0
@@ -151,9 +163,11 @@ describe('notification templates (SCREEN-OPS-033 / FR-ADM-011)', () => {
         variables: [{ name: 'reference' }, { name: 'refund_terms', required: true, legal: true }],
       })
       .expect(201);
+    // published by a different actor than the drafter, so the failure asserted below is the
+    // content-validation gate this test is actually about, not the separation-of-duties one
     await request(server)
       .post(`/api/v1/ops/templates/${draft.body.id}/publish`)
-      .set('Authorization', `Bearer ${adminToken}`)
+      .set('Authorization', `Bearer ${managerToken}`)
       .expect(422);
   });
 

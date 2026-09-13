@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  csvCell,
   isScheduleDue,
   nextFireAfter,
   runDataQualityCheck,
@@ -147,5 +148,36 @@ describe('utilizationPercent — dashboard analytics', () => {
     // so a brief >100% is possible upstream — showing that verbatim would be a visibly
     // nonsensical number for a percentage
     expect(utilizationPercent(12, 10)).toBe(100);
+  });
+});
+
+describe('csvCell — CSV/formula-injection safety (OWASP) for a report export cell', () => {
+  it('passes an ordinary value through unchanged', () => {
+    expect(csvCell('available')).toBe('available');
+    expect(csvCell(42)).toBe('42');
+    expect(csvCell(null)).toBe('');
+  });
+
+  it('neutralizes a value that would open as a live formula in Excel/Sheets', () => {
+    expect(csvCell('=1+1')).toBe("'=1+1");
+    expect(csvCell('+1')).toBe("'+1");
+    expect(csvCell('-1')).toBe("'-1");
+    expect(csvCell('@SUM(A1)')).toBe("'@SUM(A1)");
+  });
+
+  it('a formula-prefixed value that also needs quoting gets both protections', () => {
+    // the leading apostrophe is added first, then the whole cell is quoted because it now
+    // contains a comma — if the order were reversed the quoting wouldn't see the comma
+    expect(csvCell('=A1,B1')).toBe(`"'=A1,B1"`);
+  });
+
+  it('a value merely containing = elsewhere (not at the start) is left alone', () => {
+    expect(csvCell('a=b')).toBe('a=b');
+  });
+
+  it('still quotes plain values containing a comma, quote, or newline', () => {
+    expect(csvCell('a,b')).toBe('"a,b"');
+    expect(csvCell('a"b')).toBe('"a""b"');
+    expect(csvCell('a\nb')).toBe('"a\nb"');
   });
 });

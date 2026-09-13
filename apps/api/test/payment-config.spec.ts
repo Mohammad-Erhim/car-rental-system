@@ -67,6 +67,8 @@ describe('STAGE-003 payment provider configuration', () => {
     expect(summary.body.activeDriver).toBe('simulator');
     expect(summary.body.test.configured).toBe(false);
     expect(summary.body.live.configured).toBe(false);
+    expect(summary.body.test.webhookConfigured).toBe(false);
+    expect(summary.body.live.webhookConfigured).toBe(false);
 
     const mode = await request(server).get('/api/v1/ops/payments/mode').expect(200);
     expect(mode.body).toEqual({ driver: 'simulator', publishableKey: null });
@@ -136,7 +138,11 @@ describe('STAGE-003 payment provider configuration', () => {
       .put('/api/v1/ops/payments/config')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
-        test: { publishableKey: 'pk_test_abc', secretKey: 'sk_test_goodkey12345' },
+        test: {
+          publishableKey: 'pk_test_abc',
+          secretKey: 'sk_test_goodkey12345',
+          webhookSecret: 'whsec_test_abc123',
+        },
         activeDriver: 'stripe_test',
       })
       .expect(200);
@@ -144,7 +150,12 @@ describe('STAGE-003 payment provider configuration', () => {
     expect(saved.body.test.configured).toBe(true);
     expect(saved.body.test.secretKeyLast4.endsWith('2345')).toBe(true);
     expect(JSON.stringify(saved.body)).not.toContain('sk_test_goodkey12345');
+    expect(JSON.stringify(saved.body)).not.toContain('whsec_test_abc123');
     expect(saved.body.test.verifiedAt).toBeTruthy();
+    // the webhook secret has no last-4/masked echo (unlike the API secret key) — its saved
+    // state is only ever visible as this boolean, which is the whole point of this fix
+    expect(saved.body.test.webhookConfigured).toBe(true);
+    expect(saved.body.live.webhookConfigured).toBe(false);
 
     const mode = await request(server).get('/api/v1/ops/payments/mode').expect(200);
     expect(mode.body).toEqual({ driver: 'stripe_test', publishableKey: 'pk_test_abc' });

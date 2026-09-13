@@ -107,6 +107,7 @@ export function ConfigVersionsPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [rejectReasonError, setRejectReasonError] = useState(false);
   const [approving, setApproving] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const formCard = useRef<HTMLDivElement>(null);
@@ -629,6 +630,7 @@ export function ConfigVersionsPage() {
           if (!v) {
             setRejecting(null);
             setRejectReason('');
+            setRejectReasonError(false);
           }
         }}
         destructive
@@ -640,16 +642,17 @@ export function ConfigVersionsPage() {
               label={t('ops.cfg.rejectReason')}
               htmlFor="cfg-reject-reason"
               required
-              error={
-                rejecting && !rejectReason.trim() ? t('ops.cfg.rejectReasonRequired') : undefined
-              }
+              error={rejectReasonError ? t('ops.cfg.rejectReasonRequired') : undefined}
             >
               {({ id }) => (
                 <Textarea
                   id={id}
                   rows={3}
                   value={rejectReason}
-                  onChange={(e) => setRejectReason(e.target.value)}
+                  onChange={(e) => {
+                    setRejectReason(e.target.value);
+                    if (e.target.value.trim()) setRejectReasonError(false);
+                  }}
                   data-testid="config-reject-reason"
                 />
               )}
@@ -658,7 +661,11 @@ export function ConfigVersionsPage() {
         }
         confirmLabel={t('ops.cfg.reject')}
         onConfirm={() => {
-          if (!rejectReason.trim()) throw new Error('reason required');
+          if (!rejectReason.trim()) {
+            setRejectReasonError(true);
+            throw new Error('reason required'); // keeps the ConfirmDialog open
+          }
+          setRejectReasonError(false);
           const id = rejecting!;
           return act(id, 'reject', rejectReason);
         }}

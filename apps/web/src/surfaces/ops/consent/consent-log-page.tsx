@@ -41,7 +41,15 @@ function toCsv(rows: ConsentLogEntry[]): string {
     'page',
     'ipPrefix',
   ];
-  const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  // CSV/formula injection (OWASP): a cell opening with =, +, -, or @ runs as a live formula the
+  // moment this file is opened in Excel/Sheets — `page` in particular is free text a visitor's
+  // browser sends. A leading apostrophe forces "treat as text" in both, and is otherwise
+  // invisible, applied before the unconditional quote-wrap below.
+  const esc = (v: unknown) => {
+    const raw = String(v ?? '');
+    const s = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
+    return `"${s.replace(/"/g, '""')}"`;
+  };
   const lines = rows.map((r) =>
     [
       r.at,

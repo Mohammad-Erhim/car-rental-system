@@ -45,9 +45,15 @@ export class RateLimitGuard implements CanActivate {
     const limit =
       opts.preset === 'auth'
         ? this.env.RATE_LIMIT_AUTH_MAX
-        : (opts.limit ?? Number.MAX_SAFE_INTEGER);
+        : opts.preset === 'discovery-quote'
+          ? this.env.RATE_LIMIT_DISCOVERY_QUOTE_MAX
+          : (opts.limit ?? Number.MAX_SAFE_INTEGER);
     const windowSec =
-      opts.preset === 'auth' ? this.env.RATE_LIMIT_AUTH_WINDOW_SEC : (opts.windowSec ?? 60);
+      opts.preset === 'auth'
+        ? this.env.RATE_LIMIT_AUTH_WINDOW_SEC
+        : opts.preset === 'discovery-quote'
+          ? this.env.RATE_LIMIT_DISCOVERY_QUOTE_WINDOW_SEC
+          : (opts.windowSec ?? 60);
 
     const req = context.switchToHttp().getRequest<Request>();
     const ip = clientIp(req);

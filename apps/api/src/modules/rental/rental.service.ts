@@ -11,12 +11,14 @@ import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { vehicleCategory } from '../../database/schema/catalogue';
+import { customer } from '../../database/schema/customer';
 import { vehicleBlock, vehicleUnit } from '../../database/schema/fleet';
 import { account } from '../../database/schema/iam';
 import { location, organization } from '../../database/schema/org';
 import { inspection, inspectionFinding, rental, rentalEvent } from '../../database/schema/rental';
 import { reservation, reservationDriver } from '../../database/schema/reservation';
 import { ConfigVersionService } from '../config/config-version.service';
+import { CustomerRestrictionService } from '../customer/customer-restriction.service';
 import { PaymentService } from '../payment/payment.service';
 import { PricingService } from '../pricing/pricing.service';
 
@@ -31,6 +33,7 @@ export class RentalService {
     private readonly audit: AuditService,
     private readonly outbox: OutboxService,
     private readonly config: ConfigVersionService,
+    private readonly restrictions: CustomerRestrictionService,
   ) {}
 
   private async orgId(): Promise<string> {
@@ -88,7 +91,10 @@ export class RentalService {
 
       let unitId = input.unitId ?? existingRental?.unitId ?? null;
       if (!unitId) {
-        // a free `available` unit of the category at the pickup location with no open rental
+        // a free `available` unit of the category at the pickup location with no open rental —
+        // 'awaiting_pickup' is included alongside 'active'/'overdue' because a unit already
+        // assigned to a different reservation is committed the moment it's assigned, not only
+        // once it's physically picked up (FR-RNT / one-open-rental-per-unit).
         const candidates = await tx
           .select({ id: vehicleUnit.id })
           .from(vehicleUnit)
@@ -99,7 +105,7 @@ export class RentalService {
               eq(vehicleCategory.code, res.categoryCode),
               eq(location.code, res.pickupLocationCode),
               eq(vehicleUnit.state, 'available'),
-              sql`${vehicleUnit.id} not in (select unit_id from rental where unit_id is not null and state in ('active','overdue'))`,
+              sql`${vehicleUnit.id} not in (select unit_id from rental where unit_id is not null and state in ('awaiting_pickup','active','overdue'))`,
             ),
           )
           .limit(1);
@@ -109,38 +115,77 @@ export class RentalService {
             reason: 'no_unit',
           });
         }
+      } else if (unitId !== existingRental?.unitId) {
+        // A manually-chosen unit skips the query above entirely, so it needs the same guarantee
+        // applied explicitly: it must exist and must not already be committed to a *different*
+        // open rental. Re-assigning a rental to the unit it already holds is a no-op and allowed.
+        const [unit] = await tx
+          .select({ id: vehicleUnit.id, state: vehicleUnit.state })
+          .from(vehicleUnit)
+          .where(eq(vehicleUnit.id, unitId))
+          .limit(1);
+        if (!unit) throw AppError.notFound('vehicle unit');
+        const [clash] = await tx
+          .select({ id: rental.id })
+          .from(rental)
+          .where(
+            and(
+              eq(rental.unitId, unitId),
+              sql`${rental.state} in ('awaiting_pickup','active','overdue')`,
+              existingRental ? sql`${rental.id} != ${existingRental.id}` : sql`true`,
+            ),
+          )
+          .limit(1);
+        if (clash || unit.state !== 'available') {
+          throw AppError.businessRule('This vehicle is already assigned to another open rental', {
+            reason: 'unit_unavailable',
+          });
+        }
       }
 
       let rentalId: string;
-      if (existingRental) {
-        await tx
-          .update(rental)
-          .set({
-            unitId,
-            version: existingRental.version + 1,
-            updatedAt: sql`now()`,
-            updatedBy: actor.accountId,
-          })
-          .where(eq(rental.id, existingRental.id));
-        rentalId = existingRental.id;
-      } else {
-        const [row] = await tx
-          .insert(rental)
-          .values({
-            organizationId: orgId,
-            reference,
-            reservationReference,
-            unitId,
-            state: 'awaiting_pickup',
-            pickupLocationCode: res.pickupLocationCode,
-            returnLocationCode: res.returnLocationCode,
-            scheduledPickupAt: res.pickupAt,
-            scheduledReturnAt: res.returnAt,
-            currency: res.currency,
-            createdBy: actor.accountId,
-          })
-          .returning();
-        rentalId = row!.id;
+      try {
+        if (existingRental) {
+          await tx
+            .update(rental)
+            .set({
+              unitId,
+              version: existingRental.version + 1,
+              updatedAt: sql`now()`,
+              updatedBy: actor.accountId,
+            })
+            .where(eq(rental.id, existingRental.id));
+          rentalId = existingRental.id;
+        } else {
+          const [row] = await tx
+            .insert(rental)
+            .values({
+              organizationId: orgId,
+              reference,
+              reservationReference,
+              unitId,
+              state: 'awaiting_pickup',
+              pickupLocationCode: res.pickupLocationCode,
+              returnLocationCode: res.returnLocationCode,
+              scheduledPickupAt: res.pickupAt,
+              scheduledReturnAt: res.returnAt,
+              currency: res.currency,
+              createdBy: actor.accountId,
+            })
+            .returning();
+          rentalId = row!.id;
+        }
+      } catch (err) {
+        // Safety net for the race the advisory lock (keyed on category+location) doesn't cover —
+        // a concurrent manual assignment of the same unit from a different category/location key.
+        // The DB's partial unique index (rental_open_unit_unq) is the real guarantee; this just
+        // turns its violation into the same clean business error instead of a raw 500.
+        if (err instanceof Error && /rental_open_unit_unq/.test(err.message)) {
+          throw AppError.businessRule('This vehicle is already assigned to another open rental', {
+            reason: 'unit_unavailable',
+          });
+        }
+        throw err;
       }
       await tx.insert(rentalEvent).values({
         rentalId,
@@ -183,6 +228,13 @@ export class RentalService {
         'A driving licence number is required at pickup',
       );
     }
+
+    // Re-check eligibility restrictions (FR-ADM-002) at the point the car is actually handed
+    // over — a restriction created *after* confirm (or on a guest/staff-assisted booking that
+    // bypassed the check at confirm time) must still stop the vehicle leaving the lot. Resolved
+    // the same two ways as booking.confirm(): the reservation's own account, and the primary
+    // driver's email matched against an existing customer profile.
+    await this.assertPickupEligible(row.reservationReference);
 
     // Lock the fuel-recharge rate the customer accepts in the agreement now — a later
     // Configuration → Policy change to `fuel_rate` must not re-rate a car already on the road
@@ -412,71 +464,107 @@ export class RentalService {
       replacement = cand;
     }
 
-    await this.db.transaction(async (tx) => {
-      await tx.insert(rentalEvent).values({
-        rentalId: row.id,
-        reference,
-        type: 'incident',
-        reasonCode: input.category,
-        note: input.note ?? null,
-        detail: { immobilised, unitId: row.unitId },
-        actorType: actor.kind,
-        actorId: actor.accountId,
-        actorLabel: actor.displayName,
-      });
-
-      if (immobilised && row.unitId) {
-        await tx.insert(vehicleBlock).values({
-          unitId: row.unitId,
-          kind: 'damage',
-          reasonCode: input.category,
-          startAt: new Date().toISOString(),
-          note: input.note ?? null,
-          createdBy: actor.accountId,
-        });
-      }
-
-      if (replacement) {
-        if (row.unitId) {
-          await tx
-            .update(vehicleUnit)
-            .set({
-              state: immobilised ? 'out_of_service' : 'prep',
-              updatedAt: sql`now()`,
-              updatedBy: actor.accountId,
-            })
-            .where(eq(vehicleUnit.id, row.unitId));
+    try {
+      await this.db.transaction(async (tx) => {
+        // Candidate validation above (state/open-rental/category checks) ran on plain reads,
+        // outside any lock — two concurrent incident reports naming the same replacement unit
+        // could both pass it before either commits. Serialise on the replacement unit itself
+        // (same technique as assign()'s category+location lock) so the second caller waits and
+        // then re-validates against the first's already-committed change, rather than racing it.
+        if (replacement) {
+          await tx.execute(
+            sql`select pg_advisory_xact_lock(hashtext(${`incident-replace:${replacement.id}`}))`,
+          );
+          const [stillOpen] = await tx
+            .select({ ref: rental.reference })
+            .from(rental)
+            .where(
+              and(eq(rental.unitId, replacement.id), inArray(rental.state, ['active', 'overdue'])),
+            )
+            .limit(1);
+          if (stillOpen) {
+            throw AppError.businessRule('The replacement vehicle is on another rental', {
+              reason: 'open_rental',
+            });
+          }
         }
-        await tx
-          .update(vehicleUnit)
-          .set({ state: 'on_rent', updatedAt: sql`now()`, updatedBy: actor.accountId })
-          .where(eq(vehicleUnit.id, replacement.id));
-        await tx
-          .update(rental)
-          .set({
-            unitId: replacement.id,
-            version: row.version + 1,
-            updatedAt: sql`now()`,
-            updatedBy: actor.accountId,
-          })
-          .where(eq(rental.id, row.id));
+
         await tx.insert(rentalEvent).values({
           rentalId: row.id,
           reference,
-          type: 'replacement',
+          type: 'incident',
           reasonCode: input.category,
-          detail: { fromUnitId: row.unitId, toUnitId: replacement.id },
+          note: input.note ?? null,
+          detail: { immobilised, unitId: row.unitId },
           actorType: actor.kind,
           actorId: actor.accountId,
           actorLabel: actor.displayName,
         });
-      } else if (immobilised && row.unitId) {
-        await tx
-          .update(vehicleUnit)
-          .set({ state: 'out_of_service', updatedAt: sql`now()`, updatedBy: actor.accountId })
-          .where(eq(vehicleUnit.id, row.unitId));
+
+        if (immobilised && row.unitId) {
+          await tx.insert(vehicleBlock).values({
+            unitId: row.unitId,
+            kind: 'damage',
+            reasonCode: input.category,
+            startAt: new Date().toISOString(),
+            note: input.note ?? null,
+            createdBy: actor.accountId,
+          });
+        }
+
+        if (replacement) {
+          if (row.unitId) {
+            await tx
+              .update(vehicleUnit)
+              .set({
+                state: immobilised ? 'out_of_service' : 'prep',
+                updatedAt: sql`now()`,
+                updatedBy: actor.accountId,
+              })
+              .where(eq(vehicleUnit.id, row.unitId));
+          }
+          await tx
+            .update(vehicleUnit)
+            .set({ state: 'on_rent', updatedAt: sql`now()`, updatedBy: actor.accountId })
+            .where(eq(vehicleUnit.id, replacement.id));
+          await tx
+            .update(rental)
+            .set({
+              unitId: replacement.id,
+              version: row.version + 1,
+              updatedAt: sql`now()`,
+              updatedBy: actor.accountId,
+            })
+            .where(eq(rental.id, row.id));
+          await tx.insert(rentalEvent).values({
+            rentalId: row.id,
+            reference,
+            type: 'replacement',
+            reasonCode: input.category,
+            detail: { fromUnitId: row.unitId, toUnitId: replacement.id },
+            actorType: actor.kind,
+            actorId: actor.accountId,
+            actorLabel: actor.displayName,
+          });
+        } else if (immobilised && row.unitId) {
+          await tx
+            .update(vehicleUnit)
+            .set({ state: 'out_of_service', updatedAt: sql`now()`, updatedBy: actor.accountId })
+            .where(eq(vehicleUnit.id, row.unitId));
+        }
+      });
+    } catch (err) {
+      // Safety net for a race the advisory lock above narrows but doesn't fully eliminate on
+      // its own (e.g. the replacement unit picked up an unrelated open rental via a different
+      // lock key) — the DB's partial unique index (rental_open_unit_unq) is the real guarantee;
+      // this turns its violation into the same clean business error as the read-based check.
+      if (err instanceof Error && /rental_open_unit_unq/.test(err.message)) {
+        throw AppError.businessRule('The replacement vehicle is on another rental', {
+          reason: 'open_rental',
+        });
       }
-    });
+      throw err;
+    }
 
     await this.audit.record({
       action: replacement ? 'rental.unit.replaced' : 'rental.incident.raised',
@@ -523,6 +611,20 @@ export class RentalService {
         `The return odometer (${input.odometerKm} km) cannot be below the pickup reading (${row.odometerOutKm} km)`,
       );
     }
+    // A sanity ceiling on the delta, not the reading itself — generous enough for a genuine
+    // long-term/commercial rental (a 90-day rental averaging 500km/day is still only 45,000 km),
+    // but catches the class of error an unbounded field otherwise lets straight through: an
+    // extra typed digit turning 5,000 km into 50,000 km with no correction prompt at the desk.
+    const MAX_ODOMETER_DELTA_KM = 100_000;
+    if (
+      row.odometerOutKm != null &&
+      input.odometerKm - row.odometerOutKm > MAX_ODOMETER_DELTA_KM
+    ) {
+      throw AppError.validation(
+        [{ path: 'odometerKm', code: 'max' }],
+        `The return odometer (${input.odometerKm} km) is implausibly far from the pickup reading (${row.odometerOutKm} km) — check for a data-entry error`,
+      );
+    }
 
     const findings = input.findings ?? [];
     const damageMinor = findings.reduce((a, f) => a + Math.max(0, f.chargeMinor ?? 0), 0);
@@ -540,7 +642,10 @@ export class RentalService {
         purpose: `return-settlement-${Date.now()}`,
         amountMinor: adjustmentMinor,
         currency: row.currency,
-        token: 'tok_ok',
+        // No fixed token: an omitted token lets PaymentService fall back to the reservation's
+        // saved payment method (off-session reuse) — see payment.service.ts. A hardcoded
+        // simulator-only literal here (`tok_ok`) would be forwarded verbatim to the live Stripe
+        // driver as `payment_method` and rejected as an invalid PaymentMethod id.
         actor,
       });
     }
@@ -683,6 +788,56 @@ export class RentalService {
       .where(and(eq(rental.state, 'active'), sql`${rental.scheduledReturnAt} < now()`))
       .returning({ id: rental.id });
     return res.length;
+  }
+
+  /** See booking.service.ts's identical resolution at confirm() — kept in sync there rather than
+   *  extracted, since RentalService and BookingService each own their own DB access. */
+  private async assertPickupEligible(reservationReference: string): Promise<void> {
+    const [res] = await this.db
+      .select({
+        id: reservation.id,
+        accountId: reservation.accountId,
+        pickupLocationCode: reservation.pickupLocationCode,
+        categoryCode: reservation.categoryCode,
+      })
+      .from(reservation)
+      .where(eq(reservation.reference, reservationReference))
+      .limit(1);
+    if (!res) return;
+
+    const [primaryDriver] = await this.db
+      .select({ email: reservationDriver.email })
+      .from(reservationDriver)
+      .where(
+        and(eq(reservationDriver.reservationId, res.id), eq(reservationDriver.role, 'primary_renter')),
+      )
+      .limit(1);
+
+    const custIds = new Set<string>();
+    if (res.accountId) {
+      const [cust] = await this.db
+        .select({ id: customer.id })
+        .from(customer)
+        .where(eq(customer.accountId, res.accountId))
+        .limit(1);
+      if (cust) custIds.add(cust.id);
+    }
+    const email = primaryDriver?.email?.trim().toLowerCase();
+    if (email) {
+      const [cust] = await this.db
+        .select({ id: customer.id })
+        .from(customer)
+        .where(sql`lower(coalesce(${customer.emailNormalized}, ${customer.email})) = ${email}`)
+        .limit(1);
+      if (cust) custIds.add(cust.id);
+    }
+    for (const custId of custIds) {
+      await this.restrictions.assertCanTransact(custId, {
+        categoryCode: res.categoryCode,
+        locationCode: res.pickupLocationCode,
+        at: new Date(),
+      });
+    }
   }
 
   // ------------------------------------------------------------------- reads

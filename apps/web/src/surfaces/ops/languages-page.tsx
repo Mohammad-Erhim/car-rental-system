@@ -166,14 +166,6 @@ export function LanguagesPage() {
         variant: 'success',
       });
     } catch (err) {
-      if (
-        action === 'default' &&
-        err instanceof ApiError &&
-        err.problem.params?.reason === 'default_locale_untranslated'
-      ) {
-        // the confirm dialog already carries the warning — the user confirmed, retry with force
-        return doAct(code, 'default', true);
-      }
       toast({
         title: err instanceof ApiError ? err.message : t('ops.languages.actionFail'),
       });

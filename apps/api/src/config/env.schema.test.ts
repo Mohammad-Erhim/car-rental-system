@@ -30,4 +30,47 @@ describe('env schema', () => {
     });
     expect(env.CORS_ALLOWED_ORIGINS).toEqual(['http://a.test', 'http://b.test']);
   });
+
+  describe('production must override the dev-only secret placeholders', () => {
+    it('accepts the dev placeholders outside production (a fresh checkout still boots)', () => {
+      expect(envSchema.safeParse({ ...BASE, NODE_ENV: 'development' }).success).toBe(true);
+      expect(envSchema.safeParse({ ...BASE, NODE_ENV: 'test' }).success).toBe(true);
+    });
+
+    it('rejects every still-default placeholder in production, one issue per field', () => {
+      const result = envSchema.safeParse({ ...BASE, NODE_ENV: 'production' });
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      const paths = result.error.issues.map((i) => i.path.join('.'));
+      expect(paths).toContain('PAYMENT_CONFIG_ENCRYPTION_KEY');
+      expect(paths).toContain('PAYMENT_WEBHOOK_SECRET');
+      expect(paths).toContain('OBJECT_STORAGE_SIGNING_SECRET');
+    });
+
+    it('passes in production once every placeholder is overridden with a real value', () => {
+      const result = envSchema.safeParse({
+        ...BASE,
+        NODE_ENV: 'production',
+        PAYMENT_CONFIG_ENCRYPTION_KEY: 'a-real-encryption-key-not-the-dev-default',
+        PAYMENT_WEBHOOK_SECRET: 'a-real-webhook-secret-not-the-dev-default',
+        OBJECT_STORAGE_SIGNING_SECRET: 'a-real-signing-secret-not-the-dev-default',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('rejects in production if only some placeholders are overridden', () => {
+      const result = envSchema.safeParse({
+        ...BASE,
+        NODE_ENV: 'production',
+        PAYMENT_CONFIG_ENCRYPTION_KEY: 'a-real-encryption-key-not-the-dev-default',
+        // PAYMENT_WEBHOOK_SECRET and OBJECT_STORAGE_SIGNING_SECRET left as defaults
+      });
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      const paths = result.error.issues.map((i) => i.path.join('.'));
+      expect(paths).not.toContain('PAYMENT_CONFIG_ENCRYPTION_KEY');
+      expect(paths).toContain('PAYMENT_WEBHOOK_SECRET');
+      expect(paths).toContain('OBJECT_STORAGE_SIGNING_SECRET');
+    });
+  });
 });

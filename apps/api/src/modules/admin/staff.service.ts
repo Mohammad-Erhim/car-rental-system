@@ -1,9 +1,13 @@
+import { randomBytes } from 'node:crypto';
+
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
+import { assertLocationAccess } from '../../common/auth/location-scope';
 import { PasswordService } from '../../common/auth/password.service';
+import { SessionService } from '../../common/auth/session.service';
 import type { Actor } from '../../common/auth/types';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
@@ -18,6 +22,7 @@ export class StaffService {
     private readonly passwords: PasswordService,
     private readonly audit: AuditService,
     private readonly iam: IamPublic,
+    private readonly sessions: SessionService,
   ) {}
 
   async listRoles() {
@@ -75,6 +80,10 @@ export class StaffService {
         title: 'Only an administrator can grant the administrator role',
       });
     }
+    // A location-scoped staff.manage actor can only grant scope they themselves hold — otherwise
+    // a branch manager could invite a new hire (or edit an existing one, in changeAccess below)
+    // with visibility across every location in the org, escalating past their own access.
+    assertGrantedScopeWithinActor(actor, input.locationScope);
 
     const emailNormalized = input.email.trim().toLowerCase();
     const [existing] = await this.db
@@ -198,6 +207,7 @@ export class StaffService {
         title: 'Only an administrator can grant the administrator role',
       });
     }
+    assertGrantedScopeWithinActor(actor, input.locationScope);
 
     const before = {
       roleCodes: profile.roleCodes,
@@ -232,6 +242,15 @@ export class StaffService {
           updatedAt: sql`now()`,
         })
         .where(eq(account.id, accountId));
+      // ActorService already re-checks status on every request, so access is cut immediately
+      // regardless — this closes the hygiene gap where a revoked staffer's sessions kept
+      // listing as "active" (sessions.listForAccount) until they happened to expire naturally,
+      // matching the same immediate-revocation behavior changePassword/completeRecovery already
+      // have for a customer account.
+      await this.sessions.revokeAllForAccount(
+        accountId,
+        input.status === 'suspended' ? 'staff_suspended' : 'staff_deactivated',
+      );
     } else if (input.status === 'active') {
       await this.db
         .update(account)
@@ -263,8 +282,21 @@ export class StaffService {
   }
 }
 
+/** An org-wide actor (empty `locationScope`) may grant any scope, including org-wide. A
+ *  location-scoped actor may only grant a subset of their own locations — granting a location
+ *  outside their own scope would let them create a staffer with more reach than themselves. */
+function assertGrantedScopeWithinActor(actor: Actor, grantedScope?: string[]): void {
+  const actorScope = actor.locationScope ?? [];
+  if (!actorScope.length) return; // org-wide actor
+  for (const code of grantedScope ?? []) {
+    assertLocationAccess(actor, code);
+  }
+}
+
+/** CSPRNG-backed — this is live credential material (the invitee's temp password), not a
+ *  cosmetic id, so `Math.random()` is not acceptable here. */
 function cryptoRandom(): string {
-  return Array.from({ length: 24 }, () => Math.floor(Math.random() * 36).toString(36)).join('');
+  return randomBytes(24).toString('base64url');
 }
 
 /** The staff-profile approval limit is derived purely from role codes (DEC/FR-ADM-009's simple

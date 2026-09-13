@@ -261,7 +261,7 @@ export function PaymentsPage() {
             id="pay-test-webhook"
             label={t('ops.pay.webhookSecret')}
             hint={t('ops.pay.webhookSecretHint')}
-            configured={false}
+            configured={d.test.webhookConfigured}
             last4={null}
             editing={editTestWebhook}
             onEdit={() => setEditTestWebhook(true)}
@@ -312,7 +312,7 @@ export function PaymentsPage() {
             id="pay-live-webhook"
             label={t('ops.pay.webhookSecret')}
             hint={t('ops.pay.webhookSecretHint')}
-            configured={false}
+            configured={d.live.webhookConfigured}
             last4={null}
             editing={editLiveWebhook}
             onEdit={() => setEditLiveWebhook(true)}

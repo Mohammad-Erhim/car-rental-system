@@ -319,6 +319,26 @@ export class AvailabilityService {
     return this.db.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
 
+      // The same holder re-requesting a hold on the exact same class/location/window — a retry
+      // after a network hiccup, or navigating back and re-submitting the reserve button — is
+      // reconsidering, not a second shopper. Release their own still-active prior hold(s) for
+      // this exact combination first, so a retry never piles up extra holds against this class's
+      // availability (which would otherwise falsely read as scarcer to everyone else).
+      await tx
+        .update(hold)
+        .set({ status: 'released', releasedAt: sql`now()`, releaseReason: 'superseded' })
+        .where(
+          and(
+            eq(hold.holderKey, input.holderKey),
+            eq(hold.organizationId, input.organizationId),
+            eq(hold.categoryCode, input.categoryCode),
+            eq(hold.pickupLocationCode, input.pickupLocationCode),
+            eq(hold.pickupAt, input.pickupAt.toISOString()),
+            eq(hold.returnAt, input.returnAt.toISOString()),
+            eq(hold.status, 'active'),
+          ),
+        );
+
       const { unitIds, occupiedByUnit } = await this.fleet.candidateUnits(
         input.pickupLocationCode,
         input.categoryCode,

@@ -69,15 +69,19 @@ test.describe('customer booking (APP-CWEB)', () => {
     const ref = await page.getByTestId('confirm-ref').innerText();
     expect(ref).toMatch(/^RES-/);
     await expect(page.getByTestId('confirm-total')).toContainText(total.replace(/[^0-9.]/g, ''));
-    // confirmation lines sum to the total
+    // confirmation lines sum to the total — parsing *rendered display text* back into a number
+    // for a browser-level assertion, not application money math (which stays integer-minor-units
+    // throughout); the rule's target is money handling in app code, not reading a UI string here.
     const cells = await page
       .locator('[data-testid="confirm-lines"] tbody tr:not(:last-child) td:last-child')
       .allInnerTexts();
     const sum = cells.reduce(
+      // eslint-disable-next-line no-restricted-syntax -- parsing displayed currency text, see comment above
       (a, s) => a + Math.round(parseFloat(s.replace(/[^0-9.]/g, '')) * 100),
       0,
     );
     const totalCents = Math.round(
+      // eslint-disable-next-line no-restricted-syntax -- parsing displayed currency text, see comment above
       parseFloat((await page.getByTestId('confirm-total').innerText()).replace(/[^0-9.]/g, '')) *
         100,
     );
@@ -100,6 +104,7 @@ test.describe('customer booking (APP-CWEB)', () => {
     await toCheckout(page, 'economy');
 
     const baseTotal = Math.round(
+      // eslint-disable-next-line no-restricted-syntax -- parsing displayed currency text in an e2e assertion, not app money math
       parseFloat((await page.getByTestId('quote-total').innerText()).replace(/[^0-9.]/g, '')) * 100,
     );
 
@@ -122,8 +127,10 @@ test.describe('customer booking (APP-CWEB)', () => {
     await expect(lines).toContainText('Child seat');
     await expect(lines).toContainText(/protection/i);
 
-    // the confirmed total exceeds the bare quote, and the lines still sum to it
+    // the confirmed total exceeds the bare quote, and the lines still sum to it — parsing
+    // *rendered display text*, not application money math (see comment further up this file)
     const confirmedTotal = Math.round(
+      // eslint-disable-next-line no-restricted-syntax -- parsing displayed currency text, not app money math
       parseFloat((await page.getByTestId('confirm-total').innerText()).replace(/[^0-9.]/g, '')) *
         100,
     );
@@ -132,6 +139,7 @@ test.describe('customer booking (APP-CWEB)', () => {
       .locator('[data-testid="confirm-lines"] tbody tr:not(:last-child) td:last-child')
       .allInnerTexts();
     const sum = cells.reduce(
+      // eslint-disable-next-line no-restricted-syntax -- parsing displayed currency text, not app money math
       (a, s) => a + Math.round(parseFloat(s.replace(/[^0-9.]/g, '')) * 100),
       0,
     );

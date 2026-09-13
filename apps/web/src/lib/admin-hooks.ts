@@ -1008,6 +1008,7 @@ export interface PaymentModeConfig {
   secretKeyLast4: string | null;
   configuredAt: string | null;
   verifiedAt: string | null;
+  webhookConfigured: boolean;
 }
 export interface PaymentConfigSummary {
   activeDriver: PaymentDriver;
@@ -1041,5 +1042,86 @@ export function useUpdatePaymentConfig() {
     mutationFn: (body: UpdatePaymentConfigInput) =>
       apiFetch<PaymentConfigSummary>('/ops/payments/config', { method: 'PUT', body }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: PAYMENT_CONFIG_KEY }),
+  });
+}
+
+// ---- staff & roles (SCREEN-OPS-004/005, FR-ADM-003/004) ----
+
+export interface StaffRole {
+  code: string;
+  name: string;
+  isSystem: boolean;
+  permissionActions: string[];
+}
+export interface StaffRow {
+  accountId: string;
+  displayName: string;
+  email: string;
+  status: 'invited' | 'active' | 'suspended' | 'deactivated';
+  roleCodes: string[];
+  locationScope: string[];
+}
+export interface StaffAccessInput {
+  accountId: string;
+  body: { roleCodes?: string[]; locationScope?: string[]; status?: StaffRow['status'] };
+  successKey: string;
+}
+
+const STAFF_ROLES_KEY = ['admin', 'roles'];
+const STAFF_LIST_KEY = ['admin', 'staff'];
+
+export function useStaffRoles() {
+  return useQuery({
+    queryKey: STAFF_ROLES_KEY,
+    queryFn: ({ signal }) =>
+      apiFetch<{ roles: StaffRole[]; permissionActions: unknown[] }>('/admin/roles', { signal }),
+  });
+}
+
+export function useStaffList() {
+  return useQuery({
+    queryKey: STAFF_LIST_KEY,
+    queryFn: ({ signal }) => apiFetch<StaffRow[]>('/admin/staff', { signal }),
+  });
+}
+
+export function useInviteStaff() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      email: string;
+      fullName: string;
+      roleCodes: string[];
+      locationScope: string[];
+    }) => apiFetch('/admin/staff/invite', { method: 'POST', body: input }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: STAFF_LIST_KEY }),
+  });
+}
+
+/** Re-invites an already-invited account: same backend endpoint (it upserts + re-sends the
+ *  set-password challenge), pre-filled from the row so the admin doesn't retype anything. */
+export function useResendStaffInvite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (row: StaffRow) =>
+      apiFetch('/admin/staff/invite', {
+        method: 'POST',
+        body: {
+          email: row.email,
+          fullName: row.displayName,
+          roleCodes: row.roleCodes,
+          locationScope: row.locationScope,
+        },
+      }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: STAFF_LIST_KEY }),
+  });
+}
+
+export function useStaffAccessChange() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: StaffAccessInput) =>
+      apiFetch(`/admin/staff/${input.accountId}/access`, { method: 'POST', body: input.body }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: STAFF_LIST_KEY }),
   });
 }
