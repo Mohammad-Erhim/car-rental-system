@@ -764,6 +764,84 @@ export function useSetProductActive() {
   });
 }
 
+// ---- vehicle categories (SCREEN-OPS-013/025 — passengers/luggage/doors/transmission/features
+// shown on the public site's vehicle cards) ----
+
+export interface CategoryFeature {
+  code: string;
+  label: string;
+  group: string;
+}
+
+export interface CategoryView {
+  id: string;
+  code: string;
+  class: string;
+  displayName: string;
+  description: string | null;
+  passengers: number;
+  luggage: number;
+  doors: number;
+  transmission: 'automatic' | 'manual';
+  imageRef: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  features: CategoryFeature[];
+  version: number;
+}
+
+export interface CategoryInput {
+  code: string;
+  class: string;
+  displayName: string;
+  description?: string;
+  passengers: number;
+  luggage: number;
+  doors: number;
+  transmission?: 'automatic' | 'manual';
+  imageRef?: string;
+  sortOrder?: number;
+  featureCodes?: string[];
+}
+
+const CATEGORY_KEY = ['ops', 'catalogue-categories-full'];
+
+export function useCatalogueCategories() {
+  return useQuery({
+    queryKey: CATEGORY_KEY,
+    queryFn: ({ signal }) => apiFetch<CategoryView[]>('/ops/catalogue/categories', { signal }),
+  });
+}
+
+export function useCatalogueFeatures() {
+  return useQuery({
+    queryKey: ['ops', 'catalogue-features'],
+    queryFn: ({ signal }) =>
+      apiFetch<CategoryFeature[]>('/ops/catalogue/features', { signal }),
+  });
+}
+
+export function useUpsertCategory() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ ifMatch, ...body }: CategoryInput & { ifMatch?: number }) =>
+      apiFetch<CategoryView>('/ops/catalogue/categories', { method: 'POST', body, ifMatch }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: CATEGORY_KEY }),
+  });
+}
+
+export function useSetCategoryActive() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ code, active }: { code: string; active: boolean }) =>
+      apiFetch<CategoryView>(
+        `/ops/catalogue/categories/${code}/${active ? 'restore' : 'deactivate'}`,
+        { method: 'POST' },
+      ),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: CATEGORY_KEY }),
+  });
+}
+
 // ---- unified reservation + rental search (SCREEN-OPS-004 / FR-ADM-003) ----
 
 export interface SearchHit {

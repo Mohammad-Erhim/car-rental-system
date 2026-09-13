@@ -19,6 +19,7 @@ export const zVehicleCategory = z.object({
   features: z
     .array(z.object({ code: z.string(), label: z.string(), group: z.string() }))
     .default([]),
+  version: z.number().int(),
 });
 export type VehicleCategory = z.infer<typeof zVehicleCategory>;
 
