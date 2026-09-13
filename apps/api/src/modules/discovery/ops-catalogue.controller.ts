@@ -1,4 +1,4 @@
-import { zUpsertVehicleCategory } from '@carrental/contracts';
+import { zUpsertVehicleCategory, zUpsertVehicleFeature } from '@carrental/contracts';
 import { Body, Controller, Delete, Get, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -143,7 +143,7 @@ export class OpsCatalogueController {
   @Get('catalogue/features')
   @Permissions('catalogue.read', 'config.read')
   listFeatures() {
-    return this.catalogue.listFeatures();
+    return this.catalogue.listFeatures({ includeInactive: true });
   }
 
   @Post('catalogue/categories')
@@ -168,6 +168,30 @@ export class OpsCatalogueController {
   @Permissions('catalogue.manage')
   restoreCategory(@Param('code') code: string, @CurrentActor() actor: Actor) {
     return this.catalogue.setCategoryActive(actor, code, true);
+  }
+
+  @Post('catalogue/features')
+  @Permissions('catalogue.manage')
+  upsertFeature(
+    @Body(new ZodValidationPipe(zUpsertVehicleFeature))
+    body: z.infer<typeof zUpsertVehicleFeature>,
+    @CurrentActor() actor: Actor,
+    @Req() req: Request,
+  ) {
+    const ifMatch = req.header('If-Match');
+    return this.catalogue.upsertFeature(actor, body, ifMatch ? Number(ifMatch) : undefined);
+  }
+
+  @Post('catalogue/features/:code/deactivate')
+  @Permissions('catalogue.manage')
+  deactivateFeature(@Param('code') code: string, @CurrentActor() actor: Actor) {
+    return this.catalogue.setFeatureActive(actor, code, false);
+  }
+
+  @Post('catalogue/features/:code/restore')
+  @Permissions('catalogue.manage')
+  restoreFeature(@Param('code') code: string, @CurrentActor() actor: Actor) {
+    return this.catalogue.setFeatureActive(actor, code, true);
   }
 
   // --- fleet inventory + operations (SCREEN-OPS-013 / 017 / 018) ---

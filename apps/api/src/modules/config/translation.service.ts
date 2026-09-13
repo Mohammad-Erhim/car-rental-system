@@ -10,12 +10,19 @@ import { isUniqueViolation } from '../../common/db-error';
 import { revOf } from '../../common/i18n-source-rev';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
+import { vehicleCategory, vehicleFeature } from '../../database/schema/catalogue';
 import { customer } from '../../database/schema/customer';
 import { locale, translation } from '../../database/schema/i18n';
 import { account } from '../../database/schema/iam';
 import { lookupValue } from '../../database/schema/lookup';
 
 const LOOKUP_NS = 'lookup:';
+/** Kept in sync with `CatalogueService`'s own constants by literal value (not an import — that
+ *  would cross a module boundary for two string constants) — see its comment for why category/
+ *  feature display text is translated through this exact mechanism. */
+const CATALOGUE_CATEGORY_NS = 'catalogue:category';
+const CATALOGUE_FEATURE_NS = 'catalogue:feature';
+const DESCRIPTION_SUFFIX = '.description';
 
 /**
  * Translation catalogue (FR-ADM-012, SRS-I18N-003). Completeness + publish status by language;
@@ -50,6 +57,25 @@ export class TranslationService {
         .where(and(eq(lookupValue.typeCode, typeCode), eq(lookupValue.isActive, true)));
       for (const v of values) out.set(v.code, v.label);
     }
+    if (namespace === CATALOGUE_CATEGORY_NS) {
+      const cats = await this.db
+        .select({
+          code: vehicleCategory.code,
+          displayName: vehicleCategory.displayName,
+          description: vehicleCategory.description,
+        })
+        .from(vehicleCategory);
+      for (const c of cats) {
+        out.set(c.code, c.displayName);
+        if (c.description) out.set(`${c.code}${DESCRIPTION_SUFFIX}`, c.description);
+      }
+    }
+    if (namespace === CATALOGUE_FEATURE_NS) {
+      const feats = await this.db
+        .select({ code: vehicleFeature.code, label: vehicleFeature.label })
+        .from(vehicleFeature);
+      for (const f of feats) out.set(f.code, f.label);
+    }
     const rows = await this.db
       .select({ key: translation.key, value: translation.value })
       .from(translation)
@@ -78,6 +104,27 @@ export class TranslationService {
       let cat = out.get(ns);
       if (!cat) out.set(ns, (cat = new Map()));
       cat.set(v.code, v.label);
+    }
+    const cats = await this.db
+      .select({
+        code: vehicleCategory.code,
+        displayName: vehicleCategory.displayName,
+        description: vehicleCategory.description,
+      })
+      .from(vehicleCategory);
+    if (cats.length) {
+      const cat = new Map<string, string>();
+      for (const c of cats) {
+        cat.set(c.code, c.displayName);
+        if (c.description) cat.set(`${c.code}${DESCRIPTION_SUFFIX}`, c.description);
+      }
+      out.set(CATALOGUE_CATEGORY_NS, cat);
+    }
+    const feats = await this.db
+      .select({ code: vehicleFeature.code, label: vehicleFeature.label })
+      .from(vehicleFeature);
+    if (feats.length) {
+      out.set(CATALOGUE_FEATURE_NS, new Map(feats.map((f) => [f.code, f.label])));
     }
     const rows = await this.db
       .select({ namespace: translation.namespace, key: translation.key, value: translation.value })

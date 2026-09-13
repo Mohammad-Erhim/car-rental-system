@@ -236,7 +236,14 @@ describe('discovery / quote', () => {
       .post('/api/v1/ops/catalogue/categories')
       .set('Authorization', `Bearer ${adminToken}`)
       .set('If-Match', '0')
-      .send({ code, class: 'economy', displayName: 'Stale Write', passengers: 4, luggage: 1, doors: 4 })
+      .send({
+        code,
+        class: 'economy',
+        displayName: 'Stale Write',
+        passengers: 4,
+        luggage: 1,
+        doors: 4,
+      })
       .expect(409);
 
     // the correct current version is accepted and bumps the version again
@@ -281,5 +288,163 @@ describe('discovery / quote', () => {
       .expect(201);
     const publicListAfter = await request(server).get('/api/v1/catalogue/categories').expect(200);
     expect(publicListAfter.body.some((c: { code: string }) => c.code === code)).toBe(true);
+  });
+
+  it('ops vehicle-feature management: create, edit with If-Match, stale edit refused, deactivate/restore', async () => {
+    const code = `test_feat_${Date.now()}`;
+
+    const created = await request(server)
+      .post('/api/v1/ops/catalogue/features')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ code, label: 'Test Feature', group: 'comfort', sortOrder: 5 })
+      .expect(201);
+    expect(created.body.version).toBe(1);
+    expect(created.body.isActive).toBe(true);
+    expect(created.body.label).toBe('Test Feature');
+
+    // a stale If-Match (an older version than what's actually stored) is refused
+    await request(server)
+      .post('/api/v1/ops/catalogue/features')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('If-Match', '0')
+      .send({ code, label: 'Stale Write', group: 'comfort' })
+      .expect(409);
+
+    // the correct current version is accepted and bumps the version again
+    const edited = await request(server)
+      .post('/api/v1/ops/catalogue/features')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('If-Match', String(created.body.version))
+      .send({ code, label: 'Test Feature Updated', group: 'tech', sortOrder: 9 })
+      .expect(201);
+    expect(edited.body.version).toBe(2);
+    expect(edited.body.label).toBe('Test Feature Updated');
+    expect(edited.body.group).toBe('tech');
+
+    // deactivate — still listed (ops list is always includeInactive), flips isActive
+    await request(server)
+      .post(`/api/v1/ops/catalogue/features/${code}/deactivate`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201);
+    const afterOff = await request(server)
+      .get('/api/v1/ops/catalogue/features')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(afterOff.body.find((f: { code: string }) => f.code === code).isActive).toBe(false);
+
+    // restore
+    await request(server)
+      .post(`/api/v1/ops/catalogue/features/${code}/restore`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201);
+    const afterOn = await request(server)
+      .get('/api/v1/ops/catalogue/features')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(afterOn.body.find((f: { code: string }) => f.code === code).isActive).toBe(true);
+  });
+
+  it('permission: an agent cannot create a vehicle feature', async () => {
+    await request(server)
+      .post('/api/v1/ops/catalogue/features')
+      .set('Authorization', `Bearer ${agentToken}`)
+      .send({ code: 'sneaky_feature', label: 'Sneaky' })
+      .expect(403);
+  });
+
+  it('locale-aware translation: a published French translation of a category name/description and a feature label is only served with ?locale=fr, and English is untouched', async () => {
+    const catCode = `test_locale_cat_${Date.now()}`;
+    const featCode = `test_locale_feat_${Date.now()}`;
+
+    await request(server)
+      .post('/api/v1/ops/catalogue/categories')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        code: catCode,
+        class: 'economy',
+        displayName: 'English Name',
+        description: 'English description',
+        passengers: 4,
+        luggage: 1,
+        doors: 4,
+      })
+      .expect(201);
+    await request(server)
+      .post('/api/v1/ops/catalogue/features')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ code: featCode, label: 'English Label', group: 'comfort' })
+      .expect(201);
+    await request(server)
+      .post('/api/v1/ops/catalogue/categories')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('If-Match', '1')
+      .send({
+        code: catCode,
+        class: 'economy',
+        displayName: 'English Name',
+        description: 'English description',
+        passengers: 4,
+        luggage: 1,
+        doors: 4,
+        featureCodes: [featCode],
+      })
+      .expect(201);
+
+    // draft+publish (config.publish can set status: 'published' directly) the French strings
+    await request(server)
+      .post('/api/v1/config/translations')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        namespace: 'catalogue:category',
+        key: catCode,
+        localeCode: 'fr',
+        value: 'Nom Français',
+        status: 'published',
+      })
+      .expect(201);
+    await request(server)
+      .post('/api/v1/config/translations')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        namespace: 'catalogue:category',
+        key: `${catCode}.description`,
+        localeCode: 'fr',
+        value: 'Description française',
+        status: 'published',
+      })
+      .expect(201);
+    await request(server)
+      .post('/api/v1/config/translations')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        namespace: 'catalogue:feature',
+        key: featCode,
+        localeCode: 'fr',
+        value: 'Étiquette française',
+        status: 'published',
+      })
+      .expect(201);
+
+    // no locale / english: untranslated source strings
+    const enView = await request(server).get(`/api/v1/catalogue/categories/${catCode}`).expect(200);
+    expect(enView.body.displayName).toBe('English Name');
+    expect(enView.body.description).toBe('English description');
+    expect(enView.body.features[0].label).toBe('English Label');
+
+    // ?locale=fr: published French overlay, for both the category and its embedded feature
+    const frView = await request(server)
+      .get(`/api/v1/catalogue/categories/${catCode}`)
+      .query({ locale: 'fr' })
+      .expect(200);
+    expect(frView.body.displayName).toBe('Nom Français');
+    expect(frView.body.description).toBe('Description française');
+    expect(frView.body.features[0].label).toBe('Étiquette française');
+
+    // an unrelated, untranslated locale falls back to the English source (no crash, no blank)
+    const arView = await request(server)
+      .get(`/api/v1/catalogue/categories/${catCode}`)
+      .query({ locale: 'ar' })
+      .expect(200);
+    expect(arView.body.displayName).toBe('English Name');
   });
 });

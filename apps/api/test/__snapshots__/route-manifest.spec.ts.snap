@@ -77,6 +77,9 @@ POST   /api/v1/ops/catalogue/categories
 POST   /api/v1/ops/catalogue/categories/:code/deactivate
 POST   /api/v1/ops/catalogue/categories/:code/restore
 GET    /api/v1/ops/catalogue/features
+POST   /api/v1/ops/catalogue/features
+POST   /api/v1/ops/catalogue/features/:code/deactivate
+POST   /api/v1/ops/catalogue/features/:code/restore
 GET    /api/v1/ops/catalogue/products
 POST   /api/v1/ops/catalogue/products
 POST   /api/v1/ops/catalogue/products/:code/deactivate
