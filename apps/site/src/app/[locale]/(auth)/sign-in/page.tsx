@@ -14,7 +14,7 @@ import {
 } from '@carrental/ui';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useState, type FormEvent } from 'react';
+import { Suspense, useEffect, useState, type FormEvent } from 'react';
 
 import { useLocale } from '../../../../lib/nav';
 
@@ -31,9 +31,14 @@ function SignInInner() {
   const errs = useFormErrors({ email: t('auth.email'), password: t('auth.password') });
 
   const returnParam = params.get('returnTo');
-  if (returnParam && returnParam.startsWith('/') && !returnParam.startsWith('//')) {
-    stashReturnTo(returnParam);
-  }
+  // A localStorage write is a side effect and must not run during render (doubles under
+  // StrictMode, and runs on every re-render rather than once per navigation) — effect, not the
+  // component body.
+  useEffect(() => {
+    if (returnParam && returnParam.startsWith('/') && !returnParam.startsWith('//')) {
+      stashReturnTo(returnParam);
+    }
+  }, [returnParam]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();

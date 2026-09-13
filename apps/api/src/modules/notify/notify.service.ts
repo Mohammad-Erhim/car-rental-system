@@ -10,6 +10,7 @@ import { notification, template } from '../../database/schema/notify';
 import { LocaleRepo } from '../config/locale.repo';
 
 import { NotificationRuleService } from './notification-rule.service';
+import { renderTemplate } from './render';
 
 export interface AudienceRecipient {
   email: string;
@@ -97,8 +98,13 @@ export class NotifyService {
     if (tpl) {
       templateKey = tpl.key;
       templateVersion = tpl.version;
-      subject = render(tpl.subject ?? '', vars) || subject;
-      body = render(tpl.bodyTemplate, vars);
+      // Escape interpolated values for 'email' (a real HTML mail transport would render `body`
+      // as markup — a customer-controlled value like a registered full name must not become
+      // live HTML) — never for 'sms'/'push', which are always plain text and must not show
+      // literal "&amp;"/"&#39;" to the recipient.
+      const escape = channel === 'email';
+      subject = renderTemplate(tpl.subject ?? '', vars, { escape }) || subject;
+      body = renderTemplate(tpl.bodyTemplate, vars, { escape });
     } else if (!body) {
       body = `[${input.event}] ` + JSON.stringify(vars);
     }
@@ -188,15 +194,6 @@ export class NotifyService {
       .orderBy(desc(notification.createdAt))
       .limit(Math.min(limit, 200));
   }
-}
-
-function render(tpl: string, vars: Record<string, unknown>): string {
-  return tpl.replace(/\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g, (_, k: string) => {
-    const v = k
-      .split('.')
-      .reduce<unknown>((acc, part) => (acc as Record<string, unknown>)?.[part], vars);
-    return v == null ? '' : String(v);
-  });
 }
 
 function maskRecipient(r: string): string {

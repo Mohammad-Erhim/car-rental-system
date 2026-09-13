@@ -37,7 +37,14 @@ export const base = [
       'no-restricted-syntax': [
         'error',
         {
+          // Number.parseFloat(x) / anyObj.parseFloat(x) — callee is a MemberExpression.
           selector: "CallExpression[callee.property.name='parseFloat']",
+          message: 'Money must use integer minor units (SRS-DAT-003). Do not parseFloat money.',
+        },
+        {
+          // Bare parseFloat(x) — callee is an Identifier, so `.property` never matches above;
+          // this was previously the more common spelling and went entirely unchecked.
+          selector: "CallExpression[callee.name='parseFloat']",
           message: 'Money must use integer minor units (SRS-DAT-003). Do not parseFloat money.',
         },
       ],

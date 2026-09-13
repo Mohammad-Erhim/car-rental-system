@@ -76,13 +76,17 @@ describe('reservation operations', () => {
     expect(c1.body.refundMinor).toBe(r.paidMinor);
     expect(c1.body.feeMinor).toBe(0);
 
-    // idempotent — a second cancel returns the same result, no extra refund
+    // idempotent — a second cancel returns the same result, no extra refund, and still reports
+    // the refund that actually happened (not 0 — `row.paidMinor` is already the post-refund
+    // retained amount by the time this second call reads it, so re-deriving from it wrongly
+    // would under-report here specifically, since the retained amount is 0 for a full refund).
     const c2 = await request(server)
       .post(`/api/v1/reservations/${r.reference}/cancel`)
       .set('Authorization', `Bearer ${customerToken}`)
       .send({ reasonCode: 'plans_changed' })
       .expect(201);
     expect(c2.body.state).toBe('cancelled');
+    expect(c2.body.refundMinor).toBe(c1.body.refundMinor);
 
     const history = await request(server)
       .get(`/api/v1/reservations/${r.reference}/history`)
@@ -140,6 +144,14 @@ describe('reservation operations', () => {
       .expect(201);
     expect(c.body.feeMinor).toBe(Math.round((r.totalMinor * 2000) / 10000));
     expect(c.body.refundMinor).toBe(r.paidMinor - c.body.feeMinor);
+
+    // idempotent re-cancel still reports the partial refund that actually happened
+    const again = await request(server)
+      .post(`/api/v1/reservations/${r.reference}/cancel`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ reasonCode: 'plans_changed' })
+      .expect(201);
+    expect(again.body.refundMinor).toBe(c.body.refundMinor);
   });
 
   it('TEST-RSV-002 modify extends the rental, charges the delta, keeps the snapshot valid', async () => {

@@ -9,6 +9,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 
 import { formatMinor, useAvailabilitySearch, useCreateQuote } from '../lib/customer-hooks';
+import { guestId } from '../lib/guest-id';
 import { useLocale } from '../lib/nav';
 import { defaultWindow, isCompleteTrip, readTrip, writeTrip, type TripWindow } from '../lib/trip';
 
@@ -86,7 +87,7 @@ function ReserveInner({
         returnAt: trip.returnAt,
         categoryCode,
         hold: true,
-        holderKey: `site-${Date.now()}`,
+        holderKey: guestId(),
       });
       router.push(`/${locale}/checkout?quote=${q.reference}`);
     } catch (e) {

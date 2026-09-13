@@ -40,6 +40,32 @@ describe('config / reference data', () => {
     expect(res.body.values.every((v: { label: string }) => typeof v.label === 'string')).toBe(true);
   });
 
+  it('the catalogue list (batched counts) agrees with the single-type detail endpoint', async () => {
+    const detail = await request(server)
+      .get('/api/v1/reference-data/types/cancel_reason')
+      .expect(200);
+    const list = await request(server)
+      .get('/api/v1/reference-data/types?search=cancel_reason')
+      .expect(200);
+    const row = (
+      list.body as Array<{
+        code: string;
+        activeValueCount: number;
+        inactiveValueCount: number;
+      }>
+    ).find((t) => t.code === 'cancel_reason');
+    expect(row).toBeTruthy();
+    expect(row!.activeValueCount).toBe(detail.body.activeValueCount);
+    expect(row!.inactiveValueCount).toBe(detail.body.inactiveValueCount);
+  });
+
+  it('a filter matching no type returns an empty list rather than erroring', async () => {
+    const res = await request(server)
+      .get('/api/v1/reference-data/types?search=no-such-lookup-type-xyz')
+      .expect(200);
+    expect(res.body).toEqual([]);
+  });
+
   it('TEST-LKP-005 a system-fixed type rejects value mutation', async () => {
     const created = await request(server)
       .post('/api/v1/reference-data/types/reservation_state/values')

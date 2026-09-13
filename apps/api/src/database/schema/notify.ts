@@ -95,6 +95,7 @@ export const template = pgTable(
   'template',
   {
     ...auditColumns,
+    ...actorColumns,
     key: text('key').notNull(), // e.g. 'account_verification'
     channel: text('channel').notNull(),
     localeCode: text('locale_code').notNull(),

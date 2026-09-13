@@ -16,6 +16,12 @@ process.env.NODE_ENV = 'test';
 process.env.RATE_LIMIT_AUTH_MAX ??= '25';
 process.env.RATE_LIMIT_AUTH_WINDOW_SEC ??= '2';
 
+// Same reasoning as above — the suite creates far more quotes than sign-ins (nearly every
+// booking/rental/reservation test needs one), so this needs a correspondingly higher ceiling to
+// stay a no-op for legitimate test traffic while still exercising the guard in security.spec.ts.
+process.env.RATE_LIMIT_DISCOVERY_QUOTE_MAX ??= '200';
+process.env.RATE_LIMIT_DISCOVERY_QUOTE_WINDOW_SEC ??= '2';
+
 // SRS-SEC-014 step-up: a 1s freshness window so a `@StepUp()` route reliably demands a
 // re-auth a moment after sign-in (only `reports/schedules/:id/send` is protected today).
 process.env.STEP_UP_MAX_AGE_SEC ??= '1';

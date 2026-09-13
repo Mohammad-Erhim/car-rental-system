@@ -176,6 +176,7 @@ export class IamController {
   }
 
   @Post('change-password')
+  @RateLimit({ preset: 'auth' })
   @ApiOperation({ operationId: 'auth_changePassword', summary: 'Change password (signed-in)' })
   async changePassword(
     @Body(new ZodValidationPipe(zChangePasswordRequest))
@@ -198,6 +199,7 @@ export class IamController {
   }
 
   @Post('step-up')
+  @RateLimit({ preset: 'auth' })
   @ApiOperation({
     operationId: 'auth_stepUp',
     summary: 'Re-confirm the password to satisfy a step-up-protected action',

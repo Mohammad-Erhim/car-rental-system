@@ -24,6 +24,7 @@ export interface PaymentConfigSummary {
     secretKeyLast4: string | null;
     configuredAt: string | null;
     verifiedAt: string | null;
+    webhookConfigured: boolean;
   };
   live: {
     configured: boolean;
@@ -32,6 +33,7 @@ export interface PaymentConfigSummary {
     configuredAt: string | null;
     verifiedAt: string | null;
     acknowledged: boolean;
+    webhookConfigured: boolean;
   };
   updatedAt: string | null;
 }
@@ -140,6 +142,7 @@ export class PaymentConfigService {
         secretKeyLast4: row.testSecretKeyLast4,
         configuredAt: row.testConfiguredAt,
         verifiedAt: row.testKeyVerifiedAt,
+        webhookConfigured: !!row.testWebhookSecretCiphertext,
       },
       live: {
         configured: !!row.liveSecretKeyCiphertext,
@@ -148,6 +151,7 @@ export class PaymentConfigService {
         configuredAt: row.liveConfiguredAt,
         verifiedAt: row.liveKeyVerifiedAt,
         acknowledged: row.liveModeAcknowledged,
+        webhookConfigured: !!row.liveWebhookSecretCiphertext,
       },
       updatedAt: row.updatedAt,
     };

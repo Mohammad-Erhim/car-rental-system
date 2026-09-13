@@ -8,7 +8,7 @@ export interface RateLimitOptions {
   /** window length in seconds; omit when using `preset` */
   windowSec?: number;
   /** resolve limit/window from env instead of literals */
-  preset?: 'auth';
+  preset?: 'auth' | 'discovery-quote';
   /** optional bucket name; defaults to the route path */
   bucket?: string;
 }

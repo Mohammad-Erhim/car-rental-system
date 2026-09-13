@@ -6,6 +6,8 @@ import { AuditService } from '../../common/audit/audit.service';
 import { assertLocationAccess } from '../../common/auth/location-scope';
 import type { Actor } from '../../common/auth/types';
 import { OutboxService } from '../../common/outbox/outbox.service';
+import { ENV } from '../../config/config.module';
+import type { Env } from '../../config/env.schema';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { account } from '../../database/schema/iam';
@@ -29,6 +31,7 @@ import { PricingService } from '../pricing/pricing.service';
 export class ReservationOpsService {
   constructor(
     @Inject(DB) private readonly db: Database,
+    @Inject(ENV) private readonly env: Env,
     private readonly pricing: PricingService,
     private readonly payments: PaymentService,
     private readonly availability: AvailabilityService,
@@ -211,11 +214,14 @@ export class ReservationOpsService {
     this.assertOwnerOrStaff(row, actor);
 
     if (row.state === 'cancelled') {
-      // idempotent — return the same result
-      const refunded = row.paidMinor - (await this.capturedMinus(reference));
+      // idempotent — return the same result. `row.paidMinor` is already the *post-refund*
+      // retained amount (set below when the real cancellation ran), so it cannot be combined
+      // with anything to reconstruct what was refunded — the refunded total is simply what the
+      // payment intent already records.
+      const refunded = await this.refundedTotalMinor(reference);
       return this.detail(reference, actor).then((d) => ({
         ...d,
-        refundMinor: Math.max(0, refunded),
+        refundMinor: refunded,
       }));
     }
     if (!['pending', 'confirmed'].includes(row.state)) {
@@ -301,7 +307,7 @@ export class ReservationOpsService {
     return { ...(await this.detail(reference, actor)), refundMinor, feeMinor };
   }
 
-  private async capturedMinus(reference: string): Promise<number> {
+  private async refundedTotalMinor(reference: string): Promise<number> {
     const intent = await this.payments.intentFor(reference, 'booking');
     return intent ? intent.refundedMinor : 0;
   }
@@ -404,75 +410,95 @@ export class ReservationOpsService {
     }
 
     // 4) write the new snapshot + history in one transaction
-    await this.db.transaction(async (tx) => {
-      await tx
-        .update(reservation)
-        .set({
-          categoryCode,
-          pickupAt: pickupAt.toISOString(),
-          returnAt: returnAt.toISOString(),
-          durationHours: priced.computation.durationHours,
-          subtotalMinor: priced.computation.subtotalMinor,
-          taxMinor: priced.computation.taxMinor,
-          totalMinor: newTotal,
-          paidMinor: row.paidMinor + Math.max(deltaMinor, 0) - Math.max(-deltaMinor, 0),
-          quoteVersion: row.quoteVersion + 1,
-          holdId: newHold!.id,
-          version: row.version + 1,
-          updatedAt: sql`now()`,
-          updatedBy: actor.accountId,
-        })
-        .where(eq(reservation.id, row.id));
+    try {
+      await this.db.transaction(async (tx) => {
+        await tx
+          .update(reservation)
+          .set({
+            categoryCode,
+            pickupAt: pickupAt.toISOString(),
+            returnAt: returnAt.toISOString(),
+            durationHours: priced.computation.durationHours,
+            subtotalMinor: priced.computation.subtotalMinor,
+            taxMinor: priced.computation.taxMinor,
+            totalMinor: newTotal,
+            paidMinor: row.paidMinor + Math.max(deltaMinor, 0) - Math.max(-deltaMinor, 0),
+            quoteVersion: row.quoteVersion + 1,
+            holdId: newHold!.id,
+            version: row.version + 1,
+            updatedAt: sql`now()`,
+            updatedBy: actor.accountId,
+          })
+          .where(eq(reservation.id, row.id));
 
-      await tx.delete(reservationLine).where(eq(reservationLine.reservationId, row.id));
-      await tx.insert(reservationLine).values(
-        priced.computation.lines.map((l, i) => ({
+        await tx.delete(reservationLine).where(eq(reservationLine.reservationId, row.id));
+        await tx.insert(reservationLine).values(
+          priced.computation.lines.map((l, i) => ({
+            reservationId: row.id,
+            kind: l.kind,
+            code: l.code,
+            label: l.label,
+            quantity: l.quantity,
+            unitMinor: l.unitMinor,
+            amountMinor: l.amountMinor,
+            sortOrder: i,
+          })),
+        );
+
+        await tx.insert(reservationEvent).values({
           reservationId: row.id,
-          kind: l.kind,
-          code: l.code,
-          label: l.label,
-          quantity: l.quantity,
-          unitMinor: l.unitMinor,
-          amountMinor: l.amountMinor,
-          sortOrder: i,
-        })),
-      );
+          reference,
+          type: 'modified',
+          reasonCode: input.reasonCode ?? null,
+          amountDeltaMinor: deltaMinor,
+          before: {
+            pickupAt: row.pickupAt,
+            returnAt: row.returnAt,
+            categoryCode: row.categoryCode,
+            totalMinor: row.totalMinor,
+          },
+          after: {
+            pickupAt: pickupAt.toISOString(),
+            returnAt: returnAt.toISOString(),
+            categoryCode,
+            totalMinor: newTotal,
+          },
+          actorType: actor.kind,
+          actorId: actor.accountId,
+          actorLabel: actor.displayName,
+        });
 
-      await tx.insert(reservationEvent).values({
-        reservationId: row.id,
-        reference,
-        type: 'modified',
-        reasonCode: input.reasonCode ?? null,
-        amountDeltaMinor: deltaMinor,
-        before: {
-          pickupAt: row.pickupAt,
-          returnAt: row.returnAt,
-          categoryCode: row.categoryCode,
-          totalMinor: row.totalMinor,
-        },
-        after: {
-          pickupAt: pickupAt.toISOString(),
-          returnAt: returnAt.toISOString(),
-          categoryCode,
-          totalMinor: newTotal,
-        },
-        actorType: actor.kind,
-        actorId: actor.accountId,
-        actorLabel: actor.displayName,
+        // consume the new hold; the old window's capacity is freed because the reservation row
+        // now points at the new window.
+        await this.outbox.emit(
+          {
+            type: 'reservation.modified.v1',
+            aggregateType: 'reservation',
+            aggregateId: row.id,
+            payload: { reference, deltaMinor },
+          },
+          tx,
+        );
       });
-
-      // consume the new hold; the old window's capacity is freed because the reservation row now
-      // points at the new window.
-      await this.outbox.emit(
-        {
-          type: 'reservation.modified.v1',
-          aggregateType: 'reservation',
-          aggregateId: row.id,
-          payload: { reference, deltaMinor },
-        },
-        tx,
-      );
-    });
+    } catch {
+      // Money already moved (step 3) and can't be silently unwound here — same shape as
+      // booking.confirm()'s write_after_charge case, so this doesn't become an untracked,
+      // silent inconsistency between what was charged/refunded and what the reservation shows.
+      await this.payments.openCase({
+        organizationId: orgId,
+        kind: 'write_after_charge',
+        subjectType: 'reservation',
+        subjectRef: reference,
+        summary: `Modification for ${reference} charged/refunded ${Math.abs(deltaMinor)} but the reservation write failed`,
+        detail: { deltaMinor, newHoldId: newHold.id },
+      });
+      await this.availability.releaseHold(actor, newHold.id, 'abandoned').catch(() => undefined);
+      throw new AppError('internal_error', {
+        title:
+          'We processed your payment change but could not finish updating the reservation — our team has been alerted',
+        params: { reason: 'write_after_charge', caseOpened: true },
+      });
+    }
     await this.availability.releaseHold(actor, newHold.id, 'confirmed').catch(() => undefined);
 
     await this.audit.record({
@@ -668,12 +694,16 @@ export class ReservationOpsService {
    * `injectMismatch` reference is given (used by the test).
    */
   async reconcile(actor: Actor, opts: { injectMismatchRef?: string } = {}) {
+    // Test-only fault injection (fabricates a provider/ledger mismatch for a real reservation)
+    // — inert in production so a real reconciliation run can never manufacture a false exception.
+    const injectMismatchRef =
+      this.env.NODE_ENV === 'production' ? undefined : opts.injectMismatchRef;
     const orgId = await this.orgId();
     const intents = await this.payments.allCapturedIntents();
     let created = 0;
     for (const it of intents) {
       const providerAmount =
-        opts.injectMismatchRef && it.reservationReference === opts.injectMismatchRef
+        injectMismatchRef && it.reservationReference === injectMismatchRef
           ? it.amountMinor - 100
           : it.amountMinor - it.refundedMinor;
       const ledgerAmount = it.amountMinor - it.refundedMinor;

@@ -139,7 +139,15 @@ function toCsv(rows: AuditRow[]): string {
     'reason',
     'surface',
   ];
-  const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  // CSV/formula injection (OWASP): a cell opening with =, +, -, or @ runs as a live formula the
+  // moment this file is opened in Excel/Sheets — actor/reason/targetId are all free text an
+  // attacker could influence. A leading apostrophe forces "treat as text" in both, and is
+  // otherwise invisible, applied before the unconditional quote-wrap below.
+  const esc = (v: unknown) => {
+    const raw = String(v ?? '');
+    const s = /^[=+\-@]/.test(raw) ? `'${raw}` : raw;
+    return `"${s.replace(/"/g, '""')}"`;
+  };
   const lines = rows.map((r) =>
     [
       r.occurredAt,

@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS "rental_open_unit_unq";--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "rental_open_unit_unq" ON "rental" USING btree ("unit_id") WHERE state in ('awaiting_pickup','active','overdue');

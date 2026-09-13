@@ -137,6 +137,7 @@ export function ConfigWorkflowHistory({
   const [rejecting, setRejecting] = useState<ConfigVersion | null>(null);
   const [deleting, setDeleting] = useState<ConfigVersion | null>(null);
   const [reason, setReason] = useState('');
+  const [reasonError, setReasonError] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
 
   if (isLoading) return <p className="text-sm text-muted-foreground">{t('ops.st.loading')}</p>;
@@ -218,6 +219,7 @@ export function ConfigWorkflowHistory({
           if (!o) {
             setRejecting(null);
             setReason('');
+            setReasonError(false);
           }
         }}
         destructive
@@ -229,14 +231,17 @@ export function ConfigWorkflowHistory({
               label={t('ops.cfg.rejectReason')}
               htmlFor="cfg-reject-reason"
               required
-              error={rejecting && !reason.trim() ? t('ops.cfg.rejectReasonRequired') : undefined}
+              error={reasonError ? t('ops.cfg.rejectReasonRequired') : undefined}
             >
               {({ id }) => (
                 <Textarea
                   id={id}
                   rows={3}
                   value={reason}
-                  onChange={(e) => setReason(e.target.value)}
+                  onChange={(e) => {
+                    setReason(e.target.value);
+                    if (e.target.value.trim()) setReasonError(false);
+                  }}
                   data-testid="cfg-reject-reason"
                 />
               )}
@@ -245,7 +250,11 @@ export function ConfigWorkflowHistory({
         }
         confirmLabel={t('ops.cfg.reject')}
         onConfirm={async () => {
-          if (!reason.trim()) throw new Error('reason required');
+          if (!reason.trim()) {
+            setReasonError(true);
+            throw new Error('reason required'); // keeps the ConfirmDialog open
+          }
+          setReasonError(false);
           if (rejecting)
             await onAction({ id: rejecting.id, action: 'reject', note: reason.trim() });
         }}

@@ -2,7 +2,9 @@ import { zBrandAssetUploadRequest, type BrandAssetUploadRequest } from '@carrent
 import { Body, Controller, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import { CurrentActor } from '../../common/auth/auth.guard';
 import { Permissions } from '../../common/auth/permissions.guard';
+import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 
 import { BrandAssetService } from './brand-asset.service';
@@ -22,7 +24,8 @@ export class BrandingController {
   })
   uploadBrandAsset(
     @Body(new ZodValidationPipe(zBrandAssetUploadRequest)) body: BrandAssetUploadRequest,
+    @CurrentActor() actor: Actor,
   ) {
-    return this.brandAssets.upload(body);
+    return this.brandAssets.upload(body, actor);
   }
 }

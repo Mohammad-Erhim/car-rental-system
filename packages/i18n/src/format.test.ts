@@ -44,4 +44,16 @@ describe('i18n formatters (SRS-I18N-007)', () => {
     // fr-FR uses narrow no-break space as grouping separator
     expect(fr.replace(/[\s\u00a0\u202f]/g, '')).toBe('1234567,89');
   });
+
+  it('a runtime (dashboard-added) locale beyond the static en/fr/ar formats with its own conventions, not en (DEC-024)', () => {
+    // 'de' (German) uses '.' as the grouping separator and ',' as the decimal separator \u2014
+    // nothing like en's '1,234,567.89'. If this ever collapses back to en, this assertion fails.
+    const de = createFormatters('de').number(1234567.89);
+    expect(de.replace(/[\s\u00a0\u202f]/g, '')).toBe('1.234.567,89');
+  });
+
+  it('falls back to the static default for a malformed locale tag instead of throwing', () => {
+    expect(() => createFormatters('not a locale!!').number(1)).not.toThrow();
+    expect(createFormatters('not a locale!!').number(1234567.89)).toBe('1,234,567.89');
+  });
 });

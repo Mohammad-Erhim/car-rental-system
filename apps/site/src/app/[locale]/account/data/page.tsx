@@ -1,5 +1,6 @@
 'use client';
 
+import { ApiError } from '@carrental/client';
 import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
@@ -41,6 +42,7 @@ export default function DataRequestsPage() {
 
   const [kind, setKind] = useState<Kind>('access');
   const [detail, setDetail] = useState('');
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const kinds: Array<{ value: Kind; label: string; hint: string }> = [
     { value: 'access', label: t('privacy.kind.access'), hint: t('privacy.kind.accessHint') },
@@ -54,8 +56,13 @@ export default function DataRequestsPage() {
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    await create.mutateAsync({ kind, detail: detail || undefined });
-    setDetail('');
+    setSubmitError(null);
+    try {
+      await create.mutateAsync({ kind, detail: detail || undefined });
+      setDetail('');
+    } catch (err) {
+      setSubmitError(err instanceof ApiError ? err.message : t('privacy.submitErr'));
+    }
   }
 
   return (
@@ -94,6 +101,11 @@ export default function DataRequestsPage() {
               />
             )}
           </Field>
+          {submitError ? (
+            <p className="text-sm font-medium text-destructive" data-testid="data-request-error">
+              {submitError}
+            </p>
+          ) : null}
           <Button type="submit" loading={create.isPending} data-testid="data-request-submit">
             {t('privacy.submit')}
           </Button>

@@ -43,8 +43,11 @@ const zReturn = z.object({
     .optional(),
 });
 
+// Serves both customer-facing 'rentals/*' routes and staff 'ops/*' routes, each declared in
+// full on its own method — `path: ''` makes that explicit rather than an implicit default
+// (CLAUDE.md: every controller sets an explicit path).
 @ApiTags('rentals')
-@Controller({ version: '1' })
+@Controller({ path: '', version: '1' })
 export class RentalController {
   constructor(private readonly rentals: RentalService) {}
 

@@ -68,15 +68,19 @@ test.describe('customer discovery (APP-CWEB)', () => {
     await expect(total).toContainText('121.14');
     await expect(page.getByTestId('hold-timer')).toContainText(/Held for/);
 
-    // quote lines sum to the total
+    // quote lines sum to the total — parsing *rendered display text* back into a number for a
+    // browser-level assertion, not application money math (which stays integer-minor-units
+    // throughout); the rule's target is money handling in app code, not reading a UI string here.
     const cells = await page
       .locator('[data-testid="quote-lines"] tbody tr:not(:last-child) td:last-child')
       .allInnerTexts();
     const sum = cells.reduce(
+      // eslint-disable-next-line no-restricted-syntax -- parsing displayed currency text, see comment above
       (a, s) => a + Math.round(parseFloat(s.replace(/[^0-9.]/g, '')) * 100),
       0,
     );
     const totalCents = Math.round(
+      // eslint-disable-next-line no-restricted-syntax -- parsing displayed currency text, see comment above
       parseFloat((await total.innerText()).replace(/[^0-9.]/g, '')) * 100,
     );
     expect(sum).toBe(totalCents);

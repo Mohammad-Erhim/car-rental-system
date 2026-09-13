@@ -584,11 +584,9 @@ export class ReportService {
     const rows = (run.result as Array<Record<string, unknown>>) ?? [];
     if (!rows.length) return '';
     const cols = Object.keys(rows[0]!);
-    const esc = (v: unknown) => {
-      const s = String(v ?? '');
-      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    return [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\n');
+    return [cols.join(','), ...rows.map((r) => cols.map((c) => csvCell(r[c])).join(','))].join(
+      '\n',
+    );
   }
 
   async schedule(
@@ -1035,6 +1033,13 @@ export class ReportService {
         sampleSql: sql`select r.reference as key from reservation r where r.account_id is not null and not exists (select 1 from account a where a.id = r.account_id) limit 8`,
       },
       {
+        id: 'payment_intent_orphan_reservation',
+        title: 'Payment intents referencing a reservation that no longer exists',
+        severity: 'medium',
+        countSql: sql`select count(*)::int as n from payment_intent pi where not exists (select 1 from reservation r where r.reference = pi.reservation_reference)`,
+        sampleSql: sql`select pi.reservation_reference as key from payment_intent pi where not exists (select 1 from reservation r where r.reference = pi.reservation_reference) limit 8`,
+      },
+      {
         id: 'config_never_published',
         title: 'Config settings that have revisions but nothing published',
         severity: 'low',
@@ -1398,4 +1403,16 @@ export function isScheduleDue(cron: string, baseline: string | Date, now: Date):
  *  what's supposed to be a percentage. Exported standalone for direct unit coverage of both. */
 export function utilizationPercent(activeRentals: number, fleetTotal: number): number | null {
   return fleetTotal > 0 ? Math.min(100, Math.round((activeRentals / fleetTotal) * 100)) : null;
+}
+
+/** One CSV cell, safe to open directly in Excel/Sheets. Two concerns, applied in order:
+ *  (1) CSV/formula injection (OWASP) — a cell whose value opens with =, +, -, or @ runs as a
+ *  live formula the instant the file is opened; a leading apostrophe forces "treat as text" in
+ *  both Excel and Sheets, and is otherwise invisible to the reader. (2) standard CSV quoting for
+ *  a value containing a comma, quote, or newline — applied after (1), so an injection prefix
+ *  that itself begins with a quote is still wrapped correctly. */
+export function csvCell(v: unknown): string {
+  let s = String(v ?? '');
+  if (/^[=+\-@]/.test(s)) s = `'${s}`;
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }

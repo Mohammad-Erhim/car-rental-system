@@ -31,11 +31,6 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
 );
 Select.displayName = 'Select';
 
-export interface LookupOption {
-  code: string;
-  label: string;
-}
-
 /**
  * A `<select>` fed by a reference-data option list. Presentational only — the caller supplies
  * `options` (and `loading` / `error`) from a data hook, so both apps share the control while

@@ -235,6 +235,17 @@ export class IamService {
     if (acc.status === 'closed') {
       throw new AppError('auth_invalid_credentials', { title: 'Email or password is incorrect' });
     }
+    // A 'pending' account (fresh registration awaiting email verification, or a staff invite
+    // awaiting acceptance) has no business minting a real session yet — for staff this is a
+    // privilege-escalation gap: an invite grants real roleCodes immediately, so anyone who
+    // obtains the temp password before the invitee accepts would otherwise sign in with full
+    // permissions. Both register()'s verify-contact and the staff invite's completeRecovery
+    // promote status to 'active' on success, so this never blocks a legitimately accepted account.
+    if (acc.status === 'pending') {
+      throw new AppError('auth_account_locked', {
+        title: 'This account has not been activated yet. Check your email to finish setup.',
+      });
+    }
     // The surface a session is minted for must match the account kind — one email is one
     // account of one kind, so there is no legitimate cross-surface sign-in. Rejecting both
     // directions keeps a staff/admin account (and its permissions) off the customer site and a
@@ -352,9 +363,25 @@ export class IamService {
         lockedUntil: null,
         lastFullAuthAt: sql`now()`,
         updatedAt: sql`now()`,
+        // Completing recovery proves control of the account exactly as email verification does
+        // (the code was only deliverable to the account's own inbox) — this is also the path a
+        // staff invite is accepted through (sendInviteChallenge sends a 'recover' challenge), so
+        // this promotion is what takes a fresh invite out of 'pending' at all.
+        status: sql`case when ${account.status} = 'pending' then 'active' else ${account.status} end`,
       })
       .where(eq(account.id, result.accountId))
       .returning();
+
+    if (acc!.kind === 'staff') {
+      await this.db
+        .update(staffProfile)
+        .set({
+          status: sql`case when ${staffProfile.status} = 'invited' then 'active' else ${staffProfile.status} end`,
+          activatedAt: sql`coalesce(${staffProfile.activatedAt}, now())`,
+          updatedAt: sql`now()`,
+        })
+        .where(eq(staffProfile.accountId, acc!.id));
+    }
 
     // invalidate all sessions (SRS-SEC-004) + notify the holder
     const revoked = await this.sessions.revokeAllForAccount(acc!.id, 'password_recovered');

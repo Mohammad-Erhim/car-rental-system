@@ -10,7 +10,11 @@ export default async function robots(): Promise<MetadataRoute.Robots> {
     return { rules: { userAgent: '*', disallow: '/' } };
   }
   return {
-    rules: { userAgent: '*', allow: '/', disallow: ['/api/', '/*/account', '/*/checkout'] },
+    rules: {
+      userAgent: '*',
+      allow: '/',
+      disallow: ['/api/', '/*/account', '/*/checkout', '/*/trips'],
+    },
     sitemap: `${origin}/sitemap.xml`,
     host: origin,
   };

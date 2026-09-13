@@ -1139,7 +1139,7 @@ describe('STAGE-006 administration & reporting', () => {
       sample: string[];
       error: string | null;
     }>;
-    expect(checks.length).toBeGreaterThanOrEqual(5);
+    expect(checks.length).toBeGreaterThanOrEqual(6);
     for (const c of checks) {
       expect(typeof c.count).toBe('number');
       expect(c.ok).toBe(c.count === 0);
@@ -1174,6 +1174,7 @@ describe('STAGE-006 administration & reporting', () => {
     expect(countFor('unit_orphan_location')).toBe(0);
     expect(countFor('lookup_value_dangling_type')).toBe(0);
     expect(countFor('reservation_orphan_account')).toBe(0);
+    expect(countFor('payment_intent_orphan_reservation')).toBe(0);
 
     await request(server)
       .get('/api/v1/ops/data-quality')
@@ -1259,6 +1260,15 @@ describe('STAGE-006 administration & reporting', () => {
     expect(stale.count).toBeGreaterThan(0);
     expect(stale.sample).toContain(`write_after_charge · ${staleCase!.subjectRef}`);
     expect(stale.error).toBeNull();
+
+    // payment_intent_orphan_reservation: the same simulateWriteFailure confirm above already
+    // captured a real payment before the reservation write it belongs to ever happened — the
+    // payment_intent it created is genuinely orphaned, with no extra setup needed here.
+    const orphanIntent = checks.find((c) => c.id === 'payment_intent_orphan_reservation')!;
+    expect(orphanIntent.count).toBeGreaterThan(0);
+    expect(orphanIntent.sample).toContain(staleCase!.subjectRef);
+    expect(orphanIntent.error).toBeNull();
+
     // the report as a whole is honestly non-ok now that real issues exist
     expect(res.body.ok).toBe(false);
   });

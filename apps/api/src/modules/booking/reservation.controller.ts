@@ -22,8 +22,11 @@ const zModify = z.object({
 });
 const zResolve = z.object({ note: z.string().min(1).max(1000) });
 
+// No single path fits: this controller serves both customer-facing 'reservations/*' routes and
+// staff 'ops/*' routes, each declared in full on its own method — `path: ''` makes that explicit
+// rather than an implicit default (CLAUDE.md: every controller sets an explicit path).
 @ApiTags('reservations')
-@Controller({ version: '1' })
+@Controller({ path: '', version: '1' })
 export class ReservationController {
   constructor(private readonly ops: ReservationOpsService) {}
 

@@ -1,13 +1,8 @@
-import { createHash } from 'node:crypto';
-
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { closeTestApp, getTestApp, httpServer } from './helpers/app';
 import { signIn } from './helpers/auth';
-
-const rentalRef = (reservationReference: string) =>
-  `RNT-${createHash('sha256').update(reservationReference).digest('hex').slice(0, 8).toUpperCase()}`;
 
 /**
  * STAGE-005 — rental lifecycle.
@@ -168,7 +163,7 @@ describe('rental lifecycle', () => {
     void unitId;
   });
 
-  it('TEST-RNT-002 one open rental per unit — a second active rental on the same unit is refused', async () => {
+  it('TEST-RNT-002 one open rental per unit — assigning an already-committed unit is refused', async () => {
     const resA = await book(server, customerToken, 'suv', 60, 2);
     const a = await request(server)
       .post(`/api/v1/ops/reservations/${resA}/assign`)
@@ -183,17 +178,16 @@ describe('rental lifecycle', () => {
       .expect(201);
 
     const resB = await book(server, customerToken, 'suv', 61, 2);
-    await request(server)
+    // Manually forcing the same (now on_rent) unit onto a second reservation is refused at
+    // assign() itself — the service validates a caller-chosen unitId the same way it filters
+    // auto-assign candidates, rather than only discovering the collision later at pickup via
+    // the DB's partial unique index (rental_open_unit_unq).
+    const collide = await request(server)
       .post(`/api/v1/ops/reservations/${resB}/assign`)
       .set('Authorization', `Bearer ${agentToken}`)
       .send({ unitId }) // force the same unit
-      .expect(201);
-    // pickup makes it active → collides with the partial unique index
-    const collide = await request(server)
-      .post(`/api/v1/ops/rentals/${rentalRef(resB)}/pickup`)
-      .set('Authorization', `Bearer ${agentToken}`)
-      .send({ odometerKm: 5000, fuelPct: 100, driverName: 'B', licenceNumber: 'D-2' });
-    expect([409, 500]).toContain(collide.status);
+      .expect(422);
+    expect(collide.body.params?.reason).toBe('unit_unavailable');
   });
 
   it('permission: a customer cannot run pickup', async () => {

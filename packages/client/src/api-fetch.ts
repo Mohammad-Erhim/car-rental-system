@@ -19,6 +19,7 @@ export interface RequestOptions {
 }
 
 let refreshing: Promise<boolean> | null = null;
+let steppingUp: Promise<boolean> | null = null;
 
 function newCorrelationId(): string {
   const { correlationPrefix } = getClientConfig();
@@ -86,7 +87,9 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
     if (ok) return apiFetch<T>(path, { ...opts, _retried: true });
   }
 
-  // a step-up-protected action: prompt for the password once, then retry
+  // a step-up-protected action: prompt for the password once, then retry. Deduped the same way
+  // as the refresh above — a burst of concurrent requests all hitting `auth_step_up_required`
+  // at once must share one prompt, not each open their own.
   const stepUpFn = getStepUpHandler();
   if (
     isProblem(json) &&
@@ -95,7 +98,10 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
     stepUpFn &&
     !path.startsWith('/auth/')
   ) {
-    const ok = await stepUpFn();
+    steppingUp ??= stepUpFn().finally(() => {
+      steppingUp = null;
+    });
+    const ok = await steppingUp;
     if (ok) return apiFetch<T>(path, { ...opts, _retried: true });
   }
 

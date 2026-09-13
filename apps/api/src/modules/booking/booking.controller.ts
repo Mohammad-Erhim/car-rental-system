@@ -13,8 +13,11 @@ import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 
 import { BookingService } from './booking.service';
 
+// Every route here declares its own full 'bookings/*' path already — `path: ''` makes the
+// controller's own path explicit rather than an implicit default (CLAUDE.md: every controller
+// sets an explicit path).
 @ApiTags('booking')
-@Controller({ version: '1' })
+@Controller({ path: '', version: '1' })
 export class BookingController {
   constructor(private readonly booking: BookingService) {}
 

@@ -10,6 +10,8 @@ import type { Database } from '../../database/drizzle';
 import { template } from '../../database/schema/notify';
 import { LocaleRepo } from '../config/locale.repo';
 
+import { referencedVars, renderTemplate } from './render';
+
 /**
  * SCREEN-OPS-033 / FR-ADM-011 — notification template administration (content half). Manage the
  * localized subject/body/variables of a transactional template, preview with sample values, and
@@ -23,21 +25,13 @@ export interface TemplateVar {
   legal?: boolean;
 }
 
-const VAR_RE = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g;
-
-function referencedVars(...texts: string[]): string[] {
-  const set = new Set<string>();
-  for (const t of texts) for (const m of t.matchAll(VAR_RE)) set.add(m[1]!.split('.')[0]!);
-  return [...set];
-}
-
+/** Preview renders unescaped: the ops editor displays it as plain React text (already
+ *  auto-escaped for the browser by React itself, not `dangerouslySetInnerHTML`), so escaping
+ *  here would double-escape and show a staff member literal "&amp;"/"&#39;" characters that
+ *  were never actually in their sample value. `notify.service.ts`'s real send path is the one
+ *  that HTML-escapes, since that's the one whose output can end up interpreted as HTML markup. */
 function renderTpl(tpl: string, vars: Record<string, unknown>): string {
-  return tpl.replace(VAR_RE, (_, k: string) => {
-    const v = k
-      .split('.')
-      .reduce<unknown>((acc, part) => (acc as Record<string, unknown>)?.[part], vars);
-    return v == null ? '' : String(v);
-  });
+  return renderTemplate(tpl, vars, { escape: false });
 }
 
 export interface TemplateDraftInput {
@@ -203,6 +197,7 @@ export class TemplateService {
           bodyTemplate: input.bodyTemplate,
           variables: input.variables,
           status: 'draft',
+          updatedBy: actor.accountId,
           updatedAt: sql`now()`,
         })
         .where(eq(template.id, existing.id))
@@ -219,6 +214,7 @@ export class TemplateService {
           bodyTemplate: input.bodyTemplate,
           variables: input.variables,
           status: 'draft',
+          createdBy: actor.accountId,
         })
         .returning();
     }
@@ -257,6 +253,16 @@ export class TemplateService {
     if (row.status !== 'in_review' && row.status !== 'draft') {
       throw AppError.businessRule(`A ${row.status} template cannot be published`, {
         reason: row.status,
+      });
+    }
+    // separation of duties, same rule as config-version's approve(): the person who authored a
+    // template change may not be the one who publishes it — otherwise a single config.publish
+    // actor can draft, submit, and publish a legally-gated (cancellation/refund wording etc.)
+    // transactional template entirely alone, with no second reviewer.
+    if (row.createdBy && row.createdBy === actor.accountId) {
+      throw new AppError('approval_required', {
+        title: 'A different reviewer must publish this change',
+        params: { reason: 'author_cannot_approve' },
       });
     }
     const contentIssues = this.publishIssues(

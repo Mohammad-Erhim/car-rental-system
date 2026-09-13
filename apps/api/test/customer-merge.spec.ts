@@ -111,4 +111,101 @@ describe('reversible customer merge (FR-ADM-001)', () => {
     expect(survAfter.body.restrictions).toHaveLength(0);
     expect(survAfter.body.mergeHistory[0].reversedAt).toBeTruthy();
   });
+
+  it('merge relinks the duplicate’s reservations to the survivor by account; unmerge restores them', async () => {
+    const uniq = Date.now();
+    const email = `merge-dup-${uniq}@example.test`;
+    const fullName = `Merge Dup ${uniq}`;
+
+    const reg = await request(server)
+      .post('/api/v1/auth/register')
+      .send({ fullName, email, password: 'Sup3rSecret!!', acceptTerms: true })
+      .expect(201);
+    await request(server)
+      .post('/api/v1/auth/verify-contact')
+      .send({ challengeId: reg.body.challengeId, code: reg.body.devCode })
+      .expect(201);
+    const dupCustomerToken = (await signIn(await getTestApp(), email, 'Sup3rSecret!!', 'customer'))
+      .accessToken;
+
+    const isoIn = (days: number) => {
+      const d = new Date();
+      d.setUTCDate(d.getUTCDate() + days);
+      d.setUTCHours(15, 0, 0, 0);
+      return d.toISOString();
+    };
+    const quote = await request(server)
+      .post('/api/v1/discovery/quote')
+      .send({
+        pickupLocationCode: 'TST1',
+        pickupAt: isoIn(20),
+        returnAt: isoIn(23),
+        categoryCode: 'economy',
+        holderKey: `merge-${uniq}`,
+      })
+      .expect(201);
+    const confirm = await request(server)
+      .post('/api/v1/bookings/confirm')
+      .set('Authorization', `Bearer ${dupCustomerToken}`)
+      .send({
+        quoteReference: quote.body.reference,
+        drivers: [
+          {
+            role: 'primary_renter',
+            fullName,
+            email,
+            licenceNumber: 'D-11223344',
+            licenceCountry: 'US',
+          },
+        ],
+        acceptTerms: true,
+        paymentToken: 'tok_ok',
+      })
+      .expect(201);
+    const reservationRef = confirm.body.reference as string;
+
+    const foundDup = await request(server)
+      .get(`/api/v1/ops/customers?q=${encodeURIComponent(fullName)}`)
+      .set('Authorization', `Bearer ${admin}`)
+      .expect(200);
+    const newDupId = (foundDup.body.results as Array<{ id: string; fullName: string }>).find(
+      (r) => r.fullName === fullName,
+    )!.id;
+
+    const merged = await request(server)
+      .post(`/api/v1/ops/customers/${newDupId}/merge`)
+      .set('Authorization', `Bearer ${manager}`)
+      .send({ intoId: survivorId, reason: 'account-holding duplicate' })
+      .expect(201);
+    expect(merged.body.movedReservations).toBe(1);
+
+    const survWithRes = await request(server)
+      .get(`/api/v1/ops/customers/${survivorId}`)
+      .set('Authorization', `Bearer ${admin}`)
+      .expect(200);
+    expect(
+      survWithRes.body.reservations.some((r: { reference: string }) => r.reference === reservationRef),
+    ).toBe(true);
+
+    const dupWithoutRes = await request(server)
+      .get(`/api/v1/ops/customers/${newDupId}`)
+      .set('Authorization', `Bearer ${admin}`)
+      .expect(200);
+    expect(
+      dupWithoutRes.body.reservations.some((r: { reference: string }) => r.reference === reservationRef),
+    ).toBe(false);
+
+    await request(server)
+      .post(`/api/v1/ops/customers/${survivorId}/unmerge`)
+      .set('Authorization', `Bearer ${manager}`)
+      .expect(201);
+
+    const dupRestored = await request(server)
+      .get(`/api/v1/ops/customers/${newDupId}`)
+      .set('Authorization', `Bearer ${admin}`)
+      .expect(200);
+    expect(
+      dupRestored.body.reservations.some((r: { reference: string }) => r.reference === reservationRef),
+    ).toBe(true);
+  });
 });

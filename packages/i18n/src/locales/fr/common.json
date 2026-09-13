@@ -1621,6 +1621,7 @@
   "privacy.status.received": "reçue",
   "privacy.status.rejected": "rejetée",
   "privacy.submit": "Envoyer la demande",
+  "privacy.submitErr": "Impossible d'envoyer votre demande. Veuillez réessayer.",
   "privacy.title": "Demandes de données et clôture du compte",
   "privacy.yourRequests": "Vos demandes",
   "profile.emailNote": "Changer un e-mail vérifié nécessite une revérification (bientôt disponible).",

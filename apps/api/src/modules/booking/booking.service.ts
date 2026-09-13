@@ -8,6 +8,8 @@ import { AuditService } from '../../common/audit/audit.service';
 import type { Actor } from '../../common/auth/types';
 import { isUniqueViolation } from '../../common/db-error';
 import { OutboxService } from '../../common/outbox/outbox.service';
+import { ENV } from '../../config/config.module';
+import type { Env } from '../../config/env.schema';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { hold } from '../../database/schema/booking';
@@ -61,6 +63,7 @@ export class BookingService {
 
   constructor(
     @Inject(DB) private readonly db: Database,
+    @Inject(ENV) private readonly env: Env,
     private readonly pricing: PricingService,
     private readonly products: ProductService,
     private readonly restrictions: CustomerRestrictionService,
@@ -130,22 +133,40 @@ export class BookingService {
     }
 
     // ---- eligibility restriction (FR-ADM-002) ----
-    // An active `block` restriction on the booking customer denies the booking. Applies to a
-    // customer booking for themselves; a staff-assisted booking surfaces the badge in the ops
-    // record instead (the driver's identity is not asserted here).
+    // An active `block` restriction on the booking customer denies the booking. Resolved two
+    // ways so neither a guest checkout nor a staff-assisted booking can bypass it by simply not
+    // being an authenticated customer session: by the signed-in actor's own account, and by the
+    // primary driver's email matching an existing customer profile (how a restricted person is
+    // identified when checking out as a guest, or being booked by staff, with no account at all).
+    // There is no staff-override path today — a restricted booking is blocked outright; a
+    // deliberate manager override is a separate, not-yet-built feature.
+    const primaryDriverEmail = input.drivers
+      .find((d) => (d.role ?? 'primary_renter') === 'primary_renter')
+      ?.email?.trim()
+      .toLowerCase();
+    const custIds = new Set<string>();
     if (input.actor?.kind === 'customer') {
       const [cust] = await this.db
         .select({ id: customer.id })
         .from(customer)
         .where(eq(customer.accountId, input.actor.accountId))
         .limit(1);
-      if (cust) {
-        await this.restrictions.assertCanTransact(cust.id, {
-          categoryCode: quote.categoryCode,
-          locationCode: quote.pickupLocationCode,
-          at: new Date(quote.pickupAt),
-        });
-      }
+      if (cust) custIds.add(cust.id);
+    }
+    if (primaryDriverEmail) {
+      const [cust] = await this.db
+        .select({ id: customer.id })
+        .from(customer)
+        .where(sql`lower(coalesce(${customer.emailNormalized}, ${customer.email})) = ${primaryDriverEmail}`)
+        .limit(1);
+      if (cust) custIds.add(cust.id);
+    }
+    for (const custId of custIds) {
+      await this.restrictions.assertCanTransact(custId, {
+        categoryCode: quote.categoryCode,
+        locationCode: quote.pickupLocationCode,
+        at: new Date(quote.pickupAt),
+      });
     }
 
     // ---- hold must still be live ----
@@ -208,7 +229,12 @@ export class BookingService {
     });
 
     // ---- fault injection: money moved but the write fails → owned recovery case ----
-    if (input.simulateWriteFailure) {
+    // Test-only (TEST-ERR-004), and must never be reachable in production — this genuinely
+    // authorizes+captures a real payment before deliberately throwing, and the flag is a plain
+    // boolean on a public, unauthenticated endpoint (POST /bookings/confirm) with no other gate.
+    // Outside production the flag behaves exactly as before; in production it's inert rather
+    // than erroring, so a client that happens to send it still just gets a normal booking.
+    if (input.simulateWriteFailure && this.env.NODE_ENV !== 'production') {
       await this.payments.openCase({
         organizationId: orgId,
         kind: 'write_after_charge',

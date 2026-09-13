@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, isNotNull, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core';
 
 import { AppError } from '../../common/app-error';
@@ -135,18 +135,56 @@ export class LookupService {
 
   async listTypes(filter?: { classification?: string; ownerModule?: string; search?: string }) {
     const rows = await this.db.select().from(lookupType).orderBy(asc(lookupType.code));
-    const out = [];
-    for (const t of rows) {
-      if (filter?.classification && t.classification !== filter.classification) continue;
-      if (filter?.ownerModule && t.ownerModule !== filter.ownerModule) continue;
+    const matched = rows.filter((t) => {
+      if (filter?.classification && t.classification !== filter.classification) return false;
+      if (filter?.ownerModule && t.ownerModule !== filter.ownerModule) return false;
       if (
         filter?.search &&
         !`${t.code} ${t.description ?? ''}`.toLowerCase().includes(filter.search.toLowerCase())
       )
-        continue;
-      out.push(await this.getType(t.code));
-    }
-    return out;
+        return false;
+      return true;
+    });
+    if (!matched.length) return [];
+
+    // One grouped query for every matched type's active/inactive counts, instead of `getType`'s
+    // one-query-per-type (which also redundantly re-fetches the type row this method already
+    // has in hand) — a real N+1 once the catalogue has more than a handful of types.
+    const counts = await this.db
+      .select({
+        typeCode: lookupValue.typeCode,
+        active: sql<number>`count(*) filter (where ${lookupValue.isActive})::int`,
+        inactive: sql<number>`count(*) filter (where not ${lookupValue.isActive})::int`,
+      })
+      .from(lookupValue)
+      .where(
+        inArray(
+          lookupValue.typeCode,
+          matched.map((t) => t.code),
+        ),
+      )
+      .groupBy(lookupValue.typeCode);
+    const countsByType = new Map(counts.map((c) => [c.typeCode, c]));
+
+    return matched.map((type) => ({
+      code: type.code,
+      classification: type.classification as
+        | 'configurable'
+        | 'constrained'
+        | 'system_fixed'
+        | 'external'
+        | 'entity_owned',
+      ownerModule: type.ownerModule,
+      scopeModel: type.scopeModel,
+      editability: type.editability as 'editable' | 'constrained' | 'read_only',
+      lockReason: type.lockReason,
+      consumerSurfaces: type.consumerSurfaces,
+      description: type.description,
+      activeValueCount: countsByType.get(type.code)?.active ?? 0,
+      inactiveValueCount: countsByType.get(type.code)?.inactive ?? 0,
+      lastSyncedAt: type.lastSyncedAt,
+      lastSyncStatus: type.lastSyncStatus,
+    }));
   }
 
   /** SRS-LKP-013: values with stable code separate from localized label; historical-safe. */
@@ -632,6 +670,4 @@ export class LookupService {
       tracked: refs.length > 0,
     };
   }
-
-  isNull = isNull;
 }

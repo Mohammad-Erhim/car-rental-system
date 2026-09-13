@@ -1,7 +1,15 @@
 import { z } from 'zod';
 
+/** Every operator secret that ships a dev-only placeholder default — rejected outright in
+ *  production (see the `.superRefine` below) so a forgotten override never silently ships. */
+const INSECURE_PRODUCTION_DEFAULTS: Record<string, string> = {
+  PAYMENT_CONFIG_ENCRYPTION_KEY: 'dev-payment-config-encryption-key-change',
+  PAYMENT_WEBHOOK_SECRET: 'dev-payment-webhook-secret-change',
+  OBJECT_STORAGE_SIGNING_SECRET: 'dev-object-signing-secret-change',
+};
+
 /** Runtime environment contract. Validated once at boot; invalid config fails fast (SRS §5). */
-export const envSchema = z.object({
+const baseEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 
   API_PORT: z.coerce.number().int().positive().default(3001),
@@ -72,6 +80,12 @@ export const envSchema = z.object({
   RATE_LIMIT_ENABLED: z.coerce.boolean().default(true),
   RATE_LIMIT_AUTH_MAX: z.coerce.number().int().positive().default(40),
   RATE_LIMIT_AUTH_WINDOW_SEC: z.coerce.number().int().positive().default(60),
+  /** Same shape as the auth preset, for the public quote+hold endpoint — unauthenticated with
+   *  `hold: true` it places a real inventory hold, so it needs its own throttle against
+   *  scripted hold-squatting. A separate env pair (not reusing RATE_LIMIT_AUTH_*) so ops can
+   *  tune credential-guessing and inventory-squatting limits independently. */
+  RATE_LIMIT_DISCOVERY_QUOTE_MAX: z.coerce.number().int().positive().default(30),
+  RATE_LIMIT_DISCOVERY_QUOTE_WINDOW_SEC: z.coerce.number().int().positive().default(60),
 
   /** SRS-SEC-014 — how recent a full password auth must be for a `@StepUp()` route (seconds). */
   STEP_UP_MAX_AGE_SEC: z.coerce.number().int().nonnegative().default(900),
@@ -84,7 +98,28 @@ export const envSchema = z.object({
   BUILD_TIME: z.string().optional(),
 });
 
-export type Env = z.infer<typeof envSchema>;
+/** JWT_ACCESS_SECRET/PASSWORD_PEPPER/COOKIE_SECRET have no default at all, so a production boot
+ *  with them unset already fails Zod's own `min()` check. PAYMENT_CONFIG_ENCRYPTION_KEY and its
+ *  two siblings ship a dev-only placeholder *default* instead (so a fresh local checkout still
+ *  boots without ceremony) — which means an unset production override wouldn't fail validation
+ *  at all without this explicit check. Without it, every `compose.prod.yaml` deployment that
+ *  forgets to set these encrypts Stripe live keys (and signs object-storage URLs / verifies
+ *  webhooks) with a key that's sitting in plain sight in source control.
+ */
+export const envSchema = baseEnvSchema.superRefine((data, ctx) => {
+  if (data.NODE_ENV !== 'production') return;
+  for (const [key, insecureDefault] of Object.entries(INSECURE_PRODUCTION_DEFAULTS)) {
+    if (data[key as keyof typeof data] === insecureDefault) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [key],
+        message: `${key} is still the dev placeholder — set a real secret before running in production`,
+      });
+    }
+  }
+});
+
+export type Env = z.infer<typeof baseEnvSchema>;
 
 let cached: Env | null = null;
 

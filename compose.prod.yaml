@@ -1,6 +1,8 @@
 # Car Rental System — PRODUCTION-shaped stack (SRS §17.6).
 #
-#   cp .env.example .env                       # set real JWT_ACCESS_SECRET / PASSWORD_PEPPER / COOKIE_SECRET
+#   cp .env.example .env                       # set real JWT_ACCESS_SECRET / PASSWORD_PEPPER / COOKIE_SECRET /
+#                                               # OBJECT_STORAGE_SIGNING_SECRET / PAYMENT_WEBHOOK_SECRET /
+#                                               # PAYMENT_CONFIG_ENCRYPTION_KEY
 #   docker compose -f compose.prod.yaml build
 #   docker compose -f compose.prod.yaml up -d  # migrate + seed:system run automatically, then api/worker/web
 #   docker compose -f compose.prod.yaml run --rm seed-dev   # optional demo dataset
@@ -41,8 +43,13 @@ x-api-env: &api-env
   JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET (openssl rand -base64 48)}
   PASSWORD_PEPPER: ${PASSWORD_PEPPER:?set PASSWORD_PEPPER}
   COOKIE_SECRET: ${COOKIE_SECRET:?set COOKIE_SECRET}
-  OBJECT_STORAGE_SIGNING_SECRET: ${OBJECT_STORAGE_SIGNING_SECRET:-change-me-obj-signing}
-  PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:-change-me-pay-webhook}
+  OBJECT_STORAGE_SIGNING_SECRET: ${OBJECT_STORAGE_SIGNING_SECRET:?set OBJECT_STORAGE_SIGNING_SECRET}
+  PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:?set PAYMENT_WEBHOOK_SECRET}
+  # At-rest key for Stripe secret keys stored in payment_provider_config (secret-cipher.ts) — the
+  # same tier as JWT_ACCESS_SECRET/PASSWORD_PEPPER above. Previously missing from this file
+  # entirely, which meant a production deploy silently fell back to the app's dev-only default
+  # and encrypted live Stripe keys with a key visible in source control.
+  PAYMENT_CONFIG_ENCRYPTION_KEY: ${PAYMENT_CONFIG_ENCRYPTION_KEY:?set PAYMENT_CONFIG_ENCRYPTION_KEY (openssl rand -base64 48)}
   MAIL_DRIVER: ${MAIL_DRIVER:-outbox}
   PAYMENT_DRIVER: ${PAYMENT_DRIVER:-simulator}
   RATE_LIMIT_ENABLED: '1'

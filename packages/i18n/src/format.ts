@@ -41,8 +41,26 @@ export interface Formatters {
   relativeTime(value: number, unit: Intl.RelativeTimeFormatUnit): string;
 }
 
+/** A dashboard-added locale (DEC-024) isn't in the static `LOCALES` table `resolveLocale` checks
+ *  against, but the JS engine's own ICU data can format it perfectly well — collapsing every
+ *  runtime-enabled locale beyond the compile-time en/fr/ar down to `en`'s date/number/currency
+ *  conventions would silently misformat for every one of them. Trust the caller's locale (in
+ *  `react.tsx` it has already been resolved against the runtime-enabled set) as long as it's a
+ *  well-formed BCP-47 tag the runtime actually recognizes; only genuinely invalid input falls
+ *  back to the static resolver.
+ */
+function resolveFormattingLocale(localeInput: string): string {
+  try {
+    const [canonical] = Intl.getCanonicalLocales(localeInput);
+    if (canonical) return canonical;
+  } catch {
+    // not a well-formed BCP-47 tag — fall through to the static default below
+  }
+  return resolveLocale(localeInput);
+}
+
 export function createFormatters(localeInput: string): Formatters {
-  const locale = resolveLocale(localeInput);
+  const locale = resolveFormattingLocale(localeInput);
   const toDate = (v: string | Date) => (v instanceof Date ? v : new Date(v));
 
   return {

@@ -1,7 +1,7 @@
 import { createHash, randomInt } from 'node:crypto';
 
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 
 import { ENV } from '../../config/config.module';
 import type { Env } from '../../config/env.schema';
@@ -64,20 +64,6 @@ export class VerificationService {
     const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
     const expiresAt = new Date(Date.now() + CODE_TTL_MS);
 
-    // invalidate older unconsumed challenges of the same purpose for this account
-    if (input.accountId) {
-      await this.db
-        .update(authChallenge)
-        .set({ supersededById: sql`null`, consumedAt: sql`now()`, updatedAt: sql`now()` })
-        .where(
-          and(
-            eq(authChallenge.accountId, input.accountId),
-            eq(authChallenge.purpose, input.purpose),
-            isNull(authChallenge.consumedAt),
-          ),
-        );
-    }
-
     const [row] = await this.db
       .insert(authChallenge)
       .values({
@@ -90,6 +76,23 @@ export class VerificationService {
         deliveryStatus: 'queued',
       })
       .returning({ id: authChallenge.id });
+
+    // invalidate older unconsumed challenges of the same purpose for this account, linking each
+    // to the challenge that superseded it — the new row must exist first to link to, which is
+    // why this runs after the insert above rather than before it.
+    if (input.accountId) {
+      await this.db
+        .update(authChallenge)
+        .set({ supersededById: row!.id, consumedAt: sql`now()`, updatedAt: sql`now()` })
+        .where(
+          and(
+            eq(authChallenge.accountId, input.accountId),
+            eq(authChallenge.purpose, input.purpose),
+            isNull(authChallenge.consumedAt),
+            sql`${authChallenge.id} != ${row!.id}`,
+          ),
+        );
+    }
 
     await this.notify.send({
       event: input.notifyEvent,
@@ -150,20 +153,5 @@ export class VerificationService {
       .where(eq(authChallenge.id, challengeId));
 
     return { ok: true, accountId: row.accountId, purpose: row.purpose as ChallengePurpose };
-  }
-
-  async countActiveFor(accountId: string, purpose: ChallengePurpose): Promise<number> {
-    const rows = await this.db
-      .select({ n: sql<number>`count(*)::int` })
-      .from(authChallenge)
-      .where(
-        and(
-          eq(authChallenge.accountId, accountId),
-          eq(authChallenge.purpose, purpose),
-          isNull(authChallenge.consumedAt),
-          gt(authChallenge.expiresAt, sql`now()`),
-        ),
-      );
-    return rows[0]?.n ?? 0;
   }
 }

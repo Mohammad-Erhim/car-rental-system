@@ -26,7 +26,7 @@ export const hold = pgTable(
     status: text('status').notNull().default('active'), // active|released|consumed|expired
     expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }).notNull(),
     releasedAt: timestamp('released_at', { withTimezone: true, mode: 'string' }),
-    releaseReason: text('release_reason'), // expired|abandoned|confirmed|forced
+    releaseReason: text('release_reason'), // expired|abandoned|confirmed|forced|superseded
   },
   (t) => ({
     liveIdx: index('hold_live_idx').on(
