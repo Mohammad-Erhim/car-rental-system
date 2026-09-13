@@ -4,6 +4,7 @@ import { Button, ThemeToggle } from '@carrental/ui';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   BarChart3,
+  Car,
   CarFront,
   ClipboardList,
   Cookie as CookieIcon,
@@ -124,6 +125,12 @@ const NAV_GROUPS: NavGroup[] = [
         label: 'ops.nav.ratePlans',
         Icon: Tag,
         anyOf: ['config.read', 'config.publish'],
+      },
+      {
+        to: '/catalogue/categories',
+        label: 'ops.nav.categories',
+        Icon: Car,
+        anyOf: ['catalogue.read', 'catalogue.manage'],
       },
       {
         to: '/catalogue/products',

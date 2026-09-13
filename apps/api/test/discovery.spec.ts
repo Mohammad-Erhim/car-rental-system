@@ -197,4 +197,89 @@ describe('discovery / quote', () => {
       })
       .expect(403);
   });
+
+  it('ops vehicle-category management: create, edit with If-Match, stale edit refused, deactivate/restore, and the public site sees it immediately', async () => {
+    const code = `test_cat_${Date.now()}`;
+    const features = await request(server)
+      .get('/api/v1/ops/catalogue/features')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(features.body.length).toBeGreaterThan(0);
+    const featureCode = features.body[0].code as string;
+
+    const created = await request(server)
+      .post('/api/v1/ops/catalogue/categories')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        code,
+        class: 'economy',
+        displayName: 'Test Category',
+        passengers: 4,
+        luggage: 1,
+        doors: 4,
+        transmission: 'manual',
+        featureCodes: [featureCode],
+      })
+      .expect(201);
+    expect(created.body.version).toBe(1);
+    expect(created.body.features.map((f: { code: string }) => f.code)).toEqual([featureCode]);
+
+    // the public catalogue reads the same category with no separate publish step
+    const publicView = await request(server)
+      .get(`/api/v1/catalogue/categories/${code}`)
+      .expect(200);
+    expect(publicView.body.displayName).toBe('Test Category');
+    expect(publicView.body.passengers).toBe(4);
+
+    // a stale If-Match (an older version than what's actually stored) is refused
+    await request(server)
+      .post('/api/v1/ops/catalogue/categories')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('If-Match', '0')
+      .send({ code, class: 'economy', displayName: 'Stale Write', passengers: 4, luggage: 1, doors: 4 })
+      .expect(409);
+
+    // the correct current version is accepted and bumps the version again
+    const edited = await request(server)
+      .post('/api/v1/ops/catalogue/categories')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .set('If-Match', String(created.body.version))
+      .send({
+        code,
+        class: 'economy',
+        displayName: 'Test Category Updated',
+        passengers: 5,
+        luggage: 2,
+        doors: 2,
+        transmission: 'automatic',
+        featureCodes: [],
+      })
+      .expect(201);
+    expect(edited.body.version).toBe(2);
+    expect(edited.body.displayName).toBe('Test Category Updated');
+    expect(edited.body.features).toEqual([]);
+
+    // deactivate — disappears from the public catalogue list, still fetchable by direct code,
+    // and the ops list (includeInactive) still shows it
+    await request(server)
+      .post(`/api/v1/ops/catalogue/categories/${code}/deactivate`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201);
+    const publicList = await request(server).get('/api/v1/catalogue/categories').expect(200);
+    expect(publicList.body.some((c: { code: string }) => c.code === code)).toBe(false);
+    const opsList = await request(server)
+      .get('/api/v1/ops/catalogue/categories')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const inList = opsList.body.find((c: { code: string }) => c.code === code);
+    expect(inList.isActive).toBe(false);
+
+    // restore — back in the public list
+    await request(server)
+      .post(`/api/v1/ops/catalogue/categories/${code}/restore`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(201);
+    const publicListAfter = await request(server).get('/api/v1/catalogue/categories').expect(200);
+    expect(publicListAfter.body.some((c: { code: string }) => c.code === code)).toBe(true);
+  });
 });

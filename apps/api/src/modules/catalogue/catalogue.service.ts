@@ -31,6 +31,9 @@ export interface CategoryView {
   sortOrder: number;
   isActive: boolean;
   features: Array<{ code: string; label: string; group: string }>;
+  /** For `upsertCategory`'s optimistic-concurrency `If-Match` — without this, an editor has no
+   *  way to send back the version it read, the same way rate plans already do it. */
+  version: number;
 }
 
 @Injectable()
@@ -108,6 +111,7 @@ export class CatalogueService {
           const f = featByCode.get(m.code);
           return { code: m.code, label: f?.label ?? m.code, group: f?.group ?? 'comfort' };
         }),
+      version: c.version,
     }));
   }
 

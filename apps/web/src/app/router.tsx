@@ -8,6 +8,7 @@ import { RecoveryPage } from '../surfaces/auth/recovery-page.js';
 import { SignInPage } from '../surfaces/auth/sign-in-page.js';
 import { AuditLogPage } from '../surfaces/ops/audit-log-page.js';
 import { BrandingPage } from '../surfaces/ops/branding-page.js';
+import { CategoriesPage } from '../surfaces/ops/categories-page.js';
 import { ConfigVersionsPage } from '../surfaces/ops/config-versions-page.js';
 import { ConsentLogPage } from '../surfaces/ops/consent/consent-log-page.js';
 import { ConsentPage } from '../surfaces/ops/consent/consent-page.js';
@@ -143,6 +144,10 @@ export const router = createBrowserRouter(
         {
           path: 'config/rate-plans',
           element: perm(['config.read', 'config.publish'], <RatePlansPage />),
+        },
+        {
+          path: 'catalogue/categories',
+          element: perm(['catalogue.read', 'catalogue.manage'], <CategoriesPage />),
         },
         {
           path: 'catalogue/products',
