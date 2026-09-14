@@ -121,3 +121,32 @@ export const template = pgTable(
     ),
   }),
 );
+
+/**
+ * DAT-EMAIL-PROVIDER-CONFIG (mirrors `paymentProviderConfig`). One row per organization — the
+ * dashboard-configurable switch between the local outbox driver (dev/simulator — messages persist
+ * to `notification` and are shown at /ops/dev/mail, never actually delivered) and a real SMTP
+ * provider. The SMTP password is never stored in plaintext, only its AES-256-GCM ciphertext
+ * (secret-cipher.ts); `*Last4`/`configuredAt` are plaintext-safe display metadata. Writes are
+ * `email.manage`-gated (administrator only, never bundled into the generic 'ALL' role grant, same
+ * tier as `payment.manage`) and step-up-confirmed.
+ */
+export const emailProviderConfig = pgTable('email_provider_config', {
+  ...auditColumns,
+  ...actorColumns,
+  organizationId: uuid('organization_id').notNull().unique(),
+  activeDriver: text('active_driver').notNull().default('outbox'), // outbox|smtp
+  smtpHost: text('smtp_host'),
+  smtpPort: integer('smtp_port'),
+  smtpSecure: boolean('smtp_secure').notNull().default(true),
+  smtpUsername: text('smtp_username'),
+  smtpPasswordCiphertext: text('smtp_password_ciphertext'),
+  smtpPasswordLast4: text('smtp_password_last4'),
+  fromAddress: text('from_address'),
+  fromName: text('from_name'),
+  configuredAt: timestamp('configured_at', { withTimezone: true, mode: 'string' }),
+  /** a real SMTP connection (`transporter.verify()`) made at save time so a bad host/credential
+   *  is rejected immediately rather than discovered on the next customer email (mirrors
+   *  FR-PAY-010's pattern). */
+  verifiedAt: timestamp('verified_at', { withTimezone: true, mode: 'string' }),
+});

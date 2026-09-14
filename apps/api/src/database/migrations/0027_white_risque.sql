@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS "email_provider_config" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"version" integer DEFAULT 1 NOT NULL,
+	"created_by" uuid,
+	"updated_by" uuid,
+	"organization_id" uuid NOT NULL,
+	"active_driver" text DEFAULT 'outbox' NOT NULL,
+	"smtp_host" text,
+	"smtp_port" integer,
+	"smtp_secure" boolean DEFAULT true NOT NULL,
+	"smtp_username" text,
+	"smtp_password_ciphertext" text,
+	"smtp_password_last4" text,
+	"from_address" text,
+	"from_name" text,
+	"configured_at" timestamp with time zone,
+	"verified_at" timestamp with time zone,
+	CONSTRAINT "email_provider_config_organization_id_unique" UNIQUE("organization_id")
+);

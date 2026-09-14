@@ -278,6 +278,32 @@
         ]
       }
     },
+    "/api/v1/ops/email/config": {
+      "get": {
+        "operationId": "EmailConfigController_getConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-email"
+        ]
+      },
+      "put": {
+        "operationId": "EmailConfigController_updateConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-email"
+        ]
+      }
+    },
     "/api/v1/reference-data/types": {
       "get": {
         "operationId": "lookup_listTypes",

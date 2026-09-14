@@ -381,14 +381,22 @@ const PERMISSION_ACTIONS: Array<[string, string, string, string]> = [
     'high',
     'Configure the payment provider (Stripe keys, live/test switch) — deliberately excluded from every other role\'s "all permissions" grant; only `administrator` holds it. Whoever can change where the money goes is a narrower list than whoever can do everything else.',
   ],
+  [
+    'email.manage',
+    'admin',
+    'high',
+    'Configure the email provider (SMTP host/credentials, outbox/live switch) — deliberately excluded from every other role\'s "all permissions" grant; only `administrator` holds it.',
+  ],
 ];
 
 /** Permissions this narrow even the org's own 'ALL'-permission roles don't all get by default —
- *  only the roles explicitly listed here. Currently just the payment provider switch: every
- *  other admin action bundles into `manager`/`administrator`'s 'ALL' grant, but "who can point
- *  this system at a different Stripe account" is deliberately a strictly smaller list. */
+ *  only the roles explicitly listed here: the payment provider switch and the email provider
+ *  switch. Every other admin action bundles into `manager`/`administrator`'s 'ALL' grant, but
+ *  "who can point this system at a different Stripe account / mail server" is deliberately a
+ *  strictly smaller list. */
 const ADMIN_ONLY_ACTIONS: Record<string, string[]> = {
   'payment.manage': ['administrator'],
+  'email.manage': ['administrator'],
 };
 
 const SYSTEM_ROLES: Array<{ code: string; name: string; actions: string[] | 'ALL' }> = [

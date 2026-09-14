@@ -14,6 +14,7 @@ import { ConsentLogPage } from '../surfaces/ops/consent/consent-log-page.js';
 import { ConsentPage } from '../surfaces/ops/consent/consent-page.js';
 import { CustomersPage } from '../surfaces/ops/customers-page.js';
 import { DataQualityPage } from '../surfaces/ops/data-quality-page.js';
+import { EmailPage } from '../surfaces/ops/email-page.js';
 import { FinanceCasesPage } from '../surfaces/ops/finance-cases-page.js';
 import { FleetInventoryPage } from '../surfaces/ops/fleet-inventory-page.js';
 import { LanguagesPage } from '../surfaces/ops/languages-page.js';
@@ -173,6 +174,10 @@ export const router = createBrowserRouter(
         {
           path: 'config/payments',
           element: perm(['payment.manage'], <PaymentsPage />),
+        },
+        {
+          path: 'config/email',
+          element: perm(['email.manage'], <EmailPage />),
         },
         {
           path: 'rentals',
