@@ -138,6 +138,9 @@ export interface OpsReservationRow {
   driverName: string | null;
   /** the rental this reservation was turned into, if any */
   assignedRentalRef: string | null;
+  /** the specific car the customer picked before checkout, if any (SCREEN-CUS-003b) — honored
+   *  best-effort by assign(), never binding until staff actually confirms it. */
+  pickedUnit: { id: string; plate: string; make: string | null; model: string | null } | null;
 }
 
 export interface OpsReservationList {

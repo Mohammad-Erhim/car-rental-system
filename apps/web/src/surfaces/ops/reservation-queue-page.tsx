@@ -4,20 +4,26 @@ import {
   Button,
   Card,
   CardContent,
+  ConfirmDialog,
   DataTable,
   Field,
   Input,
   PageHeader,
+  Select,
   useToast,
   type DataTableColumn,
 } from '@carrental/ui';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { useLocationScope } from '../../lib/location-scope.js';
+import { useOpsUnits } from '../../lib/ops-discovery-hooks.js';
 import { useAssignVehicle } from '../../lib/rental-hooks.js';
 import { useOpsReservations, type OpsReservationRow } from '../../lib/reservation-hooks.js';
 import { useUrlParams } from '../../lib/use-url-param.js';
+
+const carLabel = (u: { make: string | null; model: string | null }) =>
+  [u.make, u.model].filter(Boolean).join(' ');
 
 /**
  * SCREEN-OPS-004 — the staff reservation queue. Two views: "Needs action" (the actionable
@@ -89,9 +95,28 @@ export function ReservationQueuePage() {
     : list.data?.results;
 
   const assign = useAssignVehicle();
-  const runAssign = async (r: OpsReservationRow) => {
+  const [assignTarget, setAssignTarget] = useState<OpsReservationRow | null>(null);
+  const [assignUnitId, setAssignUnitId] = useState('');
+  const candidateUnits = useOpsUnits(
+    {
+      categoryCode: assignTarget?.categoryCode,
+      locationCode: assignTarget?.pickupLocationCode,
+      state: 'available',
+    },
+    { enabled: !!assignTarget },
+  );
+  const openAssign = (r: OpsReservationRow) => {
+    setAssignUnitId(r.pickedUnit?.id ?? '');
+    setAssignTarget(r);
+  };
+  const runAssign = async () => {
+    if (!assignTarget) return;
+    const r = assignTarget;
     try {
-      const rental = await assign.mutateAsync(r.reference);
+      const rental = await assign.mutateAsync({
+        reference: r.reference,
+        unitId: assignUnitId || undefined,
+      });
       toast({
         title: t('ops.queue.assigned', { ref: r.reference }),
         description: t('ops.queue.assignedTo', { rental: rental.reference }),
@@ -99,6 +124,9 @@ export function ReservationQueuePage() {
       });
     } catch {
       toast({ title: t('ops.queue.assignFail', { ref: r.reference }) });
+    } finally {
+      setAssignTarget(null);
+      setAssignUnitId('');
     }
   };
 
@@ -131,7 +159,16 @@ export function ReservationQueuePage() {
     {
       key: 'category',
       header: t('ops.tbl.category'),
-      cell: (r) => `${r.categoryCode} · ${r.channel}`,
+      cell: (r) => (
+        <span>
+          {r.categoryCode} · {r.channel}
+          {r.pickedUnit ? (
+            <span className="block text-xs text-primary" data-testid={`picked-${r.reference}`}>
+              {t('ops.queue.picked', { car: carLabel(r.pickedUnit) })}
+            </span>
+          ) : null}
+        </span>
+      ),
     },
     {
       key: 'pickup',
@@ -176,9 +213,9 @@ export function ReservationQueuePage() {
           <Button
             size="sm"
             variant="ghost"
-            loading={assign.isPending}
+            loading={assign.isPending && assignTarget?.reference === r.reference}
             data-testid={`assign-${r.reference}`}
-            onClick={() => runAssign(r)}
+            onClick={() => openAssign(r)}
           >
             {t('ops.queue.assign')}
           </Button>
@@ -369,6 +406,14 @@ export function ReservationQueuePage() {
                     {r.categoryCode} · {r.channel} · {fmt.dateTime(r.pickupAt)} ·{' '}
                     {r.pickupLocationCode}
                   </p>
+                  {r.pickedUnit ? (
+                    <p
+                      className="text-xs text-primary"
+                      data-testid={`picked-mobile-${r.reference}`}
+                    >
+                      {t('ops.queue.picked', { car: carLabel(r.pickedUnit) })}
+                    </p>
+                  ) : null}
                   <p className="text-xs text-muted-foreground">
                     {money(r.totalMinor, r.currency)} ·{' '}
                     {t('ops.queue.paidOf', { paid: money(r.paidMinor, r.currency) })}
@@ -385,8 +430,8 @@ export function ReservationQueuePage() {
                       <Button
                         size="sm"
                         variant="outline"
-                        loading={assign.isPending}
-                        onClick={() => runAssign(r)}
+                        loading={assign.isPending && assignTarget?.reference === r.reference}
+                        onClick={() => openAssign(r)}
                       >
                         {t('ops.queue.assign')}
                       </Button>
@@ -398,6 +443,61 @@ export function ReservationQueuePage() {
           </ul>
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={!!assignTarget}
+        onOpenChange={(v) => {
+          if (!v) {
+            setAssignTarget(null);
+            setAssignUnitId('');
+          }
+        }}
+        title={t('ops.resv.assignTitle')}
+        description={
+          assignTarget ? (
+            <div className="space-y-3">
+              <p>{t('ops.resv.assignBody', { ref: assignTarget.reference })}</p>
+              {assignTarget.pickedUnit ? (
+                <p
+                  className="text-sm text-muted-foreground"
+                  data-testid="queue-assign-customer-pick"
+                >
+                  {t('ops.resv.customerPicked', {
+                    car: carLabel(assignTarget.pickedUnit),
+                    plate: assignTarget.pickedUnit.plate,
+                  })}
+                </p>
+              ) : null}
+              <Field
+                label={t('ops.resv.assignUnit')}
+                htmlFor="queue-assign-unit"
+                hint={t('ops.resv.assignUnitHint')}
+              >
+                {({ id }) => (
+                  <Select
+                    id={id}
+                    value={assignUnitId}
+                    onChange={(e) => setAssignUnitId(e.target.value)}
+                    data-testid="queue-assign-select"
+                  >
+                    <option value="">{t('ops.resv.assignAuto')}</option>
+                    {(candidateUnits.data?.results ?? []).map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.plate} — {[u.year, u.make, u.model].filter(Boolean).join(' ') || u.vin}
+                        {u.id === assignTarget.pickedUnit?.id
+                          ? ` (${t('ops.resv.customerPickedBadge')})`
+                          : ''}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+            </div>
+          ) : null
+        }
+        confirmLabel={t('ops.queue.assign')}
+        onConfirm={runAssign}
+      />
     </div>
   );
 }

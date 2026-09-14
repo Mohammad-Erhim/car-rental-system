@@ -157,6 +157,10 @@ export class ReservationOpsService {
         assignedRentalRef: sql<
           string | null
         >`(select r.reference from rental r where r.reservation_reference = ${reservation.reference} limit 1)`,
+        pickedUnitId: vehicleUnit.id,
+        pickedPlate: vehicleUnit.plate,
+        pickedMake: vehicleUnit.make,
+        pickedModel: vehicleUnit.model,
       })
       .from(reservation)
       .leftJoin(
@@ -166,6 +170,7 @@ export class ReservationOpsService {
           eq(reservationDriver.role, 'primary_renter'),
         ),
       )
+      .leftJoin(vehicleUnit, eq(vehicleUnit.id, reservation.unitId))
       .where(whereSql)
       .orderBy(asc(reservation.pickupAt))
       .limit(limit);
@@ -190,6 +195,9 @@ export class ReservationOpsService {
         paidMinor: r.paidMinor,
         driverName: r.driverName,
         assignedRentalRef: r.assignedRentalRef,
+        pickedUnit: r.pickedUnitId
+          ? { id: r.pickedUnitId, plate: r.pickedPlate, make: r.pickedMake, model: r.pickedModel }
+          : null,
       })),
     };
   }

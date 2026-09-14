@@ -1189,6 +1189,7 @@
   "ops.queue.locPlaceholder": "Code de lieu de prise en charge",
   "ops.queue.openRental": "Ouvrir la location",
   "ops.queue.paidOf": "{paid} payé",
+  "ops.queue.picked": "Choix du client : {car}",
   "ops.queue.queueClear": "Rien en attente — chaque réservation confirmée a un véhicule affecté.",
   "ops.queue.showAll": "Tout afficher",
   "ops.queue.subtitle": "La file de travail et la liste complète des réservations.",

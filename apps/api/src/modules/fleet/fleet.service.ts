@@ -178,12 +178,27 @@ export class FleetService {
     // FR-RPT-004 — a location-scoped staffer only sees units currently at their locations.
     const inScope = rows.filter((r) => !scope || scope.includes(r.currentLocationCode));
     const total = inScope.length;
+    // `vehicleUnit.state` only flips to `on_rent` at actual pickup — a unit already assigned to
+    // an `awaiting_pickup` rental still reads `available` here. A caller asking for genuinely
+    // pickable units (the assign/reassign/incident-replacement dropdowns all do) would otherwise
+    // be shown a car that's already committed elsewhere and get refused the moment they pick it.
+    let openRentalUnitIds: Set<string> | null = null;
+    if (filter.state === 'available') {
+      const openRentals = await this.db
+        .select({ unitId: rental.unitId })
+        .from(rental)
+        .where(sql`${rental.state} in ('awaiting_pickup','active','overdue')`);
+      openRentalUnitIds = new Set(
+        openRentals.map((r) => r.unitId).filter((id): id is string => !!id),
+      );
+    }
     const results = inScope
       .filter(
         (r) =>
           (!filter.locationCode || r.currentLocationCode === filter.locationCode) &&
           (!filter.categoryCode || r.categoryCode === filter.categoryCode) &&
-          (!filter.state || r.state === filter.state),
+          (!filter.state || r.state === filter.state) &&
+          !openRentalUnitIds?.has(r.id),
       )
       .map((r) => ({
         id: r.id,
