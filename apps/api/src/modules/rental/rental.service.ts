@@ -81,6 +81,12 @@ export class RentalService {
       .from(rental)
       .where(eq(rental.reference, reference))
       .limit(1);
+    // Re-calling assign() to change the unit only makes sense before pickup. Once picked up, the
+    // reservation itself flips to 'fulfilled' in the same transaction as the rental going
+    // 'active' (see pickup() below) — the `res.state !== 'confirmed'` check above already refuses
+    // this call by then, so a vehicle change past that point must go through raiseIncident()
+    // instead (it immobilises/blocks the old unit and keeps the odometer/fuel/agreement
+    // bookkeeping consistent, which a plain reassign here would bypass).
 
     const orgId = await this.orgId();
 
@@ -1052,6 +1058,7 @@ export class RentalService {
         categoryCode: reservation.categoryCode,
         driverName: reservationDriver.fullName,
         customerName: account.displayName,
+        pickedUnitId: reservation.unitId,
       })
       .from(rental)
       .leftJoin(vehicleUnit, eq(vehicleUnit.id, rental.unitId))
@@ -1087,6 +1094,28 @@ export class RentalService {
         ? 'passed'
         : 'failed'
       : null;
+    // SCREEN-CUS-003b — the car the customer picked before checkout, only worth surfacing here
+    // when it differs from what's actually assigned (e.g. the pick stopped being viable and
+    // assign() fell back) — that's exactly the case a staffer reassigning the vehicle needs to see.
+    let pickedUnit: {
+      id: string;
+      plate: string;
+      make: string | null;
+      model: string | null;
+    } | null = null;
+    if (ctx?.pickedUnitId && ctx.pickedUnitId !== base.unitId) {
+      const [u] = await this.db
+        .select({
+          id: vehicleUnit.id,
+          plate: vehicleUnit.plate,
+          make: vehicleUnit.make,
+          model: vehicleUnit.model,
+        })
+        .from(vehicleUnit)
+        .where(eq(vehicleUnit.id, ctx.pickedUnitId))
+        .limit(1);
+      pickedUnit = u ?? null;
+    }
     return {
       ...base,
       plate: ctx?.plate ?? null,
@@ -1096,6 +1125,7 @@ export class RentalService {
       customerName: ctx?.customerName ?? null,
       findings,
       readinessOutcome,
+      pickedUnit,
     };
   }
 
