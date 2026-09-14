@@ -26,6 +26,7 @@ import {
 import { ProductService } from '../catalogue/product.service';
 import { ConfigVersionService } from '../config/config-version.service';
 import { CustomerRestrictionService } from '../customer/customer-restriction.service';
+import { InvoicePublic } from '../invoice/invoice.public';
 import { NotifyService } from '../notify/notify.service';
 import { PaymentService } from '../payment/payment.service';
 import { PricingService } from '../pricing/pricing.service';
@@ -73,6 +74,7 @@ export class BookingService {
     private readonly audit: AuditService,
     private readonly outbox: OutboxService,
     private readonly config: ConfigVersionService,
+    private readonly invoices: InvoicePublic,
   ) {}
 
   private async orgId(): Promise<string> {
@@ -447,6 +449,14 @@ export class BookingService {
       });
     } catch (err) {
       this.logger.warn(`confirmation email failed for ${reference}: ${(err as Error).message}`);
+    }
+
+    // best-effort — a missing invoice (e.g. the org's legal profile isn't filled in yet) must
+    // never fail an already-charged, already-created booking.
+    try {
+      await this.invoices.issueInvoice(reference);
+    } catch (err) {
+      this.logger.warn(`invoice issuance failed for ${reference}: ${(err as Error).message}`);
     }
 
     return {

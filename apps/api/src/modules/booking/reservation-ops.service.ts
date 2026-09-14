@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
@@ -24,12 +24,15 @@ import {
 import { AvailabilityService } from '../availability/availability.service';
 import { ConfigVersionService } from '../config/config-version.service';
 import { ConfigPublic } from '../config/config.public';
+import { InvoicePublic } from '../invoice/invoice.public';
 import { NotifyService } from '../notify/notify.service';
 import { PaymentService } from '../payment/payment.service';
 import { PricingService } from '../pricing/pricing.service';
 
 @Injectable()
 export class ReservationOpsService {
+  private readonly logger = new Logger(ReservationOpsService.name);
+
   constructor(
     @Inject(DB) private readonly db: Database,
     @Inject(ENV) private readonly env: Env,
@@ -41,6 +44,7 @@ export class ReservationOpsService {
     private readonly outbox: OutboxService,
     private readonly config: ConfigVersionService,
     private readonly refData: ConfigPublic,
+    private readonly invoices: InvoicePublic,
   ) {}
 
   private async orgId(): Promise<string> {
@@ -300,6 +304,13 @@ export class ReservationOpsService {
       before: { state: row.state },
       after: { state: 'cancelled', refundMinor, feeMinor },
     });
+    if (refundMinor > 0) {
+      this.invoices
+        .issueCreditNote(reference, refundMinor, input.reasonCode ?? 'cancellation')
+        .catch((err: Error) =>
+          this.logger.warn(`credit note failed for ${reference}: ${err.message}`),
+        );
+    }
     void this.notifySafe(row, reference, 'reservation_cancelled', {
       reference,
       refund: `${(refundMinor / 100).toFixed(2)} ${row.currency}`,
@@ -611,6 +622,11 @@ export class ReservationOpsService {
       actor,
       after: { amountMinor: input.amountMinor, note: input.note },
     });
+    this.invoices
+      .issueCreditNote(reference, input.amountMinor, input.note)
+      .catch((err: Error) =>
+        this.logger.warn(`credit note failed for ${reference}: ${err.message}`),
+      );
     return this.detail(reference, actor);
   }
 

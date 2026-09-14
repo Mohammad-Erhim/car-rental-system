@@ -23,6 +23,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { LookupSelect } from '../../components/lookup-select.js';
 import { ApiError } from '../../lib/api.js';
+import { useOpsInvoices } from '../../lib/invoice-hooks.js';
 import { useOpsUnits } from '../../lib/ops-discovery-hooks.js';
 import { useAssignVehicle } from '../../lib/rental-hooks.js';
 import {
@@ -57,6 +58,7 @@ export function ReservationDetailPage() {
   const { hasPermission } = useAuth();
 
   const detail = useReservationDetail(reference);
+  const invoices = useOpsInvoices(reference);
   const history = useReservationHistory(reference);
   const assign = useAssignVehicle();
   const noShow = useNoShowReservation(reference);
@@ -290,6 +292,38 @@ export function ReservationDetailPage() {
                     ) : null}
                   </span>
                   <span className="tabular-nums">{money(l.amountMinor, d.currency)}</span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {invoices.data?.length ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">{t('ops.resv.invoices')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="divide-y text-sm" data-testid="ops-resv-invoices">
+              {invoices.data.map((inv) => (
+                <li
+                  key={inv.number}
+                  className="flex items-center justify-between gap-3 py-2"
+                  data-testid={`ops-invoice-${inv.number}`}
+                >
+                  <span>
+                    <span className="bidi-isolate font-mono">{inv.number}</span>
+                    {inv.kind === 'credit_note' ? (
+                      <Badge variant="neutral" className="ms-2">
+                        {t('ops.resv.creditNote')}
+                      </Badge>
+                    ) : null}
+                    <span className="block text-xs text-muted-foreground">
+                      {fmt.dateTime(inv.issuedAt)}
+                    </span>
+                  </span>
+                  <span className="tabular-nums">{money(inv.totalMinor, inv.currency)}</span>
                 </li>
               ))}
             </ul>

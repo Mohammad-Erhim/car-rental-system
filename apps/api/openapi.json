@@ -640,6 +640,32 @@
         ]
       }
     },
+    "/api/v1/ops/organization/legal": {
+      "get": {
+        "operationId": "LocationAdminController_getLegalProfile",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-config"
+        ]
+      },
+      "post": {
+        "operationId": "LocationAdminController_updateLegalProfile",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-config"
+        ]
+      }
+    },
     "/api/v1/ops/locations": {
       "get": {
         "operationId": "LocationAdminController_list",
@@ -2252,6 +2278,60 @@
         ]
       }
     },
+    "/api/v1/reservations/{reference}/invoices": {
+      "get": {
+        "operationId": "ReservationController_listInvoices",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reservations"
+        ]
+      }
+    },
+    "/api/v1/reservations/{reference}/invoices/{number}": {
+      "get": {
+        "operationId": "ReservationController_invoice",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reservations"
+        ]
+      }
+    },
     "/api/v1/reservations/{reference}/cancel": {
       "post": {
         "operationId": "ReservationController_cancel",
@@ -2399,6 +2479,29 @@
         ],
         "responses": {
           "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reservations"
+        ]
+      }
+    },
+    "/api/v1/ops/reservations/{reference}/invoices": {
+      "get": {
+        "operationId": "ReservationController_opsInvoices",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
             "description": ""
           }
         },

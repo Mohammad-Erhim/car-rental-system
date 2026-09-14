@@ -211,14 +211,24 @@ function ReservationDetail() {
           })}
         </p>
 
-        <button
-          type="button"
-          onClick={() => router.push(`/${locale}/trips/${reference}/receipt`)}
-          className="mt-4 text-sm font-medium text-brand hover:underline underline-offset-4"
-          data-testid="view-receipt"
-        >
-          {t('reservation.viewReceipt')}
-        </button>
+        <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2">
+          <button
+            type="button"
+            onClick={() => router.push(`/${locale}/trips/${reference}/receipt`)}
+            className="text-sm font-medium text-brand hover:underline underline-offset-4"
+            data-testid="view-receipt"
+          >
+            {t('reservation.viewReceipt')}
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push(`/${locale}/trips/${reference}/invoice`)}
+            className="text-sm font-medium text-brand hover:underline underline-offset-4"
+            data-testid="view-invoice"
+          >
+            {t('reservation.viewInvoice')}
+          </button>
+        </div>
       </Section>
 
       {rental.data && ['active', 'overdue'].includes(rental.data.state) ? (
