@@ -172,6 +172,13 @@ function ReservationDetail() {
             {dt(r.pickupAt)} – {dt(r.returnAt)} (
             {t('reservation.hours', { hours: r.durationHours })})
           </p>
+          {r.pickedUnit ? (
+            <p className="text-ink-muted" data-testid="res-picked-unit">
+              {t('checkout.yourCar', {
+                car: [r.pickedUnit.make, r.pickedUnit.model].filter(Boolean).join(' '),
+              })}
+            </p>
+          ) : null}
         </div>
 
         <dl

@@ -549,6 +549,18 @@ function Confirmation({
               {result.reference}
             </span>
           </p>
+          {result.pickedUnit ? (
+            <p className="text-sm" data-testid="confirm-picked-unit">
+              {t('checkout.yourCar', {
+                car: [
+                  [result.pickedUnit.make, result.pickedUnit.model].filter(Boolean).join(' '),
+                  result.pickedUnit.colour ? `(${result.pickedUnit.colour})` : null,
+                ]
+                  .filter(Boolean)
+                  .join(' '),
+              })}
+            </p>
+          ) : null}
           <table className="w-full text-sm" data-testid="confirm-lines">
             <tbody>
               {result.lines.map((l) => (
