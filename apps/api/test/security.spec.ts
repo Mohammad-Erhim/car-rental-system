@@ -204,6 +204,34 @@ describe('STAGE-007 security', () => {
       .expect(201);
   });
 
+  it('TEST-SEC-003 a cookie-authed write with neither Origin nor Referer is refused by default, not silently allowed', async () => {
+    const signedIn = await request(server)
+      .post('/api/v1/auth/sign-in')
+      .send({
+        email: 'test-customer@example.test',
+        password: 'Test-Passw0rd!',
+        audience: 'customer',
+      })
+      .expect(201);
+    const setCookies = signedIn.headers['set-cookie'] as unknown as string[];
+    const rt = setCookies.find((c) => c.startsWith('carrental_rt='))!.split(';')[0]!;
+    const csrfCookieHeader = setCookies.find((c) => c.startsWith('carrental_csrf='))!;
+    expect(csrfCookieHeader).not.toMatch(/HttpOnly/i); // must be JS-readable to be double-submitted
+    const csrfCookie = csrfCookieHeader.split(';')[0]!;
+    const csrfValue = csrfCookie.split('=')[1]!;
+
+    // neither header at all — previously fell through the old `if (origin && ...)` check and
+    // passed untouched; must now require the double-submit token like any other unverified origin.
+    await request(server).post('/api/v1/auth/refresh').set('Cookie', rt).expect(403);
+
+    // the matching double-submit token (cookie + header) is what actually lets it through.
+    await request(server)
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', `${rt}; ${csrfCookie}`)
+      .set('X-CSRF-Token', csrfValue)
+      .expect(201);
+  });
+
   // ---- TEST-SEC-007: vertical authorization sweep ----
 
   const opsRoutes: Array<{ method: 'get' | 'post'; path: string; body?: unknown }> = [

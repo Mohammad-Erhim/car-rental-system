@@ -58,6 +58,32 @@ describe('IAM / auth', () => {
     expect(me.body.profile.email).toBe(email);
   });
 
+  it('register rejects a returnTo that is not a same-origin relative path', async () => {
+    const email = `redirect-${uniq}@example.test`;
+    const bad = await request(server)
+      .post('/api/v1/auth/register')
+      .send({
+        fullName: 'Redirect Test',
+        email,
+        password: 'Sup3rSecret!!',
+        acceptTerms: true,
+        returnTo: 'https://evil.example/phish',
+      })
+      .expect(422);
+    expect(bad.body.fieldErrors?.[0]?.path).toBe('returnTo');
+
+    await request(server)
+      .post('/api/v1/auth/register')
+      .send({
+        fullName: 'Redirect Test',
+        email,
+        password: 'Sup3rSecret!!',
+        acceptTerms: true,
+        returnTo: '/checkout?step=review',
+      })
+      .expect(201);
+  });
+
   it('TEST-IAM-001 duplicate registration routes to sign-in, does not create a second account', async () => {
     const email = `dupe-${uniq}@example.test`;
     await request(server)

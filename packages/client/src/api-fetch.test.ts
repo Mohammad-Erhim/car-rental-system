@@ -57,6 +57,26 @@ describe('apiFetch', () => {
     expect(authHeader(1)).toBeUndefined();
   });
 
+  it('echoes the carrental_csrf cookie as X-CSRF-Token on a mutating request, not on GET', async () => {
+    document.cookie = 'carrental_csrf=tok-abc-123';
+    const fetchMock = vi.fn(() => Promise.resolve(jsonResponse(200, {})));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const headersOf = (i: number) =>
+      (fetchMock.mock.calls[i] as unknown as [string, RequestInit])[1].headers as Record<
+        string,
+        string
+      >;
+
+    await apiFetch('/meta/build');
+    expect(headersOf(0)['X-CSRF-Token']).toBeUndefined();
+
+    await apiFetch('/auth/sign-out', { method: 'POST', body: {} });
+    expect(headersOf(1)['X-CSRF-Token']).toBe('tok-abc-123');
+
+    document.cookie = 'carrental_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+  });
+
   it('throws an ApiError carrying the Problem body on failure', async () => {
     vi.stubGlobal(
       'fetch',

@@ -21,7 +21,13 @@ import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { ENV } from '../../config/config.module';
 import type { Env } from '../../config/env.schema';
 
-import { REFRESH_COOKIE, clearRefreshCookie, setRefreshCookie } from './iam.cookies';
+import {
+  REFRESH_COOKIE,
+  clearCsrfCookie,
+  clearRefreshCookie,
+  setCsrfCookie,
+  setRefreshCookie,
+} from './iam.cookies';
 import { IamService } from './iam.service';
 import { ProfileService } from './profile.service';
 
@@ -57,7 +63,11 @@ export class IamController {
   ) {}
 
   private issueCookie(res: Response, refreshToken: string, expiresAt: Date) {
-    setRefreshCookie(res, this.env, refreshToken, expiresAt.getTime() - Date.now());
+    const maxAgeMs = expiresAt.getTime() - Date.now();
+    setRefreshCookie(res, this.env, refreshToken, maxAgeMs);
+    // Issued alongside the refresh cookie every time (not just at sign-in) — a session that
+    // outlives a page's lifetime (a rolling refresh) must keep a matching CSRF cookie current too.
+    setCsrfCookie(res, this.env, maxAgeMs);
   }
 
   @Post('register')
@@ -150,6 +160,7 @@ export class IamController {
     const token = req.cookies?.[REFRESH_COOKIE] as string | undefined;
     await this.iam.signOut(token, body.everywhere, actor?.accountId);
     clearRefreshCookie(res, this.env);
+    clearCsrfCookie(res, this.env);
     return { ok: true };
   }
 
@@ -186,6 +197,7 @@ export class IamController {
   ) {
     await this.iam.changePassword(actor.accountId, body.currentPassword, body.newPassword);
     clearRefreshCookie(res, this.env);
+    clearCsrfCookie(res, this.env);
     return { ok: true, message: 'Password changed. Sign in again.' };
   }
 

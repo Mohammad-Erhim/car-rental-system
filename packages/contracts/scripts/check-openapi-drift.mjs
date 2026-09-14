@@ -16,7 +16,13 @@ if (!existsSync(openapiPath)) {
   process.exit(0);
 }
 
-const { ERROR_CODE } = await import('../src/errors.js').catch(() => ({ ERROR_CODE: {} }));
+// Must be the compiled `dist/`, not `src/` — `src/errors.ts` has no `.js` sibling, so importing
+// it here always threw, was silently swallowed by the catch below, and left `known` permanently
+// empty. That was masked only by `openapi.json` itself carrying no error-code content to compare
+// against yet (see the drift check below) — the day that's fixed, every code becomes "unknown"
+// until this import is also fixed. Matches the working `../dist/...` pattern already used by
+// `packages/theme/scripts/gen-tokens-css.mjs`.
+const { ERROR_CODE } = await import('../dist/errors.js').catch(() => ({ ERROR_CODE: {} }));
 const known = new Set(Object.values(ERROR_CODE));
 const doc = JSON.parse(readFileSync(openapiPath, 'utf8'));
 const text = JSON.stringify(doc);
