@@ -9,7 +9,6 @@ import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { hold } from '../../database/schema/booking';
 import { location, locationHoursException } from '../../database/schema/org';
-import { rental } from '../../database/schema/rental';
 import { reservation } from '../../database/schema/reservation';
 import { CatalogueService } from '../catalogue/catalogue.service';
 import { FleetService, type PublicUnitCard } from '../fleet/fleet.service';
@@ -310,20 +309,9 @@ export class AvailabilityService {
         ),
       );
     for (const r of pinnedReservations) if (r.unitId) pinnedElsewhere.add(r.unitId);
-
-    // a unit currently out on an open rental (awaiting pickup / active / overdue) has no bound
-    // return date the system can reason about here — never offer it as pickable, the same
-    // exclusion `RentalService.assign`'s own auto-pick query already applies.
-    const openRentals = await this.db
-      .select({ unitId: rental.unitId })
-      .from(rental)
-      .where(
-        and(
-          inArray(rental.unitId, avail.freeUnitIds),
-          sql`${rental.state} in ('awaiting_pickup','active','overdue')`,
-        ),
-      );
-    for (const r of openRentals) if (r.unitId) pinnedElsewhere.add(r.unitId);
+    // a unit currently out on an open rental is already excluded from `avail.freeUnitIds` itself
+    // — `FleetService.candidateUnits` feeds it into `occupiedByUnit` the same as a maintenance
+    // block, so there's nothing left to filter for that case here.
 
     const selectable = avail.freeUnitIds.filter((id) => !pinnedElsewhere.has(id));
     return this.fleet.unitsByIds(selectable);
@@ -487,18 +475,9 @@ export class AvailabilityService {
                 : sql`true`,
             ),
           );
-        // the unit is currently out on an open rental with no bound return date the system can
-        // reason about — the same exclusion `RentalService.assign`'s auto-pick already applies.
-        const [rentalClash] = await tx
-          .select({ n: sql<number>`count(*)::int` })
-          .from(rental)
-          .where(
-            and(
-              eq(rental.unitId, input.preferredUnitId),
-              sql`${rental.state} in ('awaiting_pickup','active','overdue')`,
-            ),
-          );
-        if ((pinClash?.n ?? 0) > 0 || (resClash?.n ?? 0) > 0 || (rentalClash?.n ?? 0) > 0) {
+        // an open-rental unit is already excluded from `avail.freeUnitIds` above (the check right
+        // before this block already refused it), so there's nothing left to check for that case.
+        if ((pinClash?.n ?? 0) > 0 || (resClash?.n ?? 0) > 0) {
           throw AppError.businessRule('That specific vehicle was just taken by another booking', {
             reason: 'unit_unavailable',
           });
