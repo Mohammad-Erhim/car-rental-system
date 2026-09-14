@@ -43,6 +43,9 @@ export const reservation = pgTable(
     quoteReference: text('quote_reference').notNull(),
     quoteVersion: integer('quote_version').notNull(),
     holdId: uuid('hold_id'),
+    /** the specific car the customer picked before checkout (copied from the hold at confirm),
+     *  or null when they only chose a class — `RentalService.assign` honors this best-effort. */
+    unitId: uuid('unit_id'),
 
     currency: text('currency').notNull(),
     subtotalMinor: integer('subtotal_minor').notNull(),

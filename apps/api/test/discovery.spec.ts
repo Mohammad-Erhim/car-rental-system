@@ -447,4 +447,97 @@ describe('discovery / quote', () => {
       .expect(200);
     expect(arView.body.displayName).toBe('English Name');
   });
+
+  it('SCREEN-CUS-003b: lists specific cars for a category+window, and quote pins the one picked', async () => {
+    const win = { pickupLocationCode: 'TST1', pickupAt: isoIn(110), returnAt: isoIn(112) };
+    const units = await request(server)
+      .get('/api/v1/catalogue/categories/economy/units')
+      .query({
+        locationCode: win.pickupLocationCode,
+        pickupAt: win.pickupAt,
+        returnAt: win.returnAt,
+      })
+      .expect(200);
+    expect(units.body.length).toBeGreaterThan(0);
+    const pick = units.body[0];
+    expect(pick).toMatchObject({ id: expect.any(String) });
+    expect(pick).not.toHaveProperty('plate'); // never expose the plate/VIN publicly
+    expect(pick).not.toHaveProperty('vin');
+
+    const quote = await request(server)
+      .post('/api/v1/discovery/quote')
+      .send({
+        ...win,
+        categoryCode: 'economy',
+        hold: true,
+        holderKey: 'itest-pick-a',
+        unitId: pick.id,
+      })
+      .expect(201);
+    expect(quote.body.hold).toMatchObject({ unitPinned: true, unitId: pick.id });
+
+    // the picked unit is no longer offered to a second shopper for the same window
+    const after = await request(server)
+      .get('/api/v1/catalogue/categories/economy/units')
+      .query({
+        locationCode: win.pickupLocationCode,
+        pickupAt: win.pickupAt,
+        returnAt: win.returnAt,
+      })
+      .expect(200);
+    expect(after.body.some((u: { id: string }) => u.id === pick.id)).toBe(false);
+  });
+
+  it('SCREEN-CUS-003b: a bogus/unavailable unitId is refused rather than silently substituted', async () => {
+    const win = { pickupLocationCode: 'TST1', pickupAt: isoIn(114), returnAt: isoIn(116) };
+    const res = await request(server)
+      .post('/api/v1/discovery/quote')
+      .send({
+        ...win,
+        categoryCode: 'economy',
+        hold: true,
+        holderKey: 'itest-pick-bad',
+        unitId: '00000000-0000-0000-0000-000000000000',
+      })
+      .expect(422);
+    expect(res.body.code).toBe('business_rule_violation');
+    expect(res.body.params.reason).toBe('unit_unavailable');
+  });
+
+  it('SCREEN-CUS-003b: two shoppers cannot pin the same specific car — the second is refused', async () => {
+    const win = { pickupLocationCode: 'TST1', pickupAt: isoIn(118), returnAt: isoIn(120) };
+    const units = await request(server)
+      .get('/api/v1/catalogue/categories/economy/units')
+      .query({
+        locationCode: win.pickupLocationCode,
+        pickupAt: win.pickupAt,
+        returnAt: win.returnAt,
+      })
+      .expect(200);
+    const pick = units.body[0].id as string;
+
+    await request(server)
+      .post('/api/v1/discovery/quote')
+      .send({
+        ...win,
+        categoryCode: 'economy',
+        hold: true,
+        holderKey: 'itest-clash-a',
+        unitId: pick,
+      })
+      .expect(201);
+
+    const clash = await request(server)
+      .post('/api/v1/discovery/quote')
+      .send({
+        ...win,
+        categoryCode: 'economy',
+        hold: true,
+        holderKey: 'itest-clash-b',
+        unitId: pick,
+      })
+      .expect(422);
+    expect(clash.body.code).toBe('business_rule_violation');
+    expect(clash.body.params.reason).toBe('unit_unavailable');
+  });
 });

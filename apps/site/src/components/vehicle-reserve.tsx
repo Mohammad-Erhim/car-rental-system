@@ -8,7 +8,12 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 
-import { formatMinor, useAvailabilitySearch, useCreateQuote } from '../lib/customer-hooks';
+import {
+  formatMinor,
+  useAvailabilitySearch,
+  useAvailableUnits,
+  useCreateQuote,
+} from '../lib/customer-hooks';
 import { guestId } from '../lib/guest-id';
 import { useLocale } from '../lib/nav';
 import { defaultWindow, isCompleteTrip, readTrip, writeTrip, type TripWindow } from '../lib/trip';
@@ -36,6 +41,7 @@ function ReserveInner({
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [stored, setStored] = useState<TripWindow | null>(null);
+  const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
 
   // localStorage is client-only — read it after mount (this island renders behind a Suspense
   // boundary, so the first paint is the picker either way).
@@ -60,6 +66,21 @@ function ReserveInner({
       : null,
   );
   const option = search.data?.options.find((o) => o.categoryCode === categoryCode) ?? null;
+
+  const canChooseCar = hasWindow && !!option && option.bookableCount > 0;
+  const availableUnits = useAvailableUnits(
+    categoryCode,
+    canChooseCar
+      ? { locationCode: trip.pickup, pickupAt: trip.pickupAt, returnAt: trip.returnAt }
+      : null,
+  );
+  // a previously picked car may not exist in the refreshed list (dates/location changed, or
+  // someone else took it) — never silently keep an id that no longer resolves.
+  useEffect(() => {
+    if (selectedUnitId && !availableUnits.data?.some((u) => u.id === selectedUnitId)) {
+      setSelectedUnitId(null);
+    }
+  }, [availableUnits.data, selectedUnitId]);
 
   function tripQuery(w: TripWindow): string {
     return new URLSearchParams({
@@ -88,6 +109,7 @@ function ReserveInner({
         categoryCode,
         hold: true,
         holderKey: guestId(),
+        unitId: selectedUnitId ?? undefined,
       });
       router.push(`/${locale}/checkout?quote=${q.reference}`);
     } catch (e) {
@@ -214,6 +236,60 @@ function ReserveInner({
               {t('site.search.available', { n: option.bookableCount })}
             </span>
           </div>
+
+          {canChooseCar && availableUnits.data && availableUnits.data.length > 0 ? (
+            <div className="space-y-2.5" data-testid="unit-picker">
+              <p className="text-sm font-semibold text-ink">{t('site.vehicle.chooseYourCar')}</p>
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedUnitId(null)}
+                  className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 p-3 text-center transition-colors ${
+                    selectedUnitId === null
+                      ? 'border-brand bg-brand/5'
+                      : 'border-hairline hover:border-brand/40'
+                  }`}
+                  data-testid="unit-pick-any"
+                >
+                  <span className="icon-chip size-9 rounded-lg" aria-hidden="true">
+                    <ArrowRight className="size-4 rotate-45" />
+                  </span>
+                  <span className="text-xs font-medium text-ink">
+                    {t('site.vehicle.anyAvailableCar')}
+                  </span>
+                </button>
+                {availableUnits.data.map((u) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => setSelectedUnitId(u.id)}
+                    className={`flex flex-col items-center gap-1.5 overflow-hidden rounded-xl border-2 p-2 text-center transition-colors ${
+                      selectedUnitId === u.id
+                        ? 'border-brand bg-brand/5'
+                        : 'border-hairline hover:border-brand/40'
+                    }`}
+                    data-testid={`unit-pick-${u.id}`}
+                  >
+                    <span className="aspect-[4/3] w-full overflow-hidden rounded-lg bg-surface-muted">
+                      {u.imageUrl ? (
+                        <img
+                          src={u.imageUrl}
+                          alt={[u.make, u.model].filter(Boolean).join(' ')}
+                          className="size-full object-cover"
+                        />
+                      ) : null}
+                    </span>
+                    <span className="text-xs font-medium text-ink">
+                      {[u.make, u.model].filter(Boolean).join(' ') || t('site.vehicle.eyebrow')}
+                    </span>
+                    {u.colour ? (
+                      <span className="text-[0.7rem] text-ink-muted">{u.colour}</span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           {error ? (
             <p className="text-sm font-medium text-destructive" data-testid="reserve-error">

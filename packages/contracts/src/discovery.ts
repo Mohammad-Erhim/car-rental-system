@@ -78,4 +78,9 @@ export type Quote = z.infer<typeof zQuote>;
 
 export const zCreateQuoteRequest = zAvailabilitySearchRequest
   .extend({ categoryCode: z.string().min(2).max(40) })
-  .extend({ hold: z.boolean().default(true), holderKey: z.string().max(120).optional() });
+  .extend({
+    hold: z.boolean().default(true),
+    holderKey: z.string().max(120).optional(),
+    /** a specific car the customer picked (SCREEN-CUS-003b) rather than just the class. */
+    unitId: z.string().uuid().optional(),
+  });

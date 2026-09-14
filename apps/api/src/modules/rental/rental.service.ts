@@ -90,6 +90,30 @@ export class RentalService {
       );
 
       let unitId = input.unitId ?? existingRental?.unitId ?? null;
+      if (!unitId && res.unitId) {
+        // the customer picked this exact car before checkout (SCREEN-CUS-003b) — honor it
+        // best-effort if it's still genuinely free; silently fall through to the normal auto-pick
+        // pool below otherwise (e.g. it went to maintenance in the meantime), never blocking the
+        // assign over a preference that didn't pan out.
+        const [preferred] = await tx
+          .select({ id: vehicleUnit.id, state: vehicleUnit.state })
+          .from(vehicleUnit)
+          .where(eq(vehicleUnit.id, res.unitId))
+          .limit(1);
+        if (preferred?.state === 'available') {
+          const [clash] = await tx
+            .select({ id: rental.id })
+            .from(rental)
+            .where(
+              and(
+                eq(rental.unitId, res.unitId),
+                sql`${rental.state} in ('awaiting_pickup','active','overdue')`,
+              ),
+            )
+            .limit(1);
+          if (!clash) unitId = res.unitId;
+        }
+      }
       if (!unitId) {
         // a free `available` unit of the category at the pickup location with no open rental —
         // 'awaiting_pickup' is included alongside 'active'/'overdue' because a unit already

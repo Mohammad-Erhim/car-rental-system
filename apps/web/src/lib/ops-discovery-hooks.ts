@@ -38,11 +38,14 @@ export interface OpsUnitList {
   results: OpsUnit[];
 }
 
-export function useOpsUnits(filter: {
-  locationCode?: string;
-  categoryCode?: string;
-  state?: string;
-}) {
+export function useOpsUnits(
+  filter: {
+    locationCode?: string;
+    categoryCode?: string;
+    state?: string;
+  },
+  opts: { enabled?: boolean } = {},
+) {
   const qs = new URLSearchParams();
   if (filter.locationCode) qs.set('locationCode', filter.locationCode);
   if (filter.categoryCode) qs.set('categoryCode', filter.categoryCode);
@@ -50,6 +53,7 @@ export function useOpsUnits(filter: {
   return useQuery({
     queryKey: ['ops', 'fleet-units', filter],
     placeholderData: keepPreviousData,
+    enabled: opts.enabled ?? true,
     queryFn: ({ signal }) =>
       apiFetch<OpsUnitList>(`/ops/fleet/units${qs.toString() ? `?${qs}` : ''}`, { signal }),
   });

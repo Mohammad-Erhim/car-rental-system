@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, gt, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
@@ -9,9 +9,10 @@ import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { hold } from '../../database/schema/booking';
 import { location, locationHoursException } from '../../database/schema/org';
+import { rental } from '../../database/schema/rental';
 import { reservation } from '../../database/schema/reservation';
 import { CatalogueService } from '../catalogue/catalogue.service';
-import { FleetService } from '../fleet/fleet.service';
+import { FleetService, type PublicUnitCard } from '../fleet/fleet.service';
 import { PricingService } from '../pricing/pricing.service';
 
 import { computeAvailability } from './availability.engine';
@@ -253,6 +254,82 @@ export class AvailabilityService {
   }
 
   /**
+   * SCREEN-CUS-003b — the specific cars a customer could pick for a category+location+window,
+   * before checkout. Same "free" definition `search()`'s class-level count already uses (state +
+   * maintenance blocks), minus whatever's already pinned to someone else's live hold/reservation
+   * for an overlapping window — a soft best-effort list, not a guarantee: the physical unit is
+   * only truly locked in once `checkAndHold` validates + pins it (and even then, `assign()` at
+   * pickup time falls back gracefully if it stopped being viable in between).
+   */
+  async listAvailableUnits(
+    categoryCode: string,
+    pickupLocationCode: string,
+    pickupAt: Date,
+    returnAt: Date,
+  ): Promise<PublicUnitCard[]> {
+    const { unitIds, occupiedByUnit } = await this.fleet.candidateUnits(
+      pickupLocationCode,
+      categoryCode,
+      pickupAt,
+      returnAt,
+    );
+    if (!unitIds.length) return [];
+    const { loc } = await this.loadLocation(pickupLocationCode);
+    const avail = computeAvailability({
+      request: { start: pickupAt.getTime(), end: returnAt.getTime() },
+      turnaroundMs: (loc.turnaroundMinutes ?? 60) * 60_000,
+      unitIds,
+      occupiedByUnit,
+      classHolds: 0,
+    });
+    if (!avail.freeUnitIds.length) return [];
+
+    const pinnedElsewhere = new Set<string>();
+    const pinnedHolds = await this.db
+      .select({ unitId: hold.unitId })
+      .from(hold)
+      .where(
+        and(
+          inArray(hold.unitId, avail.freeUnitIds),
+          eq(hold.status, 'active'),
+          gt(hold.expiresAt, new Date().toISOString()),
+          sql`${hold.pickupAt} < ${returnAt.toISOString()}`,
+          sql`${pickupAt.toISOString()} < ${hold.returnAt}`,
+        ),
+      );
+    for (const h of pinnedHolds) if (h.unitId) pinnedElsewhere.add(h.unitId);
+    const pinnedReservations = await this.db
+      .select({ unitId: reservation.unitId })
+      .from(reservation)
+      .where(
+        and(
+          inArray(reservation.unitId, avail.freeUnitIds),
+          sql`${reservation.state} in ('confirmed','fulfilled')`,
+          sql`${reservation.pickupAt} < ${returnAt.toISOString()}`,
+          sql`${pickupAt.toISOString()} < ${reservation.returnAt}`,
+        ),
+      );
+    for (const r of pinnedReservations) if (r.unitId) pinnedElsewhere.add(r.unitId);
+
+    // a unit currently out on an open rental (awaiting pickup / active / overdue) has no bound
+    // return date the system can reason about here — never offer it as pickable, the same
+    // exclusion `RentalService.assign`'s own auto-pick query already applies.
+    const openRentals = await this.db
+      .select({ unitId: rental.unitId })
+      .from(rental)
+      .where(
+        and(
+          inArray(rental.unitId, avail.freeUnitIds),
+          sql`${rental.state} in ('awaiting_pickup','active','overdue')`,
+        ),
+      );
+    for (const r of openRentals) if (r.unitId) pinnedElsewhere.add(r.unitId);
+
+    const selectable = avail.freeUnitIds.filter((id) => !pinnedElsewhere.has(id));
+    return this.fleet.unitsByIds(selectable);
+  }
+
+  /**
    * Capacity already committed against a category + pickup location for a window: live holds
    * (checkout in progress) + confirmed reservations that have not yet been picked up. Both
    * consume a unit from the free pool.
@@ -311,10 +388,14 @@ export class AvailabilityService {
     pickupAt: Date;
     returnAt: Date;
     holderKey: string;
+    /** the specific car the customer picked (SCREEN-CUS-003b) — validated free for the window
+     *  and not already pinned to someone else's live hold/reservation, else refused outright
+     *  rather than silently substituting a different car. */
+    preferredUnitId?: string;
     quoteReference?: string;
     /** when re-holding for a modify, don't count the reservation being changed against itself */
     excludeReservationRef?: string;
-  }): Promise<{ id: string; expiresAt: string; unitPinned: boolean }> {
+  }): Promise<{ id: string; expiresAt: string; unitPinned: boolean; unitId: string | null }> {
     const lockKey = `${input.organizationId}:${input.categoryCode}:${input.pickupLocationCode}`;
     return this.db.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
@@ -367,6 +448,64 @@ export class AvailabilityService {
         });
       }
 
+      let pinnedUnitId: string | null = null;
+      if (input.preferredUnitId) {
+        if (!avail.freeUnitIds.includes(input.preferredUnitId)) {
+          throw AppError.businessRule(
+            'That specific vehicle is no longer available for those dates',
+            {
+              reason: 'unit_unavailable',
+            },
+          );
+        }
+        // someone else's live hold or confirmed reservation already has this exact car pinned for
+        // an overlapping window — the class itself may still have other free units, but not the
+        // one this customer actually asked for.
+        const [pinClash] = await tx
+          .select({ n: sql<number>`count(*)::int` })
+          .from(hold)
+          .where(
+            and(
+              eq(hold.unitId, input.preferredUnitId),
+              eq(hold.status, 'active'),
+              gt(hold.expiresAt, new Date().toISOString()),
+              sql`${hold.pickupAt} < ${input.returnAt.toISOString()}`,
+              sql`${input.pickupAt.toISOString()} < ${hold.returnAt}`,
+            ),
+          );
+        const [resClash] = await tx
+          .select({ n: sql<number>`count(*)::int` })
+          .from(reservation)
+          .where(
+            and(
+              eq(reservation.unitId, input.preferredUnitId),
+              sql`${reservation.state} in ('confirmed','fulfilled')`,
+              sql`${reservation.pickupAt} < ${input.returnAt.toISOString()}`,
+              sql`${input.pickupAt.toISOString()} < ${reservation.returnAt}`,
+              input.excludeReservationRef
+                ? sql`${reservation.reference} <> ${input.excludeReservationRef}`
+                : sql`true`,
+            ),
+          );
+        // the unit is currently out on an open rental with no bound return date the system can
+        // reason about — the same exclusion `RentalService.assign`'s auto-pick already applies.
+        const [rentalClash] = await tx
+          .select({ n: sql<number>`count(*)::int` })
+          .from(rental)
+          .where(
+            and(
+              eq(rental.unitId, input.preferredUnitId),
+              sql`${rental.state} in ('awaiting_pickup','active','overdue')`,
+            ),
+          );
+        if ((pinClash?.n ?? 0) > 0 || (resClash?.n ?? 0) > 0 || (rentalClash?.n ?? 0) > 0) {
+          throw AppError.businessRule('That specific vehicle was just taken by another booking', {
+            reason: 'unit_unavailable',
+          });
+        }
+        pinnedUnitId = input.preferredUnitId;
+      }
+
       const [row] = await tx
         .insert(hold)
         .values({
@@ -377,6 +516,7 @@ export class AvailabilityService {
           pickupAt: input.pickupAt.toISOString(),
           returnAt: input.returnAt.toISOString(),
           holderKey: input.holderKey,
+          unitId: pinnedUnitId,
           quoteReference: input.quoteReference ?? null,
           status: 'active',
           expiresAt: new Date(Date.now() + HOLD_TTL_MS).toISOString(),
@@ -400,6 +540,7 @@ export class AvailabilityService {
         id: row!.id,
         expiresAt: new Date(row!.expiresAt).toISOString(),
         unitPinned: avail.freeUnitIds.length > 0,
+        unitId: pinnedUnitId,
       };
     });
   }

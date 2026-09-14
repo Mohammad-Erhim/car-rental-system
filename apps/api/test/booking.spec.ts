@@ -337,4 +337,60 @@ describe('booking / payment', () => {
       true,
     );
   });
+
+  it('SCREEN-CUS-003b: a car picked before checkout survives confirm and blocks a later overlapping pin', async () => {
+    const win = { pickupLocationCode: 'TST1', pickupAt: isoIn(122), returnAt: isoIn(124) };
+    const units = await request(server)
+      .get('/api/v1/catalogue/categories/economy/units')
+      .query({
+        locationCode: win.pickupLocationCode,
+        pickupAt: win.pickupAt,
+        returnAt: win.returnAt,
+      })
+      .expect(200);
+    const pick = units.body[0].id as string;
+
+    const quote = await request(server)
+      .post('/api/v1/discovery/quote')
+      .send({
+        ...win,
+        categoryCode: 'economy',
+        hold: true,
+        holderKey: `bk-pick-${Math.random().toString(36).slice(2)}`,
+        unitId: pick,
+      })
+      .expect(201);
+    expect(quote.body.hold.unitId).toBe(pick);
+
+    const confirmed = await request(server)
+      .post('/api/v1/bookings/confirm')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        quoteReference: quote.body.reference,
+        drivers: DRIVERS,
+        acceptTerms: true,
+        paymentToken: 'tok_visa_ok',
+      })
+      .expect(201);
+    expect(confirmed.body.pickedUnit).toMatchObject({ id: pick });
+
+    const fetched = await request(server)
+      .get(`/api/v1/bookings/${confirmed.body.reference}`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .expect(200);
+    expect(fetched.body.pickedUnit).toMatchObject({ id: pick });
+
+    // a second shopper cannot pin the now-reserved car for an overlapping window
+    const clash = await request(server)
+      .post('/api/v1/discovery/quote')
+      .send({
+        ...win,
+        categoryCode: 'economy',
+        hold: true,
+        holderKey: `bk-pick-clash-${Math.random().toString(36).slice(2)}`,
+        unitId: pick,
+      })
+      .expect(422);
+    expect(clash.body.params.reason).toBe('unit_unavailable');
+  });
 });

@@ -77,16 +77,21 @@ export function useAssignVehicle() {
   const qc = useQueryClient();
   const invalidate = useRentalInvalidate();
   return useMutation({
-    mutationFn: (reservationReference: string) =>
-      apiFetch<Rental>(`/ops/reservations/${reservationReference}/assign`, {
+    mutationFn: (input: string | { reference: string; unitId?: string }) => {
+      const { reference, unitId } =
+        typeof input === 'string' ? { reference: input, unitId: undefined } : input;
+      return apiFetch<Rental>(`/ops/reservations/${reference}/assign`, {
         method: 'POST',
-        body: {},
-      }),
-    onSuccess: (_data, reservationReference) =>
+        body: unitId ? { unitId } : {},
+      });
+    },
+    onSuccess: (_data, input) => {
+      const reference = typeof input === 'string' ? input : input.reference;
       invalidate(() => {
         void qc.invalidateQueries({ queryKey: ['ops', 'reservations'] });
-        void qc.invalidateQueries({ queryKey: ['reservation', reservationReference] });
-      }),
+        void qc.invalidateQueries({ queryKey: ['reservation', reference] });
+      });
+    },
   });
 }
 

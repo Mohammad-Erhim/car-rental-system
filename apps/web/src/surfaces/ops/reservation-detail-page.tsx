@@ -15,6 +15,7 @@ import {
   DetailList,
   Field,
   PageHeader,
+  Select,
   Textarea,
 } from '@carrental/ui';
 import { useState } from 'react';
@@ -22,6 +23,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { LookupSelect } from '../../components/lookup-select.js';
 import { ApiError } from '../../lib/api.js';
+import { useOpsUnits } from '../../lib/ops-discovery-hooks.js';
 import { useAssignVehicle } from '../../lib/rental-hooks.js';
 import {
   useCancelReservation,
@@ -60,9 +62,19 @@ export function ReservationDetailPage() {
   const noShow = useNoShowReservation(reference);
   const cancel = useCancelReservation(reference);
   const refund = useManualRefund(reference);
+  const canAssignUnit = !detail.data?.assignedRentalRef && detail.data?.state === 'confirmed';
+  const candidateUnits = useOpsUnits(
+    {
+      categoryCode: detail.data?.categoryCode,
+      locationCode: detail.data?.pickupLocationCode,
+      state: 'available',
+    },
+    { enabled: canAssignUnit },
+  );
 
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirmAssign, setConfirmAssign] = useState(false);
+  const [assignUnitId, setAssignUnitId] = useState('');
   const [confirmNoShow, setConfirmNoShow] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [confirmRefund, setConfirmRefund] = useState(false);
@@ -106,8 +118,12 @@ export function ReservationDetailPage() {
   const runAssign = async () => {
     setResult(null);
     try {
-      const rental = await assign.mutateAsync(reference);
+      const rental = await assign.mutateAsync({
+        reference,
+        unitId: assignUnitId || undefined,
+      });
       setResult({ ok: true, text: t('ops.queue.assignedTo', { rental: rental.reference }) });
+      setAssignUnitId('');
     } catch (e) {
       setResult({ ok: false, text: errText(e, t('ops.queue.assignFail', { ref: reference })) });
     } finally {
@@ -341,7 +357,10 @@ export function ReservationDetailPage() {
             <Button
               loading={assign.isPending}
               disabled={busy}
-              onClick={() => setConfirmAssign(true)}
+              onClick={() => {
+                setAssignUnitId(d.pickedUnit?.id ?? '');
+                setConfirmAssign(true);
+              }}
             >
               {t('ops.queue.assign')}
             </Button>
@@ -394,9 +413,54 @@ export function ReservationDetailPage() {
 
       <ConfirmDialog
         open={confirmAssign}
-        onOpenChange={setConfirmAssign}
+        onOpenChange={(v) => {
+          setConfirmAssign(v);
+          if (!v) setAssignUnitId('');
+        }}
         title={t('ops.resv.assignTitle')}
-        description={t('ops.resv.assignBody', { ref: d.reference })}
+        description={
+          <div className="space-y-3">
+            <p>{t('ops.resv.assignBody', { ref: d.reference })}</p>
+            {d.pickedUnit ? (
+              <p className="text-sm text-muted-foreground" data-testid="assign-customer-pick">
+                {t('ops.resv.customerPicked', {
+                  car: [d.pickedUnit.make, d.pickedUnit.model].filter(Boolean).join(' '),
+                  plate: d.pickedUnit.plate,
+                })}
+              </p>
+            ) : null}
+            <Field
+              label={t('ops.resv.assignUnit')}
+              htmlFor="assign-unit"
+              hint={t('ops.resv.assignUnitHint')}
+            >
+              {({ id }) => (
+                <Select
+                  id={id}
+                  value={assignUnitId}
+                  onChange={(e) => setAssignUnitId(e.target.value)}
+                  data-testid="assign-unit-select"
+                >
+                  <option value="">{t('ops.resv.assignAuto')}</option>
+                  {(candidateUnits.data?.results ?? []).map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.plate} — {[u.year, u.make, u.model].filter(Boolean).join(' ') || u.vin}
+                      {u.id === d.pickedUnit?.id ? ` (${t('ops.resv.customerPickedBadge')})` : ''}
+                    </option>
+                  ))}
+                  {d.pickedUnit &&
+                  !(candidateUnits.data?.results ?? []).some((u) => u.id === d.pickedUnit!.id) ? (
+                    <option value={d.pickedUnit.id}>
+                      {d.pickedUnit.plate} —{' '}
+                      {[d.pickedUnit.make, d.pickedUnit.model].filter(Boolean).join(' ')} (
+                      {t('ops.resv.customerPickedBadge')})
+                    </option>
+                  ) : null}
+                </Select>
+              )}
+            </Field>
+          </div>
+        }
         confirmLabel={t('ops.queue.assign')}
         onConfirm={runAssign}
       />

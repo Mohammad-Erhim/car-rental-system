@@ -178,8 +178,14 @@ export function useAvailabilitySearch(args: SearchArgs | null) {
 
 export function useCreateQuote() {
   return useMutation({
-    mutationFn: (body: SearchArgs & { categoryCode: string; hold?: boolean; holderKey?: string }) =>
-      apiFetch<Quote>('/discovery/quote', { method: 'POST', body, anonymous: true }),
+    mutationFn: (
+      body: SearchArgs & {
+        categoryCode: string;
+        hold?: boolean;
+        holderKey?: string;
+        unitId?: string;
+      },
+    ) => apiFetch<Quote>('/discovery/quote', { method: 'POST', body, anonymous: true }),
   });
 }
 
@@ -189,6 +195,38 @@ export function useQuoteByRef(reference: string | null) {
     queryFn: ({ signal }) =>
       apiFetch<Quote>(`/discovery/quotes/${reference}`, { signal, anonymous: true }),
     enabled: !!reference,
+  });
+}
+
+/** SCREEN-CUS-003b — the specific cars a customer can pick for a class + location + window,
+ *  before checkout. A soft, best-effort list (see the backend's own doc comment); re-fetched
+ *  fresh whenever the trip window changes. */
+export interface AvailableUnit {
+  id: string;
+  make: string | null;
+  model: string | null;
+  year: string | null;
+  colour: string | null;
+  imageUrl: string | null;
+}
+
+export function useAvailableUnits(
+  categoryCode: string,
+  args: { locationCode: string; pickupAt: string; returnAt: string } | null,
+) {
+  return useQuery({
+    queryKey: ['catalogue', 'category-units', categoryCode, args],
+    queryFn: ({ signal }) =>
+      apiFetch<AvailableUnit[]>(
+        `/catalogue/categories/${categoryCode}/units?${new URLSearchParams({
+          locationCode: args!.locationCode,
+          pickupAt: args!.pickupAt,
+          returnAt: args!.returnAt,
+        })}`,
+        { signal, anonymous: true },
+      ),
+    enabled: !!args,
+    staleTime: 0,
   });
 }
 

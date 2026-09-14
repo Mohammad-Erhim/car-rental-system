@@ -22,6 +22,10 @@ export const hold = pgTable(
     returnAt: timestamp('return_at', { withTimezone: true, mode: 'string' }).notNull(),
     /** who holds it — an account, or an anonymous checkout session key */
     holderKey: text('holder_key').notNull(),
+    /** set when the customer picked a specific physical car (SCREEN-CUS-003b) rather than just
+     *  the class — validated free for the window at hold time; carried onto the reservation at
+     *  confirm and honored (best-effort) by `RentalService.assign` ahead of the auto-pick pool. */
+    unitId: uuid('unit_id'),
     quoteReference: text('quote_reference'),
     status: text('status').notNull().default('active'), // active|released|consumed|expired
     expiresAt: timestamp('expires_at', { withTimezone: true, mode: 'string' }).notNull(),
