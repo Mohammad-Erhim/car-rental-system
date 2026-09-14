@@ -110,6 +110,7 @@
   "checkout.title": "المراجعة والدفع",
   "checkout.total": "الإجمالي",
   "checkout.viewMyTrips": "عرض رحلاتي",
+  "checkout.yourCar": "سيارتك: {car}",
   "common.skipToContent": "تخطَّ إلى المحتوى الرئيسي",
   "driver.add": "إضافة سائق",
   "driver.expires": "تنتهي في {date}",

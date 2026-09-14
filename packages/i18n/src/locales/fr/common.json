@@ -110,6 +110,7 @@
   "checkout.title": "Vérification et paiement",
   "checkout.total": "Total",
   "checkout.viewMyTrips": "Voir mes voyages",
+  "checkout.yourCar": "Votre véhicule : {car}",
   "common.skipToContent": "Aller au contenu principal",
   "driver.add": "Ajouter un conducteur",
   "driver.expires": "expire le {date}",

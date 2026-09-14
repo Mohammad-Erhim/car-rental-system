@@ -66,6 +66,16 @@ export const zReservation = z.object({
     }),
   ),
   termsAccepted: z.object({ version: z.string(), acceptedAt: zInstant }).nullable(),
+  /** SCREEN-CUS-003b — the specific car picked before checkout, if any (never plate/VIN here —
+   *  those are staff-only, surfaced separately on the ops reservation detail). */
+  pickedUnit: z
+    .object({
+      id: z.string(),
+      make: z.string().nullable(),
+      model: z.string().nullable(),
+      colour: z.string().nullable(),
+    })
+    .nullable(),
 });
 export type Reservation = z.infer<typeof zReservation>;
 

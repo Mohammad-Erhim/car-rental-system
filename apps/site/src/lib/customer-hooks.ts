@@ -320,6 +320,15 @@ export interface ReservationDetail {
   drivers: Array<{ role: string; fullName: string; email: string | null }>;
   cancellable: boolean;
   modifiable: boolean;
+  /** SCREEN-CUS-003b — the specific car picked before checkout, if any (honored best-effort at
+   *  assign time; may differ from the car actually assigned if it stopped being viable). */
+  pickedUnit: {
+    id: string;
+    plate: string;
+    make: string | null;
+    model: string | null;
+    colour: string | null;
+  } | null;
 }
 
 export interface ReservationEvent {

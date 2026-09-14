@@ -110,6 +110,7 @@
   "checkout.title": "Review & checkout",
   "checkout.total": "Total",
   "checkout.viewMyTrips": "View my trips",
+  "checkout.yourCar": "Your car: {car}",
   "common.skipToContent": "Skip to main content",
   "driver.add": "Add a driver",
   "driver.expires": "expires {date}",
