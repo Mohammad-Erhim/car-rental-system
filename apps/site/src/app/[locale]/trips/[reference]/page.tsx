@@ -203,6 +203,15 @@ function ReservationDetail() {
             names: r.drivers.map((d) => d.fullName).join(', ') || '—',
           })}
         </p>
+
+        <button
+          type="button"
+          onClick={() => router.push(`/${locale}/trips/${reference}/receipt`)}
+          className="mt-4 text-sm font-medium text-brand hover:underline underline-offset-4"
+          data-testid="view-receipt"
+        >
+          {t('reservation.viewReceipt')}
+        </button>
       </Section>
 
       {rental.data && ['active', 'overdue'].includes(rental.data.state) ? (

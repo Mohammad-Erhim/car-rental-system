@@ -14,6 +14,7 @@ import { ConsentModule } from './modules/consent/consent.module';
 import { CustomerModule } from './modules/customer/customer.module';
 import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { IamModule } from './modules/iam/iam.module';
+import { MediaModule } from './modules/media/media.module';
 import { MetaModule } from './modules/meta/meta.module';
 import { NotifyModule } from './modules/notify/notify.module';
 import { RentalModule } from './modules/rental/rental.module';
@@ -42,6 +43,7 @@ import { ObservabilityModule } from './observability/observability.module';
     SearchModule,
     MetaModule,
     ConsentModule,
+    MediaModule,
   ],
   providers: [{ provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor }],
 })

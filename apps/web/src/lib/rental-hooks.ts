@@ -111,10 +111,14 @@ export function useReturnRental(reference: string) {
       fuelPct: number;
       findings?: Array<{ area: string; description: string; chargeMinor?: number }>;
     }) =>
-      apiFetch<Rental & { adjustmentMinor: number; fuelMinor: number; damageMinor: number }>(
-        `/ops/rentals/${reference}/return`,
-        { method: 'POST', body },
-      ),
+      apiFetch<
+        Rental & {
+          adjustmentMinor: number;
+          fuelMinor: number;
+          damageMinor: number;
+          settlementCollected: boolean;
+        }
+      >(`/ops/rentals/${reference}/return`, { method: 'POST', body }),
     onSuccess: () => invalidate(),
   });
 }

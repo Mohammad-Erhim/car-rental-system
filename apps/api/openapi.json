@@ -1763,6 +1763,18 @@
         "tags": [
           "ops-catalogue"
         ]
+      },
+      "post": {
+        "operationId": "OpsCatalogueController_createUnit",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
       }
     },
     "/api/v1/ops/fleet/blocks": {
@@ -1858,6 +1870,75 @@
       "post": {
         "operationId": "OpsCatalogueController_importUnits",
         "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/fleet/units/{id}": {
+      "post": {
+        "operationId": "OpsCatalogueController_updateUnit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/fleet/units/{id}/retire": {
+      "post": {
+        "operationId": "OpsCatalogueController_retireUnit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-catalogue"
+        ]
+      }
+    },
+    "/api/v1/ops/fleet/units/{id}/restore": {
+      "post": {
+        "operationId": "OpsCatalogueController_restoreUnit",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "201": {
             "description": ""
@@ -2235,6 +2316,29 @@
     "/api/v1/ops/reservations/{reference}/no-show": {
       "post": {
         "operationId": "ReservationController_noShow",
+        "parameters": [
+          {
+            "name": "reference",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "reservations"
+        ]
+      }
+    },
+    "/api/v1/ops/reservations/{reference}/refund": {
+      "post": {
+        "operationId": "ReservationController_refund",
         "parameters": [
           {
             "name": "reference",
@@ -3376,6 +3480,80 @@
         },
         "tags": [
           "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/media": {
+      "get": {
+        "operationId": "MediaController_list",
+        "parameters": [
+          {
+            "name": "purpose",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ownerType",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ownerId",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-media"
+        ]
+      },
+      "post": {
+        "operationId": "MediaController_upload",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-media"
+        ]
+      }
+    },
+    "/api/v1/ops/media/{id}": {
+      "delete": {
+        "operationId": "MediaController_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-media"
         ]
       }
     }

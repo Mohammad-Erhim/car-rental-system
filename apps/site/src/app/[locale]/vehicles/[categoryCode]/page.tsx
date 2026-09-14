@@ -19,6 +19,7 @@ interface Category {
   luggage: number;
   doors: number;
   transmission: string;
+  imageUrl: string | null;
   features: Array<{ code: string; label: string; group: string }>;
 }
 
@@ -90,6 +91,7 @@ export default async function VehicleDetailPage({
     name: cat.displayName,
     category: cat.class,
     description: cat.description ?? undefined,
+    image: cat.imageUrl ? `${origin}${cat.imageUrl}` : undefined,
     url: `${origin}/${locale}/vehicles/${cat.code}`,
   };
 
@@ -113,7 +115,7 @@ export default async function VehicleDetailPage({
           {t.t('nav.rentACar')}
         </Link>
         <ChevronRight className="size-4 rtl:rotate-180" aria-hidden="true" />
-        <Link href={`/${locale}#fleet`} className="hover:text-brand">
+        <Link href={`/${locale}/vehicles`} className="hover:text-brand">
           {t.t('site.vehicle.backToFleet')}
         </Link>
         <ChevronRight className="size-4 rtl:rotate-180" aria-hidden="true" />
@@ -122,14 +124,24 @@ export default async function VehicleDetailPage({
 
       <div className="grid gap-8 lg:grid-cols-2 lg:items-center">
         <div className="relative flex aspect-[4/3] items-end justify-center overflow-hidden rounded-3xl bg-brand-gradient shadow-lift">
-          <span className="aurora" aria-hidden="true" />
+          {cat.imageUrl ? (
+            <img
+              src={cat.imageUrl}
+              alt={cat.displayName}
+              className="absolute inset-0 size-full object-cover"
+            />
+          ) : (
+            <>
+              <span className="aurora" aria-hidden="true" />
+              <CarArt
+                variant={carVariantFor(cat.code)}
+                className="art-shadow relative mb-2 w-[82%] text-on-brand"
+              />
+            </>
+          )}
           <span className="absolute end-4 top-4 rounded-full bg-on-brand/15 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-on-brand backdrop-blur">
             {cat.class}
           </span>
-          <CarArt
-            variant={carVariantFor(cat.code)}
-            className="art-shadow relative mb-2 w-[82%] text-on-brand"
-          />
         </div>
 
         <header className="space-y-4">

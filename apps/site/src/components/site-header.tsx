@@ -48,7 +48,7 @@ export function SiteHeader({ locale }: { locale: string }) {
   return (
     <>
       <header
-        className={`sticky top-0 z-40 border-b transition-colors duration-200 ${
+        className={`sticky top-0 z-40 border-b transition-colors duration-200 print:hidden ${
           scrolled
             ? 'border-hairline bg-background/90 shadow-card backdrop-blur-md'
             : 'border-transparent bg-background/75 backdrop-blur-md'

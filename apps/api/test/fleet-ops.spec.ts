@@ -335,4 +335,83 @@ describe('fleet operations', () => {
       .send({ unitId: unit.id, startAt: isoIn(5), endAt: isoIn(2) })
       .expect(422);
   });
+
+  it('vehicle CRUD: create, edit with If-Match, stale edit refused, duplicate plate/vin refused, retire/restore', async () => {
+    const s = Date.now().toString().slice(-8);
+    const created = await request(server)
+      .post('/api/v1/ops/fleet/units')
+      .set(auth(adminToken))
+      .send({
+        categoryCode: 'economy',
+        locationCode: 'TST1',
+        vin: `VINCRUD${s}`,
+        plate: `CRD${s}`,
+        year: '2024',
+        make: 'Toyota',
+        model: 'Yaris',
+        colour: 'blue',
+      })
+      .expect(201);
+    expect(created.body.version).toBe(1);
+    expect(created.body.state).toBe('available');
+    expect(created.body.plate).toBe(`CRD${s}`.toUpperCase());
+
+    // an agent (fleet.read only) cannot create/edit/retire
+    await request(server)
+      .post('/api/v1/ops/fleet/units')
+      .set(auth(agentToken))
+      .send({ categoryCode: 'economy', locationCode: 'TST1', vin: `X${s}`, plate: `X${s}` })
+      .expect(403);
+
+    // duplicate plate/vin is refused, not a 500
+    await request(server)
+      .post('/api/v1/ops/fleet/units')
+      .set(auth(adminToken))
+      .send({
+        categoryCode: 'economy',
+        locationCode: 'TST1',
+        vin: `VINCRUD${s}`,
+        plate: `OTHER${s}`,
+      })
+      .expect(409);
+
+    // stale If-Match refused
+    await request(server)
+      .post(`/api/v1/ops/fleet/units/${created.body.id}`)
+      .set(auth(adminToken))
+      .set('If-Match', '0')
+      .send({ colour: 'red' })
+      .expect(409);
+
+    const edited = await request(server)
+      .post(`/api/v1/ops/fleet/units/${created.body.id}`)
+      .set(auth(adminToken))
+      .set('If-Match', String(created.body.version))
+      .send({ colour: 'red', model: 'Corolla' })
+      .expect(201);
+    expect(edited.body.version).toBe(2);
+    expect(edited.body.colour).toBe('red');
+    expect(edited.body.model).toBe('Corolla');
+    // untouched fields survive a partial edit
+    expect(edited.body.plate).toBe(`CRD${s}`.toUpperCase());
+
+    // retire — blocked while it would otherwise be bookable is fine here since it has no rental
+    const retired = await request(server)
+      .post(`/api/v1/ops/fleet/units/${created.body.id}/retire`)
+      .set(auth(adminToken))
+      .expect(201);
+    expect(retired.body.state).toBe('retired');
+
+    // retiring an already-retired unit is a no-op error, not silently accepted twice
+    await request(server)
+      .post(`/api/v1/ops/fleet/units/${created.body.id}/retire`)
+      .set(auth(adminToken))
+      .expect(422);
+
+    const restored = await request(server)
+      .post(`/api/v1/ops/fleet/units/${created.body.id}/restore`)
+      .set(auth(adminToken))
+      .expect(201);
+    expect(restored.body.state).toBe('available');
+  });
 });

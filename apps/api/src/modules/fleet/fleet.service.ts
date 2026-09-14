@@ -5,6 +5,8 @@ import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
 import { assertLocationAccess } from '../../common/auth/location-scope';
 import type { Actor } from '../../common/auth/types';
+import { isUniqueViolation } from '../../common/db-error';
+import { ObjectStorageService } from '../../common/object-storage/object-storage.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { vehicleCategory } from '../../database/schema/catalogue';
@@ -78,6 +80,21 @@ export interface UnitRow {
   year: string | null;
   colour: string | null;
   state: string;
+  imageRef: string | null;
+  imageUrl: string | null;
+  version: number;
+}
+
+export interface UpsertUnitInput {
+  categoryCode: string;
+  locationCode?: string;
+  vin: string;
+  plate: string;
+  year?: string;
+  make?: string;
+  model?: string;
+  colour?: string;
+  imageRef?: string | null;
 }
 
 /** Bookable vehicle states — a unit not in one of these cannot be counted for availability. */
@@ -104,6 +121,7 @@ export class FleetService {
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
     private readonly refData: ConfigPublic,
+    private readonly storage: ObjectStorageService,
   ) {}
 
   async listUnits(
@@ -127,6 +145,8 @@ export class FleetService {
         year: vehicleUnit.year,
         colour: vehicleUnit.colour,
         state: vehicleUnit.state,
+        imageRef: vehicleUnit.imageRef,
+        version: vehicleUnit.version,
         categoryCode: vehicleCategory.code,
         categoryName: vehicleCategory.displayName,
         currentLocationCode: location.code,
@@ -167,8 +187,234 @@ export class FleetService {
         year: r.year,
         colour: r.colour,
         state: r.state,
+        imageRef: r.imageRef,
+        imageUrl: r.imageRef ? this.storage.signRef(r.imageRef, 7 * 24 * 3600) : null,
+        version: r.version,
       }));
     return { count: results.length, total, results };
+  }
+
+  private async unitToRow(id: string): Promise<UnitRow> {
+    const [r] = await this.db
+      .select({
+        id: vehicleUnit.id,
+        vin: vehicleUnit.vin,
+        plate: vehicleUnit.plate,
+        make: vehicleUnit.make,
+        model: vehicleUnit.model,
+        year: vehicleUnit.year,
+        colour: vehicleUnit.colour,
+        state: vehicleUnit.state,
+        imageRef: vehicleUnit.imageRef,
+        version: vehicleUnit.version,
+        homeLocationId: vehicleUnit.homeLocationId,
+        categoryCode: vehicleCategory.code,
+        categoryName: vehicleCategory.displayName,
+        currentLocationCode: location.code,
+      })
+      .from(vehicleUnit)
+      .innerJoin(vehicleCategory, eq(vehicleCategory.id, vehicleUnit.categoryId))
+      .innerJoin(location, eq(location.id, vehicleUnit.currentLocationId))
+      .where(eq(vehicleUnit.id, id))
+      .limit(1);
+    if (!r) throw AppError.notFound('vehicle unit');
+    const [home] = await this.db
+      .select({ code: location.code })
+      .from(location)
+      .where(eq(location.id, r.homeLocationId))
+      .limit(1);
+    return {
+      id: r.id,
+      categoryCode: r.categoryCode,
+      categoryName: r.categoryName,
+      currentLocationCode: r.currentLocationCode,
+      homeLocationCode: home?.code ?? r.currentLocationCode,
+      vin: r.vin,
+      plate: r.plate,
+      make: r.make,
+      model: r.model,
+      year: r.year,
+      colour: r.colour,
+      state: r.state,
+      imageRef: r.imageRef,
+      imageUrl: r.imageRef ? this.storage.signRef(r.imageRef, 7 * 24 * 3600) : null,
+      version: r.version,
+    };
+  }
+
+  /**
+   * FR-FLT-001/002 — add a single physical vehicle to the fleet outside a bulk CSV import
+   * (fixing a typo'd plate, onboarding one car at a time). Home and current location start the
+   * same, matching the CSV import's own convention; relocating afterwards is `transferUnit`'s
+   * job, not this endpoint's.
+   */
+  async createUnit(actor: Actor, input: UpsertUnitInput): Promise<UnitRow> {
+    if (!input.locationCode) {
+      throw AppError.validation([{ path: 'locationCode', code: 'required' }]);
+    }
+    assertLocationAccess(actor, input.locationCode);
+    const [cat] = await this.db
+      .select({ id: vehicleCategory.id })
+      .from(vehicleCategory)
+      .where(eq(vehicleCategory.code, input.categoryCode))
+      .limit(1);
+    if (!cat) throw AppError.notFound(`vehicle category ${input.categoryCode}`);
+    const [loc] = await this.db
+      .select({ id: location.id, organizationId: location.organizationId })
+      .from(location)
+      .where(eq(location.code, input.locationCode))
+      .limit(1);
+    if (!loc) throw AppError.notFound(`location ${input.locationCode}`);
+
+    const plate = input.plate.toUpperCase().trim();
+    const vin = input.vin.toUpperCase().trim();
+    let row: typeof vehicleUnit.$inferSelect | undefined;
+    try {
+      [row] = await this.db
+        .insert(vehicleUnit)
+        .values({
+          organizationId: loc.organizationId,
+          categoryId: cat.id,
+          homeLocationId: loc.id,
+          currentLocationId: loc.id,
+          vin,
+          plate,
+          year: input.year || null,
+          make: input.make || null,
+          model: input.model || null,
+          colour: input.colour || null,
+          imageRef: input.imageRef ?? null,
+          state: 'available',
+          createdBy: actor.accountId,
+        })
+        .returning();
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new AppError('state_conflict', {
+          title: 'That plate or VIN is already in the fleet',
+          params: { reason: 'duplicate' },
+        });
+      }
+      throw err;
+    }
+    await this.audit.record({
+      action: 'fleet.unit.created',
+      targetType: 'vehicle_unit',
+      targetId: row!.id,
+      actor,
+      after: { plate, vin, categoryCode: input.categoryCode, locationCode: input.locationCode },
+    });
+    return this.unitToRow(row!.id);
+  }
+
+  /**
+   * Edit a unit's identity/descriptive fields. Location is deliberately not editable here — that
+   * is `transferUnit`'s job, with its own open-rental guard; state is not editable here either —
+   * it only ever changes through the block/transfer/pickup/return/readiness/retire workflows.
+   */
+  async updateUnit(
+    actor: Actor,
+    id: string,
+    input: Partial<UpsertUnitInput>,
+    expectedVersion?: number,
+  ): Promise<UnitRow> {
+    const unit = await this.loadUnit(id);
+    await this.assertUnitInScope(actor, unit.currentLocationId);
+    let categoryId = unit.categoryId;
+    if (input.categoryCode) {
+      const [cat] = await this.db
+        .select({ id: vehicleCategory.id })
+        .from(vehicleCategory)
+        .where(eq(vehicleCategory.code, input.categoryCode))
+        .limit(1);
+      if (!cat) throw AppError.notFound(`vehicle category ${input.categoryCode}`);
+      categoryId = cat.id;
+    }
+    const versionGuard =
+      expectedVersion != null
+        ? and(eq(vehicleUnit.id, id), eq(vehicleUnit.version, expectedVersion))
+        : eq(vehicleUnit.id, id);
+    let row: typeof vehicleUnit.$inferSelect | undefined;
+    try {
+      [row] = await this.db
+        .update(vehicleUnit)
+        .set({
+          categoryId,
+          vin: input.vin ? input.vin.toUpperCase().trim() : unit.vin,
+          plate: input.plate ? input.plate.toUpperCase().trim() : unit.plate,
+          year: input.year !== undefined ? input.year || null : unit.year,
+          make: input.make !== undefined ? input.make || null : unit.make,
+          model: input.model !== undefined ? input.model || null : unit.model,
+          colour: input.colour !== undefined ? input.colour || null : unit.colour,
+          imageRef: input.imageRef !== undefined ? input.imageRef : unit.imageRef,
+          version: unit.version + 1,
+          updatedAt: sql`now()`,
+          updatedBy: actor.accountId,
+        })
+        .where(versionGuard)
+        .returning();
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new AppError('state_conflict', {
+          title: 'That plate or VIN is already in the fleet',
+          params: { reason: 'duplicate' },
+        });
+      }
+      throw err;
+    }
+    if (!row) {
+      throw new AppError('state_conflict', {
+        title: 'This vehicle was changed elsewhere — reload and try again',
+        params: { reason: 'version_mismatch', current: unit.version },
+      });
+    }
+    await this.audit.record({
+      action: 'fleet.unit.updated',
+      targetType: 'vehicle_unit',
+      targetId: id,
+      actor,
+      after: { vin: row.vin, plate: row.plate },
+    });
+    return this.unitToRow(id);
+  }
+
+  /**
+   * FR-FLT — retire a vehicle out of the active fleet for good (sold, written off, decommissioned)
+   * — never a hard delete, so its rental/audit/financial history stays intact. Blocked while the
+   * unit has an open rental, same guard as transfer. `restore` exists for the honest-mistake case
+   * (retired the wrong plate) and brings it back as `available`.
+   */
+  async setUnitRetired(actor: Actor, id: string, retired: boolean): Promise<UnitRow> {
+    const unit = await this.loadUnit(id);
+    await this.assertUnitInScope(actor, unit.currentLocationId);
+    if (retired) {
+      if (unit.state === 'on_rent' || (await this.hasOpenRental(id))) {
+        throw AppError.businessRule('This vehicle has an open rental and cannot be retired', {
+          reason: 'open_rental',
+        });
+      }
+      if (unit.state === 'retired') {
+        throw AppError.businessRule('This vehicle is already retired', { reason: 'no_op' });
+      }
+    } else if (unit.state !== 'retired') {
+      throw AppError.businessRule('This vehicle is not retired', { reason: 'no_op' });
+    }
+    await this.db
+      .update(vehicleUnit)
+      .set({
+        state: retired ? 'retired' : 'available',
+        version: unit.version + 1,
+        updatedAt: sql`now()`,
+        updatedBy: actor.accountId,
+      })
+      .where(eq(vehicleUnit.id, id));
+    await this.audit.record({
+      action: retired ? 'fleet.unit.retired' : 'fleet.unit.restored',
+      targetType: 'vehicle_unit',
+      targetId: id,
+      actor,
+    });
+    return this.unitToRow(id);
   }
 
   /**

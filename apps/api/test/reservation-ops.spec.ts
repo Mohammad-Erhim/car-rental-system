@@ -54,6 +54,8 @@ describe('reservation operations', () => {
   let app: Awaited<ReturnType<typeof getTestApp>>;
   let adminToken: string;
   let customerToken: string;
+  let financeToken: string;
+  let agentToken: string;
 
   beforeAll(async () => {
     app = await getTestApp();
@@ -61,6 +63,10 @@ describe('reservation operations', () => {
     adminToken = (await signIn(app, 'test-admin@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
     customerToken = (await signIn(app, 'test-customer@example.test', 'Test-Passw0rd!', 'customer'))
+      .accessToken;
+    financeToken = (await signIn(app, 'test-finance@example.test', 'Test-Passw0rd!', 'staff'))
+      .accessToken;
+    agentToken = (await signIn(app, 'test-agent@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
   });
   afterAll(closeTestApp);
@@ -535,6 +541,62 @@ describe('reservation operations', () => {
         .post(`/api/v1/ops/reservations/${r.reference}/no-show`)
         .set('Authorization', `Bearer ${customerToken}`)
         .expect(403);
+    });
+
+    it('detail carries the payment method + booking date for a receipt view', async () => {
+      const r = await bookEconomyAt(server, customerToken, 160);
+      const detail = await request(server)
+        .get(`/api/v1/reservations/${r.reference}`)
+        .set('Authorization', `Bearer ${customerToken}`)
+        .expect(200);
+      expect(detail.body.paymentBrand).toBe('visa');
+      expect(detail.body.paymentLast4).toBe('4242');
+      expect(new Date(detail.body.createdAt).getTime()).not.toBeNaN();
+    });
+
+    it('a manual (goodwill/dispute) refund is independent of cancel, capped at what remains, and audited', async () => {
+      const r = await bookEconomyAt(server, customerToken, 150);
+
+      // an agent (no payment.refund) cannot issue one
+      await request(server)
+        .post(`/api/v1/ops/reservations/${r.reference}/refund`)
+        .set('Authorization', `Bearer ${agentToken}`)
+        .send({ amountMinor: 100, note: 'test' })
+        .expect(403);
+
+      // over-refunding is rejected, not silently capped
+      await request(server)
+        .post(`/api/v1/ops/reservations/${r.reference}/refund`)
+        .set('Authorization', `Bearer ${financeToken}`)
+        .send({ amountMinor: r.paidMinor + 1000, note: 'too much' })
+        .expect(422);
+
+      const partial = Math.round(r.paidMinor / 2);
+      const refunded = await request(server)
+        .post(`/api/v1/ops/reservations/${r.reference}/refund`)
+        .set('Authorization', `Bearer ${financeToken}`)
+        .send({ amountMinor: partial, note: 'goodwill gesture — late pickup delay' })
+        .expect(201);
+      expect(refunded.body.refundedMinor).toBe(partial);
+      expect(refunded.body.paidMinor).toBe(r.paidMinor - partial);
+
+      const history = await request(server)
+        .get(`/api/v1/reservations/${r.reference}/history`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      const evt = (
+        history.body as Array<{ type: string; amountDeltaMinor: number; note: string | null }>
+      ).find((e) => e.type === 'refunded');
+      expect(evt).toBeTruthy();
+      expect(evt!.amountDeltaMinor).toBe(-partial);
+      expect(evt!.note).toMatch(/goodwill/);
+
+      // a second refund for more than what remains is rejected
+      await request(server)
+        .post(`/api/v1/ops/reservations/${r.reference}/refund`)
+        .set('Authorization', `Bearer ${financeToken}`)
+        .send({ amountMinor: r.paidMinor, note: 'more' })
+        .expect(422);
     });
   });
 });

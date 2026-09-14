@@ -5,6 +5,7 @@ import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
 import type { Actor } from '../../common/auth/types';
 import { CacheBus } from '../../common/cache/cache-bus';
+import { ObjectStorageService } from '../../common/object-storage/object-storage.service';
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
@@ -41,6 +42,7 @@ export interface CategoryView {
   doors: number;
   transmission: 'automatic' | 'manual';
   imageRef: string | null;
+  imageUrl: string | null;
   sortOrder: number;
   isActive: boolean;
   features: Array<{ code: string; label: string; group: string }>;
@@ -67,6 +69,7 @@ export class CatalogueService {
     private readonly outbox: OutboxService,
     private readonly cache: CacheBus,
     private readonly locales: LocaleRepo,
+    private readonly storage: ObjectStorageService,
   ) {}
 
   /** Every published translation in `namespace` for `locale`'s runtime fallback chain, keyed by
@@ -162,6 +165,7 @@ export class CatalogueService {
       doors: c.doors,
       transmission: c.transmission as 'automatic' | 'manual',
       imageRef: c.imageRef,
+      imageUrl: c.imageRef ? this.storage.signRef(c.imageRef, 7 * 24 * 3600) : null,
       sortOrder: c.sortOrder,
       isActive: c.isActive,
       features: maps

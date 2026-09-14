@@ -360,12 +360,21 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
         fuelPct: Number(fuel),
         findings: preparedFindings.length ? preparedFindings : undefined,
       });
-      ok(
-        t('ops.rent.returnedMsg', {
-          total: money(res.adjustmentMinor, r.currency),
-          fuel: money(res.fuelMinor, r.currency),
-        }),
-      );
+      if (res.settlementCollected) {
+        ok(
+          t('ops.rent.returnedMsg', {
+            total: money(res.adjustmentMinor, r.currency),
+            fuel: money(res.fuelMinor, r.currency),
+          }),
+        );
+      } else {
+        setMsg({
+          ok: false,
+          text: t('ops.rent.returnedSettlementFailedMsg', {
+            total: money(res.adjustmentMinor, r.currency),
+          }),
+        });
+      }
       setOpen(false);
       setFindings([]);
     } catch (e) {

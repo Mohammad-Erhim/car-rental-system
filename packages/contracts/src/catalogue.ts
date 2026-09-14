@@ -14,6 +14,9 @@ export const zVehicleCategory = z.object({
   doors: z.number().int(),
   transmission: z.enum(['automatic', 'manual']),
   imageRef: z.string().nullable(),
+  /** a short-lived signed URL resolved server-side from `imageRef` — never persist this, only
+   *  the `imageRef` key; null when no image has been uploaded (render the generated fallback art). */
+  imageUrl: z.string().nullable(),
   sortOrder: z.number().int(),
   isActive: z.boolean(),
   features: z

@@ -268,6 +268,9 @@ export interface ReservationDetail {
   totalMinor: number;
   paidMinor: number;
   refundedMinor: number;
+  paymentBrand: string | null;
+  paymentLast4: string | null;
+  createdAt: string;
   lines: Array<{
     kind: string;
     code: string;
