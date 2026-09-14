@@ -343,7 +343,20 @@ export class RentalService {
     input: { newReturnAt: string; paymentToken?: string },
   ) {
     const row = await this.load(reference);
-    this.assertInScope(actor, row.pickupLocationCode);
+    const [res] = await this.db
+      .select()
+      .from(reservation)
+      .where(eq(reservation.reference, row.reservationReference))
+      .limit(1);
+    if (!res) throw AppError.notFound('reservation');
+    // A customer may only extend their own rental — mirrors ReservationOpsService's
+    // assertOwnerOrStaff. assertInScope alone doesn't cover this: a customer actor's
+    // locationScope is always empty, so the scope check silently passes for anyone.
+    if (actor.kind === 'staff') {
+      this.assertInScope(actor, row.pickupLocationCode);
+    } else if (res.accountId !== actor.accountId) {
+      throw AppError.forbidden('This rental belongs to another account');
+    }
     if (!['active', 'overdue'].includes(row.state)) {
       throw AppError.businessRule(`A ${row.state} rental cannot be extended`, {
         reason: row.state,
@@ -357,20 +370,15 @@ export class RentalService {
     }
     const orgId = await this.orgId();
     const pickupYmd = new Date(row.scheduledPickupAt).toISOString().slice(0, 10);
-    const [res] = await this.db
-      .select()
-      .from(reservation)
-      .where(eq(reservation.reference, row.reservationReference))
-      .limit(1);
     const oldPriced = await this.pricing.priceWindow(
-      res!.categoryCode,
+      res.categoryCode,
       row.pickupLocationCode,
       new Date(row.scheduledPickupAt),
       new Date(row.scheduledReturnAt),
       pickupYmd,
     );
     const newPriced = await this.pricing.priceWindow(
-      res!.categoryCode,
+      res.categoryCode,
       row.pickupLocationCode,
       new Date(row.scheduledPickupAt),
       newReturn,

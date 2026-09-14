@@ -84,8 +84,13 @@ export class RateLimitGuard implements CanActivate {
   }
 }
 
+// `req.ip` (with `app.set('trust proxy', ...)` configured in bootstrap.ts) is Express's own
+// already-correct resolution of the real client IP from the *trusted* hop of X-Forwarded-For.
+// Reading the raw header here instead let any caller bypass every limit in this guard outright:
+// nginx appends to X-Forwarded-For rather than replacing it, so a client-supplied leftmost value
+// (e.g. `X-Forwarded-For: 1.2.3.4`) arrived intact and was trusted verbatim — rotate it per
+// request and there is no limit at all. Every other IP consumer in this codebase already uses
+// `req.ip`; this was the one exception.
 function clientIp(req: Request): string {
-  const fwd = req.headers['x-forwarded-for'];
-  if (typeof fwd === 'string' && fwd.length) return fwd.split(',')[0]!.trim();
   return req.ip ?? req.socket.remoteAddress ?? 'unknown';
 }

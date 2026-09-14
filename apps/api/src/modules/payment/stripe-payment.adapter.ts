@@ -89,11 +89,17 @@ export class StripePaymentAdapter extends PaymentPort {
     }
   }
 
-  async capture(providerRef: string, amountMinor: number): Promise<PaymentResult> {
+  async capture(
+    providerRef: string,
+    amountMinor: number,
+    idempotencyKey?: string,
+  ): Promise<PaymentResult> {
     try {
-      const intent = await this.stripe.paymentIntents.capture(providerRef, {
-        amount_to_capture: amountMinor,
-      });
+      const intent = await this.stripe.paymentIntents.capture(
+        providerRef,
+        { amount_to_capture: amountMinor },
+        idempotencyKey ? { idempotencyKey } : undefined,
+      );
       const { brand, last4 } = await this.methodDetails(intent.payment_method);
       return { providerRef: intent.id, brand, last4 };
     } catch (err) {
@@ -115,12 +121,16 @@ export class StripePaymentAdapter extends PaymentPort {
     }
   }
 
-  async refund(providerRef: string, amountMinor: number): Promise<PaymentResult> {
+  async refund(
+    providerRef: string,
+    amountMinor: number,
+    idempotencyKey?: string,
+  ): Promise<PaymentResult> {
     try {
-      const refund = await this.stripe.refunds.create({
-        payment_intent: providerRef,
-        amount: amountMinor,
-      });
+      const refund = await this.stripe.refunds.create(
+        { payment_intent: providerRef, amount: amountMinor },
+        idempotencyKey ? { idempotencyKey } : undefined,
+      );
       const intent = await this.stripe.paymentIntents.retrieve(providerRef);
       const { brand, last4 } = await this.methodDetails(intent.payment_method);
       return { providerRef: refund.id, brand, last4 };

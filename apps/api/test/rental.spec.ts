@@ -164,6 +164,47 @@ describe('rental lifecycle', () => {
     void unitId;
   });
 
+  it('a customer cannot extend a stranger’s rental, even with a valid token', async () => {
+    const resRef = await book(server, customerToken, 'compact', 40, 3);
+    const assigned = await request(server)
+      .post(`/api/v1/ops/reservations/${resRef}/assign`)
+      .set('Authorization', `Bearer ${agentToken}`)
+      .send({})
+      .expect(201);
+    const rentalRef = assigned.body.reference as string;
+    await request(server)
+      .post(`/api/v1/ops/rentals/${rentalRef}/pickup`)
+      .set('Authorization', `Bearer ${agentToken}`)
+      .send({ odometerKm: 1000, fuelPct: 100, driverName: 'Rex Renter', licenceNumber: 'D-11' })
+      .expect(201);
+
+    const uniq = Date.now();
+    const email = `stranger-${uniq}@example.test`;
+    const reg = await request(server)
+      .post('/api/v1/auth/register')
+      .send({ fullName: `Stranger ${uniq}`, email, password: 'Sup3rSecret!!', acceptTerms: true })
+      .expect(201);
+    await request(server)
+      .post('/api/v1/auth/verify-contact')
+      .send({ challengeId: reg.body.challengeId, code: reg.body.devCode })
+      .expect(201);
+    const strangerToken = (await signIn(await getTestApp(), email, 'Sup3rSecret!!', 'customer'))
+      .accessToken;
+
+    await request(server)
+      .post(`/api/v1/rentals/${rentalRef}/extend`)
+      .set('Authorization', `Bearer ${strangerToken}`)
+      .send({ newReturnAt: isoIn(46), paymentToken: 'tok_ok' })
+      .expect(403);
+
+    // the rightful owner still can
+    await request(server)
+      .post(`/api/v1/rentals/${rentalRef}/extend`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ newReturnAt: isoIn(46), paymentToken: 'tok_ok' })
+      .expect(201);
+  });
+
   it('a declined return-settlement charge never blocks the return itself — the car checks in and a recovery case opens', async () => {
     const resRef = await book(server, customerToken, 'economy', 70, 3, 'tok_decline_reuse');
     const assigned = await request(server)

@@ -527,7 +527,10 @@ export class AvailabilityService {
       return {
         id: row!.id,
         expiresAt: new Date(row!.expiresAt).toISOString(),
-        unitPinned: avail.freeUnitIds.length > 0,
+        // A class-level hold (no `preferredUnitId`) never pins a specific car — reporting "any
+        // free unit exists" here as `unitPinned:true` falsely told the caller a specific vehicle
+        // was secured even when `unitId` comes back null.
+        unitPinned: pinnedUnitId !== null,
         unitId: pinnedUnitId,
       };
     });

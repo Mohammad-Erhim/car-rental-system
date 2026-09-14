@@ -20,9 +20,13 @@ export class RoutingPaymentAdapter extends PaymentPort {
     return adapter.authorize(input);
   }
 
-  async capture(providerRef: string, amountMinor: number): Promise<PaymentResult> {
+  async capture(
+    providerRef: string,
+    amountMinor: number,
+    idempotencyKey?: string,
+  ): Promise<PaymentResult> {
     const adapter = await this.config.resolveActiveAdapter();
-    return adapter.capture(providerRef, amountMinor);
+    return adapter.capture(providerRef, amountMinor, idempotencyKey);
   }
 
   async void(providerRef: string): Promise<void> {
@@ -30,8 +34,12 @@ export class RoutingPaymentAdapter extends PaymentPort {
     return adapter.void(providerRef);
   }
 
-  async refund(providerRef: string, amountMinor: number): Promise<PaymentResult> {
+  async refund(
+    providerRef: string,
+    amountMinor: number,
+    idempotencyKey?: string,
+  ): Promise<PaymentResult> {
     const adapter = await this.config.resolveActiveAdapter();
-    return adapter.refund(providerRef, amountMinor);
+    return adapter.refund(providerRef, amountMinor, idempotencyKey);
   }
 }

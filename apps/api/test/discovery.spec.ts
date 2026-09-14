@@ -73,7 +73,8 @@ describe('discovery / quote', () => {
     );
     expect(sum).toBe(res.body.totalMinor);
     expect(res.body.subtotalMinor + res.body.taxMinor).toBe(res.body.totalMinor);
-    expect(res.body.hold).toMatchObject({ unitPinned: true });
+    // no `unitId` was requested — a class-level hold never pins a specific car.
+    expect(res.body.hold).toMatchObject({ unitPinned: false, unitId: null });
     expect(res.body.pickupAt).toMatch(/Z$/); // ISO-8601 UTC
     expect(new Date(res.body.expiresAt).getTime()).toBeGreaterThan(Date.now());
   });

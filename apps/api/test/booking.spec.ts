@@ -109,6 +109,48 @@ describe('booking / payment', () => {
     expect(again.body.reference).not.toBe(quote.reference);
   });
 
+  it('a hold:false confirm cannot silently bypass exhausted class-level capacity', async () => {
+    // premium @ TST1 has exactly 2 units (see discovery.spec.ts TEST-AVL-002) — book both first,
+    // through real holds, so the class is genuinely exhausted for this window.
+    const win = { pickupLocationCode: 'TST1', pickupAt: isoIn(500), returnAt: isoIn(503) };
+    for (let i = 0; i < 2; i++) {
+      const q = await request(server)
+        .post('/api/v1/discovery/quote')
+        .send({ ...win, categoryCode: 'premium', holderKey: `exhaust-${i}-${Date.now()}` })
+        .expect(201);
+      await request(server)
+        .post('/api/v1/bookings/confirm')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({
+          quoteReference: q.body.reference,
+          drivers: DRIVERS,
+          acceptTerms: true,
+          paymentToken: 'tok_visa_ok',
+        })
+        .expect(201);
+    }
+
+    // quoting with hold:false still prices successfully — pricing never checks inventory...
+    const noHoldQuote = await request(server)
+      .post('/api/v1/discovery/quote')
+      .send({ ...win, categoryCode: 'premium', hold: false })
+      .expect(201);
+    expect(noHoldQuote.body.hold).toBeNull();
+
+    // ...but confirming it must be refused, not silently overbook a third car onto 2 units.
+    const res = await request(server)
+      .post('/api/v1/bookings/confirm')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        quoteReference: noHoldQuote.body.reference,
+        drivers: DRIVERS,
+        acceptTerms: true,
+        paymentToken: 'tok_visa_ok',
+      })
+      .expect(422);
+    expect(res.body.params?.reason).toBe('no_availability');
+  });
+
   it('S7-DEF-004 a client cannot move money through the confirm body (extra price/label is server-owned)', async () => {
     // Legacy shape: a hand-crafted request with a priced, labelled "extras" object. The DTO
     // strips the unknown key entirely — the charged total equals the authoritative quote, no

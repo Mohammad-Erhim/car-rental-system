@@ -227,7 +227,15 @@ export class PaymentService {
 
     // ---- capture ----
     try {
-      const cap = await this.port.capture(auth.providerRef, input.amountMinor);
+      // Stable per intent, not per call — a concurrent duplicate capture (two requests that both
+      // passed the dedupe above because neither had captured yet) is deduplicated by the provider
+      // itself instead of the second call failing "already captured" against an intent the first
+      // one just settled.
+      const cap = await this.port.capture(
+        auth.providerRef,
+        input.amountMinor,
+        `capture:${intentId}`,
+      );
       await this.db
         .update(paymentIntent)
         .set({
@@ -309,30 +317,67 @@ export class PaymentService {
         params: { reason: 'over_refund', remainingMinor: remaining },
       });
     }
-    const res = await this.port.refund(intent.providerRef!, amountMinor);
+
+    // Atomically claim the refund before calling the provider. A plain read-then-write here (the
+    // shape this codebase's other money-moving races were fixed by removing) would let two
+    // concurrent callers — an ordinary double-click, or a client retry after a slow response —
+    // both pass the checks above and both issue a real, separate refund. Only one caller can flip
+    // `state` away from `captured`, since a refund always requires `state === 'captured'` up
+    // front; the loser gets a clean conflict instead of a second charge to Stripe.
     const refundedMinor = intent.refundedMinor + amountMinor;
     const state = refundedMinor >= intent.amountMinor ? 'refunded' : 'partially_refunded';
-    await this.db
+    const claimed = await this.db
       .update(paymentIntent)
       .set({ refundedMinor, state, updatedAt: sql`now()` })
-      .where(eq(paymentIntent.id, intent.id));
-    await this.recordLedger(
-      intent.id,
-      reservationReference,
-      'refund',
-      { amountMinor, currency: intent.currency, actor },
-      'succeeded',
-      undefined,
-      res.providerRef,
-    );
-    await this.audit.record({
-      action: 'payment.refunded',
-      targetType: 'payment_intent',
-      targetId: intent.id,
-      actor,
-      after: { refundedMinor, state },
-    });
-    return { refundedMinor, state };
+      .where(and(eq(paymentIntent.id, intent.id), eq(paymentIntent.state, 'captured')))
+      .returning({ id: paymentIntent.id });
+    if (!claimed[0]) {
+      throw new AppError('business_rule_violation', {
+        title: 'A refund for this payment is already in progress or has already completed',
+        params: { reason: 'refund_in_progress' },
+      });
+    }
+
+    try {
+      // Stable per intent — since only one refund is ever allowed per intent's lifetime (the
+      // `state === 'captured'` gate above), this key is also stable across a retry of this same
+      // logical refund, so the provider itself never issues it twice even if the block below
+      // rolls the local claim back and something retries.
+      const res = await this.port.refund(intent.providerRef!, amountMinor, `refund:${intent.id}`);
+      await this.recordLedger(
+        intent.id,
+        reservationReference,
+        'refund',
+        { amountMinor, currency: intent.currency, actor },
+        'succeeded',
+        undefined,
+        res.providerRef,
+      );
+      await this.audit.record({
+        action: 'payment.refunded',
+        targetType: 'payment_intent',
+        targetId: intent.id,
+        actor,
+        after: { refundedMinor, state },
+      });
+      return { refundedMinor, state };
+    } catch (err) {
+      // the claim above already committed the intent to refunded/partially_refunded — if the
+      // actual provider call then fails, roll the bookkeeping back to `captured` so this isn't
+      // permanently stuck refusing every future refund attempt with `refund_in_progress`.
+      await this.db
+        .update(paymentIntent)
+        .set({ refundedMinor: intent.refundedMinor, state: intent.state, updatedAt: sql`now()` })
+        .where(eq(paymentIntent.id, intent.id));
+      await this.recordLedger(
+        intent.id,
+        reservationReference,
+        'refund',
+        { amountMinor, currency: intent.currency, actor },
+        'failed',
+      );
+      throw err;
+    }
   }
 
   async openCase(input: {

@@ -649,5 +649,30 @@ describe('reservation operations', () => {
         .send({ amountMinor: r.paidMinor, note: 'more' })
         .expect(422);
     });
+
+    it('two genuinely concurrent refund requests on the same payment cannot both succeed', async () => {
+      const r = await bookEconomyAt(server, customerToken, 151);
+      const amountMinor = Math.round(r.paidMinor / 2);
+
+      const [a, b] = await Promise.allSettled([
+        request(server)
+          .post(`/api/v1/ops/reservations/${r.reference}/refund`)
+          .set('Authorization', `Bearer ${financeToken}`)
+          .send({ amountMinor, note: 'race a' }),
+        request(server)
+          .post(`/api/v1/ops/reservations/${r.reference}/refund`)
+          .set('Authorization', `Bearer ${financeToken}`)
+          .send({ amountMinor, note: 'race b' }),
+      ]);
+      const statuses = [a, b].map((r) => (r.status === 'fulfilled' ? r.value.status : -1)).sort();
+      // exactly one succeeds; the other sees a clean conflict, never a second real refund.
+      expect(statuses).toEqual([201, 422]);
+
+      const ledger = await request(server)
+        .get(`/api/v1/reservations/${r.reference}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(ledger.body.paidMinor).toBe(r.paidMinor - amountMinor);
+    });
   });
 });
