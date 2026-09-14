@@ -6,6 +6,17 @@ import { Public } from '../../common/auth/decorators';
 import { ObjectStorageService } from '../../common/object-storage/object-storage.service';
 
 /**
+ * Everything after the route's own `/assets/` mount is the object key (it contains slashes, and
+ * — since it's just a nanoid-derived storage key — could in principle contain the literal
+ * substring "/assets/" itself). Non-greedy so this strips only up to the FIRST `/assets/` (the
+ * mount point), not a later occurrence inside the key — a greedy match would silently truncate a
+ * key like `foo/assets/bar` down to just `bar`. Exported for unit coverage (`*.test.ts`).
+ */
+export function extractAssetKey(path: string): string {
+  return decodeURIComponent(path.replace(/^.*?\/assets\//, ''));
+}
+
+/**
  * Public, signed delivery of stored objects (brand assets today). The URL carries `exp` + `sig`
  * from {@link ObjectStorageService.signRef}; without a valid, unexpired signature the bytes are
  * never served. Immutable + long-cached once fetched (the key is content-addressed by nanoid).
@@ -25,8 +36,7 @@ export class AssetController {
     @Query('exp') exp: string,
     @Query('sig') sig: string,
   ) {
-    // everything after `/assets/` is the object key (it contains slashes)
-    const key = decodeURIComponent(req.path.replace(/^.*\/assets\//, ''));
+    const key = extractAssetKey(req.path);
     if (!key || !exp || !sig || !this.storage.verify(key, exp, sig)) {
       throw new NotFoundException();
     }

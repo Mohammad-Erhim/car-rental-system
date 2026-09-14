@@ -262,6 +262,30 @@ describe('STAGE-006 administration & reporting', () => {
       .expect(422);
   });
 
+  it('a config `kind` with no dedicated validator still gets a basic sanity check, not a silent no-op pass', async () => {
+    // 'pricing' | 'product' | 'location' are accepted by the draft request schema (the
+    // config_version table's original doc comment) but nothing in the codebase actually consumes
+    // them — rate plans and catalogue products each got their own dedicated service/table
+    // instead — so `ConfigVersionService.validate()` never had a real validator wired up for
+    // them. Before this fix, any such kind silently passed with zero validation; now it at least
+    // gets a structural sanity check (must be an object, bounded size).
+    const reasonable = await request(server)
+      .post('/api/v1/ops/config/versions')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ kind: 'pricing', key: 'unused_kind_test', payload: { note: 'fine' } })
+      .expect(201);
+    expect(reasonable.body.kind).toBe('pricing');
+
+    const oversized = await request(server)
+      .post('/api/v1/ops/config/versions')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ kind: 'pricing', key: 'unused_kind_test', payload: { note: 'x'.repeat(300_000) } })
+      .expect(422);
+    expect(oversized.body.fieldErrors).toEqual(
+      expect.arrayContaining([expect.objectContaining({ code: 'payload_too_large' })]),
+    );
+  });
+
   it('TEST-ADM-004 rejecting a draft keeps the author note and records the reviewer reason', async () => {
     const draft = await request(server)
       .post('/api/v1/ops/config/versions')

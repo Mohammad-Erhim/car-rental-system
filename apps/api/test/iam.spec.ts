@@ -229,6 +229,54 @@ describe('IAM / auth', () => {
     expect(stale.body.currentVersion).toBeGreaterThan(p0.body.version);
   });
 
+  it('TEST-IAM-006 profile: two genuinely concurrent saves at the same starting version cannot both win', async () => {
+    const email = `prof-race-${uniq}@example.test`;
+    const reg = await request(server)
+      .post('/api/v1/auth/register')
+      .send({ fullName: 'P', email, password: 'Sup3rSecret!!', acceptTerms: true })
+      .expect(201);
+    const v = await request(server)
+      .post('/api/v1/auth/verify-contact')
+      .send({ challengeId: reg.body.challengeId, code: reg.body.devCode })
+      .expect(201);
+    const token = v.body.accessToken as string;
+
+    const p0 = await request(server)
+      .get('/api/v1/auth/profile')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    // fired concurrently against the SAME starting version — a sequential await-then-await (as
+    // above) wouldn't exercise the actual UPDATE...WHERE race.
+    const [a, b] = await Promise.allSettled([
+      request(server)
+        .post('/api/v1/auth/profile')
+        .set('Authorization', `Bearer ${token}`)
+        .set('If-Match', String(p0.body.version))
+        .send({ fullName: 'Race A' }),
+      request(server)
+        .post('/api/v1/auth/profile')
+        .set('Authorization', `Bearer ${token}`)
+        .set('If-Match', String(p0.body.version))
+        .send({ fullName: 'Race B' }),
+    ]);
+
+    const results = [a, b].map((r) => (r.status === 'fulfilled' ? r.value.status : -1));
+    expect(results.filter((s) => s === 201)).toHaveLength(1);
+    expect(results.filter((s) => s === 409)).toHaveLength(1);
+    const loser = [a, b].find(
+      (r) => r.status === 'fulfilled' && r.value.status === 409,
+    ) as PromiseFulfilledResult<request.Response> | undefined;
+    expect(loser?.value.body.code).toBe('version_conflict');
+
+    const after = await request(server)
+      .get('/api/v1/auth/profile')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(['Race A', 'Race B']).toContain(after.body.fullName);
+    expect(after.body.version).toBe(p0.body.version + 1);
+  });
+
   it('TEST-IAM-008 closure request is created blocked with a retention blocker', async () => {
     const s = await signIn(await getTestApp(), 'test-customer@example.test', 'Test-Passw0rd!');
     const res = await request(server)

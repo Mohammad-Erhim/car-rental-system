@@ -166,6 +166,44 @@ describe('location & operating-hours admin (FR-ADM-007)', () => {
     if (loser) expect(loser.body.params?.reason).toBe('code_exists');
   });
 
+  it('the org legal-profile update is atomically version-guarded — two genuinely concurrent saves cannot both win', async () => {
+    const current = await request(server)
+      .get('/api/v1/ops/organization/legal')
+      .set('Authorization', `Bearer ${admin}`)
+      .expect(200);
+    const startVersion = current.body.version;
+
+    // fired concurrently against the SAME starting version — a sequential await-then-await
+    // wouldn't exercise the actual UPDATE...WHERE race.
+    const [a, b] = await Promise.allSettled([
+      request(server)
+        .post('/api/v1/ops/organization/legal')
+        .set('Authorization', `Bearer ${admin}`)
+        .set('If-Match', String(startVersion))
+        .send({ legalName: 'Race Rentals A', taxId: 'TAX-A', registeredAddress: { line1: 'A' } }),
+      request(server)
+        .post('/api/v1/ops/organization/legal')
+        .set('Authorization', `Bearer ${admin}`)
+        .set('If-Match', String(startVersion))
+        .send({ legalName: 'Race Rentals B', taxId: 'TAX-B', registeredAddress: { line1: 'B' } }),
+    ]);
+
+    const results = [a, b].map((r) => (r.status === 'fulfilled' ? r.value.status : -1));
+    expect(results.filter((s) => s === 201)).toHaveLength(1);
+    expect(results.filter((s) => s === 409)).toHaveLength(1);
+    const loser = [a, b].find(
+      (r) => r.status === 'fulfilled' && r.value.status === 409,
+    ) as PromiseFulfilledResult<request.Response> | undefined;
+    expect(loser?.value.body.code).toBe('version_conflict');
+
+    const after = await request(server)
+      .get('/api/v1/ops/organization/legal')
+      .set('Authorization', `Bearer ${admin}`)
+      .expect(200);
+    expect(['Race Rentals A', 'Race Rentals B']).toContain(after.body.legalName);
+    expect(after.body.version).toBe(startVersion + 1);
+  });
+
   it('a draft or archived location is not bookable through search / quote', async () => {
     await request(server)
       .post('/api/v1/ops/locations/TST2/archive?force=true')

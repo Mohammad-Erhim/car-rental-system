@@ -525,6 +525,51 @@ describe('config / reference data', () => {
     expect(current.version).toBe(initial.version + 1);
   });
 
+  it('a lookup value update is atomically version-guarded — two genuinely concurrent saves cannot both win', async () => {
+    const type = 'cancel_reason';
+    const code = `race_${Date.now()}`;
+    const created = await request(server)
+      .post(`/api/v1/reference-data/types/${type}/values`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ code, label: 'Race original' })
+      .expect(201);
+    const startVersion = created.body.version;
+
+    // two requests race against the SAME starting version — a sequential await-then-await
+    // wouldn't exercise the actual UPDATE...WHERE race, so fire them concurrently.
+    const [a, b] = await Promise.allSettled([
+      request(server)
+        .post(`/api/v1/reference-data/types/${type}/values/${created.body.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('If-Match', String(startVersion))
+        .send({ label: 'Race A' }),
+      request(server)
+        .post(`/api/v1/reference-data/types/${type}/values/${created.body.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .set('If-Match', String(startVersion))
+        .send({ label: 'Race B' }),
+    ]);
+
+    const results = [a, b].map((r) => (r.status === 'fulfilled' ? r.value.status : -1));
+    // exactly one wins (201), the other gets a clean version conflict (409) — never both 201
+    // (which would mean the loser's write was silently accepted and the winner clobbered)
+    expect(results.filter((s) => s === 201)).toHaveLength(1);
+    expect(results.filter((s) => s === 409)).toHaveLength(1);
+    const loser = [a, b].find(
+      (r) => r.status === 'fulfilled' && r.value.status === 409,
+    ) as PromiseFulfilledResult<request.Response> | undefined;
+    expect(loser?.value.body.code).toBe('version_conflict');
+
+    const final = await request(server)
+      .get(`/api/v1/reference-data/types/${type}/values?includeInactive=true`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const row = final.body.values.find((v: { id: string }) => v.id === created.body.id);
+    // the surviving value came from exactly one of the two writers, and the version only moved once
+    expect(['Race A', 'Race B']).toContain(row.label);
+    expect(row.version).toBe(startVersion + 1);
+  });
+
   it('a freshly seeded catalogue is not a wall of "outdated" badges', async () => {
     const list = await request(server)
       .get('/api/v1/config/translations?namespace=common&locale=fr')

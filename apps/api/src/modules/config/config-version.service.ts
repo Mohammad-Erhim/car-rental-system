@@ -18,6 +18,8 @@ import type { Database } from '../../database/drizzle';
 import { configVersion } from '../../database/schema/admin';
 import { organization } from '../../database/schema/org';
 
+import { ConfigPublic } from './config.public';
+
 /** Built-in policy defaults — used until a published `policy` config version overrides them. */
 interface PolicyDefaults {
   readonly [key: string]: Readonly<Record<string, number>>;
@@ -50,10 +52,13 @@ export class ConfigVersionService {
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
     private readonly outbox: OutboxService,
+    private readonly config: ConfigPublic,
   ) {}
 
+  /** Delegates to `ConfigPublic.defaultOrganization()` (deterministically ordered by
+   *  `createdAt`) rather than repeating the raw, unordered `organization` query. */
   private async orgId(): Promise<string> {
-    const [org] = await this.db.select({ id: organization.id }).from(organization).limit(1);
+    const org = await this.config.defaultOrganization();
     if (!org) throw new AppError('resource_not_found', { title: 'No organization configured' });
     return org.id;
   }
@@ -444,6 +449,16 @@ export class ConfigVersionService {
    * or missing field is a typo, and an out-of-range value is a fat-finger that would directly
    * mis-price a customer (e.g. a fuel rate of 15000 minor/pct read as "$150.00 per point").
    */
+  /** The `kind`s with a real dedicated validator below — anything else falls through to the
+   *  basic structural sanity check at the end of `validate()` instead of silently passing. */
+  private static readonly VALIDATED_KINDS = new Set([
+    'policy',
+    'branding',
+    'seo',
+    'pages',
+    'consent',
+  ]);
+
   private static readonly POLICY_FIELD_BOUNDS: Record<string, Record<string, { max: number }>> = {
     cancellation: {
       freeCancelHours: { max: 8760 }, // one year
@@ -570,6 +585,20 @@ export class ConfigVersionService {
         if (!c.text.bannerBody.en.trim()) {
           issues.push({ path: 'text.bannerBody', code: 'banner_body_required' });
         }
+      }
+    }
+    if (!ConfigVersionService.VALIDATED_KINDS.has(kind)) {
+      // `report.controller.ts`'s draft schema also accepts 'pricing' | 'product' | 'location'
+      // (the table's original doc comment) but nothing in this codebase actually consumes those
+      // kinds today — rate plans and catalogue products each got their own dedicated
+      // service/table instead. There was never a validator wired up for them here, and any
+      // future kind would land in the exact same gap: rather than silently no-op passing,
+      // enforce a basic structural sanity check so a malformed/oversized draft can never sit
+      // invisibly in the table just because nobody's written its real validator yet.
+      if (payload === null || typeof payload !== 'object' || Array.isArray(payload)) {
+        issues.push({ path: '(root)', code: 'must_be_object' });
+      } else if (JSON.stringify(payload).length > 262_144) {
+        issues.push({ path: '(root)', code: 'payload_too_large' });
       }
     }
     if (issues.length) throw AppError.validation(issues, 'Config payload is not valid');

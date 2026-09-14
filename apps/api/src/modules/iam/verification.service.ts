@@ -32,18 +32,25 @@ export class VerificationService {
     private readonly notify: NotifyService,
   ) {}
 
-  async create(input: {
-    accountId?: string;
-    purpose: ChallengePurpose;
-    channel: 'email' | 'sms';
-    destination: string;
-    localeCode?: string;
-    notifyEvent: string;
-    variables?: Record<string, unknown>;
-  }): Promise<{ challengeId: string; expiresAt: Date; devCode?: string }> {
+  async create(
+    input: {
+      accountId?: string;
+      purpose: ChallengePurpose;
+      channel: 'email' | 'sms';
+      destination: string;
+      localeCode?: string;
+      notifyEvent: string;
+      variables?: Record<string, unknown>;
+    },
+    // Callers that create an account/record in the same breath (e.g. `IamService.register()`)
+    // pass their open transaction here so a notify failure rolls the whole thing back instead of
+    // stranding a committed account with no challenge the client can retrieve — see
+    // `IamService.register()` for why that mattered.
+    db: Database = this.db,
+  ): Promise<{ challengeId: string; expiresAt: Date; devCode?: string }> {
     // rate control: supersede an unconsumed recent challenge for the same purpose+destination
     if (input.accountId) {
-      const [recent] = await this.db
+      const [recent] = await db
         .select()
         .from(authChallenge)
         .where(
@@ -64,7 +71,7 @@ export class VerificationService {
     const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
     const expiresAt = new Date(Date.now() + CODE_TTL_MS);
 
-    const [row] = await this.db
+    const [row] = await db
       .insert(authChallenge)
       .values({
         accountId: input.accountId ?? null,
@@ -81,7 +88,7 @@ export class VerificationService {
     // to the challenge that superseded it — the new row must exist first to link to, which is
     // why this runs after the insert above rather than before it.
     if (input.accountId) {
-      await this.db
+      await db
         .update(authChallenge)
         .set({ supersededById: row!.id, consumedAt: sql`now()`, updatedAt: sql`now()` })
         .where(
@@ -109,7 +116,7 @@ export class VerificationService {
       },
     });
 
-    await this.db
+    await db
       .update(authChallenge)
       .set({ deliveryStatus: 'sent', updatedAt: sql`now()` })
       .where(eq(authChallenge.id, row!.id));

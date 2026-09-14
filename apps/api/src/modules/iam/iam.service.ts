@@ -12,6 +12,7 @@ import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { customer } from '../../database/schema/customer';
 import { account, staffProfile } from '../../database/schema/iam';
+import { ConfigPublic } from '../config/config.public';
 
 import { AccountRepo } from './account.repo';
 import { VerificationService } from './verification.service';
@@ -43,6 +44,7 @@ export class IamService {
     private readonly rbac: RbacService,
     private readonly verification: VerificationService,
     private readonly audit: AuditService,
+    private readonly config: ConfigPublic,
   ) {}
 
   // ---------------------------------------------------------------- registration
@@ -67,57 +69,72 @@ export class IamService {
     }
 
     const passwordHash = await this.passwords.hash(input.password);
-    const [acc] = await this.db
-      .insert(account)
-      .values({
-        kind: 'customer',
+    const org = await this.defaultOrgId();
+
+    // Everything that makes an account exist (account + customer rows + its verification
+    // challenge) lives in one transaction. Without this, a `notify.send()` failure inside
+    // `verification.create()` (a DB blip, not a delivery failure — those are already caught
+    // internally) left the account+customer rows committed with no challengeId returned to the
+    // client and no accountId to retry with, so a resend was unreachable and re-registering the
+    // same email just hit "account already exists" forever. Rolling back on any failure here
+    // means a failed registration can always be retried clean from the top.
+    const { acc, challenge } = await this.db.transaction(async (tx) => {
+      const [acc] = await tx
+        .insert(account)
+        .values({
+          kind: 'customer',
+          email: input.email.trim(),
+          emailNormalized,
+          phone: input.phone,
+          passwordHash,
+          status: 'pending', // pending until contact verified
+          displayName: input.fullName.trim(),
+          localeCode: input.localeCode,
+        })
+        .returning();
+
+      await tx.insert(customer).values({
+        accountId: acc!.id,
+        organizationId: org,
+        fullName: input.fullName.trim(),
         email: input.email.trim(),
         emailNormalized,
         phone: input.phone,
-        passwordHash,
-        status: 'pending', // pending until contact verified
-        displayName: input.fullName.trim(),
         localeCode: input.localeCode,
-      })
-      .returning();
+        communicationPrefs: { marketingEmail: input.marketingOptIn },
+        consents: [
+          { type: 'account_terms', version: '1.0', acceptedAt: new Date().toISOString() },
+          ...(input.marketingOptIn
+            ? [{ type: 'marketing', version: '1.0', acceptedAt: new Date().toISOString() }]
+            : []),
+        ],
+      });
 
-    const org = await this.defaultOrgId();
-    await this.db.insert(customer).values({
-      accountId: acc!.id,
-      organizationId: org,
-      fullName: input.fullName.trim(),
-      email: input.email.trim(),
-      emailNormalized,
-      phone: input.phone,
-      localeCode: input.localeCode,
-      communicationPrefs: { marketingEmail: input.marketingOptIn },
-      consents: [
-        { type: 'account_terms', version: '1.0', acceptedAt: new Date().toISOString() },
-        ...(input.marketingOptIn
-          ? [{ type: 'marketing', version: '1.0', acceptedAt: new Date().toISOString() }]
-          : []),
-      ],
-    });
+      const challenge = await this.verification.create(
+        {
+          accountId: acc!.id,
+          purpose: 'verify_email',
+          channel: 'email',
+          destination: input.email.trim(),
+          localeCode: input.localeCode,
+          notifyEvent: 'account_verification',
+          variables: { name: input.fullName.trim() },
+        },
+        tx,
+      );
 
-    const challenge = await this.verification.create({
-      accountId: acc!.id,
-      purpose: 'verify_email',
-      channel: 'email',
-      destination: input.email.trim(),
-      localeCode: input.localeCode,
-      notifyEvent: 'account_verification',
-      variables: { name: input.fullName.trim() },
+      return { acc: acc!, challenge };
     });
 
     await this.audit.record({
       action: 'iam.account.registered',
       targetType: 'account',
-      targetId: acc!.id,
+      targetId: acc.id,
       after: { email: emailNormalized, kind: 'customer', status: 'pending' },
     });
 
     return {
-      accountId: acc!.id,
+      accountId: acc.id,
       challengeId: challenge.challengeId,
       channel: 'email' as const,
       expiresAt: challenge.expiresAt.toISOString(),
@@ -530,9 +547,11 @@ export class IamService {
     };
   }
 
+  /** Delegates to `ConfigPublic.defaultOrganization()` (deterministically ordered by
+   *  `createdAt`) rather than repeating the raw, unordered `organization` query — see
+   *  `config.public.ts`. */
   private async defaultOrgId(): Promise<string> {
-    const { organization } = await import('../../database/schema/org');
-    const [org] = await this.db.select({ id: organization.id }).from(organization).limit(1);
+    const org = await this.config.defaultOrganization();
     if (!org) throw new AppError('policy_not_configured', { title: 'No organization configured' });
     return org.id;
   }

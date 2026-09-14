@@ -14,6 +14,8 @@ import { location, locationHoursException, organization } from '../../database/s
 import { rental } from '../../database/schema/rental';
 import { reservation } from '../../database/schema/reservation';
 
+import { ConfigPublic } from './config.public';
+
 /**
  * FR-ADM-007 / SCREEN-OPS-028 — location & operating-hours administration. Manage the fields
  * discovery already consumes (hours, after-hours, instructions, supported categories, turnaround)
@@ -65,10 +67,13 @@ export class LocationAdminService {
     private readonly audit: AuditService,
     private readonly outbox: OutboxService,
     private readonly cache: CacheBus,
+    private readonly config: ConfigPublic,
   ) {}
 
+  /** Delegates to `ConfigPublic.defaultOrganization()` (deterministically ordered by
+   *  `createdAt`) rather than repeating the raw, unordered `organization` query. */
   private async orgId(): Promise<string> {
-    const [org] = await this.db.select({ id: organization.id }).from(organization).limit(1);
+    const org = await this.config.defaultOrganization();
     if (!org) throw new AppError('resource_not_found', { title: 'No organization configured' });
     return org.id;
   }
@@ -109,17 +114,32 @@ export class LocationAdminService {
     if (expectedVersion !== undefined && expectedVersion !== existing.version) {
       throw AppError.conflict(existing.version);
     }
-    await this.db
+    // guard the UPDATE itself on the loaded version so two concurrent saves can't both win
+    // (the earlier compare above is TOCTOU on its own — this is the atomic check)
+    const versionGuard =
+      expectedVersion !== undefined
+        ? and(eq(organization.id, orgId), eq(organization.version, expectedVersion))
+        : eq(organization.id, orgId);
+    const [updated] = await this.db
       .update(organization)
       .set({
         legalName: input.legalName,
         taxId: input.taxId,
         registeredAddress: input.registeredAddress,
-        version: existing.version + 1,
+        version: sql`${organization.version} + 1`,
         updatedAt: sql`now()`,
         updatedBy: actor.accountId,
       })
-      .where(eq(organization.id, orgId));
+      .where(versionGuard)
+      .returning();
+    if (!updated) {
+      const [current] = await this.db
+        .select({ version: organization.version })
+        .from(organization)
+        .where(eq(organization.id, orgId))
+        .limit(1);
+      throw AppError.conflict(current?.version ?? existing.version);
+    }
     await this.audit.record({
       action: 'organization.legal_profile.updated',
       targetType: 'organization',
