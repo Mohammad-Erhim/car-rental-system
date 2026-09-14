@@ -469,6 +469,31 @@ export class FleetService {
           (occupiedByUnit[b.unitId] ??= []).push({ start, end });
         }
       }
+      // a unit currently committed to an open rental occupies it too (the engine's own contract
+      // already says so — "confirmed rentals, held reservations, maintenance/blocks" — this was
+      // simply never wired up, which under-counted availability by never excluding a car that's
+      // literally out with another customer right now). Unbounded, not time-windowed to the
+      // scheduled return: this system's "one open rental per unit" invariant (`assign()`'s own
+      // clash check, backed by a DB unique constraint) is itself date-unaware — a unit already
+      // committed to an open rental cannot take a second one for ANY future window until the
+      // first is actually closed, so offering it as pickable for a later date it doesn't yet
+      // know it'll be free by would promise something `assign()` won't actually honor.
+      const openRentals = await this.db
+        .select({ unitId: rental.unitId, scheduledPickupAt: rental.scheduledPickupAt })
+        .from(rental)
+        .where(
+          and(
+            inArray(rental.unitId, unitIds),
+            sql`${rental.state} in ('awaiting_pickup','active','overdue')`,
+          ),
+        );
+      for (const r of openRentals) {
+        if (!r.unitId) continue;
+        const start = new Date(r.scheduledPickupAt).getTime();
+        if (start < windowEnd.getTime()) {
+          (occupiedByUnit[r.unitId] ??= []).push({ start, end: Number.MAX_SAFE_INTEGER });
+        }
+      }
     }
     return { unitIds, occupiedByUnit };
   }
