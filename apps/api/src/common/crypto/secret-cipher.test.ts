@@ -27,9 +27,15 @@ describe('secret-cipher', () => {
   it('a tampered ciphertext fails to decrypt instead of returning garbage (GCM auth tag)', () => {
     const ciphertext = encryptSecret('sk_test_important_value');
     const parts = ciphertext.split(':');
-    // flip the ciphertext segment's last character
-    const tail = parts[2]!;
-    parts[2] = tail.slice(0, -1) + (tail.at(-1) === 'A' ? 'B' : 'A');
+    // Flip the ciphertext segment's FIRST character, not its last: base64url has no padding
+    // character, so when the encoded byte length isn't a multiple of 3 the final character's
+    // low bits are unused filler the decoder ignores — flipping between two symbols that differ
+    // only in those filler bits (e.g. 'A'/'B', which differ only in their lowest bit) can decode
+    // to the exact same byte, making the "tamper" a no-op some of the time. The first character
+    // sits in a full 3-byte/4-character group with no filler bits, so any change there always
+    // changes real ciphertext bytes.
+    const head = parts[2]!;
+    parts[2] = (head.at(0) === 'A' ? 'B' : 'A') + head.slice(1);
     expect(() => decryptSecret(parts.join(':'))).toThrow();
   });
 

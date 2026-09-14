@@ -2,11 +2,12 @@ import { randomUUID } from 'node:crypto';
 
 import { eq } from 'drizzle-orm';
 import request from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { DB } from '../src/database/database.module';
 import type { Database } from '../src/database/drizzle';
 import { recoveryCase } from '../src/database/schema/payment';
+import { NotifyService, type SendInput } from '../src/modules/notify/notify.service';
 import { ReportService } from '../src/modules/report/report.service';
 
 import { closeTestApp, getTestApp, httpServer } from './helpers/app';
@@ -1146,6 +1147,87 @@ describe('STAGE-006 administration & reporting', () => {
       await new Promise((res) => setTimeout(res, 150));
     }
     expect(count).toBe(1);
+  });
+
+  it('TEST-RPT-007b a partial delivery failure only retries the recipients that actually failed, never the ones already sent', async () => {
+    const app = await getTestApp();
+    const reportService = app.get(ReportService);
+    const notifyService = app.get(NotifyService);
+
+    const created = await request(server)
+      .post('/api/v1/ops/reports/schedules')
+      .set('Authorization', `Bearer ${managerToken}`)
+      .send({
+        definitionCode: 'fleet_utilisation',
+        cron: '0 7 * * 1',
+        recipients: ['partial-ok-1@example.test', 'partial-fail@example.test', 'partial-ok-2@example.test'],
+      })
+      .expect(201);
+    const scheduleId = created.body.id as string;
+
+    // First attempt: every recipient but one succeeds through the real send path; the one poison
+    // recipient fails. Isolated per-recipient — the two good ones must still go through.
+    const originalSend = notifyService.send.bind(notifyService);
+    const sendSpy = vi.spyOn(notifyService, 'send').mockImplementation(async (input: SendInput) => {
+      if (input.recipient === 'partial-fail@example.test') throw new Error('simulated SMTP outage');
+      return originalSend(input);
+    });
+
+    const attempt1 = reportService.sendScheduleNow(null, scheduleId);
+    await expect(attempt1).rejects.toMatchObject({
+      code: 'business_rule_violation',
+      params: expect.objectContaining({ reason: 'partial_delivery_failure', failedCount: 1 }),
+    });
+
+    type Msg = { event: string; recipient: string };
+    const countFor = async (recipient: string) => {
+      const mail = await request(server).get('/api/v1/dev/mail?limit=200').expect(200);
+      return (mail.body.messages as Msg[]).filter(
+        (m) => m.event === 'admin.report.delivered' && m.recipient === recipient,
+      ).length;
+    };
+    expect(await countFor('partial-ok-1@example.test')).toBe(1);
+    expect(await countFor('partial-ok-2@example.test')).toBe(1);
+    expect(await countFor('partial-fail@example.test')).toBe(0);
+
+    // the schedule now records only the failed recipient as outstanding
+    const afterFailure = await request(server)
+      .get('/api/v1/ops/reports/schedules')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const scheduleRow = (
+      afterFailure.body as Array<{
+        id: string;
+        lastSkipReason: string | null;
+        pendingRecipients: string[] | null;
+      }>
+    ).find((s) => s.id === scheduleId);
+    expect(scheduleRow?.lastSkipReason).toBe('partial_delivery_failure');
+    expect(scheduleRow?.pendingRecipients).toEqual(['partial-fail@example.test']);
+
+    // the outage clears; retrying must resend to ONLY the recipient that failed before — not
+    // re-send to the two who already got a copy on the first attempt.
+    sendSpy.mockRestore();
+    const attempt2 = await reportService.sendScheduleNow(null, scheduleId);
+    expect(attempt2.sent).toBe(true);
+
+    expect(await countFor('partial-ok-1@example.test')).toBe(1);
+    expect(await countFor('partial-ok-2@example.test')).toBe(1);
+    expect(await countFor('partial-fail@example.test')).toBe(1);
+
+    const afterRecovery = await request(server)
+      .get('/api/v1/ops/reports/schedules')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const recoveredRow = (
+      afterRecovery.body as Array<{
+        id: string;
+        lastSkipReason: string | null;
+        pendingRecipients: string[] | null;
+      }>
+    ).find((s) => s.id === scheduleId);
+    expect(recoveredRow?.lastSkipReason).toBeNull();
+    expect(recoveredRow?.pendingRecipients).toBeNull();
   });
 
   it('TEST-ADM-005 the data-quality panel runs its referential-integrity checks; agents are refused', async () => {
