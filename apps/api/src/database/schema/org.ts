@@ -28,6 +28,15 @@ export const organization = pgTable(
       .notNull()
       .default(sql`'["en"]'::jsonb`),
     isActive: boolean('is_active').notNull().default(true),
+    /**
+     * Legal identity for invoicing (FR-PAY invoices) — distinct from the trading `name` above,
+     * which is marketing copy. Null until an admin fills them in via `POST ops/organization/legal`;
+     * `InvoiceService` refuses to issue an invoice while any of these three is unset rather than
+     * emitting a document with a blank legal name or tax ID.
+     */
+    legalName: text('legal_name'),
+    taxId: text('tax_id'),
+    registeredAddress: jsonb('registered_address').$type<Record<string, string>>(),
   },
   (t) => ({ codeUnq: uniqueIndex('organization_code_unq').on(t.code) }),
 );

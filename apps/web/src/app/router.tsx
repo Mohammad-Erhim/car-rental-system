@@ -21,6 +21,7 @@ import { LocationsPage } from '../surfaces/ops/locations-page.js';
 import { MediaLibraryPage } from '../surfaces/ops/media-library-page.js';
 import { OpsDashboard } from '../surfaces/ops/ops-dashboard.js';
 import { OpsLayout } from '../surfaces/ops/ops-layout.js';
+import { OrganizationPage } from '../surfaces/ops/organization-page.js';
 import { PagesPage } from '../surfaces/ops/pages-builder/pages-page.js';
 import { PaymentsPage } from '../surfaces/ops/payments-page.js';
 import { ProductsPage } from '../surfaces/ops/products-page.js';
@@ -164,6 +165,10 @@ export const router = createBrowserRouter(
         {
           path: 'config/locations',
           element: perm(['config.read', 'config.publish'], <LocationsPage />),
+        },
+        {
+          path: 'config/organization',
+          element: perm(['config.read', 'config.publish'], <OrganizationPage />),
         },
         {
           path: 'config/payments',

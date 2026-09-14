@@ -2,10 +2,12 @@ import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 
+import { AppError } from '../../common/app-error';
 import { CurrentActor } from '../../common/auth/auth.guard';
 import { Permissions } from '../../common/auth/permissions.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
+import { InvoicePublic } from '../invoice/invoice.public';
 
 import { ReservationOpsService } from './reservation-ops.service';
 
@@ -32,7 +34,10 @@ const zManualRefund = z.object({
 @ApiTags('reservations')
 @Controller({ path: '', version: '1' })
 export class ReservationController {
-  constructor(private readonly ops: ReservationOpsService) {}
+  constructor(
+    private readonly ops: ReservationOpsService,
+    private readonly invoices: InvoicePublic,
+  ) {}
 
   // ---- customer ----
 
@@ -49,6 +54,24 @@ export class ReservationController {
   @Get('reservations/:reference/history')
   history(@Param('reference') reference: string, @CurrentActor() actor: Actor) {
     return this.ops.history(reference, actor);
+  }
+
+  @Get('reservations/:reference/invoices')
+  async listInvoices(@Param('reference') reference: string, @CurrentActor() actor: Actor) {
+    await this.ops.detail(reference, actor); // ownership check — throws not-found/forbidden
+    return this.invoices.listForReservation(reference);
+  }
+
+  @Get('reservations/:reference/invoices/:number')
+  async invoice(
+    @Param('reference') reference: string,
+    @Param('number') number: string,
+    @CurrentActor() actor: Actor,
+  ) {
+    await this.ops.detail(reference, actor); // ownership check — throws not-found/forbidden
+    const inv = await this.invoices.getByNumber(number);
+    if (inv.reservationReference !== reference) throw AppError.notFound('invoice');
+    return inv;
   }
 
   @Post('reservations/:reference/cancel')
@@ -111,6 +134,12 @@ export class ReservationController {
     @CurrentActor() actor: Actor,
   ) {
     return this.ops.manualRefund(reference, actor, body);
+  }
+
+  @Get('ops/reservations/:reference/invoices')
+  @Permissions('payment.read', 'payment.reconcile', 'reservation.read')
+  opsInvoices(@Param('reference') reference: string) {
+    return this.invoices.listForReservation(reference);
   }
 
   @Get('ops/payments/reconciliation')

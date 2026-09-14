@@ -348,6 +348,54 @@ export function useReservationDetail(reference: string | null) {
   });
 }
 
+export interface InvoiceView {
+  number: string;
+  docVersion: number;
+  kind: 'invoice' | 'credit_note';
+  previousNumber: string | null;
+  reservationReference: string;
+  currency: string;
+  subtotalMinor: number;
+  taxMinor: number;
+  totalMinor: number;
+  reason: string | null;
+  issuedAt: string;
+  snapshot: {
+    org: {
+      tradingName: string;
+      legalName: string;
+      taxId: string;
+      registeredAddress: Record<string, string>;
+    };
+    customer: { fullName: string | null; email: string | null };
+    trip: {
+      categoryCode: string;
+      pickupLocationCode: string;
+      returnLocationCode: string;
+      pickupAt: string;
+      returnAt: string;
+      pickedUnit: { make: string | null; model: string | null; colour: string | null } | null;
+    };
+    lines: Array<{
+      kind: string;
+      code: string;
+      label: string;
+      quantity: number;
+      unitMinor: number;
+      amountMinor: number;
+    }>;
+  };
+}
+
+export function useReservationInvoices(reference: string | null) {
+  return useQuery({
+    queryKey: ['reservation', reference, 'invoices'],
+    queryFn: ({ signal }) =>
+      apiFetch<InvoiceView[]>(`/reservations/${reference}/invoices`, { signal }),
+    enabled: !!reference,
+  });
+}
+
 export function useReservationHistory(reference: string | null) {
   return useQuery({
     queryKey: ['reservation', reference, 'history'],

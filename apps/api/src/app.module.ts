@@ -14,6 +14,7 @@ import { ConsentModule } from './modules/consent/consent.module';
 import { CustomerModule } from './modules/customer/customer.module';
 import { DiscoveryModule } from './modules/discovery/discovery.module';
 import { IamModule } from './modules/iam/iam.module';
+import { InvoiceModule } from './modules/invoice/invoice.module';
 import { MediaModule } from './modules/media/media.module';
 import { MetaModule } from './modules/meta/meta.module';
 import { NotifyModule } from './modules/notify/notify.module';
@@ -37,6 +38,7 @@ import { ObservabilityModule } from './observability/observability.module';
     AdminModule,
     CustomerModule,
     DiscoveryModule,
+    InvoiceModule,
     BookingModule,
     RentalModule,
     ReportModule,

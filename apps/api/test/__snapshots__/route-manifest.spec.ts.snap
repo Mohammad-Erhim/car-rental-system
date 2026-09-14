@@ -134,6 +134,8 @@ POST   /api/v1/ops/notification-rules
 GET    /api/v1/ops/notification-rules/:event/:channel
 POST   /api/v1/ops/notification-rules/:event/:channel/disable
 POST   /api/v1/ops/notification-rules/:event/:channel/enable
+GET    /api/v1/ops/organization/legal
+POST   /api/v1/ops/organization/legal
 GET    /api/v1/ops/payments/config
 PUT    /api/v1/ops/payments/config
 GET    /api/v1/ops/payments/mode
@@ -158,6 +160,7 @@ GET    /api/v1/ops/reports/schedules
 POST   /api/v1/ops/reports/schedules
 POST   /api/v1/ops/reports/schedules/:id/send
 GET    /api/v1/ops/reservations
+GET    /api/v1/ops/reservations/:reference/invoices
 POST   /api/v1/ops/reservations/:reference/no-show
 POST   /api/v1/ops/reservations/:reference/refund
 POST   /api/v1/ops/reservations/:reservationReference/assign
@@ -184,6 +187,8 @@ GET    /api/v1/rentals/mine
 GET    /api/v1/reservations/:reference
 POST   /api/v1/reservations/:reference/cancel
 GET    /api/v1/reservations/:reference/history
+GET    /api/v1/reservations/:reference/invoices
+GET    /api/v1/reservations/:reference/invoices/:number
 POST   /api/v1/reservations/:reference/modify
 GET    /api/v1/reservations/mine
 POST   /api/v1/webhooks/stripe"

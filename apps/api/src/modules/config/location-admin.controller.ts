@@ -44,6 +44,12 @@ const zLocation = z.object({
   status: z.enum(['draft', 'active', 'archived']).optional(),
 });
 
+const zLegalProfile = z.object({
+  legalName: z.string().min(1).max(200),
+  taxId: z.string().min(1).max(60),
+  registeredAddress: z.record(z.string()),
+});
+
 const zException = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   closed: z.boolean().optional(),
@@ -65,6 +71,23 @@ const zException = z.object({
 @Controller({ path: 'ops', version: '1' })
 export class LocationAdminController {
   constructor(private readonly locations: LocationAdminService) {}
+
+  @Get('organization/legal')
+  @Permissions('config.read', 'config.publish')
+  getLegalProfile() {
+    return this.locations.getLegalProfile();
+  }
+
+  @Post('organization/legal')
+  @Permissions('config.publish')
+  updateLegalProfile(
+    @Body(new ZodValidationPipe(zLegalProfile)) body: z.infer<typeof zLegalProfile>,
+    @CurrentActor() actor: Actor,
+    @Req() req: Request,
+  ) {
+    const ifMatch = req.header('If-Match');
+    return this.locations.updateLegalProfile(actor, body, ifMatch ? Number(ifMatch) : undefined);
+  }
 
   @Get('locations')
   @Permissions('config.read', 'config.publish')

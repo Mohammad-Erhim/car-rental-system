@@ -73,6 +73,63 @@ export class LocationAdminService {
     return org.id;
   }
 
+  /** FR-PAY invoices — the organization's legal identity. Read by `InvoiceService` at issuance
+   *  time and shown here so an admin can see why invoicing might be silently paused. */
+  async getLegalProfile() {
+    const orgId = await this.orgId();
+    const [org] = await this.db
+      .select({
+        legalName: organization.legalName,
+        taxId: organization.taxId,
+        registeredAddress: organization.registeredAddress,
+        version: organization.version,
+      })
+      .from(organization)
+      .where(eq(organization.id, orgId))
+      .limit(1);
+    return org!;
+  }
+
+  async updateLegalProfile(
+    actor: Actor,
+    input: {
+      legalName: string;
+      taxId: string;
+      registeredAddress: Record<string, string>;
+    },
+    expectedVersion?: number,
+  ) {
+    const orgId = await this.orgId();
+    const [existing] = await this.db
+      .select({ version: organization.version })
+      .from(organization)
+      .where(eq(organization.id, orgId))
+      .limit(1);
+    if (!existing) throw AppError.notFound('organization');
+    if (expectedVersion !== undefined && expectedVersion !== existing.version) {
+      throw AppError.conflict(existing.version);
+    }
+    await this.db
+      .update(organization)
+      .set({
+        legalName: input.legalName,
+        taxId: input.taxId,
+        registeredAddress: input.registeredAddress,
+        version: existing.version + 1,
+        updatedAt: sql`now()`,
+        updatedBy: actor.accountId,
+      })
+      .where(eq(organization.id, orgId));
+    await this.audit.record({
+      action: 'organization.legal_profile.updated',
+      targetType: 'organization',
+      targetId: orgId,
+      actor,
+      after: input,
+    });
+    return this.getLegalProfile();
+  }
+
   /** Every location incl. draft/archived, for the ops editor. */
   async list() {
     const org = await this.orgId();

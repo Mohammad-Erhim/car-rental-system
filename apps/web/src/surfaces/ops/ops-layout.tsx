@@ -4,6 +4,7 @@ import { Button, ThemeToggle } from '@carrental/ui';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   BarChart3,
+  Building2,
   Car,
   CarFront,
   ClipboardList,
@@ -161,6 +162,12 @@ const NAV_GROUPS: NavGroup[] = [
         to: '/config/locations',
         label: 'ops.nav.locations',
         Icon: MapPin,
+        anyOf: ['config.read', 'config.publish'],
+      },
+      {
+        to: '/config/organization',
+        label: 'ops.nav.organization',
+        Icon: Building2,
         anyOf: ['config.read', 'config.publish'],
       },
       {
