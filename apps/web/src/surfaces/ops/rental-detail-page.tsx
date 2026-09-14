@@ -16,12 +16,23 @@ import {
   Field,
   Input,
   PageHeader,
+  Select,
+  Textarea,
 } from '@carrental/ui';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import { ApiError } from '../../lib/api.js';
-import { useExtendRental, useOpsRentalDetail, useReadiness } from '../../lib/rental-hooks.js';
+import { useOpsUnits } from '../../lib/ops-discovery-hooks.js';
+import {
+  useAssignVehicle,
+  useExtendRental,
+  useOpsRentalDetail,
+  useRaiseIncident,
+  useReadiness,
+} from '../../lib/rental-hooks.js';
+
+const INCIDENT_CATEGORIES = ['breakdown', 'accident', 'damage', 'other'] as const;
 
 /**
  * SCREEN-OPS-016 (detail) — one rental for staff: the booking window, the vehicle, odometer /
@@ -49,11 +60,43 @@ export function RentalDetailPage() {
   const detail = useOpsRentalDetail(reference);
   const extend = useExtendRental(reference);
   const readiness = useReadiness(reference);
+  const reassign = useAssignVehicle();
+  const incident = useRaiseIncident(reference);
 
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [newReturn, setNewReturn] = useState('');
   const [confirmExtend, setConfirmExtend] = useState(false);
   const [confirmReady, setConfirmReady] = useState<null | boolean>(null);
+  const [confirmReassign, setConfirmReassign] = useState(false);
+  const [reassignUnitId, setReassignUnitId] = useState('');
+  const [confirmIncident, setConfirmIncident] = useState(false);
+  const [incCategory, setIncCategory] = useState<(typeof INCIDENT_CATEGORIES)[number]>('breakdown');
+  const [incNote, setIncNote] = useState('');
+  const [incReplacement, setIncReplacement] = useState('');
+
+  const canReassign =
+    hasPermission('rental.pickup', 'fleet.manage') && detail.data?.state === 'awaiting_pickup';
+  const canIncident =
+    hasPermission('rental.pickup', 'rental.return') &&
+    ['active', 'overdue'].includes(detail.data?.state ?? '');
+  const candidateUnits = useOpsUnits(
+    {
+      categoryCode: detail.data?.categoryCode ?? undefined,
+      locationCode: detail.data?.pickupLocationCode,
+      state: 'available',
+    },
+    { enabled: canReassign && confirmReassign },
+  );
+  // a replacement must be a same-category available unit at this location — the API rejects a
+  // category mismatch — so only offer those, same as the rental board's incident dialog.
+  const spares = useOpsUnits(
+    {
+      categoryCode: detail.data?.categoryCode ?? undefined,
+      locationCode: detail.data?.pickupLocationCode,
+      state: 'available',
+    },
+    { enabled: canIncident && confirmIncident },
+  );
 
   const money = (m: number, c: string) => fmt.money({ amountMinor: m, currency: c });
   const errText = (e: unknown, fb: string) => (e instanceof ApiError ? e.message : fb);
@@ -108,6 +151,40 @@ export function RentalDetailPage() {
       setResult({ ok: false, text: errText(e, t('ops.rentd.actionFail')) });
     } finally {
       setConfirmReady(null);
+    }
+  };
+  const runReassign = async () => {
+    setResult(null);
+    try {
+      await reassign.mutateAsync({ reference: d.reservationReference, unitId: reassignUnitId });
+      setResult({ ok: true, text: t('ops.rentd.reassigned') });
+      setReassignUnitId('');
+    } catch (e) {
+      setResult({ ok: false, text: errText(e, t('ops.rentd.actionFail')) });
+    } finally {
+      setConfirmReassign(false);
+    }
+  };
+  const runIncident = async () => {
+    setResult(null);
+    try {
+      await incident.mutateAsync({
+        category: incCategory,
+        note: incNote.trim() || undefined,
+        replacementUnitId: incReplacement || undefined,
+      });
+      setResult({
+        ok: true,
+        text: incReplacement
+          ? t('ops.rent.incidentSwapped', { ref: d.reference })
+          : t('ops.rent.incidentLogged', { ref: d.reference }),
+      });
+      setIncNote('');
+      setIncReplacement('');
+    } catch (e) {
+      setResult({ ok: false, text: errText(e, t('ops.rent.incidentFail')) });
+    } finally {
+      setConfirmIncident(false);
     }
   };
 
@@ -321,11 +398,154 @@ export function RentalDetailPage() {
             )
           ) : null}
 
-          {!(canExtend && extendable) && !(canReady && d.state === 'closed') ? (
+          {canReassign ? (
+            <Button
+              variant="outline"
+              loading={reassign.isPending}
+              onClick={() => {
+                setReassignUnitId('');
+                setConfirmReassign(true);
+              }}
+              data-testid="rentd-reassign-open"
+            >
+              {t('ops.rentd.reassign')}
+            </Button>
+          ) : null}
+
+          {canIncident ? (
+            <Button
+              variant="ghost"
+              loading={incident.isPending}
+              onClick={() => setConfirmIncident(true)}
+              data-testid="rentd-incident-open"
+            >
+              {t('ops.rent.reportIncident')}
+            </Button>
+          ) : null}
+
+          {!(canExtend && extendable) &&
+          !(canReady && d.state === 'closed') &&
+          !canReassign &&
+          !canIncident ? (
             <p className="text-sm text-muted-foreground">{t('ops.resv.noActions')}</p>
           ) : null}
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={confirmReassign}
+        onOpenChange={(v) => {
+          setConfirmReassign(v);
+          if (!v) setReassignUnitId('');
+        }}
+        title={t('ops.rentd.reassignTitle')}
+        description={
+          <div className="space-y-3">
+            <p>{t('ops.rentd.reassignBody')}</p>
+            {d.pickedUnit ? (
+              <p
+                className="text-sm text-muted-foreground"
+                data-testid="rentd-reassign-customer-pick"
+              >
+                {t('ops.resv.customerPicked', {
+                  car: [d.pickedUnit.make, d.pickedUnit.model].filter(Boolean).join(' '),
+                  plate: d.pickedUnit.plate,
+                })}
+              </p>
+            ) : null}
+            <Field
+              label={t('ops.resv.assignUnit')}
+              htmlFor="rentd-reassign-unit"
+              hint={t('ops.resv.assignUnitHint')}
+            >
+              {({ id }) => (
+                <Select
+                  id={id}
+                  value={reassignUnitId}
+                  onChange={(e) => setReassignUnitId(e.target.value)}
+                  data-testid="rentd-reassign-select"
+                >
+                  <option value="">{t('ops.resv.assignAuto')}</option>
+                  {(candidateUnits.data?.results ?? []).map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.plate} — {[u.year, u.make, u.model].filter(Boolean).join(' ') || u.vin}
+                      {u.id === d.pickedUnit?.id ? ` (${t('ops.resv.customerPickedBadge')})` : ''}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+          </div>
+        }
+        confirmLabel={t('ops.rentd.reassign')}
+        onConfirm={runReassign}
+      />
+
+      <ConfirmDialog
+        open={confirmIncident}
+        onOpenChange={(v) => {
+          setConfirmIncident(v);
+          if (!v) {
+            setIncNote('');
+            setIncReplacement('');
+          }
+        }}
+        destructive
+        title={t('ops.rent.incidentTitle')}
+        description={
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label={t('ops.rent.incidentCategory')} htmlFor="rentd-inc-cat">
+                {({ id }) => (
+                  <Select
+                    id={id}
+                    value={incCategory}
+                    onChange={(e) =>
+                      setIncCategory(e.target.value as (typeof INCIDENT_CATEGORIES)[number])
+                    }
+                    data-testid="rentd-incident-category"
+                  >
+                    {INCIDENT_CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {t(`ops.rent.incidentCat.${c}`)}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+              <Field label={t('ops.rent.incidentReplacement')} htmlFor="rentd-inc-rep">
+                {({ id }) => (
+                  <Select
+                    id={id}
+                    value={incReplacement}
+                    onChange={(e) => setIncReplacement(e.target.value)}
+                    data-testid="rentd-incident-replacement"
+                  >
+                    <option value="">{t('ops.rent.incidentNoReplacement')}</option>
+                    {(spares.data?.results ?? []).map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.plate} — {[u.year, u.make, u.model].filter(Boolean).join(' ') || u.vin}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+            </div>
+            <Field label={t('ops.rent.incidentNote')} htmlFor="rentd-inc-note">
+              {({ id }) => (
+                <Textarea
+                  id={id}
+                  rows={2}
+                  value={incNote}
+                  onChange={(e) => setIncNote(e.target.value)}
+                />
+              )}
+            </Field>
+          </div>
+        }
+        confirmLabel={t('ops.rent.incidentSubmit')}
+        onConfirm={runIncident}
+      />
 
       <ConfirmDialog
         open={confirmExtend}

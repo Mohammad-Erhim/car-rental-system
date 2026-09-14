@@ -610,6 +610,130 @@ describe('rental lifecycle', () => {
       .expect(201);
   });
 
+  it('the vehicle can be reassigned before pickup, but not once the rental is active', async () => {
+    const resRef = await book(server, customerToken, 'intermediate', 136, 3);
+    const first = await request(server)
+      .post(`/api/v1/ops/reservations/${resRef}/assign`)
+      .set(auth(agentToken))
+      .send({})
+      .expect(201);
+    const rentalRef = first.body.reference as string;
+    const firstUnitId = first.body.unitId as string;
+
+    const win = { pickupLocationCode: 'TST1', pickupAt: isoIn(136), returnAt: isoIn(139) };
+    const candidates = await request(server)
+      .get('/api/v1/catalogue/categories/intermediate/units')
+      .query({
+        locationCode: win.pickupLocationCode,
+        pickupAt: win.pickupAt,
+        returnAt: win.returnAt,
+      })
+      .expect(200);
+    const other = candidates.body.find((u: { id: string }) => u.id !== firstUnitId);
+    expect(other).toBeTruthy();
+
+    const reassigned = await request(server)
+      .post(`/api/v1/ops/reservations/${resRef}/assign`)
+      .set(auth(agentToken))
+      .send({ unitId: other.id })
+      .expect(201);
+    expect(reassigned.body.unitId).toBe(other.id);
+    expect(reassigned.body.unitId).not.toBe(firstUnitId);
+
+    await request(server)
+      .post(`/api/v1/ops/rentals/${rentalRef}/pickup`)
+      .set(auth(agentToken))
+      .send({ odometerKm: 5000, fuelPct: 100, driverName: 'Rex Renter', licenceNumber: 'D-99' })
+      .expect(201);
+
+    // the reservation itself flips to 'fulfilled' at pickup (same transaction as the rental
+    // going 'active') — assign()'s existing "reservation must be confirmed" guard already
+    // refuses a vehicle change here; changing it once picked up goes through raiseIncident().
+    const blocked = await request(server)
+      .post(`/api/v1/ops/reservations/${resRef}/assign`)
+      .set(auth(agentToken))
+      .send({ unitId: firstUnitId })
+      .expect(422);
+    expect(blocked.body.code).toBe('business_rule_violation');
+    expect(blocked.body.params.reason).toBe('fulfilled');
+  });
+
+  it('raising an incident with a replacement swaps the vehicle and blocks the old one', async () => {
+    const resRef = await book(server, customerToken, 'intermediate', 145, 3);
+    const assigned = await request(server)
+      .post(`/api/v1/ops/reservations/${resRef}/assign`)
+      .set(auth(agentToken))
+      .send({})
+      .expect(201);
+    const rentalRef = assigned.body.reference as string;
+    const originalUnitId = assigned.body.unitId as string;
+    await request(server)
+      .post(`/api/v1/ops/rentals/${rentalRef}/pickup`)
+      .set(auth(agentToken))
+      .send({ odometerKm: 5000, fuelPct: 100, driverName: 'Rex Renter', licenceNumber: 'D-99' })
+      .expect(201);
+
+    const win = { pickupLocationCode: 'TST1', pickupAt: isoIn(145), returnAt: isoIn(148) };
+    const candidates = await request(server)
+      .get('/api/v1/catalogue/categories/intermediate/units')
+      .query({
+        locationCode: win.pickupLocationCode,
+        pickupAt: win.pickupAt,
+        returnAt: win.returnAt,
+      })
+      .expect(200);
+    const replacement = candidates.body[0];
+    expect(replacement).toBeTruthy();
+    expect(replacement.id).not.toBe(originalUnitId);
+
+    const swapped = await request(server)
+      .post(`/api/v1/ops/rentals/${rentalRef}/incident`)
+      .set(auth(agentToken))
+      .send({
+        category: 'breakdown',
+        note: 'flat tyre, swapped on site',
+        immobilised: true,
+        replacementUnitId: replacement.id,
+      })
+      .expect(201);
+    expect(swapped.body.unitId).toBe(replacement.id);
+    expect(swapped.body.unitId).not.toBe(originalUnitId);
+
+    // the old unit is now out_of_service (immobilised) — no longer offered for a fresh window
+    const stillOffered = await request(server)
+      .get('/api/v1/catalogue/categories/intermediate/units')
+      .query({
+        locationCode: win.pickupLocationCode,
+        pickupAt: isoIn(300),
+        returnAt: isoIn(303),
+      })
+      .expect(200);
+    expect(stillOffered.body.some((u: { id: string }) => u.id === originalUnitId)).toBe(false);
+  });
+
+  it('logging an incident with no replacement just records it — the vehicle stays assigned', async () => {
+    const resRef = await book(server, customerToken, 'intermediate', 150, 3);
+    const assigned = await request(server)
+      .post(`/api/v1/ops/reservations/${resRef}/assign`)
+      .set(auth(agentToken))
+      .send({})
+      .expect(201);
+    const rentalRef = assigned.body.reference as string;
+    const unitId = assigned.body.unitId as string;
+    await request(server)
+      .post(`/api/v1/ops/rentals/${rentalRef}/pickup`)
+      .set(auth(agentToken))
+      .send({ odometerKm: 5000, fuelPct: 100, driverName: 'Rex Renter', licenceNumber: 'D-99' })
+      .expect(201);
+
+    const logged = await request(server)
+      .post(`/api/v1/ops/rentals/${rentalRef}/incident`)
+      .set(auth(agentToken))
+      .send({ category: 'other', note: 'minor scratch, no impact on driving' })
+      .expect(201);
+    expect(logged.body.unitId).toBe(unitId);
+  });
+
   describe('the rental board (GET /ops/rentals)', () => {
     it('returns a true total plus rows with vehicle / driver / customer and a live overdue flag', async () => {
       const resRef = await book(server, customerToken, 'economy', 2, 1); // pickup ~2 days out

@@ -143,6 +143,9 @@ export interface RentalDetail extends Rental {
     chargeMinor: number;
   }>;
   history: NonNullable<Rental['history']>;
+  /** the car the customer picked before checkout, only present here when it differs from what's
+   *  actually assigned (e.g. it stopped being viable and assign() fell back to another car). */
+  pickedUnit: { id: string; plate: string; make: string | null; model: string | null } | null;
 }
 
 export function useOpsRentalDetail(reference: string | null) {
