@@ -734,6 +734,29 @@ describe('rental lifecycle', () => {
     expect(logged.body.unitId).toBe(unitId);
   });
 
+  it('assigning a unit from a different category than what was booked is refused', async () => {
+    const resRef = await book(server, customerToken, 'compact', 155, 3);
+    const win = { pickupLocationCode: 'TST1', pickupAt: isoIn(155), returnAt: isoIn(158) };
+    const economyUnits = await request(server)
+      .get('/api/v1/catalogue/categories/economy/units')
+      .query({
+        locationCode: win.pickupLocationCode,
+        pickupAt: win.pickupAt,
+        returnAt: win.returnAt,
+      })
+      .expect(200);
+    expect(economyUnits.body.length).toBeGreaterThan(0);
+    const wrongCategoryUnit = economyUnits.body[0].id as string;
+
+    const rejected = await request(server)
+      .post(`/api/v1/ops/reservations/${resRef}/assign`)
+      .set(auth(agentToken))
+      .send({ unitId: wrongCategoryUnit })
+      .expect(422);
+    expect(rejected.body.code).toBe('business_rule_violation');
+    expect(rejected.body.params.reason).toBe('category_mismatch');
+  });
+
   describe('the rental board (GET /ops/rentals)', () => {
     it('returns a true total plus rows with vehicle / driver / customer and a live overdue flag', async () => {
       const resRef = await book(server, customerToken, 'economy', 2, 1); // pickup ~2 days out

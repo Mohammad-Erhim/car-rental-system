@@ -44,7 +44,7 @@ export function useOpsUnits(
     categoryCode?: string;
     state?: string;
   },
-  opts: { enabled?: boolean } = {},
+  opts: { enabled?: boolean; keepPrevious?: boolean } = {},
 ) {
   const qs = new URLSearchParams();
   if (filter.locationCode) qs.set('locationCode', filter.locationCode);
@@ -52,7 +52,11 @@ export function useOpsUnits(
   if (filter.state) qs.set('state', filter.state);
   return useQuery({
     queryKey: ['ops', 'fleet-units', filter],
-    placeholderData: keepPreviousData,
+    // `keepPrevious` smooths a filter change on the fleet inventory list. It defaults OFF: every
+    // other caller uses this as a picker's options for one specific target (assign/reassign/
+    // incident-replacement) — showing the *previous* target's (wrong-category) units while the
+    // new ones are still loading is actively misleading, not just a flicker.
+    placeholderData: opts.keepPrevious ? keepPreviousData : undefined,
     enabled: opts.enabled ?? true,
     queryFn: ({ signal }) =>
       apiFetch<OpsUnitList>(`/ops/fleet/units${qs.toString() ? `?${qs}` : ''}`, { signal }),
