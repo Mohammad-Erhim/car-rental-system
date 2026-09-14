@@ -757,6 +757,77 @@ describe('rental lifecycle', () => {
     expect(rejected.body.params.reason).toBe('category_mismatch');
   });
 
+  it("when staff assigns a different car than the customer picked, the customer's original pick becomes available again (not a phantom lock)", async () => {
+    // TST2, not TST1 — this file's shared TST1 economy pool is heavily drawn down by every
+    // earlier test in it; TST2's own fleet is untouched here.
+    const win = { pickupLocationCode: 'TST2', pickupAt: isoIn(165), returnAt: isoIn(168) };
+    const before = await request(server)
+      .get('/api/v1/catalogue/categories/economy/units')
+      .query({
+        locationCode: win.pickupLocationCode,
+        pickupAt: win.pickupAt,
+        returnAt: win.returnAt,
+      })
+      .expect(200);
+    expect(before.body.length).toBeGreaterThanOrEqual(2);
+    const customerPick = before.body[0].id as string;
+    const staffOverride = before.body[1].id as string;
+
+    const quote = await request(server)
+      .post('/api/v1/discovery/quote')
+      .send({
+        ...win,
+        categoryCode: 'economy',
+        hold: true,
+        holderKey: 'override-test',
+        unitId: customerPick,
+      })
+      .expect(201);
+    const confirmed = await request(server)
+      .post('/api/v1/bookings/confirm')
+      .set(auth(customerToken))
+      .send({
+        quoteReference: quote.body.reference,
+        drivers: [{ role: 'primary_renter', fullName: 'Override Test', email: 'ov@example.test' }],
+        acceptTerms: true,
+        paymentToken: 'tok_ok',
+      })
+      .expect(201);
+
+    // staff picks a *different* car than the customer chose
+    const assigned = await request(server)
+      .post(`/api/v1/ops/reservations/${confirmed.body.reference}/assign`)
+      .set(auth(agentToken))
+      .send({ unitId: staffOverride })
+      .expect(201);
+    expect(assigned.body.unitId).toBe(staffOverride);
+
+    const after = await request(server)
+      .get('/api/v1/catalogue/categories/economy/units')
+      .query({
+        locationCode: win.pickupLocationCode,
+        pickupAt: win.pickupAt,
+        returnAt: win.returnAt,
+      })
+      .expect(200);
+    const ids = (after.body as Array<{ id: string }>).map((u) => u.id);
+    expect(ids).toContain(customerPick); // nobody actually has it — must not stay phantom-locked
+    expect(ids).not.toContain(staffOverride); // this one is genuinely out now
+
+    // and a second shopper can pin the customer's original, now-genuinely-free pick
+    const secondQuote = await request(server)
+      .post('/api/v1/discovery/quote')
+      .send({
+        ...win,
+        categoryCode: 'economy',
+        hold: true,
+        holderKey: 'override-test-2',
+        unitId: customerPick,
+      })
+      .expect(201);
+    expect(secondQuote.body.hold).toMatchObject({ unitPinned: true, unitId: customerPick });
+  });
+
   describe('the rental board (GET /ops/rentals)', () => {
     it('returns a true total plus rows with vehicle / driver / customer and a live overdue flag', async () => {
       const resRef = await book(server, customerToken, 'economy', 2, 1); // pickup ~2 days out
