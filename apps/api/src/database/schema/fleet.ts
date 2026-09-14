@@ -30,6 +30,7 @@ export const vehicleUnit = pgTable(
     state: text('state').notNull().default('available'), // -> lookup 'vehicle_state'
     acquiredOn: text('acquired_on'),
     notes: text('notes'),
+    imageRef: text('image_ref'), // stored_object key, or null for the generated fallback art
   },
   (t) => ({
     vinUnq: uniqueIndex('vehicle_unit_vin_unq').on(t.vin),

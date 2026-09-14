@@ -48,6 +48,11 @@ export {
 export { Tabs, TabsList, TabsTrigger, TabsContent } from './components/tabs.js';
 export { ToastProvider, useToast } from './components/toast.js';
 export { ConfirmDialog } from './components/confirm-dialog.js';
+export {
+  MediaPicker,
+  type MediaPickerItem,
+  type MediaPickerLabels,
+} from './components/media-picker.js';
 
 export {
   ThemeProvider,

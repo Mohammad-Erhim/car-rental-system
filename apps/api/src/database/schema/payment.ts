@@ -86,7 +86,7 @@ export const recoveryCase = pgTable(
     ...auditColumns,
     ...actorColumns,
     organizationId: uuid('organization_id').notNull(),
-    kind: text('kind').notNull(), // payment_orphan|write_after_charge|refund_stuck|reconcile
+    kind: text('kind').notNull(), // payment_orphan|write_after_charge|refund_stuck|reconcile|settlement_declined
     severity: text('severity').notNull().default('high'),
     state: text('state').notNull().default('open'), // open|in_progress|resolved
     subjectType: text('subject_type').notNull(),

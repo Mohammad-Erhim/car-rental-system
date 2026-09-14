@@ -74,6 +74,28 @@ const zUnitImport = z.object({
   commit: z.boolean().optional(),
 });
 
+const zCreateUnit = z.object({
+  categoryCode: z.string().min(2).max(40),
+  locationCode: z.string().min(1).max(20),
+  vin: z
+    .string()
+    .trim()
+    .min(11)
+    .max(17)
+    .regex(/^[A-Za-z0-9]+$/, 'letters and digits only'),
+  plate: z.string().trim().min(1).max(20),
+  year: z
+    .string()
+    .regex(/^(19|20)\d{2}$/)
+    .optional(),
+  make: z.string().max(60).optional(),
+  model: z.string().max(60).optional(),
+  colour: z.string().max(40).optional(),
+  imageRef: z.string().max(300).nullable().optional(),
+});
+
+const zUpdateUnit = zCreateUnit.omit({ locationCode: true }).partial();
+
 const zProduct = z.object({
   code: z
     .string()
@@ -249,6 +271,41 @@ export class OpsCatalogueController {
     @CurrentActor() actor: Actor,
   ) {
     return this.fleet.importUnits(actor, { csv: body.csv, commit: body.commit ?? false });
+  }
+
+  // NB: these two must be registered after the literal 'fleet/units/import' route above — Nest
+  // matches routes in declaration order and 'fleet/units/:id' would otherwise swallow it.
+  @Post('fleet/units')
+  @Permissions('fleet.manage')
+  createUnit(
+    @Body(new ZodValidationPipe(zCreateUnit)) body: z.infer<typeof zCreateUnit>,
+    @CurrentActor() actor: Actor,
+  ) {
+    return this.fleet.createUnit(actor, body);
+  }
+
+  @Post('fleet/units/:id')
+  @Permissions('fleet.manage')
+  updateUnit(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(zUpdateUnit)) body: z.infer<typeof zUpdateUnit>,
+    @CurrentActor() actor: Actor,
+    @Req() req: Request,
+  ) {
+    const ifMatch = req.header('If-Match');
+    return this.fleet.updateUnit(actor, id, body, ifMatch ? Number(ifMatch) : undefined);
+  }
+
+  @Post('fleet/units/:id/retire')
+  @Permissions('fleet.manage')
+  retireUnit(@Param('id') id: string, @CurrentActor() actor: Actor) {
+    return this.fleet.setUnitRetired(actor, id, true);
+  }
+
+  @Post('fleet/units/:id/restore')
+  @Permissions('fleet.manage')
+  restoreUnit(@Param('id') id: string, @CurrentActor() actor: Actor) {
+    return this.fleet.setUnitRetired(actor, id, false);
   }
 
   // --- rate plans (SCREEN-OPS-025/026) ---

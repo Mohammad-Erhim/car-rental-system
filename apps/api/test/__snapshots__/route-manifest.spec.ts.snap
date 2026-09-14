@@ -111,6 +111,10 @@ GET    /api/v1/ops/fleet/blocks
 POST   /api/v1/ops/fleet/blocks
 POST   /api/v1/ops/fleet/blocks/:id/release
 GET    /api/v1/ops/fleet/units
+POST   /api/v1/ops/fleet/units
+POST   /api/v1/ops/fleet/units/:id
+POST   /api/v1/ops/fleet/units/:id/restore
+POST   /api/v1/ops/fleet/units/:id/retire
 POST   /api/v1/ops/fleet/units/:id/transfer
 POST   /api/v1/ops/fleet/units/import
 GET    /api/v1/ops/locations
@@ -121,6 +125,9 @@ POST   /api/v1/ops/locations/:code/hours-exceptions
 POST   /api/v1/ops/locations/:code/hours-exceptions/:id/remove
 GET    /api/v1/ops/locations/:code/impact
 POST   /api/v1/ops/locations/:code/restore
+GET    /api/v1/ops/media
+POST   /api/v1/ops/media
+DELETE /api/v1/ops/media/:id
 GET    /api/v1/ops/notification-rules
 POST   /api/v1/ops/notification-rules
 GET    /api/v1/ops/notification-rules/:event/:channel
@@ -151,6 +158,7 @@ POST   /api/v1/ops/reports/schedules
 POST   /api/v1/ops/reports/schedules/:id/send
 GET    /api/v1/ops/reservations
 POST   /api/v1/ops/reservations/:reference/no-show
+POST   /api/v1/ops/reservations/:reference/refund
 POST   /api/v1/ops/reservations/:reservationReference/assign
 GET    /api/v1/ops/search
 GET    /api/v1/ops/templates

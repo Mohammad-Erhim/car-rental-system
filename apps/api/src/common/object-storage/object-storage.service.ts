@@ -1,5 +1,5 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
 import { Inject, Injectable, Logger } from '@nestjs/common';
@@ -71,6 +71,17 @@ export class ObjectStorageService {
       'stored object',
     );
     return { ref: `obj:${key}`, key, sizeBytes: input.data.byteLength, checksumSha256 };
+  }
+
+  /** Permanently remove an object's catalogue row and its bytes on disk. Idempotent — a missing
+   *  file (already gone) is not an error, only surfaced via a debug log. */
+  async remove(key: string): Promise<void> {
+    await this.db.delete(storedObject).where(eq(storedObject.objectKey, key));
+    try {
+      await rm(join(this.root, key), { force: true });
+    } catch (err) {
+      this.logger.warn({ key, err }, 'could not remove object file (catalogue row still deleted)');
+    }
   }
 
   /** Read an object by key with its media type, or `null` if it isn't in the catalogue. */

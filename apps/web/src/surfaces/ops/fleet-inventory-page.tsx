@@ -1,4 +1,4 @@
-import { useAuth } from '@carrental/client/react';
+import { useAuth, useFormErrors } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   Alert,
@@ -12,7 +12,10 @@ import {
   CardTitle,
   ConfirmDialog,
   DataTable,
+  ErrorSummary,
   Field,
+  Input,
+  MediaPicker,
   PageHeader,
   Textarea,
   Toolbar,
@@ -24,14 +27,18 @@ import { LookupSelect } from '../../components/lookup-select.js';
 import { ApiError } from '../../lib/api.js';
 import { useLocations } from '../../lib/discovery-hooks.js';
 import { useLocationScope } from '../../lib/location-scope.js';
+import { useMediaLibrary, useUploadMedia } from '../../lib/media-hooks.js';
 import {
   useAddFleetBlock,
+  useCreateUnit,
   useFleetBlocks,
   useImportUnits,
   useOpsCategories,
   useOpsUnits,
   useReleaseFleetBlock,
+  useSetUnitRetired,
   useTransferUnit,
+  useUpdateUnit,
   type FleetBlock,
   type OpsUnit,
   type UnitImportResult,
@@ -39,7 +46,7 @@ import {
 import { useUrlParams } from '../../lib/use-url-param.js';
 
 const IMPORT_HEADER = 'plate,vin,categoryCode,locationCode,year,make,model,colour';
-const UNIT_STATES = ['available', 'on_rent', 'prep', 'maintenance', 'out_of_service'];
+const UNIT_STATES = ['available', 'on_rent', 'prep', 'maintenance', 'out_of_service', 'retired'];
 const BLOCK_KINDS = ['maintenance', 'damage', 'admin_block'] as const;
 
 const selectClass =
@@ -50,7 +57,9 @@ const stateVariant = (s: string) =>
     ? 'success'
     : s === 'maintenance' || s === 'out_of_service'
       ? 'warning'
-      : 'neutral';
+      : s === 'retired'
+        ? 'destructive'
+        : 'neutral';
 
 const KNOWN_UNIT_STATES = new Set([
   'available',
@@ -59,6 +68,7 @@ const KNOWN_UNIT_STATES = new Set([
   'maintenance',
   'out_of_service',
   'in_transit',
+  'retired',
 ]);
 const unitStateLabel = (t: (k: string) => string, s: string) =>
   KNOWN_UNIT_STATES.has(s) ? t(`ops.fleet.unitState.${s}`) : s.replace(/_/g, ' ');
@@ -106,6 +116,11 @@ export function FleetInventoryPage() {
   const addBlock = useAddFleetBlock();
   const releaseBlock = useReleaseFleetBlock();
   const transfer = useTransferUnit();
+  const createUnit = useCreateUnit();
+  const updateUnit = useUpdateUnit();
+  const setRetired = useSetUnitRetired();
+  const unitMedia = useMediaLibrary({ purpose: 'vehicle_unit' });
+  const uploadMedia = useUploadMedia();
 
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [blockUnit, setBlockUnit] = useState<OpsUnit | null>(null);
@@ -114,6 +129,119 @@ export function FleetInventoryPage() {
   const [xferUnit, setXferUnit] = useState<OpsUnit | null>(null);
   const [xferTo, setXferTo] = useState('');
   const [releaseB, setReleaseB] = useState<FleetBlock | null>(null);
+  const [retireUnit, setRetireUnit] = useState<OpsUnit | null>(null);
+
+  const emptyUnitForm = () => ({
+    categoryCode: '',
+    locationCode: '',
+    vin: '',
+    plate: '',
+    year: '',
+    make: '',
+    model: '',
+    colour: '',
+    imageRef: null as string | null,
+    imageUrl: null as string | null,
+    version: null as number | null,
+  });
+  const [unitForm, setUnitForm] = useState(emptyUnitForm());
+  const [editingUnit, setEditingUnit] = useState<string | null>(null);
+  const unitErrs = useFormErrors({
+    categoryCode: t('ops.fleet.filterCat'),
+    locationCode: t('ops.search.location'),
+    vin: t('ops.tbl.vin'),
+    plate: t('ops.tbl.plate'),
+  });
+  const setUnitField = (patch: Partial<ReturnType<typeof emptyUnitForm>>) =>
+    setUnitForm((f) => ({ ...f, ...patch }));
+
+  function editUnitRow(u: OpsUnit) {
+    setUnitForm({
+      categoryCode: u.categoryCode,
+      locationCode: u.currentLocationCode,
+      vin: u.vin,
+      plate: u.plate,
+      year: u.year ?? '',
+      make: u.make ?? '',
+      model: u.model ?? '',
+      colour: u.colour ?? '',
+      imageRef: u.imageRef,
+      imageUrl: u.imageUrl,
+      version: u.version,
+    });
+    setEditingUnit(u.id);
+    unitErrs.clear();
+  }
+  function clearUnitForm() {
+    setUnitForm(emptyUnitForm());
+    setEditingUnit(null);
+    unitErrs.clear();
+  }
+
+  async function submitUnit(e: React.FormEvent) {
+    e.preventDefault();
+    unitErrs.clear();
+    const local: Array<{ path: string; code: string }> = [];
+    if (!unitForm.categoryCode) local.push({ path: 'categoryCode', code: 'required' });
+    if (!editingUnit && !unitForm.locationCode)
+      local.push({ path: 'locationCode', code: 'required' });
+    if (!unitForm.vin.trim()) local.push({ path: 'vin', code: 'required' });
+    if (!unitForm.plate.trim()) local.push({ path: 'plate', code: 'required' });
+    if (local.length) {
+      unitErrs.setLocal(local);
+      return;
+    }
+    setResult(null);
+    try {
+      const body = {
+        categoryCode: unitForm.categoryCode,
+        vin: unitForm.vin.trim(),
+        plate: unitForm.plate.trim(),
+        year: unitForm.year.trim() || undefined,
+        make: unitForm.make.trim() || undefined,
+        model: unitForm.model.trim() || undefined,
+        colour: unitForm.colour.trim() || undefined,
+        // explicit null (not omitted) clears an existing image — updateUnit treats a missing
+        // key as "leave unchanged", unlike the category form's full-replace semantics.
+        imageRef: unitForm.imageRef,
+      };
+      if (editingUnit) {
+        await updateUnit.mutateAsync({
+          id: editingUnit,
+          ...body,
+          ifMatch: unitForm.version ?? undefined,
+        });
+        setResult({ ok: true, text: t('ops.fleet.unitSaved') });
+      } else {
+        await createUnit.mutateAsync({ ...body, locationCode: unitForm.locationCode });
+        setResult({ ok: true, text: t('ops.fleet.unitCreated') });
+      }
+      clearUnitForm();
+    } catch (err) {
+      unitErrs.fromError(err);
+      setResult({ ok: false, text: errText(err, t('ops.fleet.unitSaveFail')) });
+    }
+  }
+
+  async function runRetire() {
+    if (!retireUnit) return;
+    setResult(null);
+    try {
+      await setRetired.mutateAsync({ id: retireUnit.id, retired: retireUnit.state !== 'retired' });
+      setResult({
+        ok: true,
+        text: t(
+          retireUnit.state === 'retired' ? 'ops.fleet.unitRestoredMsg' : 'ops.fleet.unitRetiredMsg',
+          { plate: retireUnit.plate },
+        ),
+      });
+    } catch (e) {
+      setResult({ ok: false, text: errText(e, t('ops.fleet.unitRetireFail')) });
+      throw e; // keep the confirm dialog open on failure
+    } finally {
+      setRetireUnit(null);
+    }
+  }
 
   const errText = (e: unknown, fb: string) => (e instanceof ApiError ? e.message : fb);
   const anyFilter = !!(locationCode || categoryCode || stateFilter);
@@ -227,11 +355,19 @@ export function FleetInventoryPage() {
             header: '',
             className: 'text-end',
             cell: (u: OpsUnit) => (
-              <span className="flex justify-end gap-2">
+              <span className="flex flex-wrap justify-end gap-2">
                 <Button
                   size="sm"
                   variant="ghost"
-                  disabled={u.state === 'maintenance'}
+                  onClick={() => editUnitRow(u)}
+                  data-testid={`fleet-edit-${u.id}`}
+                >
+                  {t('ops.fleet.edit')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={u.state === 'maintenance' || u.state === 'retired'}
                   onClick={() => {
                     setBlockUnit(u);
                     setBlockKind('maintenance');
@@ -244,7 +380,7 @@ export function FleetInventoryPage() {
                 <Button
                   size="sm"
                   variant="ghost"
-                  disabled={u.state === 'on_rent'}
+                  disabled={u.state === 'on_rent' || u.state === 'retired'}
                   onClick={() => {
                     setXferUnit(u);
                     setXferTo('');
@@ -252,6 +388,14 @@ export function FleetInventoryPage() {
                   data-testid={`fleet-transfer-${u.id}`}
                 >
                   {t('ops.fleet.transfer')}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setRetireUnit(u)}
+                  data-testid={`fleet-retire-${u.id}`}
+                >
+                  {u.state === 'retired' ? t('ops.fleet.restore') : t('ops.fleet.retire')}
                 </Button>
               </span>
             ),
@@ -389,7 +533,7 @@ export function FleetInventoryPage() {
             rowProps={(u) => ({ 'data-plate': u.plate, 'data-state': u.state })}
             testid="fleet-table"
             bodyTestid="fleet-rows"
-            minWidth={canManage ? '52rem' : '40rem'}
+            minWidth={canManage ? '60rem' : '40rem'}
             labels={{
               loading: t('ops.st.loading'),
               loadFailTitle: t('ops.fleet.loadFail'),
@@ -399,6 +543,191 @@ export function FleetInventoryPage() {
           />
         </CardContent>
       </Card>
+
+      {canManage ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              {editingUnit
+                ? t('ops.fleet.editingVehicle', { plate: unitForm.plate })
+                : t('ops.fleet.addVehicle')}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={submitUnit} className="grid gap-4 sm:grid-cols-2">
+              <ErrorSummary title={t('ops.cfg.checkFields')} errors={unitErrs.summary} />
+              <Field
+                label={t('ops.fleet.filterCat')}
+                htmlFor="unit-category"
+                required
+                error={unitErrs.fieldError('categoryCode')}
+              >
+                {({ id, invalid }) => (
+                  <select
+                    id={id}
+                    aria-invalid={invalid}
+                    className={selectClass}
+                    value={unitForm.categoryCode}
+                    onChange={(e) => setUnitField({ categoryCode: e.target.value })}
+                    data-testid="unit-category"
+                  >
+                    <option value="">{t('ops.fleet.anyCategory')}</option>
+                    {(categories.data ?? []).map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.displayName}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </Field>
+              <Field
+                label={t('ops.search.location')}
+                htmlFor="unit-location"
+                required={!editingUnit}
+                error={unitErrs.fieldError('locationCode')}
+              >
+                {({ id, invalid }) =>
+                  editingUnit ? (
+                    <p className="pt-2 text-sm text-muted-foreground">
+                      {unitForm.locationCode} ({t('ops.fleet.locationEditHint')})
+                    </p>
+                  ) : (
+                    <select
+                      id={id}
+                      aria-invalid={invalid}
+                      className={selectClass}
+                      value={unitForm.locationCode}
+                      onChange={(e) => setUnitField({ locationCode: e.target.value })}
+                      data-testid="unit-location"
+                    >
+                      <option value="">{t('ops.search.anyLocation')}</option>
+                      {scopedLocations.map((l) => (
+                        <option key={l.code} value={l.code}>
+                          {l.name} ({l.code})
+                        </option>
+                      ))}
+                    </select>
+                  )
+                }
+              </Field>
+              <Field
+                label={t('ops.tbl.plate')}
+                htmlFor="unit-plate"
+                required
+                error={unitErrs.fieldError('plate')}
+              >
+                {({ id, invalid }) => (
+                  <Input
+                    id={id}
+                    invalid={invalid}
+                    value={unitForm.plate}
+                    onChange={(e) => setUnitField({ plate: e.target.value })}
+                    data-testid="unit-plate"
+                  />
+                )}
+              </Field>
+              <Field
+                label={t('ops.tbl.vin')}
+                htmlFor="unit-vin"
+                required
+                error={unitErrs.fieldError('vin')}
+              >
+                {({ id, invalid }) => (
+                  <Input
+                    id={id}
+                    invalid={invalid}
+                    value={unitForm.vin}
+                    onChange={(e) => setUnitField({ vin: e.target.value })}
+                    data-testid="unit-vin"
+                  />
+                )}
+              </Field>
+              <Field label={t('ops.fleet.year')} htmlFor="unit-year">
+                {({ id }) => (
+                  <Input
+                    id={id}
+                    value={unitForm.year}
+                    onChange={(e) => setUnitField({ year: e.target.value })}
+                    data-testid="unit-year"
+                  />
+                )}
+              </Field>
+              <Field label={t('ops.fleet.make')} htmlFor="unit-make">
+                {({ id }) => (
+                  <Input
+                    id={id}
+                    value={unitForm.make}
+                    onChange={(e) => setUnitField({ make: e.target.value })}
+                    data-testid="unit-make"
+                  />
+                )}
+              </Field>
+              <Field label={t('ops.fleet.model')} htmlFor="unit-model">
+                {({ id }) => (
+                  <Input
+                    id={id}
+                    value={unitForm.model}
+                    onChange={(e) => setUnitField({ model: e.target.value })}
+                    data-testid="unit-model"
+                  />
+                )}
+              </Field>
+              <Field label={t('ops.fleet.colour')} htmlFor="unit-colour">
+                {({ id }) => (
+                  <Input
+                    id={id}
+                    value={unitForm.colour}
+                    onChange={(e) => setUnitField({ colour: e.target.value })}
+                    data-testid="unit-colour"
+                  />
+                )}
+              </Field>
+              <Field label={t('ops.fleet.image')} htmlFor="unit-image" className="sm:col-span-2">
+                {() => (
+                  <MediaPicker
+                    value={unitForm.imageRef}
+                    previewUrl={unitForm.imageUrl}
+                    items={unitMedia.data ?? []}
+                    isLoading={unitMedia.isLoading}
+                    isError={unitMedia.isError}
+                    onUpload={(input) =>
+                      uploadMedia.mutateAsync({
+                        ...input,
+                        purpose: 'vehicle_unit',
+                        ownerType: 'vehicle_unit',
+                        ownerId: unitForm.plate || undefined,
+                      })
+                    }
+                    onSelect={(item) =>
+                      setUnitField({ imageRef: item?.ref ?? null, imageUrl: item?.url ?? null })
+                    }
+                    labels={{
+                      change: t('ops.fleet.imageChange'),
+                      remove: t('ops.fleet.imageRemove'),
+                      title: t('ops.fleet.imagePickerTitle'),
+                    }}
+                    data-testid="unit-image"
+                  />
+                )}
+              </Field>
+              <div className="flex items-center gap-2 sm:col-span-2">
+                <Button
+                  type="submit"
+                  loading={createUnit.isPending || updateUnit.isPending}
+                  data-testid="unit-save"
+                >
+                  {editingUnit ? t('ops.fleet.saveVehicle') : t('ops.fleet.addVehicleSubmit')}
+                </Button>
+                {editingUnit ? (
+                  <Button type="button" variant="ghost" onClick={clearUnitForm}>
+                    {t('ops.cat.cancelEdit')}
+                  </Button>
+                ) : null}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -520,6 +849,23 @@ export function FleetInventoryPage() {
         description={t('ops.fleet.releaseBody')}
         confirmLabel={t('ops.fleet.release')}
         onConfirm={runRelease}
+      />
+
+      <ConfirmDialog
+        open={!!retireUnit}
+        onOpenChange={(v) => !v && setRetireUnit(null)}
+        destructive={retireUnit?.state !== 'retired'}
+        title={t(
+          retireUnit?.state === 'retired' ? 'ops.fleet.restoreTitle' : 'ops.fleet.retireTitle',
+          { plate: retireUnit?.plate ?? '' },
+        )}
+        description={
+          retireUnit?.state === 'retired' ? t('ops.fleet.restoreBody') : t('ops.fleet.retireBody')
+        }
+        confirmLabel={
+          retireUnit?.state === 'retired' ? t('ops.fleet.restore') : t('ops.fleet.retire')
+        }
+        onConfirm={runRetire}
       />
     </div>
   );

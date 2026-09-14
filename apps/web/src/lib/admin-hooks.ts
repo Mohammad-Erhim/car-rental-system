@@ -805,6 +805,7 @@ export interface CategoryView {
   doors: number;
   transmission: 'automatic' | 'manual';
   imageRef: string | null;
+  imageUrl: string | null;
   sortOrder: number;
   isActive: boolean;
   features: CategoryFeature[];

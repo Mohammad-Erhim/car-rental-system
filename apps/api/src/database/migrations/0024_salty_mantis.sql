@@ -1,0 +1,1 @@
+ALTER TABLE "vehicle_unit" ADD COLUMN "image_ref" text;

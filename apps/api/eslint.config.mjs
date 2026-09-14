@@ -22,6 +22,7 @@ export const API_MODULES = [
   'report',
   'search',
   'consent',
+  'media',
 ];
 
 export default [

@@ -15,6 +15,21 @@ export interface OpsUnit {
   year: string | null;
   colour: string | null;
   state: string;
+  imageRef: string | null;
+  imageUrl: string | null;
+  version: number;
+}
+
+export interface UnitInput {
+  categoryCode?: string;
+  locationCode?: string;
+  vin?: string;
+  plate?: string;
+  year?: string;
+  make?: string;
+  model?: string;
+  colour?: string;
+  imageRef?: string | null;
 }
 
 export interface OpsUnitList {
@@ -104,6 +119,35 @@ export function useTransferUnit() {
         `/ops/fleet/units/${input.unitId}/transfer`,
         { method: 'POST', body: { toLocationCode: input.toLocationCode, note: input.note } },
       ),
+    onSuccess: invalidate,
+  });
+}
+
+export function useCreateUnit() {
+  const invalidate = useFleetInvalidate();
+  return useMutation({
+    mutationFn: (input: UnitInput) =>
+      apiFetch<OpsUnit>('/ops/fleet/units', { method: 'POST', body: input }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useUpdateUnit() {
+  const invalidate = useFleetInvalidate();
+  return useMutation({
+    mutationFn: ({ id, ifMatch, ...input }: UnitInput & { id: string; ifMatch?: number }) =>
+      apiFetch<OpsUnit>(`/ops/fleet/units/${id}`, { method: 'POST', body: input, ifMatch }),
+    onSuccess: invalidate,
+  });
+}
+
+export function useSetUnitRetired() {
+  const invalidate = useFleetInvalidate();
+  return useMutation({
+    mutationFn: ({ id, retired }: { id: string; retired: boolean }) =>
+      apiFetch<OpsUnit>(`/ops/fleet/units/${id}/${retired ? 'retire' : 'restore'}`, {
+        method: 'POST',
+      }),
     onSuccess: invalidate,
   });
 }

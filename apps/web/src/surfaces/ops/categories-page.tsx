@@ -13,6 +13,7 @@ import {
   ErrorSummary,
   Field,
   Input,
+  MediaPicker,
   PageHeader,
   Select,
   Textarea,
@@ -31,6 +32,7 @@ import {
   type CategoryView,
   type FeatureView,
 } from '../../lib/admin-hooks.js';
+import { useMediaLibrary, useUploadMedia } from '../../lib/media-hooks.js';
 
 /**
  * SCREEN-OPS-013/025 — vehicle categories. Passengers/luggage/doors/transmission/features shown
@@ -48,6 +50,8 @@ interface FormState {
   transmission: 'automatic' | 'manual';
   sortOrder: string;
   featureCodes: string[];
+  imageRef: string | null;
+  imageUrl: string | null;
   version: number | null;
 }
 
@@ -78,6 +82,8 @@ const emptyForm = (): FormState => ({
   transmission: 'automatic',
   sortOrder: '0',
   featureCodes: [],
+  imageRef: null,
+  imageUrl: null,
   version: null,
 });
 
@@ -93,6 +99,8 @@ export function CategoriesPage() {
   const features = useCatalogueFeatures();
   const upsert = useUpsertCategory();
   const setActive = useSetCategoryActive();
+  const categoryMedia = useMediaLibrary({ purpose: 'vehicle_category' });
+  const uploadMedia = useUploadMedia();
 
   const errs = useFormErrors({
     code: t('ops.cat.code'),
@@ -123,6 +131,8 @@ export function CategoriesPage() {
       transmission: c.transmission,
       sortOrder: String(c.sortOrder),
       featureCodes: c.features.map((f) => f.code),
+      imageRef: c.imageRef,
+      imageUrl: c.imageUrl,
       version: c.version,
     });
     setEditing(c.code);
@@ -177,6 +187,7 @@ export function CategoriesPage() {
         transmission: form.transmission,
         sortOrder: Math.round(num(form.sortOrder) || 0),
         featureCodes: form.featureCodes,
+        imageRef: form.imageRef ?? undefined,
         ifMatch: editing && form.version != null ? form.version : undefined,
       });
       toast({
@@ -534,6 +545,35 @@ export function CategoriesPage() {
                     value={form.description}
                     onChange={(e) => set({ description: e.target.value })}
                     data-testid="category-description"
+                  />
+                )}
+              </Field>
+
+              <Field label={t('ops.cat.image')} htmlFor="cat-image" className="sm:col-span-2">
+                {() => (
+                  <MediaPicker
+                    value={form.imageRef}
+                    previewUrl={form.imageUrl}
+                    items={categoryMedia.data ?? []}
+                    isLoading={categoryMedia.isLoading}
+                    isError={categoryMedia.isError}
+                    onUpload={(input) =>
+                      uploadMedia.mutateAsync({
+                        ...input,
+                        purpose: 'vehicle_category',
+                        ownerType: 'vehicle_category',
+                        ownerId: form.code || undefined,
+                      })
+                    }
+                    onSelect={(item) =>
+                      set({ imageRef: item?.ref ?? null, imageUrl: item?.url ?? null })
+                    }
+                    labels={{
+                      change: t('ops.cat.imageChange'),
+                      remove: t('ops.cat.imageRemove'),
+                      title: t('ops.cat.imagePickerTitle'),
+                    }}
+                    data-testid="category-image"
                   />
                 )}
               </Field>

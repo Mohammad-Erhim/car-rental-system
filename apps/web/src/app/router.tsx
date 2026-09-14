@@ -18,6 +18,7 @@ import { FinanceCasesPage } from '../surfaces/ops/finance-cases-page.js';
 import { FleetInventoryPage } from '../surfaces/ops/fleet-inventory-page.js';
 import { LanguagesPage } from '../surfaces/ops/languages-page.js';
 import { LocationsPage } from '../surfaces/ops/locations-page.js';
+import { MediaLibraryPage } from '../surfaces/ops/media-library-page.js';
 import { OpsDashboard } from '../surfaces/ops/ops-dashboard.js';
 import { OpsLayout } from '../surfaces/ops/ops-layout.js';
 import { PagesPage } from '../surfaces/ops/pages-builder/pages-page.js';
@@ -152,6 +153,13 @@ export const router = createBrowserRouter(
         {
           path: 'catalogue/products',
           element: perm(['catalogue.read', 'catalogue.manage', 'config.read'], <ProductsPage />),
+        },
+        {
+          path: 'catalogue/media',
+          element: perm(
+            ['catalogue.read', 'catalogue.manage', 'fleet.read', 'fleet.manage', 'config.read'],
+            <MediaLibraryPage />,
+          ),
         },
         {
           path: 'config/locations',

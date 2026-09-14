@@ -24,6 +24,7 @@ async function book(
   categoryCode: string,
   pickupDay: number,
   days = 3,
+  paymentToken = 'tok_ok',
 ) {
   const quote = await request(server)
     .post('/api/v1/discovery/quote')
@@ -42,7 +43,7 @@ async function book(
       quoteReference: quote.body.reference,
       drivers: [{ role: 'primary_renter', fullName: 'Rex Renter', email: 'rex@example.test' }],
       acceptTerms: true,
-      paymentToken: 'tok_ok',
+      paymentToken,
     })
     .expect(201);
   return res.body.reference as string;
@@ -161,6 +162,63 @@ describe('rental lifecycle', () => {
     ).bookableCount;
     expect(compactAfter).toBe(compactBefore + 1);
     void unitId;
+  });
+
+  it('a declined return-settlement charge never blocks the return itself — the car checks in and a recovery case opens', async () => {
+    const resRef = await book(server, customerToken, 'economy', 70, 3, 'tok_decline_reuse');
+    const assigned = await request(server)
+      .post(`/api/v1/ops/reservations/${resRef}/assign`)
+      .set('Authorization', `Bearer ${agentToken}`)
+      .send({})
+      .expect(201);
+    const rentalRef = assigned.body.reference as string;
+
+    await request(server)
+      .post(`/api/v1/ops/rentals/${rentalRef}/pickup`)
+      .set('Authorization', `Bearer ${agentToken}`)
+      .send({ odometerKm: 5000, fuelPct: 100, driverName: 'Rex Renter', licenceNumber: 'D-99' })
+      .expect(201);
+
+    const casesBefore = await request(server)
+      .get('/api/v1/ops/cases')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const openBefore = casesBefore.body.filter(
+      (c: { kind: string }) => c.kind === 'settlement_declined',
+    ).length;
+
+    // a damage finding forces a non-zero settlement charge, which the saved method declines —
+    // the return must still succeed (car physically back), just with settlementCollected: false.
+    const returned = await request(server)
+      .post(`/api/v1/ops/rentals/${rentalRef}/return`)
+      .set('Authorization', `Bearer ${agentToken}`)
+      .send({
+        odometerKm: 5100,
+        fuelPct: 100,
+        findings: [
+          { area: 'rear bumper', severity: 'minor', description: 'scratch', chargeMinor: 2500 },
+        ],
+      })
+      .expect(201);
+    expect(returned.body.state).toBe('closed');
+    expect(returned.body.adjustmentMinor).toBe(2500);
+    expect(returned.body.settlementCollected).toBe(false);
+    // the unit must still be checked in (prep, not stuck on-rent) despite the declined charge
+    expect(returned.body.state).not.toBe('active');
+    expect(returned.body.state).not.toBe('overdue');
+
+    const casesAfter = await request(server)
+      .get('/api/v1/ops/cases')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const opened = casesAfter.body.filter(
+      (c: { kind: string; subjectRef: string }) =>
+        c.kind === 'settlement_declined' && c.subjectRef === rentalRef,
+    );
+    expect(opened.length).toBe(1);
+    expect(
+      casesAfter.body.filter((c: { kind: string }) => c.kind === 'settlement_declined').length,
+    ).toBe(openBefore + 1);
   });
 
   it('TEST-RNT-002 one open rental per unit — assigning an already-committed unit is refused', async () => {

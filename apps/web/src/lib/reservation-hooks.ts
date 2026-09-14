@@ -89,6 +89,19 @@ export function useNoShowReservation(reference: string) {
   });
 }
 
+/** Staff-only: a standalone goodwill/dispute-resolution refund, independent of cancel/modify. */
+export function useManualRefund(reference: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { amountMinor: number; note: string }) =>
+      apiFetch<ReservationDetail>(`/ops/reservations/${reference}/refund`, {
+        method: 'POST',
+        body,
+      }),
+    onSuccess: () => invalidateReservation(qc, reference),
+  });
+}
+
 export function useModifyReservation(reference: string) {
   const qc = useQueryClient();
   return useMutation({

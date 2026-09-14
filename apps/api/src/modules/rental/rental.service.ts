@@ -616,10 +616,7 @@ export class RentalService {
     // but catches the class of error an unbounded field otherwise lets straight through: an
     // extra typed digit turning 5,000 km into 50,000 km with no correction prompt at the desk.
     const MAX_ODOMETER_DELTA_KM = 100_000;
-    if (
-      row.odometerOutKm != null &&
-      input.odometerKm - row.odometerOutKm > MAX_ODOMETER_DELTA_KM
-    ) {
+    if (row.odometerOutKm != null && input.odometerKm - row.odometerOutKm > MAX_ODOMETER_DELTA_KM) {
       throw AppError.validation(
         [{ path: 'odometerKm', code: 'max' }],
         `The return odometer (${input.odometerKm} km) is implausibly far from the pickup reading (${row.odometerOutKm} km) — check for a data-entry error`,
@@ -635,19 +632,32 @@ export class RentalService {
     const fuelMinor = fuelDeficitPct * fuelMinorPerPct;
     const adjustmentMinor = damageMinor + fuelMinor;
 
+    // The car is physically back at the counter — that fact must be recorded regardless of
+    // whether the settlement charge succeeds. Coupling them into one atomic step (as this used
+    // to do) meant a declined card left a returned vehicle stuck `active`/`overdue` with no way
+    // to check it back in. Instead: try to collect, but a failure only opens a recovery case for
+    // finance to chase — it never blocks the return itself.
+    let settlementCollected = true;
+    let settlementFailureReason: string | undefined;
     if (adjustmentMinor > 0) {
-      await this.payments.authorizeAndCapture({
-        organizationId: row.organizationId,
-        reservationReference: row.reservationReference,
-        purpose: `return-settlement-${Date.now()}`,
-        amountMinor: adjustmentMinor,
-        currency: row.currency,
-        // No fixed token: an omitted token lets PaymentService fall back to the reservation's
-        // saved payment method (off-session reuse) — see payment.service.ts. A hardcoded
-        // simulator-only literal here (`tok_ok`) would be forwarded verbatim to the live Stripe
-        // driver as `payment_method` and rejected as an invalid PaymentMethod id.
-        actor,
-      });
+      try {
+        await this.payments.authorizeAndCapture({
+          organizationId: row.organizationId,
+          reservationReference: row.reservationReference,
+          purpose: `return-settlement-${Date.now()}`,
+          amountMinor: adjustmentMinor,
+          currency: row.currency,
+          // No fixed token: an omitted token lets PaymentService fall back to the reservation's
+          // saved payment method (off-session reuse) — see payment.service.ts. A hardcoded
+          // simulator-only literal here (`tok_ok`) would be forwarded verbatim to the live Stripe
+          // driver as `payment_method` and rejected as an invalid PaymentMethod id.
+          actor,
+        });
+      } catch (err) {
+        settlementCollected = false;
+        settlementFailureReason =
+          err instanceof AppError ? String(err.params?.reason ?? err.code) : 'unknown';
+      }
     }
 
     await this.db.transaction(async (tx) => {
@@ -695,7 +705,13 @@ export class RentalService {
         reference,
         type: 'returned',
         amountDeltaMinor: adjustmentMinor,
-        detail: { fuelMinor, damageMinor, odometerKm: input.odometerKm },
+        detail: {
+          fuelMinor,
+          damageMinor,
+          odometerKm: input.odometerKm,
+          settlementCollected,
+          settlementFailureReason,
+        },
         actorType: 'staff',
         actorId: actor.accountId,
         actorLabel: actor.displayName,
@@ -705,7 +721,7 @@ export class RentalService {
           type: 'rental.closed.v1',
           aggregateType: 'rental',
           aggregateId: row.id,
-          payload: { reference, adjustmentMinor },
+          payload: { reference, adjustmentMinor, settlementCollected },
         },
         tx,
       );
@@ -715,9 +731,25 @@ export class RentalService {
       targetType: 'rental',
       targetId: row.id,
       actor,
-      after: { adjustmentMinor, fuelMinor, damageMinor },
+      after: { adjustmentMinor, fuelMinor, damageMinor, settlementCollected },
     });
-    return { ...(await this.detail(reference)), adjustmentMinor, fuelMinor, damageMinor };
+    if (!settlementCollected) {
+      await this.payments.openCase({
+        organizationId: row.organizationId,
+        kind: 'settlement_declined',
+        subjectType: 'rental',
+        subjectRef: reference,
+        summary: `Return settlement of ${adjustmentMinor} ${row.currency} for ${reference} could not be collected (${settlementFailureReason}) — the vehicle was returned regardless`,
+        detail: { adjustmentMinor, fuelMinor, damageMinor, reason: settlementFailureReason },
+      });
+    }
+    return {
+      ...(await this.detail(reference)),
+      adjustmentMinor,
+      fuelMinor,
+      damageMinor,
+      settlementCollected,
+    };
   }
 
   /**
@@ -809,7 +841,10 @@ export class RentalService {
       .select({ email: reservationDriver.email })
       .from(reservationDriver)
       .where(
-        and(eq(reservationDriver.reservationId, res.id), eq(reservationDriver.role, 'primary_renter')),
+        and(
+          eq(reservationDriver.reservationId, res.id),
+          eq(reservationDriver.role, 'primary_renter'),
+        ),
       )
       .limit(1);
 

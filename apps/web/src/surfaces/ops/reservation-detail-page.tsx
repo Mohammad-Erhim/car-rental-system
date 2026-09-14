@@ -25,6 +25,7 @@ import { ApiError } from '../../lib/api.js';
 import { useAssignVehicle } from '../../lib/rental-hooks.js';
 import {
   useCancelReservation,
+  useManualRefund,
   useNoShowReservation,
   useReservationDetail,
   useReservationHistory,
@@ -58,14 +59,18 @@ export function ReservationDetailPage() {
   const assign = useAssignVehicle();
   const noShow = useNoShowReservation(reference);
   const cancel = useCancelReservation(reference);
+  const refund = useManualRefund(reference);
 
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirmAssign, setConfirmAssign] = useState(false);
   const [confirmNoShow, setConfirmNoShow] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [confirmRefund, setConfirmRefund] = useState(false);
   const [noShowNote, setNoShowNote] = useState('');
   const [cancelReason, setCancelReason] = useState('');
   const [cancelNote, setCancelNote] = useState('');
+  const [refundAmount, setRefundAmount] = useState('');
+  const [refundNote, setRefundNote] = useState('');
 
   const errText = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
 
@@ -94,7 +99,9 @@ export function ReservationDetailPage() {
   const canModify = hasPermission('reservation.modify');
   const canCancel = hasPermission('reservation.cancel', 'reservation.modify');
   const canAssign = hasPermission('rental.pickup', 'fleet.manage');
-  const busy = assign.isPending || noShow.isPending || cancel.isPending;
+  const canRefund = hasPermission('payment.refund');
+  const refundableMinor = d.paidMinor - d.refundedMinor;
+  const busy = assign.isPending || noShow.isPending || cancel.isPending || refund.isPending;
 
   const runAssign = async () => {
     setResult(null);
@@ -139,6 +146,26 @@ export function ReservationDetailPage() {
       setResult({ ok: false, text: errText(e, t('ops.resv.actionFail')) });
     } finally {
       setConfirmCancel(false);
+    }
+  };
+  const runRefund = async () => {
+    const amountMinor = Math.round(Number(refundAmount) * 100);
+    if (!refundNote.trim() || !Number.isInteger(amountMinor) || amountMinor <= 0) {
+      throw new Error('invalid refund'); // keeps the ConfirmDialog open
+    }
+    setResult(null);
+    try {
+      await refund.mutateAsync({ amountMinor, note: refundNote.trim() });
+      setResult({
+        ok: true,
+        text: t('ops.resv.refundDone', { amount: money(amountMinor, d.currency) }),
+      });
+      setRefundAmount('');
+      setRefundNote('');
+    } catch (e) {
+      setResult({ ok: false, text: errText(e, t('ops.resv.actionFail')) });
+    } finally {
+      setConfirmRefund(false);
     }
   };
 
@@ -339,10 +366,26 @@ export function ReservationDetailPage() {
               {t('ops.resv.cancel')}
             </Button>
           ) : null}
+          {canRefund && refundableMinor > 0 ? (
+            <Button
+              variant="outline"
+              loading={refund.isPending}
+              disabled={busy}
+              onClick={() => {
+                setRefundAmount((refundableMinor / 100).toFixed(2));
+                setRefundNote('');
+                setConfirmRefund(true);
+              }}
+              data-testid="reservation-refund"
+            >
+              {t('ops.resv.refund')}
+            </Button>
+          ) : null}
           {!(
             (canAssign && d.state === 'confirmed' && !d.assignedRentalRef) ||
             (canModify && d.state === 'confirmed') ||
-            (canCancel && d.cancellable)
+            (canCancel && d.cancellable) ||
+            (canRefund && refundableMinor > 0)
           ) ? (
             <p className="text-sm text-muted-foreground">{t('ops.resv.noActions')}</p>
           ) : null}
@@ -418,6 +461,51 @@ export function ReservationDetailPage() {
         }
         confirmLabel={t('ops.resv.cancel')}
         onConfirm={runCancel}
+      />
+
+      <ConfirmDialog
+        open={confirmRefund}
+        onOpenChange={setConfirmRefund}
+        destructive
+        title={t('ops.resv.refundTitle')}
+        confirmDisabled={!refundNote.trim() || !Number(refundAmount)}
+        description={
+          <div className="space-y-3">
+            <p>
+              {t('ops.resv.refundBody', {
+                max: money(refundableMinor, d.currency),
+              })}
+            </p>
+            <Field label={t('ops.resv.refundAmount')} htmlFor="rf-amount" required>
+              {({ id }) => (
+                <input
+                  id={id}
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  max={(refundableMinor / 100).toFixed(2)}
+                  value={refundAmount}
+                  onChange={(e) => setRefundAmount(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  data-testid="refund-amount"
+                />
+              )}
+            </Field>
+            <Field label={t('ops.resv.refundReason')} htmlFor="rf-note" required>
+              {({ id }) => (
+                <Textarea
+                  id={id}
+                  rows={2}
+                  value={refundNote}
+                  onChange={(e) => setRefundNote(e.target.value)}
+                  data-testid="refund-note"
+                />
+              )}
+            </Field>
+          </div>
+        }
+        confirmLabel={t('ops.resv.refund')}
+        onConfirm={runRefund}
       />
     </div>
   );

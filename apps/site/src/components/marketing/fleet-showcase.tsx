@@ -11,6 +11,7 @@ export interface FleetCategory {
   passengers: number;
   luggage: number;
   transmission: string;
+  imageUrl?: string | null;
 }
 
 /** Upgraded "browse by category": each fleet class as a picture card with specs and a CTA. */
@@ -50,14 +51,24 @@ export function FleetShowcase({
                 className="group flex h-full flex-col overflow-hidden surface-card hover-lift focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
               >
                 <div className="relative isolate flex aspect-[16/9] items-end justify-center overflow-hidden bg-brand-gradient">
-                  <span className="dot-grid absolute inset-0 opacity-20" aria-hidden="true" />
+                  {c.imageUrl ? (
+                    <img
+                      src={c.imageUrl}
+                      alt={c.displayName}
+                      className="absolute inset-0 size-full object-cover transition-transform duration-500 group-hover:scale-[1.04]"
+                    />
+                  ) : (
+                    <>
+                      <span className="dot-grid absolute inset-0 opacity-20" aria-hidden="true" />
+                      <CarArt
+                        variant={carVariantFor(c.code)}
+                        className="art-shadow relative w-[78%] text-brand-foreground transition-transform duration-500 group-hover:scale-[1.04]"
+                      />
+                    </>
+                  )}
                   <span className="absolute end-3 top-3 rounded-full bg-brand-foreground/15 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-brand-foreground backdrop-blur">
                     {c.displayName}
                   </span>
-                  <CarArt
-                    variant={carVariantFor(c.code)}
-                    className="art-shadow relative w-[78%] text-brand-foreground transition-transform duration-500 group-hover:scale-[1.04]"
-                  />
                 </div>
 
                 <div className="flex flex-1 flex-col gap-3 p-5">

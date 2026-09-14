@@ -21,6 +21,10 @@ const zModify = z.object({
   reasonCode: z.string().max(60).optional(),
 });
 const zResolve = z.object({ note: z.string().min(1).max(1000) });
+const zManualRefund = z.object({
+  amountMinor: z.number().int().positive(),
+  note: z.string().min(1).max(1000),
+});
 
 // No single path fits: this controller serves both customer-facing 'reservations/*' routes and
 // staff 'ops/*' routes, each declared in full on its own method — `path: ''` makes that explicit
@@ -97,6 +101,16 @@ export class ReservationController {
     @CurrentActor() actor: Actor,
   ) {
     return this.ops.markNoShow(reference, actor, body.note);
+  }
+
+  @Post('ops/reservations/:reference/refund')
+  @Permissions('payment.refund')
+  refund(
+    @Param('reference') reference: string,
+    @Body(new ZodValidationPipe(zManualRefund)) body: z.infer<typeof zManualRefund>,
+    @CurrentActor() actor: Actor,
+  ) {
+    return this.ops.manualRefund(reference, actor, body);
   }
 
   @Get('ops/payments/reconciliation')

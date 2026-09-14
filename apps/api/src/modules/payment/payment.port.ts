@@ -11,6 +11,8 @@
  *   tok_decline               → authorize declines (card_declined)
  *   tok_timeout               → authorize throws a timeout (no definite result)
  *   tok_capture_fail          → authorize ok, capture fails
+ *   tok_decline_reuse         → this charge succeeds and saves the method, but any LATER
+ *                               off-session reuse of it (extend / return-settlement) declines
  *   anything else             → succeeds (treated as a normal token)
  */
 
@@ -89,14 +91,26 @@ export class SimulatorPaymentAdapter extends PaymentPort {
     const tokenLike = input.reuse ? input.reuse.methodRef : (input.token ?? '');
     if (tokenLike === 'tok_timeout') throw new PaymentTimeoutError();
     if (tokenLike === 'tok_decline') throw new PaymentDeclinedError('card_declined');
+    if (input.reuse && tokenLike === 'tok_decline_reuse') {
+      throw new PaymentDeclinedError('card_declined');
+    }
     if (input.amountMinor <= 0) throw new PaymentDeclinedError('invalid_amount');
     const { brand, last4 } = brandFor(tokenLike);
     // stable providerRef per idempotency key so a retry of the same key maps to the same auth
     const providerRef = `sim_auth_${hash(input.idempotencyKey)}`;
     const customerRef =
       input.reuse?.customerRef ?? (input.saveForReuse ? `sim_cus_${hash(input.reference)}` : null);
+    // `tok_decline_reuse` is stored verbatim (not hashed) as the saved method ref, so a LATER
+    // off-session reuse charge (extend / return-settlement) on this same reservation declines —
+    // while the original charge that saved it still succeeds. Lets tests exercise "the return
+    // itself must succeed even when the settlement charge is declined" without a real card.
     const methodRef =
-      input.reuse?.methodRef ?? (input.saveForReuse ? `sim_pm_${hash(tokenLike)}` : null);
+      input.reuse?.methodRef ??
+      (input.saveForReuse
+        ? tokenLike === 'tok_decline_reuse'
+          ? 'tok_decline_reuse'
+          : `sim_pm_${hash(tokenLike)}`
+        : null);
     return { providerRef, brand, last4, customerRef, methodRef };
   }
 

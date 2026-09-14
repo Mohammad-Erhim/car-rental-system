@@ -556,6 +556,63 @@ export class ReservationOpsService {
     return this.detail(reference, actor);
   }
 
+  /**
+   * FR-PAY-006 completeness — a standalone refund staff can trigger for a goodwill gesture or
+   * dispute resolution, independent of cancel/modify (which already auto-refund on their own
+   * paths, with no manual equivalent for any other case). `PaymentService.refund` already caps
+   * the amount at whatever remains captured and un-refunded; this method's own job is the
+   * reservation-side bookkeeping (`paidMinor`, the audit-visible event trail) and staff-only
+   * access control, same shape as `cancel()`'s own refund step.
+   */
+  async manualRefund(
+    reference: string,
+    actor: Actor,
+    input: { amountMinor: number; note: string },
+  ) {
+    const row = await this.load(reference);
+    if (actor.kind !== 'staff') throw AppError.forbidden();
+    this.assertOwnerOrStaff(row, actor);
+    if (!Number.isInteger(input.amountMinor) || input.amountMinor <= 0) {
+      throw AppError.validation(
+        [{ path: 'amountMinor', code: 'min' }],
+        'Refund amount must be a positive integer',
+      );
+    }
+    await this.payments.refund(actor, reference, input.amountMinor, 'booking');
+    const newPaidMinor = Math.max(0, row.paidMinor - input.amountMinor);
+    await this.db.transaction(async (tx) => {
+      await tx
+        .update(reservation)
+        .set({
+          paidMinor: newPaidMinor,
+          version: row.version + 1,
+          updatedAt: sql`now()`,
+          updatedBy: actor.accountId,
+        })
+        .where(eq(reservation.id, row.id));
+      await tx.insert(reservationEvent).values({
+        reservationId: row.id,
+        reference,
+        type: 'refunded',
+        note: input.note,
+        amountDeltaMinor: -input.amountMinor,
+        before: { paidMinor: row.paidMinor },
+        after: { paidMinor: newPaidMinor },
+        actorType: 'staff',
+        actorId: actor.accountId,
+        actorLabel: actor.displayName,
+      });
+    });
+    await this.audit.record({
+      action: 'reservation.refunded',
+      targetType: 'reservation',
+      targetId: row.id,
+      actor,
+      after: { amountMinor: input.amountMinor, note: input.note },
+    });
+    return this.detail(reference, actor);
+  }
+
   // ------------------------------------------------------------------- detail
 
   async detail(reference: string, actor: Actor | null) {
@@ -593,6 +650,9 @@ export class ReservationOpsService {
       totalMinor: row.totalMinor,
       paidMinor: row.paidMinor,
       refundedMinor: intent?.refundedMinor ?? 0,
+      paymentBrand: intent?.methodBrand ?? null,
+      paymentLast4: intent?.methodLast4 ?? null,
+      createdAt: new Date(row.createdAt).toISOString(),
       lines: lines.map((l) => ({
         kind: l.kind,
         code: l.code,

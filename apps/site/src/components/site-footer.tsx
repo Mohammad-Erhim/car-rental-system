@@ -15,7 +15,7 @@ export function SiteFooter({ locale }: { locale: string }) {
       title: t('site.footer.exploreTitle'),
       links: [
         { href: `/${locale}/search`, label: t('action.search') },
-        { href: `/${locale}#fleet`, label: t('site.footer.browseFleet') },
+        { href: `/${locale}/vehicles`, label: t('site.footer.browseFleet') },
         { href: `/${locale}/locations`, label: t('site.footer.findLocation') },
         { href: `/${locale}/trips`, label: t('nav.myTrips') },
       ],
@@ -38,7 +38,7 @@ export function SiteFooter({ locale }: { locale: string }) {
   ];
 
   return (
-    <footer className="border-t border-hairline bg-surface-muted">
+    <footer className="border-t border-hairline bg-surface-muted print:hidden">
       <div className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-10 md:grid-cols-[1.4fr_repeat(3,1fr)]">
           <div className="max-w-xs">
