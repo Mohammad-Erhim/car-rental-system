@@ -1189,6 +1189,7 @@
   "ops.queue.locPlaceholder": "رمز موقع الاستلام",
   "ops.queue.openRental": "فتح الإيجار",
   "ops.queue.paidOf": "مدفوع {paid}",
+  "ops.queue.picked": "اختيار العميل: {car}",
   "ops.queue.queueClear": "لا شيء في الانتظار — كل حجز مؤكَّد لديه مركبة مُسندة.",
   "ops.queue.showAll": "عرض الكل",
   "ops.queue.subtitle": "قائمة العمل وقائمة الحجوزات الكاملة.",

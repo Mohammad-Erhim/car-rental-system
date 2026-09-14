@@ -1189,6 +1189,7 @@
   "ops.queue.locPlaceholder": "Pickup location code",
   "ops.queue.openRental": "Open rental",
   "ops.queue.paidOf": "{paid} paid",
+  "ops.queue.picked": "Customer picked: {car}",
   "ops.queue.queueClear": "Nothing waiting — every confirmed reservation has a vehicle assigned.",
   "ops.queue.showAll": "Show all",
   "ops.queue.subtitle": "The work queue and the full reservation list.",

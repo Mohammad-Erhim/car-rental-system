@@ -466,6 +466,57 @@ describe('reservation operations', () => {
         .expect(422);
     });
 
+    it('the queue surfaces the specific car a customer picked before checkout (SCREEN-CUS-003b)', async () => {
+      const win = { pickupLocationCode: 'TST1', pickupAt: isoIn(170), returnAt: isoIn(173) };
+      const units = await request(server)
+        .get('/api/v1/catalogue/categories/suv/units')
+        .query({
+          locationCode: win.pickupLocationCode,
+          pickupAt: win.pickupAt,
+          returnAt: win.returnAt,
+        })
+        .expect(200);
+      const pick = units.body[0].id as string;
+
+      const quote = await request(server)
+        .post('/api/v1/discovery/quote')
+        .send({ ...win, categoryCode: 'suv', hold: true, holderKey: 'queue-pick', unitId: pick })
+        .expect(201);
+      const confirmed = await request(server)
+        .post('/api/v1/bookings/confirm')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({
+          quoteReference: quote.body.reference,
+          drivers: [{ role: 'primary_renter', fullName: 'Queue Pick', email: 'qp@example.test' }],
+          acceptTerms: true,
+          paymentToken: 'tok_ok',
+        })
+        .expect(201);
+
+      const res = await request(server)
+        .get('/api/v1/ops/reservations')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      const row = (
+        res.body.results as Array<{
+          reference: string;
+          pickedUnit: { id: string; plate: string } | null;
+        }>
+      ).find((r) => r.reference === confirmed.body.reference);
+      expect(row?.pickedUnit?.id).toBe(pick);
+
+      // a reservation where the customer only chose a class carries no pickedUnit
+      const noPick = await bookEconomyAt(server, customerToken, 175);
+      const res2 = await request(server)
+        .get('/api/v1/ops/reservations')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      const row2 = (res2.body.results as Array<{ reference: string; pickedUnit: unknown }>).find(
+        (r) => r.reference === noPick.reference,
+      );
+      expect(row2?.pickedUnit).toBeNull();
+    });
+
     it('a location-scoped actor only sees their own locations (FR-RPT-004)', async () => {
       const scoped = (await signIn(app, 'test-scoped@example.test', 'Test-Passw0rd!', 'staff'))
         .accessToken;

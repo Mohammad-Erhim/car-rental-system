@@ -20,6 +20,7 @@ describe('fleet operations', () => {
   let server: ReturnType<typeof httpServer>;
   let adminToken: string;
   let agentToken: string;
+  let customerToken: string;
 
   const auth = (t: string) => ({ Authorization: `Bearer ${t}` });
 
@@ -29,6 +30,8 @@ describe('fleet operations', () => {
     adminToken = (await signIn(app, 'test-admin@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
     agentToken = (await signIn(app, 'test-agent@example.test', 'Test-Passw0rd!', 'staff'))
+      .accessToken;
+    customerToken = (await signIn(app, 'test-customer@example.test', 'Test-Passw0rd!', 'customer'))
       .accessToken;
   });
   afterAll(closeTestApp);
@@ -413,5 +416,57 @@ describe('fleet operations', () => {
       .set(auth(adminToken))
       .expect(201);
     expect(restored.body.state).toBe('available');
+  });
+
+  it('a unit already assigned to an open rental is excluded from state=available even though its own state stays available', async () => {
+    // vehicleUnit.state only flips to on_rent at actual pickup — assign() alone (still
+    // awaiting_pickup) must not be enough to make this endpoint keep offering the same car.
+    const before = await unitsAt('TST1', 'intermediate');
+    const availableBefore = before.filter((u) => u.state === 'available');
+    expect(availableBefore.length).toBeGreaterThan(0);
+
+    const quote = await request(server)
+      .post('/api/v1/discovery/quote')
+      .send({
+        pickupLocationCode: 'TST1',
+        pickupAt: isoIn(160),
+        returnAt: isoIn(163),
+        categoryCode: 'intermediate',
+        holderKey: 'fleet-avail-check',
+      })
+      .expect(201);
+    const confirmed = await request(server)
+      .post('/api/v1/bookings/confirm')
+      .set(auth(customerToken))
+      .send({
+        quoteReference: quote.body.reference,
+        drivers: [{ role: 'primary_renter', fullName: 'Fleet Check', email: 'fleet@example.test' }],
+        acceptTerms: true,
+        paymentToken: 'tok_ok',
+      })
+      .expect(201);
+    const assigned = await request(server)
+      .post(`/api/v1/ops/reservations/${confirmed.body.reference}/assign`)
+      .set(auth(agentToken))
+      .send({})
+      .expect(201);
+    const assignedUnitId = assigned.body.unitId as string;
+    expect(assigned.body.state).toBe('awaiting_pickup');
+
+    // the underlying unit's own state column is untouched by a plain assign — still "available"
+    const stillAvailableState = (await unitsAt('TST1', 'intermediate')).find(
+      (u) => u.id === assignedUnitId,
+    );
+    expect(stillAvailableState?.state).toBe('available');
+
+    // but the state=available *filter* must not offer it — it's already committed
+    const afterAvailable = (
+      await request(server)
+        .get('/api/v1/ops/fleet/units')
+        .query({ locationCode: 'TST1', categoryCode: 'intermediate', state: 'available' })
+        .set(auth(adminToken))
+        .expect(200)
+    ).body.results as Array<{ id: string }>;
+    expect(afterAvailable.some((u) => u.id === assignedUnitId)).toBe(false);
   });
 });
