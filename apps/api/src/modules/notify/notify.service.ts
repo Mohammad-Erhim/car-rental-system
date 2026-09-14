@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, desc, eq, sql } from 'drizzle-orm';
+import nodemailer from 'nodemailer';
 
 import { getCorrelation } from '../../common/correlation';
 import { ENV } from '../../config/config.module';
@@ -9,6 +10,7 @@ import type { Database } from '../../database/drizzle';
 import { notification, template } from '../../database/schema/notify';
 import { LocaleRepo } from '../config/locale.repo';
 
+import { EmailConfigService } from './email-config.service';
 import { NotificationRuleService } from './notification-rule.service';
 import { renderTemplate } from './render';
 
@@ -61,6 +63,7 @@ export class NotifyService {
     @Inject(ENV) private readonly env: Env,
     private readonly rules: NotificationRuleService,
     private readonly locales: LocaleRepo,
+    private readonly emailConfig: EmailConfigService,
   ) {}
 
   async send(input: SendInput): Promise<{ ids: string[] }> {
@@ -147,6 +150,44 @@ export class NotifyService {
         continue;
       }
 
+      // Real carrier, when the dashboard has SMTP configured and active (email only — sms/push
+      // have no real driver yet). Falls through to the local outbox simulator otherwise.
+      const smtp = channel === 'email' ? await this.emailConfig.resolveActiveSmtp() : null;
+      if (smtp) {
+        try {
+          await this.sendSmtp(smtp, target.recipient, subject, body);
+          await this.db
+            .update(notification)
+            .set({ deliveryState: 'sent', sentAt: sql`now()`, attempts: 1, updatedAt: sql`now()` })
+            .where(eq(notification.id, row!.id));
+          this.logger.log(
+            {
+              event: input.event,
+              channel,
+              recipient: maskRecipient(target.recipient),
+              id: row!.id,
+            },
+            'notification sent (smtp driver)',
+          );
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'SMTP send failed';
+          await this.db
+            .update(notification)
+            .set({
+              deliveryState: 'failed',
+              lastError: message,
+              attempts: 1,
+              updatedAt: sql`now()`,
+            })
+            .where(eq(notification.id, row!.id));
+          this.logger.warn(
+            { event: input.event, channel, id: row!.id, err: message },
+            'smtp send failed',
+          );
+        }
+        continue;
+      }
+
       // Local driver: no real carrier. The worker relays; for immediate dev feedback, mark sent.
       if (this.env.MAIL_DRIVER === 'outbox') {
         await this.db
@@ -184,6 +225,33 @@ export class NotifyService {
           ? a?.ops
           : a?.primary_renter;
     return [one ? { recipient: one.email, recipientRef: one.ref } : fallback];
+  }
+
+  /** A real transport built fresh from the dashboard-configured SMTP credentials — no client is
+   *  cached across calls (email volume in this system is low; correctness right after a just-saved
+   *  credential change matters far more than shaving one connection). */
+  private async sendSmtp(
+    smtp: NonNullable<Awaited<ReturnType<EmailConfigService['resolveActiveSmtp']>>>,
+    to: string,
+    subject: string | null,
+    html: string,
+  ): Promise<void> {
+    const transporter = nodemailer.createTransport({
+      host: smtp.host,
+      port: smtp.port,
+      secure: smtp.secure,
+      auth: smtp.username ? { user: smtp.username, pass: smtp.password } : undefined,
+    });
+    try {
+      await transporter.sendMail({
+        from: smtp.fromName ? `"${smtp.fromName}" <${smtp.fromAddress}>` : smtp.fromAddress,
+        to,
+        subject: subject ?? undefined,
+        html,
+      });
+    } finally {
+      transporter.close();
+    }
   }
 
   /** Dev-only: recent messages for the ops mail viewer. */

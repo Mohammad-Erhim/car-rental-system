@@ -1167,6 +1167,57 @@ export function useUpdatePaymentConfig() {
   });
 }
 
+// ---- email provider config ----
+
+export type EmailDriver = 'outbox' | 'smtp';
+
+export interface EmailConfigSummary {
+  activeDriver: EmailDriver;
+  smtp: {
+    configured: boolean;
+    host: string | null;
+    port: number | null;
+    secure: boolean;
+    username: string | null;
+    passwordLast4: string | null;
+    fromAddress: string | null;
+    fromName: string | null;
+    configuredAt: string | null;
+    verifiedAt: string | null;
+  };
+  updatedAt: string | null;
+}
+export interface UpdateEmailConfigInput {
+  activeDriver?: EmailDriver;
+  smtp?: {
+    host?: string;
+    port?: number;
+    secure?: boolean;
+    username?: string;
+    password?: string;
+    fromAddress?: string;
+    fromName?: string;
+  };
+}
+
+const EMAIL_CONFIG_KEY = ['ops', 'email', 'config'];
+
+export function useEmailConfig() {
+  return useQuery({
+    queryKey: EMAIL_CONFIG_KEY,
+    queryFn: ({ signal }) => apiFetch<EmailConfigSummary>('/ops/email/config', { signal }),
+  });
+}
+
+export function useUpdateEmailConfig() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: UpdateEmailConfigInput) =>
+      apiFetch<EmailConfigSummary>('/ops/email/config', { method: 'PUT', body }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: EMAIL_CONFIG_KEY }),
+  });
+}
+
 // ---- staff & roles (SCREEN-OPS-004/005, FR-ADM-003/004) ----
 
 export interface StaffRole {
