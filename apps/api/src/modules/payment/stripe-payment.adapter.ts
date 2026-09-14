@@ -95,10 +95,13 @@ export class StripePaymentAdapter extends PaymentPort {
     idempotencyKey?: string,
   ): Promise<PaymentResult> {
     try {
+      // Spread an empty array rather than pass `undefined` as a third positional argument when
+      // there's no key — an explicit `undefined` is still a real argument (observable to a mock's
+      // exact-arguments assertion, and to Stripe's SDK), not the same as omitting it.
       const intent = await this.stripe.paymentIntents.capture(
         providerRef,
         { amount_to_capture: amountMinor },
-        idempotencyKey ? { idempotencyKey } : undefined,
+        ...(idempotencyKey ? [{ idempotencyKey }] : []),
       );
       const { brand, last4 } = await this.methodDetails(intent.payment_method);
       return { providerRef: intent.id, brand, last4 };
@@ -129,7 +132,7 @@ export class StripePaymentAdapter extends PaymentPort {
     try {
       const refund = await this.stripe.refunds.create(
         { payment_intent: providerRef, amount: amountMinor },
-        idempotencyKey ? { idempotencyKey } : undefined,
+        ...(idempotencyKey ? [{ idempotencyKey }] : []),
       );
       const intent = await this.stripe.paymentIntents.retrieve(providerRef);
       const { brand, last4 } = await this.methodDetails(intent.payment_method);
