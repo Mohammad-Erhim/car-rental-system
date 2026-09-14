@@ -146,15 +146,27 @@ export class RentalService {
           });
         }
       } else if (unitId !== existingRental?.unitId) {
-        // A manually-chosen unit skips the query above entirely, so it needs the same guarantee
-        // applied explicitly: it must exist and must not already be committed to a *different*
-        // open rental. Re-assigning a rental to the unit it already holds is a no-op and allowed.
+        // A manually-chosen unit skips the query above entirely, so it needs the same guarantees
+        // applied explicitly: it must exist, be the same category as what was actually booked
+        // (a raw client request — the ops picker already scopes its dropdown by category, but
+        // that's a UI convenience, not a boundary), and must not already be committed to a
+        // *different* open rental. Re-assigning a rental to the unit it already holds is a no-op.
         const [unit] = await tx
-          .select({ id: vehicleUnit.id, state: vehicleUnit.state })
+          .select({
+            id: vehicleUnit.id,
+            state: vehicleUnit.state,
+            categoryCode: vehicleCategory.code,
+          })
           .from(vehicleUnit)
+          .innerJoin(vehicleCategory, eq(vehicleCategory.id, vehicleUnit.categoryId))
           .where(eq(vehicleUnit.id, unitId))
           .limit(1);
         if (!unit) throw AppError.notFound('vehicle unit');
+        if (unit.categoryCode !== res.categoryCode) {
+          throw AppError.businessRule('That vehicle is a different category than what was booked', {
+            reason: 'category_mismatch',
+          });
+        }
         const [clash] = await tx
           .select({ id: rental.id })
           .from(rental)

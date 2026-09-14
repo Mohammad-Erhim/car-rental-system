@@ -101,11 +101,14 @@ export function FleetInventoryPage() {
     if (!params.get('location') && globalLocation) setParam('location', globalLocation);
   }, []);
 
-  const units = useOpsUnits({
-    locationCode: locationCode || undefined,
-    categoryCode: categoryCode || undefined,
-    state: stateFilter || undefined,
-  });
+  const units = useOpsUnits(
+    {
+      locationCode: locationCode || undefined,
+      categoryCode: categoryCode || undefined,
+      state: stateFilter || undefined,
+    },
+    { keepPrevious: true },
+  );
   // the *filter* dropdown only offers branches this actor can actually see (matches the global
   // switcher); `useLocations()` (the full, unfiltered org list) is still used below for the
   // transfer-target picker, which is a write destination, not a view filter — a fleet.manage
