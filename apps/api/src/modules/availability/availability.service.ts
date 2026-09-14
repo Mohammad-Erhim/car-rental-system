@@ -306,6 +306,12 @@ export class AvailabilityService {
           sql`${reservation.state} in ('confirmed','fulfilled')`,
           sql`${reservation.pickupAt} < ${returnAt.toISOString()}`,
           sql`${pickupAt.toISOString()} < ${reservation.returnAt}`,
+          // once a rental exists, it's the live commitment (kept in sync at assign() time,
+          // including when staff picks something other than the customer's original pin) — the
+          // open-rental exclusion already baked into `avail.freeUnitIds` covers it. Still
+          // honoring `reservation.unitId` here too would wrongly keep the customer's *original*
+          // pick locked out forever even after staff assigned a different car to it.
+          sql`not exists (select 1 from rental r where r.reservation_reference = ${reservation.reference})`,
         ),
       );
     for (const r of pinnedReservations) if (r.unitId) pinnedElsewhere.add(r.unitId);
@@ -473,6 +479,9 @@ export class AvailabilityService {
               input.excludeReservationRef
                 ? sql`${reservation.reference} <> ${input.excludeReservationRef}`
                 : sql`true`,
+              // same reasoning as listAvailableUnits: once a reservation has an actual rental,
+              // that (kept-in-sync) commitment is what matters, not its stale original pin.
+              sql`not exists (select 1 from rental r where r.reservation_reference = ${reservation.reference})`,
             ),
           );
         // an open-rental unit is already excluded from `avail.freeUnitIds` above (the check right
