@@ -85,6 +85,17 @@ export interface UnitRow {
   version: number;
 }
 
+/** What a customer sees when choosing a specific car (SCREEN-CUS-003b) — deliberately no plate/
+ *  VIN, matching the existing "identity is verified at the counter" convention. */
+export interface PublicUnitCard {
+  id: string;
+  make: string | null;
+  model: string | null;
+  year: string | null;
+  colour: string | null;
+  imageUrl: string | null;
+}
+
 export interface UpsertUnitInput {
   categoryCode: string;
   locationCode?: string;
@@ -460,6 +471,30 @@ export class FleetService {
       }
     }
     return { unitIds, occupiedByUnit };
+  }
+
+  /** Public-safe display cards for a set of unit ids (SCREEN-CUS-003b) — no plate/VIN. */
+  async unitsByIds(ids: string[]): Promise<PublicUnitCard[]> {
+    if (!ids.length) return [];
+    const rows = await this.db
+      .select({
+        id: vehicleUnit.id,
+        make: vehicleUnit.make,
+        model: vehicleUnit.model,
+        year: vehicleUnit.year,
+        colour: vehicleUnit.colour,
+        imageRef: vehicleUnit.imageRef,
+      })
+      .from(vehicleUnit)
+      .where(inArray(vehicleUnit.id, ids));
+    return rows.map((r) => ({
+      id: r.id,
+      make: r.make,
+      model: r.model,
+      year: r.year,
+      colour: r.colour,
+      imageUrl: r.imageRef ? this.storage.signRef(r.imageRef, 3600) : null,
+    }));
   }
 
   /**

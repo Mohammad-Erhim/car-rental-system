@@ -1457,6 +1457,54 @@
         ]
       }
     },
+    "/api/v1/catalogue/categories/{code}/units": {
+      "get": {
+        "operationId": "catalogue_listAvailableUnits",
+        "summary": "Specific cars a customer can pick for this class + window (SCREEN-CUS-003b)",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locationCode",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pickupAt",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "returnAt",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "discovery"
+        ]
+      }
+    },
     "/api/v1/discovery/search": {
       "post": {
         "operationId": "discovery_search",

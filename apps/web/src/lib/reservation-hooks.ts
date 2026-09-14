@@ -30,6 +30,9 @@ export interface ReservationDetail {
   cancellable: boolean;
   modifiable: boolean;
   assignedRentalRef: string | null;
+  /** SCREEN-CUS-003b — the specific car the customer picked before checkout, if any. `assign()`
+   *  honors it best-effort and falls back to auto-pick if it's no longer viable. */
+  pickedUnit: { id: string; plate: string; make: string | null; model: string | null } | null;
 }
 
 export interface ReservationEvent {

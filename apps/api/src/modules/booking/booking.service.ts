@@ -14,6 +14,7 @@ import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { hold } from '../../database/schema/booking';
 import { customer } from '../../database/schema/customer';
+import { vehicleUnit } from '../../database/schema/fleet';
 import { account } from '../../database/schema/iam';
 import { location, organization } from '../../database/schema/org';
 import {
@@ -157,7 +158,9 @@ export class BookingService {
       const [cust] = await this.db
         .select({ id: customer.id })
         .from(customer)
-        .where(sql`lower(coalesce(${customer.emailNormalized}, ${customer.email})) = ${primaryDriverEmail}`)
+        .where(
+          sql`lower(coalesce(${customer.emailNormalized}, ${customer.email})) = ${primaryDriverEmail}`,
+        )
         .limit(1);
       if (cust) custIds.add(cust.id);
     }
@@ -171,6 +174,7 @@ export class BookingService {
 
     // ---- hold must still be live ----
     let heldUnitPinned = false;
+    let heldUnitId: string | null = null;
     if (quote.holdId) {
       const [h] = await this.db.select().from(hold).where(eq(hold.id, quote.holdId)).limit(1);
       if (!h || h.status !== 'active' || new Date(h.expiresAt).getTime() < Date.now()) {
@@ -180,6 +184,7 @@ export class BookingService {
         });
       }
       heldUnitPinned = true;
+      heldUnitId = h.unitId;
     }
 
     // ---- extras / protection (FR-ADM-006, S7-DEF-004) ----
@@ -272,6 +277,7 @@ export class BookingService {
             quoteReference: input.quoteReference,
             quoteVersion: quote.version,
             holdId: quote.holdId ?? null,
+            unitId: heldUnitId,
             currency: quote.currency,
             subtotalMinor,
             taxMinor,
@@ -515,7 +521,24 @@ export class BookingService {
             acceptedAt: new Date(consent.acceptedAt).toISOString(),
           }
         : null,
+      pickedUnit: row.unitId ? await this.loadPickedUnit(row.unitId) : null,
     };
+  }
+
+  /** SCREEN-CUS-003b — the specific car the customer picked before checkout, if any, resolved
+   *  for display (never the plate/VIN — those are staff-only, exposed separately in ops). */
+  private async loadPickedUnit(unitId: string) {
+    const [u] = await this.db
+      .select({
+        id: vehicleUnit.id,
+        make: vehicleUnit.make,
+        model: vehicleUnit.model,
+        colour: vehicleUnit.colour,
+      })
+      .from(vehicleUnit)
+      .where(eq(vehicleUnit.id, unitId))
+      .limit(1);
+    return u ?? null;
   }
 
   async listForActor(actor: Actor) {

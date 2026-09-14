@@ -30,6 +30,7 @@ POST   /api/v1/bookings/confirm
 GET    /api/v1/bookings/mine
 GET    /api/v1/catalogue/categories
 GET    /api/v1/catalogue/categories/:code
+GET    /api/v1/catalogue/categories/:code/units
 GET    /api/v1/catalogue/products
 POST   /api/v1/config/branding/assets
 GET    /api/v1/config/locales

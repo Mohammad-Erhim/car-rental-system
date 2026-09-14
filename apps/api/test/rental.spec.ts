@@ -512,6 +512,104 @@ describe('rental lifecycle', () => {
       .expect(403);
   });
 
+  it('SCREEN-CUS-003b: assign() honors the car the customer picked before checkout when still viable', async () => {
+    const win = { pickupLocationCode: 'TST1', pickupAt: isoIn(126), returnAt: isoIn(128) };
+    const units = await request(server)
+      .get('/api/v1/catalogue/categories/economy/units')
+      .query({
+        locationCode: win.pickupLocationCode,
+        pickupAt: win.pickupAt,
+        returnAt: win.returnAt,
+      })
+      .expect(200);
+    const pick = units.body[0].id as string;
+
+    const quote = await request(server)
+      .post('/api/v1/discovery/quote')
+      .send({
+        ...win,
+        categoryCode: 'economy',
+        hold: true,
+        holderKey: `rnt-pick-${Math.random().toString(36).slice(2)}`,
+        unitId: pick,
+      })
+      .expect(201);
+    const confirmed = await request(server)
+      .post('/api/v1/bookings/confirm')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        quoteReference: quote.body.reference,
+        drivers: [{ role: 'primary_renter', fullName: 'Rex Renter', email: 'rex@example.test' }],
+        acceptTerms: true,
+        paymentToken: 'tok_ok',
+      })
+      .expect(201);
+
+    // no explicit unitId on the assign call — the reservation's own pin should be honored
+    const assigned = await request(server)
+      .post(`/api/v1/ops/reservations/${confirmed.body.reference}/assign`)
+      .set(auth(agentToken))
+      .send({})
+      .expect(201);
+    expect(assigned.body.unitId).toBe(pick);
+  });
+
+  it("SCREEN-CUS-003b: assign() falls back to auto-pick when the customer's pinned car stopped being viable", async () => {
+    const win = { pickupLocationCode: 'TST1', pickupAt: isoIn(130), returnAt: isoIn(132) };
+    const units = await request(server)
+      .get('/api/v1/catalogue/categories/economy/units')
+      .query({
+        locationCode: win.pickupLocationCode,
+        pickupAt: win.pickupAt,
+        returnAt: win.returnAt,
+      })
+      .expect(200);
+    const pick = units.body[0].id as string;
+
+    const quote = await request(server)
+      .post('/api/v1/discovery/quote')
+      .send({
+        ...win,
+        categoryCode: 'economy',
+        hold: true,
+        holderKey: `rnt-fallback-${Math.random().toString(36).slice(2)}`,
+        unitId: pick,
+      })
+      .expect(201);
+    const confirmed = await request(server)
+      .post('/api/v1/bookings/confirm')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        quoteReference: quote.body.reference,
+        drivers: [{ role: 'primary_renter', fullName: 'Rex Renter', email: 'rex@example.test' }],
+        acceptTerms: true,
+        paymentToken: 'tok_ok',
+      })
+      .expect(201);
+
+    // the pinned car goes to maintenance before pickup — a real "no longer viable" case
+    const block = await request(server)
+      .post('/api/v1/ops/fleet/blocks')
+      .set(auth(adminToken))
+      .send({ unitId: pick, kind: 'maintenance', reasonCode: 'maintenance', startAt: isoIn(0) })
+      .expect(201);
+
+    const assigned = await request(server)
+      .post(`/api/v1/ops/reservations/${confirmed.body.reference}/assign`)
+      .set(auth(agentToken))
+      .send({})
+      .expect(201);
+    expect(assigned.body.unitId).toBeTruthy();
+    expect(assigned.body.unitId).not.toBe(pick);
+
+    // release the block — this shared fixture fleet is a scarce, file-wide resource; don't leave
+    // a unit permanently unusable for every test that runs after this one.
+    await request(server)
+      .post(`/api/v1/ops/fleet/blocks/${block.body.id}/release`)
+      .set(auth(adminToken))
+      .expect(201);
+  });
+
   describe('the rental board (GET /ops/rentals)', () => {
     it('returns a true total plus rows with vehicle / driver / customer and a live overdue flag', async () => {
       const resRef = await book(server, customerToken, 'economy', 2, 1); // pickup ~2 days out

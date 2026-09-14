@@ -10,6 +10,7 @@ import { ENV } from '../../config/config.module';
 import type { Env } from '../../config/env.schema';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
+import { vehicleUnit } from '../../database/schema/fleet';
 import { account } from '../../database/schema/iam';
 import { location, organization } from '../../database/schema/org';
 import { rental } from '../../database/schema/rental';
@@ -633,11 +634,30 @@ export class ReservationOpsService {
       .from(rental)
       .where(eq(rental.reservationReference, reference))
       .limit(1);
+    // SCREEN-CUS-003b — the specific car the customer picked before checkout, if any. `assign()`
+    // honors this best-effort (falls back to auto-pick if it's no longer viable), so ops sees the
+    // customer's request here rather than only finding out via the "Assign vehicle" dialog.
+    const pickedUnit = row.unitId
+      ? ((
+          await this.db
+            .select({
+              id: vehicleUnit.id,
+              plate: vehicleUnit.plate,
+              make: vehicleUnit.make,
+              model: vehicleUnit.model,
+              colour: vehicleUnit.colour,
+            })
+            .from(vehicleUnit)
+            .where(eq(vehicleUnit.id, row.unitId))
+            .limit(1)
+        )[0] ?? null)
+      : null;
     return {
       reference: row.reference,
       state: row.state,
       channel: row.channel,
       assignedRentalRef: assignedRental?.reference ?? null,
+      pickedUnit,
       categoryCode: row.categoryCode,
       pickupLocationCode: row.pickupLocationCode,
       returnLocationCode: row.returnLocationCode,

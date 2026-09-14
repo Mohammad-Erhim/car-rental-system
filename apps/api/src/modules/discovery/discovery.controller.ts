@@ -57,6 +57,31 @@ export class DiscoveryController {
     return this.catalogue.getCategory(code, locale);
   }
 
+  @Get('catalogue/categories/:code/units')
+  @OptionalAuth()
+  @ApiOperation({
+    operationId: 'catalogue_listAvailableUnits',
+    summary: 'Specific cars a customer can pick for this class + window (SCREEN-CUS-003b)',
+  })
+  async availableUnits(
+    @Param('code') code: string,
+    @Query('locationCode') locationCode: string,
+    @Query('pickupAt') pickupAt: string,
+    @Query('returnAt') returnAt: string,
+  ) {
+    const missing: Array<{ path: string; code: string }> = [];
+    if (!locationCode) missing.push({ path: 'locationCode', code: 'required' });
+    if (!pickupAt) missing.push({ path: 'pickupAt', code: 'required' });
+    if (!returnAt) missing.push({ path: 'returnAt', code: 'required' });
+    if (missing.length) throw AppError.validation(missing);
+    return this.availability.listAvailableUnits(
+      code,
+      locationCode,
+      new Date(pickupAt),
+      new Date(returnAt),
+    );
+  }
+
   @Post('discovery/search')
   @OptionalAuth()
   @ApiOperation({ operationId: 'discovery_search', summary: 'Real-time availability for a window' })
@@ -124,7 +149,12 @@ export class DiscoveryController {
       });
     }
 
-    let holdInfo: { id: string; expiresAt: string; unitPinned: boolean } | null = null;
+    let holdInfo: {
+      id: string;
+      expiresAt: string;
+      unitPinned: boolean;
+      unitId: string | null;
+    } | null = null;
     if (body.hold) {
       holdInfo = await this.availability.checkAndHold({
         actor: actor ?? null,
@@ -135,6 +165,7 @@ export class DiscoveryController {
         pickupAt,
         returnAt,
         holderKey: actor?.accountId ?? body.holderKey ?? `anon-${req.ip ?? 'x'}-${Date.now()}`,
+        preferredUnitId: body.unitId,
       });
     }
 
