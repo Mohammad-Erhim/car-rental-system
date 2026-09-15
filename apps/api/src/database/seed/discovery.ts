@@ -9,6 +9,7 @@ import {
 } from '../schema/catalogue';
 import { vehicleUnit } from '../schema/fleet';
 import { location } from '../schema/org';
+import { storedObject } from '../schema/platform';
 import { ratePlan, rateTier } from '../schema/pricing';
 
 export interface CategorySpec {
@@ -132,6 +133,38 @@ export const CATEGORIES: CategorySpec[] = [
   },
 ];
 
+// A couple of make/model spellings in CATEGORIES don't exactly match the owner_id an existing
+// upload was labeled with (e.g. "Aygo X" seeded here vs. the photo filed under "Aygo") — mapped
+// explicitly rather than fuzzy-matched, so a lookup miss stays a *visible* miss (no photo, falls
+// back to the client's generated art) instead of silently matching the wrong car.
+const MAKE_MODEL_ALIASES: Record<string, string> = {
+  Toyota_Aygo_X: 'Toyota_Aygo',
+};
+
+function makeModelKey(make: string, model: string): string {
+  const key = `${make}_${model}`.replace(/\s+/g, '_');
+  return MAKE_MODEL_ALIASES[key] ?? key;
+}
+
+/**
+ * Real photos already sitting in object storage from an earlier upload (`ops/media`, purpose
+ * `vehicle_unit`, `ownerId` labeled `Make_Model`) — this only *links* what's already there to the
+ * seeded categories/units by make+model; it never fabricates or fetches new images. A category or
+ * unit whose make/model has no matching upload simply keeps `imageRef` unset (the client's
+ * existing generated-art fallback covers that, per `vehicleUnit.imageRef`'s own column comment).
+ */
+async function loadMakeModelPhotoIndex(db: Database): Promise<Map<string, string>> {
+  const rows = await db
+    .select({ ownerId: storedObject.ownerId, objectKey: storedObject.objectKey })
+    .from(storedObject)
+    .where(
+      and(eq(storedObject.purpose, 'vehicle_unit'), eq(storedObject.ownerType, 'vehicle_unit')),
+    );
+  const index = new Map<string, string>();
+  for (const r of rows) if (r.ownerId) index.set(r.ownerId, r.objectKey);
+  return index;
+}
+
 /**
  * Seed vehicle categories + features + a small fleet + one published rate plan per category so
  * `POST /discovery/search` returns real, priced, bookable options. Shared by the development and
@@ -143,6 +176,7 @@ export async function seedDiscovery(
   opts: { categories?: CategorySpec[]; locationCodes?: string[] } = {},
 ): Promise<void> {
   const categories = opts.categories ?? CATEGORIES;
+  const photoIndex = await loadMakeModelPhotoIndex(db);
 
   for (const [i, f] of FEATURES.entries()) {
     await db
@@ -163,6 +197,13 @@ export async function seedDiscovery(
     .where(locWhere);
 
   for (const [ci, cat] of categories.entries()) {
+    // The category's own "hero" photo: whichever of its makes has a real upload first, in list
+    // order — every category's first-listed make happens to have one today, but this degrades to
+    // "no photo" (client fallback art) rather than erroring if that ever stops being true.
+    const categoryImageKey = cat.makes
+      .map(([mk, md]) => photoIndex.get(makeModelKey(mk, md)))
+      .find((key): key is string => !!key);
+
     const [row] = await db
       .insert(vehicleCategory)
       .values({
@@ -177,6 +218,7 @@ export async function seedDiscovery(
         transmission: cat.transmission,
         sortOrder: ci,
         isActive: true,
+        ...(categoryImageKey ? { imageRef: `obj:${categoryImageKey}` } : {}),
       })
       .onConflictDoUpdate({
         target: [vehicleCategory.organizationId, vehicleCategory.code],
@@ -189,6 +231,7 @@ export async function seedDiscovery(
           sortOrder: ci,
           isActive: true,
           updatedAt: sql`now()`,
+          ...(categoryImageKey ? { imageRef: `obj:${categoryImageKey}` } : {}),
         },
       })
       .returning();
@@ -206,6 +249,7 @@ export async function seedDiscovery(
     for (const loc of locs) {
       for (let n = 0; n < cat.fleetPerLocation; n++) {
         const [mk, md, col] = cat.makes[n % cat.makes.length]!;
+        const unitImageKey = photoIndex.get(makeModelKey(mk, md));
         const vin =
           `DEV${cat.code.toUpperCase().slice(0, 3)}${loc.code}${String(n + 1).padStart(2, '0')}${'0'.repeat(8)}`.slice(
             0,
@@ -226,13 +270,21 @@ export async function seedDiscovery(
             model: md,
             colour: col,
             state: 'available',
+            ...(unitImageKey ? { imageRef: `obj:${unitImageKey}` } : {}),
           })
           .onConflictDoUpdate({
             // re-seeding must correct a previously-wrong make/model/colour on an existing VIN
             // (e.g. this file's own make/model list changing) — but never touch state or
             // currentLocationId, which reflect real operational activity against this unit
             target: vehicleUnit.vin,
-            set: { make: mk, model: md, colour: col, year: '2024', updatedAt: sql`now()` },
+            set: {
+              make: mk,
+              model: md,
+              colour: col,
+              year: '2024',
+              updatedAt: sql`now()`,
+              ...(unitImageKey ? { imageRef: `obj:${unitImageKey}` } : {}),
+            },
           });
       }
     }
