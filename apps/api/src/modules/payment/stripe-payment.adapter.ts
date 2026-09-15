@@ -173,33 +173,40 @@ export class StripePaymentAdapter extends PaymentPort {
   }
 
   /**
-   * Matched on Stripe's own documented, stable `error.type` taxonomy
-   * (https://stripe.com/docs/api/errors#errors-type) rather than `instanceof Stripe.errors.X` —
-   * every real Stripe error carries this field, it's part of Stripe's own public API contract
-   * (unlike the SDK's internal class hierarchy, which is an implementation detail), and it makes
-   * this method exercisable in a test with a plain `{ type: '...' }` object instead of needing to
-   * construct real SDK error instances.
+   * Matched on `error.type` — but note this is *not* Stripe's documented API taxonomy string
+   * (https://stripe.com/docs/api/errors#errors-type, e.g. `"authentication_error"`). In
+   * stripe-node, `StripeError#type` is the SDK's own error *class* name
+   * (`"StripeAuthenticationError"`, `"StripeCardError"`, …) — `generateV1Error` in the SDK's
+   * `Error.js` dispatches purely on HTTP status code, and the base `StripeError` constructor sets
+   * `this.type = type || this.constructor.name` with every subclass passing its own class name.
+   * The real API taxonomy string (when Stripe's response included one) lives at `error.rawType` /
+   * `error.raw.type` instead, and doesn't reliably correlate 1:1 with the status-code-driven class
+   * (e.g. a bad API key came back with `statusCode: 401` → `StripeAuthenticationError`, but
+   * `rawType: "invalid_request_error"`) — so status-driven `.type` is the correct thing to branch
+   * on here, not `.rawType`. Confirmed against the real SDK (v22.6.2), not just its docs. Plain
+   * `instanceof Stripe.errors.X` is avoided so this stays exercisable in a test with a plain
+   * `{ type: '...' }` object instead of needing to construct real SDK error instances.
    */
   private mapError(err: unknown): Error {
     const type = (err as { type?: string } | null)?.type;
     const message = err instanceof Error ? err.message : String(err);
-    if (type === 'authentication_error') {
+    if (type === 'StripeAuthenticationError') {
       return new PaymentProviderConfigError(`Stripe rejected the configured API key: ${message}`);
     }
-    if (type === 'api_connection_error' || type === 'api_error') {
+    if (type === 'StripeConnectionError' || type === 'StripeAPIError') {
       return new PaymentTimeoutError();
     }
-    if (type === 'card_error') {
+    if (type === 'StripeCardError') {
       const e = err as { decline_code?: string; code?: string };
       return new PaymentDeclinedError(e.decline_code ?? e.code ?? 'card_declined');
     }
-    if (type === 'invalid_request_error') {
+    if (type === 'StripeInvalidRequestError') {
       const e = err as { code?: string };
       if (e.code === 'payment_intent_unexpected_state')
         return new PaymentDeclinedError('already_settled');
       return new PaymentDeclinedError(e.code ?? 'invalid_request');
     }
-    if (type === 'rate_limit_error' || type === 'idempotency_error') {
+    if (type === 'StripeRateLimitError' || type === 'StripeIdempotencyError') {
       return new PaymentDeclinedError(type);
     }
     if (err instanceof Error) return err;

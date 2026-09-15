@@ -73,7 +73,7 @@ export function EmailPage() {
           port: Number(port) || undefined,
           secure,
           username,
-          password: editPassword && password ? password : undefined,
+          password: password || undefined,
           fromAddress,
           fromName,
         },

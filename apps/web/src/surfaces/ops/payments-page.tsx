@@ -66,8 +66,8 @@ export function PaymentsPage() {
       await update.mutateAsync({
         test: {
           publishableKey: testPublishable || undefined,
-          secretKey: editTestSecret && testSecret ? testSecret : undefined,
-          webhookSecret: editTestWebhook && testWebhook ? testWebhook : undefined,
+          secretKey: testSecret || undefined,
+          webhookSecret: testWebhook || undefined,
         },
       });
       setTestSecret('');
@@ -86,8 +86,8 @@ export function PaymentsPage() {
       await update.mutateAsync({
         live: {
           publishableKey: livePublishable || undefined,
-          secretKey: editLiveSecret && liveSecret ? liveSecret : undefined,
-          webhookSecret: editLiveWebhook && liveWebhook ? liveWebhook : undefined,
+          secretKey: liveSecret || undefined,
+          webhookSecret: liveWebhook || undefined,
         },
       });
       setLiveSecret('');
