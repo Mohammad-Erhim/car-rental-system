@@ -158,7 +158,7 @@ describe('StripePaymentAdapter', () => {
     it('a Stripe card_error maps to PaymentDeclinedError with the decline code', async () => {
       const stripe = fakeStripe();
       stripe.paymentIntents.create.mockRejectedValue({
-        type: 'card_error',
+        type: 'StripeCardError',
         decline_code: 'insufficient_funds',
         message: 'Your card has insufficient funds.',
       });
@@ -180,7 +180,7 @@ describe('StripePaymentAdapter', () => {
     it('a Stripe api_connection_error maps to PaymentTimeoutError (unknown outcome, not a decline)', async () => {
       const stripe = fakeStripe();
       stripe.paymentIntents.create.mockRejectedValue({
-        type: 'api_connection_error',
+        type: 'StripeConnectionError',
         message: 'network unreachable',
       });
       const adapter = adapterFor(stripe);
@@ -199,7 +199,7 @@ describe('StripePaymentAdapter', () => {
     it('a Stripe authentication_error (bad API key) is OUR misconfiguration, not a card decline', async () => {
       const stripe = fakeStripe();
       stripe.paymentIntents.create.mockRejectedValue({
-        type: 'authentication_error',
+        type: 'StripeAuthenticationError',
         message: 'Invalid API Key provided',
       });
       const adapter = adapterFor(stripe);
@@ -234,7 +234,7 @@ describe('StripePaymentAdapter', () => {
     it('void cancels the intent; a "already settled" error is swallowed as a best-effort no-op', async () => {
       const stripe = fakeStripe();
       stripe.paymentIntents.cancel.mockRejectedValue({
-        type: 'invalid_request_error',
+        type: 'StripeInvalidRequestError',
         code: 'payment_intent_unexpected_state',
         message: 'already captured',
       });
@@ -246,7 +246,7 @@ describe('StripePaymentAdapter', () => {
     it('void re-throws any other error', async () => {
       const stripe = fakeStripe();
       stripe.paymentIntents.cancel.mockRejectedValue({
-        type: 'api_connection_error',
+        type: 'StripeConnectionError',
         message: 'down',
       });
       const adapter = adapterFor(stripe);
@@ -280,7 +280,7 @@ describe('StripePaymentAdapter', () => {
     it('throws PaymentProviderConfigError for a bad key', async () => {
       const stripe = fakeStripe();
       stripe.balance.retrieve.mockRejectedValue({
-        type: 'authentication_error',
+        type: 'StripeAuthenticationError',
         message: 'Invalid API Key provided',
       });
       await expect(adapterFor(stripe).verifyKey()).rejects.toBeInstanceOf(
