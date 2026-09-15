@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { zClaimGuestRequest, zConfirmBookingRequest } from '@carrental/contracts';
+import { zClaimGuestRequest, zConfirmBookingRequestDebug } from '@carrental/contracts';
 import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -28,8 +28,8 @@ export class BookingController {
     summary: 'Confirm a held quote into a reservation',
   })
   async confirm(
-    @Body(new ZodValidationPipe(zConfirmBookingRequest))
-    body: z.infer<typeof zConfirmBookingRequest>,
+    @Body(new ZodValidationPipe(zConfirmBookingRequestDebug))
+    body: z.infer<typeof zConfirmBookingRequestDebug>,
     @Req() req: Request,
     @MaybeCurrentActor() actor?: Actor,
   ) {

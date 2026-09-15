@@ -17,6 +17,7 @@ import {
 import {
   DEFAULT_LOCALE,
   LOCALES,
+  buildFallbackChain,
   directionOf,
   resolveLocaleWithin,
   type Direction,
@@ -62,11 +63,7 @@ function chainFor(
   code: string,
   defaultLocale: string,
 ): string[] | undefined {
-  const def = locales.find((l) => l.code === code);
-  if (!def) return undefined;
-  const chain = [def.code, ...(def.fallback ?? [])];
-  if (!chain.includes(defaultLocale)) chain.push(defaultLocale);
-  return [...new Set(chain)];
+  return buildFallbackChain(code, (c) => locales.find((l) => l.code === c), defaultLocale);
 }
 
 const I18nContext = createContext<I18nContextValue | null>(null);

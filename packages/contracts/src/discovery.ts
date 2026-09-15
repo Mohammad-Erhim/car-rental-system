@@ -65,9 +65,9 @@ export const zQuote = z.object({
   durationHours: z.number().int(),
   currency: z.string(),
   lines: z.array(zQuoteLine),
-  subtotalMinor: z.number().int(),
-  taxMinor: z.number().int(),
-  totalMinor: z.number().int(),
+  subtotalMinor: z.number().int().nonnegative(),
+  taxMinor: z.number().int().nonnegative(),
+  totalMinor: z.number().int().nonnegative(),
   expiresAt: zInstant,
   hold: z
     .object({ id: zId, expiresAt: zInstant, unitPinned: z.boolean() })

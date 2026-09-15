@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolveLocale, resolveLocaleWithin } from './config';
+import { buildFallbackChain, fallbackChain, resolveLocale, resolveLocaleWithin } from './config';
 
 describe('locale resolution', () => {
   it('resolveLocale clamps to the compile-time set', () => {
@@ -32,6 +32,39 @@ describe('locale resolution', () => {
     it('an empty allow-list behaves like the compile-time set', () => {
       expect(resolveLocaleWithin('de', [])).toBe('en');
       expect(resolveLocaleWithin('fr', [])).toBe('fr');
+    });
+  });
+
+  describe('fallbackChain', () => {
+    it('includes the locale itself, its declared fallback, and the default', () => {
+      expect(fallbackChain('fr')).toEqual(['fr', 'en']);
+      expect(fallbackChain('ar')).toEqual(['ar', 'en']);
+    });
+
+    it('the default locale collapses to a single-entry chain', () => {
+      expect(fallbackChain('en')).toEqual(['en']);
+    });
+
+    it('an unknown code resolves to the default definition first', () => {
+      expect(fallbackChain('xx')).toEqual(['en']);
+    });
+  });
+
+  describe('buildFallbackChain (shared by config.fallbackChain and react.chainFor)', () => {
+    it('builds [code, ...fallback, default], deduped', () => {
+      const lookup = (c: string): { code: string; fallback?: string[] } | undefined =>
+        ({ de: { code: 'de', fallback: ['en'] } })[c];
+      expect(buildFallbackChain('de', lookup, 'en')).toEqual(['de', 'en']);
+    });
+
+    it('appends the default when the definition omits it', () => {
+      const lookup = () => ({ code: 'de', fallback: [] });
+      expect(buildFallbackChain('de', lookup, 'en')).toEqual(['de', 'en']);
+    });
+
+    it('returns undefined when the code is not found by lookup', () => {
+      const lookup = () => undefined;
+      expect(buildFallbackChain('xx', lookup, 'en')).toBeUndefined();
     });
   });
 });

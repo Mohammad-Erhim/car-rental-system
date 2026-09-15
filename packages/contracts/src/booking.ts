@@ -10,7 +10,8 @@ export const zDriverInput = z.object({
   email: z.string().email().optional(),
   phone: z.string().max(40).optional(),
   licenceNumber: z.string().max(80).optional(),
-  licenceCountry: z.string().max(2).optional(),
+  // ISO-3166 alpha-2, normalized like `zMoney.currency` (primitives.ts) does for ISO-4217.
+  licenceCountry: z.string().length(2).toUpperCase().optional(),
   licenceExpiresOn: z.string().optional(),
 });
 
@@ -27,9 +28,24 @@ export const zConfirmBookingRequest = z.object({
   acceptTerms: z.literal(true),
   paymentToken: z.string().min(3).max(200),
   holderKey: z.string().max(120).optional(),
-  simulateWriteFailure: z.boolean().optional(),
 });
 export type ConfirmBookingRequest = z.infer<typeof zConfirmBookingRequest>;
+
+/**
+ * `zConfirmBookingRequest` plus the one server-side fault-injection debug hook
+ * (`simulateWriteFailure`, exercised by the integration suite — see
+ * `apps/api/test/booking.spec.ts` TEST-ERR-004, `reservation-ops.spec.ts`, `report.spec.ts`).
+ * Kept out of the public `ConfirmBookingRequest` contract type (what client apps import and
+ * what any future OpenAPI consumer would see) so the always-public "confirm booking" schema
+ * doesn't itself advertise "this system has a debug write-failure switch" — even though the
+ * switch is already a no-op outside non-production (`booking.service.ts`'s
+ * `this.env.NODE_ENV !== 'production'` gate). Only `booking.controller.ts` parses the request
+ * body against this variant; every other caller of `zConfirmBookingRequest` gets the plain one.
+ */
+export const zConfirmBookingRequestDebug = zConfirmBookingRequest.extend({
+  simulateWriteFailure: z.boolean().optional(),
+});
+export type ConfirmBookingRequestDebug = z.infer<typeof zConfirmBookingRequestDebug>;
 
 export const zReservationLine = z.object({
   kind: z.string(),
@@ -50,10 +66,10 @@ export const zReservation = z.object({
   returnAt: zInstant,
   durationHours: z.number().int(),
   currency: z.string(),
-  subtotalMinor: z.number().int(),
-  taxMinor: z.number().int(),
-  totalMinor: z.number().int(),
-  paidMinor: z.number().int(),
+  subtotalMinor: z.number().int().nonnegative(),
+  taxMinor: z.number().int().nonnegative(),
+  totalMinor: z.number().int().nonnegative(),
+  paidMinor: z.number().int().nonnegative(),
   channel: z.string(),
   confirmedAt: zInstant.nullable(),
   lines: z.array(zReservationLine),

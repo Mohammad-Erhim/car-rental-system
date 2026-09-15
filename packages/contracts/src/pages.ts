@@ -43,6 +43,22 @@ export const zAssetRef = z
     'must be an uploaded ref or an https URL',
   );
 
+/**
+ * A safe link target for page-builder CTAs: a relative path, an in-page anchor, or an https URL
+ * — exactly what `zCtaLink.href`/`zFaqProps.ctaHref` doc-comments have always promised, now
+ * actually enforced the way the sibling `zAssetRef` above enforces its own doc comment. Rejects
+ * `javascript:`, `data:`, and every other scheme by construction (allow-list, not a blocklist),
+ * and `//host` (protocol-relative — would silently navigate off-site despite "starting with /")
+ * via the negative lookahead after the leading slash.
+ */
+export const zSafeHref = z
+  .string()
+  .max(300)
+  .regex(
+    /^(#\S*|\/(?!\/)\S*|https:\/\/\S+)$/,
+    'must be a relative path, an anchor, or an https URL',
+  );
+
 /** Curated lucide icon names usable in blocks — an allowlist so the site never ships all icons. */
 export const ICON_NAMES = [
   'BadgeCheck',
@@ -80,7 +96,7 @@ export const zIconName = z.enum(ICON_NAMES);
 /** A call-to-action button: label + relative/anchor/https href. */
 export const zCtaLink = z.object({
   label: zLocalized(60),
-  href: z.string().max(300),
+  href: zSafeHref,
 });
 export type CtaLink = z.infer<typeof zCtaLink>;
 
@@ -179,7 +195,7 @@ export const zFaqProps = z
     eyebrow: zLocalized(120).optional(),
     title: zLocalized(160).optional(),
     ctaLabel: zLocalized(60).optional(),
-    ctaHref: z.string().max(300).optional(),
+    ctaHref: zSafeHref.optional(),
     items: z
       .array(z.object({ q: zLocalized(200), a: zLocalized(1200) }))
       .max(20)

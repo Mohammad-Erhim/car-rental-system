@@ -96,12 +96,31 @@ export function getLocaleDefinition(code: string): LocaleDefinition {
 
 const definitionOf = getLocaleDefinition;
 
+/**
+ * Shared fallback-chain builder (used by `fallbackChain` below and by the React bindings'
+ * `chainFor`, which otherwise hand-built the identical `[code, ...fallback]` + dedupe logic
+ * against a runtime `RuntimeLocale[]` list instead of the static `LOCALES` map). `lookup`
+ * resolves `code` to a definition from whatever source the caller has; returns `undefined` when
+ * `lookup` can't find `code` at all, so callers that need a "not in this set" signal (rather than
+ * silently falling through to the default) can distinguish that case.
+ */
+export function buildFallbackChain(
+  code: string,
+  lookup: (code: string) => { code: string; fallback?: string[] } | undefined,
+  defaultLocale: string = DEFAULT_LOCALE,
+): string[] | undefined {
+  const def = lookup(code);
+  if (!def) return undefined;
+  const chain = [def.code, ...(def.fallback ?? [])];
+  if (!chain.includes(defaultLocale)) chain.push(defaultLocale);
+  return [...new Set(chain)];
+}
+
 /** Full fallback chain for a locale, always ending at DEFAULT_LOCALE. */
 export function fallbackChain(code: string): string[] {
-  const def = definitionOf(code);
-  const chain = [def.code, ...def.fallback];
-  if (!chain.includes(DEFAULT_LOCALE)) chain.push(DEFAULT_LOCALE);
-  return [...new Set(chain)];
+  // `definitionOf` already resolves an unknown code to the default definition, so the lookup
+  // below always succeeds and `buildFallbackChain` never returns `undefined` here.
+  return buildFallbackChain(definitionOf(code).code, (c) => LOCALES[c], DEFAULT_LOCALE)!;
 }
 
 export function directionOf(code: string): Direction {

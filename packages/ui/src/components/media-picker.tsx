@@ -34,6 +34,20 @@ const DEFAULT_LABELS: MediaPickerLabels = {
   loadFail: "Couldn't load the media library",
 };
 
+/**
+ * Best-effort accessible label for one library thumbnail. `MediaPickerItem` carries no
+ * caption/filename (the media model doesn't have one — checked `apps/web/src/lib/media-hooks.ts`
+ * and the API's media schema), so this falls back to the two fields that actually exist —
+ * `purpose` (e.g. `vehicle_unit`) and `mediaType` — plus a 1-based position so items sharing a
+ * purpose are still distinguishable to a screen-reader user. Callers with richer per-item data
+ * can override via the `describeItem` prop.
+ */
+function defaultDescribeItem(item: MediaPickerItem, index: number): string {
+  const purpose = item.purpose.replace(/[_-]+/g, ' ').trim();
+  const kind = item.mediaType.split('/')[1]?.toUpperCase() ?? item.mediaType;
+  return purpose ? `${purpose} image ${index + 1}, ${kind}` : `Image ${index + 1}, ${kind}`;
+}
+
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -62,6 +76,7 @@ export function MediaPicker({
   accept = 'image/png,image/jpeg,image/webp,image/svg+xml',
   labels,
   disabled,
+  describeItem = defaultDescribeItem,
   'data-testid': testId,
 }: {
   value: string | null;
@@ -74,6 +89,8 @@ export function MediaPicker({
   accept?: string;
   labels?: Partial<MediaPickerLabels>;
   disabled?: boolean;
+  /** Accessible label for one grid thumbnail; override to localize or use richer per-item data. */
+  describeItem?: (item: MediaPickerItem, index: number) => string;
   'data-testid'?: string;
 }) {
   const t = { ...DEFAULT_LABELS, ...labels };
@@ -172,10 +189,12 @@ export function MediaPicker({
               ) : items.length === 0 ? (
                 <p className="col-span-full text-sm text-muted-foreground">{t.empty}</p>
               ) : (
-                items.map((it) => (
+                items.map((it, index) => (
                   <button
                     key={it.ref}
                     type="button"
+                    aria-label={describeItem(it, index)}
+                    aria-pressed={value === it.ref}
                     onClick={() => {
                       onSelect(it);
                       setOpen(false);

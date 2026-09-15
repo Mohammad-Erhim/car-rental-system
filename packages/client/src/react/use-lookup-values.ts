@@ -24,7 +24,7 @@ export function useLookupValues(typeCode: string | null, opts?: LookupValuesQuer
     queryKey: ['reference-data', 'values', typeCode, opts ?? null],
     queryFn: ({ signal }) =>
       apiFetch<LookupValuesResponse>(
-        `/reference-data/types/${typeCode}/values${qs.toString() ? `?${qs}` : ''}`,
+        `/reference-data/types/${encodeURIComponent(typeCode ?? '')}/values${qs.toString() ? `?${qs}` : ''}`,
         { signal },
       ),
     enabled: !!typeCode,

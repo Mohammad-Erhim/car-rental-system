@@ -28,29 +28,35 @@ export interface ThemePreset {
 
 export const PRESETS: ThemePreset[] = [
   {
-    id: 'slate-blue',
-    label: 'Slate & Blue',
-    description: 'The default. Cool neutrals with a confident blue accent.',
+    // Audit finding (2026-09): this used to be `id: 'slate-blue'` / "Slate & Blue — confident
+    // blue accent", but `DEFAULT_LIGHT.primary`/`DEFAULT_DARK.primary` (tokens.ts) are the
+    // shipped green brand, hue ~158, byte-identical to the 'emerald' preset below in both
+    // modes — an admin saw two distinct-looking options that rendered identically. Renamed to
+    // describe the actual colour; 'emerald' (below) was re-shaded to a genuinely different hue
+    // so the two remain distinguishable options rather than a silent duplicate.
+    id: 'evergreen',
+    label: 'Evergreen',
+    description: 'The default. Cool neutrals with our signature deep-green accent.',
     config: DEFAULT_BRAND_CONFIG,
   },
   {
     id: 'emerald',
     label: 'Emerald',
-    description: 'Calm green accent on the same neutral base.',
+    description: 'A brighter, teal-leaning green accent on the same neutral base.',
     config: preset(
       {
-        primary: '158 82% 26%',
+        primary: '174 78% 24%',
         primaryForeground: '0 0% 100%',
-        ring: '158 82% 30%',
-        accent: '152 45% 92%',
-        accentForeground: '158 65% 15%',
+        ring: '174 78% 28%',
+        accent: '172 45% 91%',
+        accentForeground: '174 65% 14%',
       },
       {
-        primary: '154 62% 56%',
-        primaryForeground: '158 60% 9%',
-        ring: '154 62% 56%',
-        accent: '156 28% 20%',
-        accentForeground: '152 45% 90%',
+        primary: '172 65% 52%',
+        primaryForeground: '174 60% 8%',
+        ring: '172 65% 52%',
+        accent: '173 28% 19%',
+        accentForeground: '172 45% 89%',
       },
     ),
   },

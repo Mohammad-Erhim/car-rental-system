@@ -44,6 +44,22 @@ describe('brand config', () => {
     const v = validateBrandConfig(broken);
     expect(v.some((x) => x.fg === 'primaryForeground' && x.bg === 'primary')).toBe(true);
   });
+
+  it('every curated preset is visually distinct from every other (no silent duplicate)', () => {
+    // Regression guard: the shipped default ("Evergreen") and "Emerald" used to be
+    // byte-identical in both light and dark `primary` — two options that looked distinct in
+    // the picker but rendered the same. AA-cleanliness alone (test above) doesn't catch that.
+    for (let i = 0; i < PRESETS.length; i++) {
+      for (let j = i + 1; j < PRESETS.length; j++) {
+        const a = PRESETS[i]!;
+        const b = PRESETS[j]!;
+        const same =
+          a.config.colors.light.primary === b.config.colors.light.primary &&
+          a.config.colors.dark.primary === b.config.colors.dark.primary;
+        expect(same, `${a.id} and ${b.id} render an identical primary accent`).toBe(false);
+      }
+    }
+  });
 });
 
 describe('resolve', () => {
