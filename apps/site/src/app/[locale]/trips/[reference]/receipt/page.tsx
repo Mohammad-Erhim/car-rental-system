@@ -10,8 +10,9 @@ import { formatMinor, useReservationDetail } from '../../../../../lib/customer-h
 import { useLocale } from '../../../../../lib/nav';
 
 /** SCREEN-CUS-019 (receipt) — a printable payment summary for one reservation: line items, tax,
- *  total, amount paid/refunded, and the card used. Not a formal tax invoice (no org address/tax
- *  id fields exist yet — see [[full-codebase-audit]] follow-ups); a clear, printable confirmation
+ *  total, amount paid/refunded, and the card used. Not a formal tax invoice — the formal invoice/
+ *  credit-note view (org legal name/tax id/address + org-sequential numbering) lives alongside
+ *  this page at `../invoice/page.tsx`; this receipt stays a simpler, always-available confirmation
  *  of what was charged, which is what most customers actually need after booking. */
 function Receipt() {
   const { t, locale: uiLocale } = useI18n();

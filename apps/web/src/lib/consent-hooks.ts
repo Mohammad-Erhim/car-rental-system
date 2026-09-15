@@ -1,82 +1,20 @@
-import type {
-  ConsentConfig,
-  ConsentConfigResponse,
-  ConsentLogEntry,
-  ConsentLogResponse,
-} from '@carrental/contracts';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { ConsentConfig, ConsentLogEntry, ConsentLogResponse } from '@carrental/contracts';
+import { useMutation, useQuery } from '@tanstack/react-query';
 
-import type { ConfigVersion } from './admin-hooks.js';
 import { apiFetch } from './api.js';
-import { useWorkflowError } from './use-workflow-error.js';
+import { createConfigWorkflowHooks } from './config-workflow-hooks.js';
 
 /** The `consent` config-version rides the generic draft → submit → approve workflow. */
 export const CONSENT_KIND = 'consent';
 export const CONSENT_KEY = 'default';
 
-export function usePublishedConsent() {
-  return useQuery({
-    queryKey: ['meta', 'consent'],
-    queryFn: ({ signal }) =>
-      apiFetch<ConsentConfigResponse>('/meta/consent', { signal, anonymous: true }),
-    staleTime: 60_000,
-  });
-}
+const hooks = createConfigWorkflowHooks<ConsentConfig>(CONSENT_KIND, CONSENT_KEY);
 
-export function useConsentVersions() {
-  const qs = new URLSearchParams({ kind: CONSENT_KIND, key: CONSENT_KEY });
-  return useQuery({
-    queryKey: ['ops', 'config-versions', CONSENT_KIND, CONSENT_KEY],
-    queryFn: ({ signal }) => apiFetch<ConfigVersion[]>(`/ops/config/versions?${qs}`, { signal }),
-  });
-}
-
-export function useDraftConsent() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: { payload: ConsentConfig; note?: string }) =>
-      apiFetch<ConfigVersion>('/ops/config/versions', {
-        method: 'POST',
-        body: { kind: CONSENT_KIND, key: CONSENT_KEY, ...body },
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['ops', 'config-versions'] }),
-  });
-}
-
-export function useConsentPreview() {
-  return useMutation({
-    mutationFn: (payload: ConsentConfig) =>
-      apiFetch<{ examples: string[] }>('/ops/config/versions/preview', {
-        method: 'POST',
-        body: { kind: CONSENT_KIND, payload },
-      }),
-  });
-}
-
-export function useConsentTransition() {
-  const qc = useQueryClient();
-  const onError = useWorkflowError();
-  return useMutation({
-    onError,
-    mutationFn: ({
-      id,
-      action,
-      note,
-    }: {
-      id: string;
-      action: 'submit' | 'approve' | 'reject';
-      note?: string;
-    }) =>
-      apiFetch<ConfigVersion>(`/ops/config/versions/${id}/${action}`, {
-        method: 'POST',
-        body: action === 'reject' ? { note: note ?? '' } : {},
-      }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['ops', 'config-versions'] });
-      qc.invalidateQueries({ queryKey: ['meta', 'consent'] });
-    },
-  });
-}
+export const usePublishedConsent = hooks.usePublished;
+export const useConsentVersions = hooks.useVersions;
+export const useDraftConsent = hooks.useDraft;
+export const useConsentPreview = hooks.usePreview;
+export const useConsentTransition = hooks.useTransition;
 
 export interface ConsentLogQuery {
   from?: string;
