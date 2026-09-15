@@ -125,7 +125,10 @@ describe('POST /webhooks/stripe', () => {
     const res = await request(server)
       .post('/api/v1/webhooks/stripe')
       .set('Content-Type', 'application/json')
-      .set('stripe-signature', 'v1=0000000000000000000000000000000000000000000000000000000000000000,t=1700000000')
+      .set(
+        'stripe-signature',
+        'v1=0000000000000000000000000000000000000000000000000000000000000000,t=1700000000',
+      )
       .send(payload)
       .expect(422);
     expect(res.body.code).toBe('validation_failed');

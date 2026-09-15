@@ -216,9 +216,7 @@ export class MediaService {
       );
     for (const row of configRows) {
       if (!JSON.stringify(row.payload).includes(ref)) continue;
-      uses.push(
-        row.kind === 'branding' ? 'branding config' : `page-builder page "${row.key}"`,
-      );
+      uses.push(row.kind === 'branding' ? 'branding config' : `page-builder page "${row.key}"`);
     }
 
     return uses;

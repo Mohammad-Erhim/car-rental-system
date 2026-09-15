@@ -1160,7 +1160,11 @@ describe('STAGE-006 administration & reporting', () => {
       .send({
         definitionCode: 'fleet_utilisation',
         cron: '0 7 * * 1',
-        recipients: ['partial-ok-1@example.test', 'partial-fail@example.test', 'partial-ok-2@example.test'],
+        recipients: [
+          'partial-ok-1@example.test',
+          'partial-fail@example.test',
+          'partial-ok-2@example.test',
+        ],
       })
       .expect(201);
     const scheduleId = created.body.id as string;

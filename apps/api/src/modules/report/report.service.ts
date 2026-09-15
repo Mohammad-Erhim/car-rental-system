@@ -775,7 +775,11 @@ export class ReportService {
           targetType: 'report_schedule',
           targetId: id,
           actor,
-          after: { runId: run.runId, failed: failed.length, sent: outstandingRecipients.length - failed.length },
+          after: {
+            runId: run.runId,
+            failed: failed.length,
+            sent: outstandingRecipients.length - failed.length,
+          },
         });
         throw new AppError('business_rule_violation', {
           title: `Report delivered to ${outstandingRecipients.length - failed.length}/${outstandingRecipients.length} recipient(s); the rest will retry`,
@@ -847,7 +851,11 @@ export class ReportService {
       .from(reportDefinition)
       .where(eq(reportDefinition.code, row.definitionCode))
       .limit(1);
-    return { title: def?.title ?? row.definitionCode, rowCount: row.rowCount, scopeNote: row.scopeNote ?? '' };
+    return {
+      title: def?.title ?? row.definitionCode,
+      rowCount: row.rowCount,
+      scopeNote: row.scopeNote ?? '',
+    };
   }
 
   /** The Actor the schedule runs as, or `null` if that account may no longer receive it. */

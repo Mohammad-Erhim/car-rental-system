@@ -555,9 +555,9 @@ describe('config / reference data', () => {
     // (which would mean the loser's write was silently accepted and the winner clobbered)
     expect(results.filter((s) => s === 201)).toHaveLength(1);
     expect(results.filter((s) => s === 409)).toHaveLength(1);
-    const loser = [a, b].find(
-      (r) => r.status === 'fulfilled' && r.value.status === 409,
-    ) as PromiseFulfilledResult<request.Response> | undefined;
+    const loser = [a, b].find((r) => r.status === 'fulfilled' && r.value.status === 409) as
+      | PromiseFulfilledResult<request.Response>
+      | undefined;
     expect(loser?.value.body.code).toBe('version_conflict');
 
     const final = await request(server)

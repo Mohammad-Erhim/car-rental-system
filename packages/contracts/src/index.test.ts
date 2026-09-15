@@ -53,9 +53,9 @@ describe('contracts', () => {
 
   it('zCtaLink.href is validated by the same allow-list', () => {
     expect(zCtaLink.safeParse({ label: { en: 'Book now' }, href: '/book' }).success).toBe(true);
-    expect(
-      zCtaLink.safeParse({ label: { en: 'x' }, href: 'javascript:alert(1)' }).success,
-    ).toBe(false);
+    expect(zCtaLink.safeParse({ label: { en: 'x' }, href: 'javascript:alert(1)' }).success).toBe(
+      false,
+    );
   });
 
   it('licenceCountry must be exactly 2 chars and normalizes to upper case', () => {

@@ -191,9 +191,9 @@ describe('location & operating-hours admin (FR-ADM-007)', () => {
     const results = [a, b].map((r) => (r.status === 'fulfilled' ? r.value.status : -1));
     expect(results.filter((s) => s === 201)).toHaveLength(1);
     expect(results.filter((s) => s === 409)).toHaveLength(1);
-    const loser = [a, b].find(
-      (r) => r.status === 'fulfilled' && r.value.status === 409,
-    ) as PromiseFulfilledResult<request.Response> | undefined;
+    const loser = [a, b].find((r) => r.status === 'fulfilled' && r.value.status === 409) as
+      | PromiseFulfilledResult<request.Response>
+      | undefined;
     expect(loser?.value.body.code).toBe('version_conflict');
 
     const after = await request(server)

@@ -260,14 +260,24 @@ describe('reservation operations', () => {
     const win = { pickupLocationCode: 'TST1' as const, pickupAt: isoIn(250), returnAt: isoIn(253) };
     const economyUnits = await request(server)
       .get('/api/v1/catalogue/categories/economy/units')
-      .query({ locationCode: win.pickupLocationCode, pickupAt: win.pickupAt, returnAt: win.returnAt })
+      .query({
+        locationCode: win.pickupLocationCode,
+        pickupAt: win.pickupAt,
+        returnAt: win.returnAt,
+      })
       .expect(200);
     expect(economyUnits.body.length).toBeGreaterThan(0);
     const pinnedUnitId = economyUnits.body[0].id as string;
 
     const quote = await request(server)
       .post('/api/v1/discovery/quote')
-      .send({ ...win, categoryCode: 'economy', hold: true, holderKey: 'modify-pin', unitId: pinnedUnitId })
+      .send({
+        ...win,
+        categoryCode: 'economy',
+        hold: true,
+        holderKey: 'modify-pin',
+        unitId: pinnedUnitId,
+      })
       .expect(201);
     const confirmed = await request(server)
       .post('/api/v1/bookings/confirm')
