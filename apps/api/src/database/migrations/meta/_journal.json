@@ -204,6 +204,13 @@
       "when": 1789429311992,
       "tag": "0028_add_report_schedule_pending_recipients",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1789430284516,
+      "tag": "0029_drop_reservation_customer_id",
+      "breakpoints": true
     }
   ]
 }

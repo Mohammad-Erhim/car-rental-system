@@ -250,6 +250,54 @@ describe('reservation operations', () => {
     expect(still.body.totalMinor).toBe(third.body.totalMinor);
   });
 
+  it('modifying to a new category clears the stale unit pin so assign() can auto-pick afterward', async () => {
+    // Regression for a real bug: confirm() copies the hold's pinned unit onto
+    // `reservation.unitId` for the ORIGINAL category. modify() used to update `categoryCode`
+    // without touching that stale pin — leaving `unitId` pointing at a car of the old category.
+    // `RentalService.assign()` (no explicit unitId) then loaded that stale pin as its default and,
+    // with no `existingRental` on a first assign, unconditionally re-validated it against the NEW
+    // category and threw `category_mismatch`, blocking staff from assigning ANY vehicle.
+    const win = { pickupLocationCode: 'TST1' as const, pickupAt: isoIn(250), returnAt: isoIn(253) };
+    const economyUnits = await request(server)
+      .get('/api/v1/catalogue/categories/economy/units')
+      .query({ locationCode: win.pickupLocationCode, pickupAt: win.pickupAt, returnAt: win.returnAt })
+      .expect(200);
+    expect(economyUnits.body.length).toBeGreaterThan(0);
+    const pinnedUnitId = economyUnits.body[0].id as string;
+
+    const quote = await request(server)
+      .post('/api/v1/discovery/quote')
+      .send({ ...win, categoryCode: 'economy', hold: true, holderKey: 'modify-pin', unitId: pinnedUnitId })
+      .expect(201);
+    const confirmed = await request(server)
+      .post('/api/v1/bookings/confirm')
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({
+        quoteReference: quote.body.reference,
+        drivers: [{ role: 'primary_renter', fullName: 'Pin Tester', email: 'pin@example.test' }],
+        acceptTerms: true,
+        paymentToken: 'tok_ok',
+      })
+      .expect(201);
+    expect(confirmed.body.pickedUnit?.id).toBe(pinnedUnitId);
+
+    const modified = await request(server)
+      .post(`/api/v1/reservations/${confirmed.body.reference}/modify`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ categoryCode: 'suv', paymentToken: 'tok_ok' })
+      .expect(201);
+    expect(modified.body.categoryCode).toBe('suv');
+    // the stale economy-class pin must be gone, not carried over onto the new category
+    expect(modified.body.pickedUnit).toBeNull();
+
+    const assigned = await request(server)
+      .post(`/api/v1/ops/reservations/${confirmed.body.reference}/assign`)
+      .set('Authorization', `Bearer ${agentToken}`)
+      .send({})
+      .expect(201);
+    expect(assigned.body.unitId).toBeTruthy();
+  });
+
   it('reconciliation surfaces an injected mismatch as an owned exception that resolves', async () => {
     const r = await bookEconomyAt(server, customerToken, 45);
     const run = await request(server)

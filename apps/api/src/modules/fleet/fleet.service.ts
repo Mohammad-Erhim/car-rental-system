@@ -126,6 +126,21 @@ export interface BlockRow {
   createdAt: string;
 }
 
+// ARCH-GAP (2026-09-15 audit, finding #3): `fleet` has no fleet.public.ts facade, even though
+// CLAUDE.md's "API module anatomy" section requires one for a sub-domain folded into a parent
+// module ("must still expose its cross-module surface through the parent's .public.ts").
+// FleetService is imported directly, top-level, by availability.service.ts and
+// discovery/ops-catalogue.controller.ts today (and wired straight into DiscoveryModule's
+// providers/exports) rather than through any curated facade. The `apiModuleBoundaries` ESLint
+// rule only blocks imports into a *subdirectory* of another module, not a top-level service file
+// like this one, so the gap currently lints clean despite violating the documented convention.
+// Left as-is rather than a partial migration: introducing .public.ts facades across fleet,
+// pricing, catalogue, availability, and discovery together touches ~15 cross-module call sites
+// (booking, rental, discovery's own controllers, plus these sub-domains importing each other) and
+// deserves a dedicated PR with its own DI-wiring verification, not a piecemeal fix bundled into
+// unrelated business-logic findings. Follow-up: add fleet.public.ts / pricing.public.ts /
+// catalogue.public.ts / availability.public.ts / discovery.public.ts, each re-exporting only what
+// cross-module callers actually use, then migrate every call site above in one pass.
 @Injectable()
 export class FleetService {
   constructor(

@@ -23,6 +23,19 @@ export interface PricedQuote {
   currency: string;
 }
 
+// ARCH-GAP (2026-09-15 audit, finding #3): `pricing` has no pricing.public.ts facade, even though
+// CLAUDE.md names `pricing` as its own worked example of a sub-domain folded into a parent module
+// that "must still expose its cross-module surface through the parent's .public.ts". In practice
+// PricingService is imported directly, top-level, by booking/reservation-ops.service.ts,
+// booking/booking.service.ts, rental/rental.service.ts, availability/availability.service.ts, and
+// discovery's own controllers — the busiest of the five ungoverned sub-domains. The
+// `apiModuleBoundaries` ESLint rule only blocks imports into a *subdirectory* of another module,
+// not a top-level service file like this one, so this currently lints clean despite violating the
+// documented convention. Left as-is rather than a partial migration for the same reason as the
+// sibling note on fleet.service.ts: a real fix spans fleet, pricing, catalogue, availability, and
+// discovery together (~15 call sites) and deserves a dedicated PR with its own DI-wiring
+// verification. Follow-up: add pricing.public.ts (+ the other four) re-exporting only what's
+// actually consumed cross-module, then migrate every call site listed above in one pass.
 @Injectable()
 export class PricingService {
   constructor(

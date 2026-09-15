@@ -359,6 +359,14 @@ export class ReservationOpsService {
     const pickupAt = new Date(input.pickupAt ?? row.pickupAt);
     const returnAt = new Date(input.returnAt ?? row.returnAt);
     const categoryCode = input.categoryCode ?? row.categoryCode;
+    // A pinned `unitId` belongs to the OLD category (it was chosen — by the customer at checkout
+    // or by staff via assign() — against `row.categoryCode`). Carrying it forward unchanged after
+    // a category change leaves it pointing at a car of the wrong class; `RentalService.assign()`
+    // then loads that stale pin as its default unitId and, with no `existingRental` on a first
+    // assign, unconditionally re-validates it against the NEW category and throws
+    // `category_mismatch` — blocking staff from assigning any vehicle at all. Clearing it here
+    // lets assign() fall through to its normal auto-pick pool for the new category instead.
+    const categoryChanged = categoryCode !== row.categoryCode;
     if (!(pickupAt.getTime() < returnAt.getTime())) {
       throw AppError.businessRule('Return must be after pickup', { reason: 'invalid_window' });
     }
@@ -436,6 +444,7 @@ export class ReservationOpsService {
           .update(reservation)
           .set({
             categoryCode,
+            ...(categoryChanged ? { unitId: null } : {}),
             pickupAt: pickupAt.toISOString(),
             returnAt: returnAt.toISOString(),
             durationHours: priced.computation.durationHours,

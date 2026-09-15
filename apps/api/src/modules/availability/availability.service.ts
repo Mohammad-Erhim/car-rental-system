@@ -52,6 +52,19 @@ export interface SearchResult {
   notices: Array<{ code: string; message: string; field?: string }>;
 }
 
+// ARCH-GAP (2026-09-15 audit, finding #3): `availability` has no availability.public.ts facade,
+// even though CLAUDE.md names `availability` as its own worked example of a sub-domain folded
+// into a parent module that "must still expose its cross-module surface through the parent's
+// .public.ts". AvailabilityService is imported directly, top-level, by
+// booking/reservation-ops.service.ts, booking/booking.service.ts, and discovery's own controllers
+// instead of through any curated facade. The `apiModuleBoundaries` ESLint rule only blocks
+// imports into a *subdirectory* of another module, not a top-level service file like this one, so
+// this currently lints clean despite violating the documented convention. Left as-is rather than
+// a partial migration — see the identical note on fleet/pricing/catalogue.service.ts: a real fix
+// spans fleet, pricing, catalogue, availability, and discovery together (~15 call sites) and
+// deserves a dedicated PR with its own DI-wiring verification. Follow-up: add
+// availability.public.ts (+ the other four) re-exporting only checkAndHold / releaseHold / search
+// / listAvailableUnits — what booking/rental/discovery actually consume today.
 @Injectable()
 export class AvailabilityService {
   constructor(

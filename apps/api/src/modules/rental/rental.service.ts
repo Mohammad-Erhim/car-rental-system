@@ -156,9 +156,11 @@ export class RentalService {
             id: vehicleUnit.id,
             state: vehicleUnit.state,
             categoryCode: vehicleCategory.code,
+            locationCode: location.code,
           })
           .from(vehicleUnit)
           .innerJoin(vehicleCategory, eq(vehicleCategory.id, vehicleUnit.categoryId))
+          .innerJoin(location, eq(location.id, vehicleUnit.currentLocationId))
           .where(eq(vehicleUnit.id, unitId))
           .limit(1);
         if (!unit) throw AppError.notFound('vehicle unit');
@@ -166,6 +168,17 @@ export class RentalService {
           throw AppError.businessRule('That vehicle is a different category than what was booked', {
             reason: 'category_mismatch',
           });
+        }
+        // Same guarantee the auto-pick pool (joined on `location.code` above) and the
+        // customer-preferred-pin path (validated at hold time) already give for free — a manual
+        // override skips both, so without this a same-category car sitting at a DIFFERENT branch
+        // could be committed here and the customer would arrive to a pickup location with no
+        // matching vehicle.
+        if (unit.locationCode !== res.pickupLocationCode) {
+          throw AppError.businessRule(
+            "That vehicle is at a different location than this reservation's pickup location",
+            { reason: 'location_mismatch' },
+          );
         }
         const [clash] = await tx
           .select({ id: rental.id })

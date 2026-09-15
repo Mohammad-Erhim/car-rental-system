@@ -798,6 +798,34 @@ describe('rental lifecycle', () => {
     expect(rejected.body.params.reason).toBe('category_mismatch');
   });
 
+  it('assigning a same-category unit sitting at a DIFFERENT location than the pickup is refused', async () => {
+    // Regression: assign()'s manual-override branch validated category/existence/open-rental-clash
+    // for an explicit unitId, but never checked the unit's current location against the
+    // reservation's pickupLocationCode — unlike the auto-pick query (joined on location.code) and
+    // the customer-preferred-pin path (validated at hold time). A same-category car at the wrong
+    // branch could silently be committed, leaving the customer with no matching vehicle on arrival.
+    const resRef = await book(server, customerToken, 'economy', 350, 3);
+    const win = { pickupLocationCode: 'TST2', pickupAt: isoIn(350), returnAt: isoIn(353) };
+    const wrongLocationUnits = await request(server)
+      .get('/api/v1/catalogue/categories/economy/units')
+      .query({
+        locationCode: win.pickupLocationCode,
+        pickupAt: win.pickupAt,
+        returnAt: win.returnAt,
+      })
+      .expect(200);
+    expect(wrongLocationUnits.body.length).toBeGreaterThan(0);
+    const wrongLocationUnit = wrongLocationUnits.body[0].id as string;
+
+    const rejected = await request(server)
+      .post(`/api/v1/ops/reservations/${resRef}/assign`)
+      .set(auth(agentToken))
+      .send({ unitId: wrongLocationUnit })
+      .expect(422);
+    expect(rejected.body.code).toBe('business_rule_violation');
+    expect(rejected.body.params.reason).toBe('location_mismatch');
+  });
+
   it("when staff assigns a different car than the customer picked, the customer's original pick becomes available again (not a phantom lock)", async () => {
     // TST2, not TST1 — this file's shared TST1 economy pool is heavily drawn down by every
     // earlier test in it; TST2's own fleet is untouched here.

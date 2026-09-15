@@ -70,20 +70,3 @@ export function computeAvailability(input: AvailabilityInputs): AvailabilityResu
   const bookableCount = Math.max(0, freeUnitIds.length - Math.max(0, classHolds));
   return { totalUnits: unitIds.length, freeUnitIds, bookableCount };
 }
-
-/**
- * Given a set of candidate free unit ids and the intervals already taken by *other* holds this
- * transaction is aware of, pick the first unit that is still free — used by `checkAndHold` to
- * pin a hold to a concrete unit when possible (class-level hold when not).
- */
-export function pickFreeUnit(
-  request: Interval,
-  freeUnitIds: string[],
-  extraOccupiedByUnit: Record<string, Interval[]>,
-  turnaroundMs: number,
-): string | null {
-  for (const id of freeUnitIds) {
-    if (isUnitFree(request, extraOccupiedByUnit[id], turnaroundMs)) return id;
-  }
-  return null;
-}
