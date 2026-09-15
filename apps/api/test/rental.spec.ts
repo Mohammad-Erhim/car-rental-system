@@ -164,6 +164,62 @@ describe('rental lifecycle', () => {
     void unitId;
   });
 
+  it('a customer cannot extend a stranger’s rental, even with a valid token', async () => {
+    const resRef = await book(server, customerToken, 'compact', 40, 3);
+    const assigned = await request(server)
+      .post(`/api/v1/ops/reservations/${resRef}/assign`)
+      .set('Authorization', `Bearer ${agentToken}`)
+      .send({})
+      .expect(201);
+    const rentalRef = assigned.body.reference as string;
+    await request(server)
+      .post(`/api/v1/ops/rentals/${rentalRef}/pickup`)
+      .set('Authorization', `Bearer ${agentToken}`)
+      .send({ odometerKm: 1000, fuelPct: 100, driverName: 'Rex Renter', licenceNumber: 'D-11' })
+      .expect(201);
+
+    const uniq = Date.now();
+    const email = `stranger-${uniq}@example.test`;
+    const reg = await request(server)
+      .post('/api/v1/auth/register')
+      .send({ fullName: `Stranger ${uniq}`, email, password: 'Sup3rSecret!!', acceptTerms: true })
+      .expect(201);
+    await request(server)
+      .post('/api/v1/auth/verify-contact')
+      .send({ challengeId: reg.body.challengeId, code: reg.body.devCode })
+      .expect(201);
+    const strangerToken = (await signIn(await getTestApp(), email, 'Sup3rSecret!!', 'customer'))
+      .accessToken;
+
+    await request(server)
+      .post(`/api/v1/rentals/${rentalRef}/extend`)
+      .set('Authorization', `Bearer ${strangerToken}`)
+      .send({ newReturnAt: isoIn(46), paymentToken: 'tok_ok' })
+      .expect(403);
+
+    // the rightful owner still can
+    await request(server)
+      .post(`/api/v1/rentals/${rentalRef}/extend`)
+      .set('Authorization', `Bearer ${customerToken}`)
+      .send({ newReturnAt: isoIn(46), paymentToken: 'tok_ok' })
+      .expect(201);
+
+    // return + pass readiness — this file's shared TST1 `compact` pool is small and every test in
+    // it runs against the same units; leaving this rental open (as the assertions above alone
+    // would) permanently drains one unit for every later test in this file, same as TEST-RNT-001
+    // already does deliberately at the end of its own cycle.
+    await request(server)
+      .post(`/api/v1/ops/rentals/${rentalRef}/return`)
+      .set('Authorization', `Bearer ${agentToken}`)
+      .send({ odometerKm: 1010, fuelPct: 100 })
+      .expect(201);
+    await request(server)
+      .post(`/api/v1/ops/rentals/${rentalRef}/readiness`)
+      .set('Authorization', `Bearer ${agentToken}`)
+      .send({ passed: true })
+      .expect(201);
+  });
+
   it('a declined return-settlement charge never blocks the return itself — the car checks in and a recovery case opens', async () => {
     const resRef = await book(server, customerToken, 'economy', 70, 3, 'tok_decline_reuse');
     const assigned = await request(server)
@@ -755,6 +811,34 @@ describe('rental lifecycle', () => {
       .expect(422);
     expect(rejected.body.code).toBe('business_rule_violation');
     expect(rejected.body.params.reason).toBe('category_mismatch');
+  });
+
+  it('assigning a same-category unit sitting at a DIFFERENT location than the pickup is refused', async () => {
+    // Regression: assign()'s manual-override branch validated category/existence/open-rental-clash
+    // for an explicit unitId, but never checked the unit's current location against the
+    // reservation's pickupLocationCode — unlike the auto-pick query (joined on location.code) and
+    // the customer-preferred-pin path (validated at hold time). A same-category car at the wrong
+    // branch could silently be committed, leaving the customer with no matching vehicle on arrival.
+    const resRef = await book(server, customerToken, 'economy', 350, 3);
+    const win = { pickupLocationCode: 'TST2', pickupAt: isoIn(350), returnAt: isoIn(353) };
+    const wrongLocationUnits = await request(server)
+      .get('/api/v1/catalogue/categories/economy/units')
+      .query({
+        locationCode: win.pickupLocationCode,
+        pickupAt: win.pickupAt,
+        returnAt: win.returnAt,
+      })
+      .expect(200);
+    expect(wrongLocationUnits.body.length).toBeGreaterThan(0);
+    const wrongLocationUnit = wrongLocationUnits.body[0].id as string;
+
+    const rejected = await request(server)
+      .post(`/api/v1/ops/reservations/${resRef}/assign`)
+      .set(auth(agentToken))
+      .send({ unitId: wrongLocationUnit })
+      .expect(422);
+    expect(rejected.body.code).toBe('business_rule_violation');
+    expect(rejected.body.params.reason).toBe('location_mismatch');
   });
 
   it("when staff assigns a different car than the customer picked, the customer's original pick becomes available again (not a phantom lock)", async () => {

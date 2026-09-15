@@ -7,6 +7,11 @@ import {
   zMoney,
   zProblem,
   zLocalesResponse,
+  zConfirmBookingRequest,
+  zConfirmBookingRequestDebug,
+  zDriverInput,
+  zCtaLink,
+  zSafeHref,
 } from './index';
 
 describe('contracts', () => {
@@ -34,6 +39,36 @@ describe('contracts', () => {
     });
     expect(ok.success).toBe(true);
     expect(zProblem.safeParse({ code: 'x' }).success).toBe(false);
+  });
+
+  it('zSafeHref allow-lists relative/anchor/https and rejects dangerous schemes', () => {
+    expect(zSafeHref.safeParse('/vehicles/economy').success).toBe(true);
+    expect(zSafeHref.safeParse('#pricing').success).toBe(true);
+    expect(zSafeHref.safeParse('https://example.com/x').success).toBe(true);
+    expect(zSafeHref.safeParse('javascript:alert(1)').success).toBe(false);
+    expect(zSafeHref.safeParse('data:text/html,<script>1</script>').success).toBe(false);
+    expect(zSafeHref.safeParse('//evil.example.com').success).toBe(false); // protocol-relative
+    expect(zSafeHref.safeParse('http://example.com').success).toBe(false); // not https
+  });
+
+  it('zCtaLink.href is validated by the same allow-list', () => {
+    expect(zCtaLink.safeParse({ label: { en: 'Book now' }, href: '/book' }).success).toBe(true);
+    expect(zCtaLink.safeParse({ label: { en: 'x' }, href: 'javascript:alert(1)' }).success).toBe(
+      false,
+    );
+  });
+
+  it('licenceCountry must be exactly 2 chars and normalizes to upper case', () => {
+    const ok = zDriverInput.safeParse({ fullName: 'A B', licenceCountry: 'fr' });
+    expect(ok.success).toBe(true);
+    if (ok.success) expect(ok.data.licenceCountry).toBe('FR');
+    expect(zDriverInput.safeParse({ fullName: 'A B', licenceCountry: '' }).success).toBe(false);
+    expect(zDriverInput.safeParse({ fullName: 'A B', licenceCountry: 'FRA' }).success).toBe(false);
+  });
+
+  it('zConfirmBookingRequest (the public contract) has no debug fault-injection field', () => {
+    expect(zConfirmBookingRequest.shape).not.toHaveProperty('simulateWriteFailure');
+    expect(zConfirmBookingRequestDebug.shape).toHaveProperty('simulateWriteFailure');
   });
 
   it('locales response shape', () => {

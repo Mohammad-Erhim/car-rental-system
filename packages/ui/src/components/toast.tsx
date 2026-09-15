@@ -19,12 +19,22 @@ interface ToastCtx {
 }
 const Ctx = createContext<ToastCtx | null>(null);
 
+/** Auto-dismiss delay, in ms. Passed as Radix `Toast.Root`'s own `duration` (see below) rather
+ *  than driven by a parallel `setTimeout`, so Radix's built-in hover/focus pause actually
+ *  applies to it (WCAG 2.2.1). */
+const TOAST_DURATION_MS = 5000;
+
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
+  const dismiss = useCallback((id: number) => {
+    setItems((prev) => prev.filter((i) => i.id !== id));
+  }, []);
   const toast = useCallback((t: Omit<ToastItem, 'id'>) => {
     const id = Date.now() + Math.random();
     setItems((prev) => [...prev, { ...t, id }]);
-    window.setTimeout(() => setItems((prev) => prev.filter((i) => i.id !== id)), 5000);
+    // No manual timer here: `ToastPrimitive.Root` below owns dismissal via `duration` +
+    // `onOpenChange`, which is what lets Radix pause the countdown while the toast has
+    // hover/focus instead of unmounting out from under a user still reading it.
   }, []);
   const value = useMemo(() => ({ toast }), [toast]);
 
@@ -35,6 +45,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {items.map((i) => (
           <ToastPrimitive.Root
             key={i.id}
+            duration={TOAST_DURATION_MS}
+            onOpenChange={(open) => {
+              // Radix calls this with `false` once its own (pausable) timer elapses, and also
+              // on swipe-to-dismiss / Escape / the Close button — one path for every dismissal.
+              if (!open) dismiss(i.id);
+            }}
             className={cn(
               'pointer-events-auto flex w-[22rem] max-w-[90vw] items-start gap-3 rounded-md border bg-background p-4 shadow-lg',
               'data-[state=open]:animate-in data-[state=closed]:animate-out data-[swipe=end]:animate-out',

@@ -1,5 +1,6 @@
 import { deflateSync } from 'node:zlib';
 
+import { DEFAULT_BRAND_CONFIG } from '@carrental/theme';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -159,6 +160,38 @@ describe('media library', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(200);
     expect(listAfter.body.some((m: { id: string }) => m.id === uploaded.body.id)).toBe(false);
+  });
+
+  it('refuses to delete an image pinned inside a branding config draft, not just a category/vehicle FK', async () => {
+    // Branding (logo/favicon/OG image) and page-builder images go through this exact same
+    // `stored_object` catalogue via `BrandAssetService`, but the ref just sits inside a
+    // `config_version.payload` JSON blob — never a foreign key `whereUsed()` could see with the
+    // category/unit checks alone. An actor with only catalogue.manage/fleet.manage (not
+    // config.publish) has no visibility into config at all, so without this check they could
+    // delete what looks unused here and silently break the live public site's logo.
+    const png = makePng(48, 48);
+    const uploaded = await request(server)
+      .post('/api/v1/ops/media')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ purpose: 'branding', dataBase64: png.toString('base64'), mediaType: 'image/png' })
+      .expect(201);
+
+    const cfg = structuredClone(DEFAULT_BRAND_CONFIG);
+    cfg.assets.logo = uploaded.body.ref;
+    // still just a draft — not submitted/approved/published — proving "in use" isn't limited to
+    // the live published revision (a delete must not also pull the rug out from under a draft
+    // someone is about to publish).
+    await request(server)
+      .post('/api/v1/ops/config/versions')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ kind: 'branding', key: 'default', payload: cfg })
+      .expect(201);
+
+    const blocked = await request(server)
+      .delete(`/api/v1/ops/media/${uploaded.body.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(422);
+    expect(blocked.body.title).toMatch(/branding config/i);
   });
 
   it('rejects a file whose bytes do not match the declared media type', async () => {

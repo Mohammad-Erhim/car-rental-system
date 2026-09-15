@@ -28,7 +28,6 @@ export const reservation = pgTable(
     state: text('state').notNull().default('pending'), // pending|confirmed|cancelled|expired|no_show|fulfilled
     /** the account that owns it, or null for a guest booking (see holderKey / accessTokenHash) */
     accountId: uuid('account_id'),
-    customerId: uuid('customer_id'),
     holderKey: text('holder_key'),
     /** sha-256 of the guest magic-link token (SCREEN-CUS-018) */
     accessTokenHash: text('access_token_hash'),

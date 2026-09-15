@@ -1,3 +1,4 @@
+import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   Badge,
@@ -34,9 +35,6 @@ const carLabel = (u: { make: string | null; model: string | null }) =>
 
 const RESERVATION_STATES = ['pending', 'confirmed', 'cancelled', 'no_show', 'fulfilled'];
 
-const selectClass =
-  'flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
-
 const stateVariant = (s: string) =>
   s === 'confirmed'
     ? 'success'
@@ -51,6 +49,9 @@ const stateVariant = (s: string) =>
 export function ReservationQueuePage() {
   const { t, fmt } = useI18n();
   const { toast } = useToast();
+  const { hasPermission } = useAuth();
+  // mirrors reservation-detail-page.tsx's identical check for the same assign action.
+  const canAssign = hasPermission('rental.pickup', 'fleet.manage');
   const { params, setParams, setParam } = useUrlParams();
 
   const view: 'queue' | 'all' = params.get('view') === 'all' ? 'all' : 'queue';
@@ -209,7 +210,7 @@ export function ReservationQueuePage() {
           >
             {t('ops.queue.openRental')} →
           </Link>
-        ) : r.state === 'confirmed' ? (
+        ) : r.state === 'confirmed' && canAssign ? (
           <Button
             size="sm"
             variant="ghost"
@@ -268,9 +269,8 @@ export function ReservationQueuePage() {
           <CardContent className="grid gap-3 pt-6 sm:grid-cols-2 lg:grid-cols-4">
             <Field label={t('ops.tbl.state')} htmlFor="ops-queue-state">
               {({ id }) => (
-                <select
+                <Select
                   id={id}
-                  className={selectClass}
                   value={state}
                   onChange={(e) => setParam('state', e.target.value)}
                   data-testid="ops-queue-state"
@@ -281,14 +281,13 @@ export function ReservationQueuePage() {
                       {s.replace(/_/g, ' ')}
                     </option>
                   ))}
-                </select>
+                </Select>
               )}
             </Field>
             <Field label={t('ops.search.location')} htmlFor="ops-queue-loc">
               {({ id }) => (
-                <select
+                <Select
                   id={id}
-                  className={selectClass}
                   value={locationCode}
                   onChange={(e) => setParam('location', e.target.value)}
                 >
@@ -298,7 +297,7 @@ export function ReservationQueuePage() {
                       {l.name} ({l.code})
                     </option>
                   ))}
-                </select>
+                </Select>
               )}
             </Field>
             <Field label={t('ops.search.from')} htmlFor="ops-queue-from">
@@ -426,7 +425,7 @@ export function ReservationQueuePage() {
                       >
                         {t('ops.queue.openRental')} → {r.assignedRentalRef}
                       </Link>
-                    ) : r.state === 'confirmed' ? (
+                    ) : r.state === 'confirmed' && canAssign ? (
                       <Button
                         size="sm"
                         variant="outline"

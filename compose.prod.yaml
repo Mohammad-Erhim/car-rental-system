@@ -1,6 +1,7 @@
 # Car Rental System — PRODUCTION-shaped stack (SRS §17.6).
 #
-#   cp .env.example .env                       # set real JWT_ACCESS_SECRET / PASSWORD_PEPPER / COOKIE_SECRET /
+#   cp .env.example .env                       # set real POSTGRES_PASSWORD / JWT_ACCESS_SECRET /
+#                                               # PASSWORD_PEPPER / COOKIE_SECRET /
 #                                               # OBJECT_STORAGE_SIGNING_SECRET / PAYMENT_WEBHOOK_SECRET /
 #                                               # PAYMENT_CONFIG_ENCRYPTION_KEY
 #   docker compose -f compose.prod.yaml build
@@ -34,7 +35,7 @@ x-api-image: &api-image
 
 x-api-env: &api-env
   NODE_ENV: production
-  DATABASE_URL: postgres://carrental:${POSTGRES_PASSWORD:-carrental}@postgres:5432/carrental
+  DATABASE_URL: postgres://carrental:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@postgres:5432/carrental
   REDIS_URL: redis://redis:6379/0
   API_PORT: '3001'
   APP_URL: ${APP_URL:-http://localhost:3000}
@@ -60,7 +61,11 @@ services:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: carrental
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-carrental}
+      # Every other secret in this file (JWT_ACCESS_SECRET, PASSWORD_PEPPER, COOKIE_SECRET,
+      # OBJECT_STORAGE_SIGNING_SECRET, PAYMENT_WEBHOOK_SECRET, PAYMENT_CONFIG_ENCRYPTION_KEY)
+      # hard-fails when unset — this one silently defaulted to a well-known literal, which meant a
+      # deploy that skipped setting it shipped production with a public username/password pair.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
       POSTGRES_DB: carrental
     volumes:
       - pgdata:/var/lib/postgresql/data

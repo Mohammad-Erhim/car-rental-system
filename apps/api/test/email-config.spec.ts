@@ -121,6 +121,26 @@ describe('email provider configuration', () => {
     expect(res.body.params?.reason).toBe('incomplete_smtp_config');
   });
 
+  it('rejects a fromName/fromAddress containing header-injection characters (defense against From-header injection)', async () => {
+    for (const fromName of ['Car Rental\r\nBcc: evil@example.test', 'Car "Rental" Co', 'x\x00y']) {
+      await stepUp(adminToken);
+      const res = await request(server)
+        .put('/api/v1/ops/email/config')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ smtp: { fromName } })
+        .expect(422);
+      expect(res.body.fieldErrors?.length).toBeGreaterThan(0);
+    }
+    for (const fromAddress of ['a@b.test\r\nBcc: evil@example.test', 'a@b"@example.test']) {
+      await stepUp(adminToken);
+      await request(server)
+        .put('/api/v1/ops/email/config')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ smtp: { fromAddress } })
+        .expect(422);
+    }
+  });
+
   it('saves valid SMTP settings (password masked in the response), switches to smtp, and NotifyService actually sends through it', async () => {
     await stepUp(adminToken);
     const saved = await request(server)

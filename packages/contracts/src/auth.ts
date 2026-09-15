@@ -10,8 +10,16 @@ export const zRegisterRequest = z.object({
   localeCode: zLocale.default('en'),
   acceptTerms: z.literal(true),
   marketingOptIn: z.boolean().default(false),
-  /** where checkout/task should resume after verification (SRS-UI-006) */
-  returnTo: z.string().max(500).optional(),
+  /** where checkout/task should resume after verification (SRS-UI-006) — same-origin relative
+   *  path only. A single leading `/` not followed by a second `/` or a backslash: blocks both a
+   *  protocol-relative URL (`//evil.example`) and the backslash variant browsers resolve the same
+   *  way against an http(s) base (`/\evil.example`), as well as any absolute/scheme-prefixed URL,
+   *  since none of those start with a bare `/`. */
+  returnTo: z
+    .string()
+    .max(500)
+    .regex(/^\/(?!\/)[^\s\\]*$/, 'must be a same-origin relative path')
+    .optional(),
 });
 export type RegisterRequest = z.infer<typeof zRegisterRequest>;
 

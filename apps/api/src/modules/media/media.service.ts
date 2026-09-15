@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
@@ -12,6 +12,7 @@ import {
 import { ObjectStorageService } from '../../common/object-storage/object-storage.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
+import { configVersion } from '../../database/schema/admin';
 import { vehicleCategory } from '../../database/schema/catalogue';
 import { vehicleUnit } from '../../database/schema/fleet';
 import { storedObject } from '../../database/schema/platform';
@@ -62,6 +63,14 @@ export class MediaService {
     };
   }
 
+  /** Not organization-scoped, unlike every other list endpoint in this area. `stored_object` (see
+   *  `database/schema/platform.ts`) has no `organizationId` column at all — nothing to filter
+   *  on — and the system is currently single-org throughout (`ConfigPublic.defaultOrganization()`
+   *  picks the sole/first org; there's no per-request org selection anywhere in the API). Adding
+   *  real scoping here means a schema migration (a new column, backfill, and deciding how
+   *  media uploaded before multi-org existed gets attributed) — a bigger, cross-cutting call than
+   *  this pass should make unilaterally for one module. Left as an explicit, disclosed gap rather
+   *  than a half-fix; revisit if/when the system actually goes multi-org. */
   async list(filter: {
     purpose?: string;
     ownerType?: string;
@@ -174,7 +183,15 @@ export class MediaService {
   }
 
   /** Every place in the system a ref could currently be pinned — checked before a delete so a
-   *  still-used image can never silently vanish out from under a category or vehicle. */
+   *  still-used image can never silently vanish out from under a category or vehicle.
+   *
+   *  Branding (logo/favicon/OG image) and page-builder images go through this same `stored_object`
+   *  catalogue (`BrandAssetService`) but aren't a foreign key anywhere — the ref just sits inside a
+   *  `config_version.payload` JSON blob (`kind` 'branding' / 'pages'). An actor with only
+   *  `catalogue.manage`/`fleet.manage` has no visibility into config at all, so without this check
+   *  they could delete what looks unused here and silently break the live public site. Any
+   *  non-terminal revision (draft/in_review/published) counts as "in use" — not just published —
+   *  so a delete can't also pull the rug out from under a draft someone is about to publish. */
   private async whereUsed(ref: string): Promise<string[]> {
     const uses: string[] = [];
     const cats = await this.db
@@ -187,6 +204,21 @@ export class MediaService {
       .from(vehicleUnit)
       .where(eq(vehicleUnit.imageRef, ref));
     uses.push(...units.map((u) => `vehicle "${u.plate}"`));
+
+    const configRows = await this.db
+      .select({ kind: configVersion.kind, key: configVersion.key, payload: configVersion.payload })
+      .from(configVersion)
+      .where(
+        and(
+          inArray(configVersion.kind, ['branding', 'pages']),
+          inArray(configVersion.state, ['draft', 'in_review', 'published']),
+        ),
+      );
+    for (const row of configRows) {
+      if (!JSON.stringify(row.payload).includes(ref)) continue;
+      uses.push(row.kind === 'branding' ? 'branding config' : `page-builder page "${row.key}"`);
+    }
+
     return uses;
   }
 

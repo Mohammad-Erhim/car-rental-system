@@ -1,6 +1,7 @@
 import { hash } from '@node-rs/argon2';
-import { sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
+import { loadEnv } from '../../config/env.schema';
 import type { Database } from '../drizzle';
 import { customer } from '../schema/customer';
 import { account, role, staffProfile } from '../schema/iam';
@@ -16,7 +17,11 @@ export const TEST_PASSWORD = 'Test-Passw0rd!';
 export const TEST_ORG_CODE = 'TEST';
 
 export async function seedTest(db: Database): Promise<void> {
-  const pepper = process.env.PASSWORD_PEPPER ?? 'test-pepper';
+  // `loadEnv()` is memoized (env.schema.ts) — this reuses the already-validated env from
+  // `bootstrapEnvForScript()` when a CLI entrypoint ran it first, and otherwise validates
+  // process.env itself (failing fast if PASSWORD_PEPPER is unset) rather than silently falling
+  // back to a hardcoded placeholder for any future caller that skips that bootstrap step.
+  const pepper = loadEnv().PASSWORD_PEPPER;
   const passwordHash = await hash(TEST_PASSWORD + pepper, {
     memoryCost: 19456,
     timeCost: 2,
@@ -249,20 +254,45 @@ export async function seedTest(db: Database): Promise<void> {
   // a second, account-less "Test Customer II" so the duplicate-review + merge flow (FR-ADM-001)
   // has two look-alike records to work with. Distinct name so the SCREEN-OPS-021 record test
   // (which finds the account-backed "Test Customer" by exact name) is unaffected.
-  await db
-    .insert(customer)
-    .values({
-      organizationId: org.id,
-      fullName: 'Test Customer II',
-      email: 'test-customer.dup@example.test',
-      emailNormalized: 'test-customer.dup@example.test',
-      phone: '+15555550188',
-      localeCode: 'en',
-      communicationPrefs: {},
-      consents: [],
-      status: 'active',
-    })
-    .onConflictDoNothing();
+  //
+  // This row has no accountId (by design — it's the account-less duplicate), so
+  // `customer_account_unq` doesn't dedupe it, and `customer_org_email_idx` is a plain (non-unique)
+  // index — deliberately so, since real duplicate customers with the same email are exactly what
+  // the merge flow exists to review, so a DB-level unique constraint on email would be wrong for
+  // production, not just for this fixture. Without a usable `onConflictDoNothing`/`onConflictDoUpdate`
+  // target, re-running the seed without a full DB reset silently duplicated this row every time.
+  // Fixed here with an explicit select-then-write instead: deterministic on
+  // (organizationId, emailNormalized), same net effect as every other fixture's upsert.
+  const [existingDup] = await db
+    .select({ id: customer.id })
+    .from(customer)
+    .where(
+      and(
+        eq(customer.organizationId, org.id),
+        eq(customer.emailNormalized, 'test-customer.dup@example.test'),
+      ),
+    )
+    .limit(1);
+
+  const dupCustomerValues = {
+    fullName: 'Test Customer II',
+    email: 'test-customer.dup@example.test',
+    emailNormalized: 'test-customer.dup@example.test',
+    phone: '+15555550188',
+    localeCode: 'en',
+    communicationPrefs: {},
+    consents: [] as { type: string; version: string; acceptedAt: string; actor?: string }[],
+    status: 'active',
+  };
+
+  if (existingDup) {
+    await db
+      .update(customer)
+      .set({ ...dupCustomerValues, updatedAt: sql`now()` })
+      .where(eq(customer.id, existingDup.id));
+  } else {
+    await db.insert(customer).values({ organizationId: org.id, ...dupCustomerValues });
+  }
 
   await seedDiscovery(db, org.id, { locationCodes: ['TST1', 'TST2'] });
 }

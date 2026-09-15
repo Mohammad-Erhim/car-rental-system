@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
   ConfirmDialog,
+  defaultDescribeItem,
   Field,
   Input,
   PageHeader,
@@ -189,14 +190,21 @@ export function MediaLibraryPage() {
               className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6"
               data-testid="media-grid"
             >
-              {(media.data ?? []).map((m) => (
+              {(media.data ?? []).map((m, index) => (
                 <div
                   key={m.id}
                   className="space-y-1.5 rounded-md border p-2"
                   data-testid={`media-item-${m.id}`}
                 >
                   <div className="aspect-square overflow-hidden rounded bg-muted">
-                    <img src={m.url} alt="" className="size-full object-cover" />
+                    {/* this page has no aria-label'd control describing the image the way
+                        MediaPicker's grid buttons do, so — unlike that component — it's this
+                        <img>'s own alt that needs to carry the description. */}
+                    <img
+                      src={m.url}
+                      alt={defaultDescribeItem(m, index)}
+                      className="size-full object-cover"
+                    />
                   </div>
                   <Badge variant="neutral" className="max-w-full truncate text-[0.65rem]">
                     {m.purpose}

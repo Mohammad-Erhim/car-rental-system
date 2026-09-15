@@ -13,7 +13,12 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 
 import { AppError } from '../../common/app-error';
-import { CurrentActor, MaybeCurrentActor, Public } from '../../common/auth/auth.guard';
+import {
+  CurrentActor,
+  MaybeCurrentActor,
+  Public,
+  RequireAudience,
+} from '../../common/auth/auth.guard';
 import type { Actor } from '../../common/auth/types';
 import { CsrfGuard } from '../../common/security/csrf.guard';
 import { RateLimit } from '../../common/security/rate-limit.decorator';
@@ -21,7 +26,13 @@ import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { ENV } from '../../config/config.module';
 import type { Env } from '../../config/env.schema';
 
-import { REFRESH_COOKIE, clearRefreshCookie, setRefreshCookie } from './iam.cookies';
+import {
+  REFRESH_COOKIE,
+  clearCsrfCookie,
+  clearRefreshCookie,
+  setCsrfCookie,
+  setRefreshCookie,
+} from './iam.cookies';
 import { IamService } from './iam.service';
 import { ProfileService } from './profile.service';
 
@@ -57,7 +68,11 @@ export class IamController {
   ) {}
 
   private issueCookie(res: Response, refreshToken: string, expiresAt: Date) {
-    setRefreshCookie(res, this.env, refreshToken, expiresAt.getTime() - Date.now());
+    const maxAgeMs = expiresAt.getTime() - Date.now();
+    setRefreshCookie(res, this.env, refreshToken, maxAgeMs);
+    // Issued alongside the refresh cookie every time (not just at sign-in) — a session that
+    // outlives a page's lifetime (a rolling refresh) must keep a matching CSRF cookie current too.
+    setCsrfCookie(res, this.env, maxAgeMs);
   }
 
   @Post('register')
@@ -150,6 +165,7 @@ export class IamController {
     const token = req.cookies?.[REFRESH_COOKIE] as string | undefined;
     await this.iam.signOut(token, body.everywhere, actor?.accountId);
     clearRefreshCookie(res, this.env);
+    clearCsrfCookie(res, this.env);
     return { ok: true };
   }
 
@@ -186,6 +202,7 @@ export class IamController {
   ) {
     await this.iam.changePassword(actor.accountId, body.currentPassword, body.newPassword);
     clearRefreshCookie(res, this.env);
+    clearCsrfCookie(res, this.env);
     return { ok: true, message: 'Password changed. Sign in again.' };
   }
 
@@ -215,11 +232,13 @@ export class IamController {
   // ---- profile / preferences (FR-IAM-006) ----
 
   @Get('profile')
+  @RequireAudience('customer')
   async getProfile(@CurrentActor() actor: Actor) {
     return this.profiles.getProfile(actor);
   }
 
   @Post('profile')
+  @RequireAudience('customer')
   async updateProfile(
     @Body(new ZodValidationPipe(zUpdateProfileRequest)) body: z.infer<typeof zUpdateProfileRequest>,
     @CurrentActor() actor: Actor,
@@ -232,11 +251,13 @@ export class IamController {
   // ---- saved drivers (FR-IAM-007) ----
 
   @Get('drivers')
+  @RequireAudience('customer')
   listDrivers(@CurrentActor() actor: Actor) {
     return this.profiles.listDrivers(actor);
   }
 
   @Post('drivers')
+  @RequireAudience('customer')
   addDriver(
     @Body(new ZodValidationPipe(zAddDriver)) body: z.infer<typeof zAddDriver>,
     @CurrentActor() actor: Actor,
@@ -245,6 +266,7 @@ export class IamController {
   }
 
   @Post('drivers/:id/remove')
+  @RequireAudience('customer')
   removeDriver(@CurrentActor() actor: Actor, @Req() req: Request) {
     return this.profiles.removeDriver(actor, req.params.id!);
   }
@@ -252,11 +274,13 @@ export class IamController {
   // ---- account data requests / closure (FR-IAM-008) ----
 
   @Get('data-requests')
+  @RequireAudience('customer')
   listDataRequests(@CurrentActor() actor: Actor) {
     return this.profiles.listDataRequests(actor);
   }
 
   @Post('data-requests')
+  @RequireAudience('customer')
   createDataRequest(
     @Body(new ZodValidationPipe(zDataRequest)) body: z.infer<typeof zDataRequest>,
     @CurrentActor() actor: Actor,
@@ -265,6 +289,7 @@ export class IamController {
   }
 
   @Post('data-requests/:id/cancel')
+  @RequireAudience('customer')
   cancelDataRequest(@CurrentActor() actor: Actor, @Req() req: Request) {
     return this.profiles.cancelDataRequest(actor, req.params.id!);
   }

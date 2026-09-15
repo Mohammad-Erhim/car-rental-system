@@ -23,6 +23,7 @@ import {
   reservationDriver,
   reservationLine,
 } from '../../database/schema/reservation';
+import { AvailabilityService } from '../availability/availability.service';
 import { ProductService } from '../catalogue/product.service';
 import { ConfigVersionService } from '../config/config-version.service';
 import { CustomerRestrictionService } from '../customer/customer-restriction.service';
@@ -66,6 +67,7 @@ export class BookingService {
   constructor(
     @Inject(DB) private readonly db: Database,
     @Inject(ENV) private readonly env: Env,
+    private readonly availability: AvailabilityService,
     private readonly pricing: PricingService,
     private readonly products: ProductService,
     private readonly restrictions: CustomerRestrictionService,
@@ -174,9 +176,16 @@ export class BookingService {
       });
     }
 
-    // ---- hold must still be live ----
+    // ---- hold must still be live, or capacity must be freshly re-verified ----
+    // A quote requested with `hold:false` never placed an inventory hold, so nothing here has
+    // actually confirmed a unit is still free for it — confirming blind would let a client
+    // switch off the whole capacity check just by choosing that flag. checkAndHold() re-runs the
+    // exact same advisory-locked availability computation a live hold already relies on, and the
+    // resulting hold is consumed below exactly like a real one — `hold:false` still never shows a
+    // hold to the caller, but capacity is genuinely, atomically re-verified right before payment.
     let heldUnitPinned = false;
     let heldUnitId: string | null = null;
+    let holdId: string | null = quote.holdId;
     if (quote.holdId) {
       const [h] = await this.db.select().from(hold).where(eq(hold.id, quote.holdId)).limit(1);
       if (!h || h.status !== 'active' || new Date(h.expiresAt).getTime() < Date.now()) {
@@ -185,8 +194,22 @@ export class BookingService {
           params: { reason: 'hold_expired' },
         });
       }
-      heldUnitPinned = true;
+      heldUnitPinned = h.unitId !== null;
       heldUnitId = h.unitId;
+    } else {
+      const fresh = await this.availability.checkAndHold({
+        actor: input.actor,
+        organizationId: orgId,
+        categoryCode: quote.categoryCode,
+        pickupLocationCode: quote.pickupLocationCode,
+        returnLocationCode: quote.returnLocationCode,
+        pickupAt: new Date(quote.pickupAt),
+        returnAt: new Date(quote.returnAt),
+        holderKey: input.actor?.accountId ?? input.holderKey ?? `confirm-${reference}`,
+      });
+      holdId = fresh.id;
+      heldUnitPinned = fresh.unitId !== null;
+      heldUnitId = fresh.unitId;
     }
 
     // ---- extras / protection (FR-ADM-006, S7-DEF-004) ----
@@ -278,7 +301,7 @@ export class BookingService {
             durationHours: quote.durationHours,
             quoteReference: input.quoteReference,
             quoteVersion: quote.version,
-            holdId: quote.holdId ?? null,
+            holdId,
             unitId: heldUnitId,
             currency: quote.currency,
             subtotalMinor,
@@ -356,7 +379,7 @@ export class BookingService {
           ipHash: input.ipHash ?? null,
         });
 
-        if (quote.holdId) {
+        if (holdId) {
           await tx
             .update(hold)
             .set({
@@ -365,7 +388,7 @@ export class BookingService {
               releaseReason: 'confirmed',
               updatedAt: sql`now()`,
             })
-            .where(eq(hold.id, quote.holdId));
+            .where(eq(hold.id, holdId));
         }
 
         await this.outbox.emit(

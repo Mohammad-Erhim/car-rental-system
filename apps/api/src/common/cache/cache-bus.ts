@@ -1,29 +1,25 @@
-import { Inject, Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
-import { Redis } from 'ioredis';
+import { Injectable, Logger } from '@nestjs/common';
+import type { Redis } from 'ioredis';
 
-import { ENV } from '../../config/config.module';
-import type { Env } from '../../config/env.schema';
+import { SharedRedisService } from '../redis/redis.module';
 
 /**
  * Lightweight Redis-backed cache + invalidation bus (SRS-LKP-011). Consuming surfaces cache
  * lookup/config responses by ETag; a mutation `publish()`es an invalidation so stale clients
  * revalidate before a consequential commit. Cache failure never changes authoritative behaviour.
+ *
+ * Uses the app-wide shared connection ({@link SharedRedisService}) rather than opening its own —
+ * see that module's header for why.
  */
 @Injectable()
-export class CacheBus implements OnModuleDestroy {
+export class CacheBus {
   private readonly logger = new Logger('CacheBus');
-  private client: Redis | null = null;
-  private subscriber: Redis | null = null;
   private readonly handlers = new Map<string, Set<(payload: string) => void>>();
 
-  constructor(@Inject(ENV) private readonly env: Env) {}
+  constructor(private readonly shared: SharedRedisService) {}
 
   private get redis(): Redis {
-    if (!this.client) {
-      this.client = new Redis(this.env.REDIS_URL, { lazyConnect: false, maxRetriesPerRequest: 2 });
-      this.client.on('error', (e) => this.logger.warn(`redis: ${e.message}`));
-    }
-    return this.client;
+    return this.shared.client;
   }
 
   /** Bump the version counter for a cache namespace and broadcast an invalidation. */
@@ -49,10 +45,5 @@ export class CacheBus implements OnModuleDestroy {
     } catch {
       return 0;
     }
-  }
-
-  async onModuleDestroy(): Promise<void> {
-    await this.client?.quit().catch(() => {});
-    await this.subscriber?.quit().catch(() => {});
   }
 }

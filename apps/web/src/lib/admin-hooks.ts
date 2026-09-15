@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { apiFetch, getAccessToken } from './api.js';
+import { apiFetch, getAccessToken, getRefreshHandler } from './api.js';
 import { useWorkflowError } from './use-workflow-error.js';
 
 const BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api/v1';
@@ -200,11 +200,22 @@ export function useSendReportSchedule() {
 
 /** Fetch a completed run as CSV text (the endpoint returns text/csv, not JSON). */
 export async function fetchReportCsv(runId: string): Promise<string> {
-  const token = getAccessToken();
-  const res = await fetch(`${BASE}/ops/reports/runs/${runId}/export`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    credentials: 'include',
-  });
+  const doFetch = () => {
+    const token = getAccessToken();
+    return fetch(`${BASE}/ops/reports/runs/${runId}/export`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: 'include',
+    });
+  };
+
+  let res = await doFetch();
+  // this call bypasses apiFetch (it needs the raw text/csv body, which apiFetch always
+  // JSON-parses) so it also bypasses apiFetch's silent-401-refresh-and-retry — reuse the same
+  // registered refresh handler here rather than failing outright on an expired access token.
+  if (res.status === 401) {
+    const refresh = getRefreshHandler();
+    if (refresh && (await refresh())) res = await doFetch();
+  }
   if (!res.ok) {
     // surface the API's own message (e.g. "This report run covers locations outside your
     // scope") instead of a bare status code — this call bypasses apiFetch/ApiError since it

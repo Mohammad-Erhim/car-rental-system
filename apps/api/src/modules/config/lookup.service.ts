@@ -427,18 +427,35 @@ export class LookupService {
 
     if (input.isDefault) await this.demoteDefaults(typeCode, row.scopeKey, actor, valueId);
 
-    await this.db
+    // guard the UPDATE itself on the loaded version so two concurrent saves can't both win
+    // (the earlier compare above is TOCTOU on its own — this is the atomic check)
+    const versionGuard =
+      expectedVersion !== undefined
+        ? and(eq(lookupValue.id, valueId), eq(lookupValue.version, expectedVersion))
+        : eq(lookupValue.id, valueId);
+
+    const [updated] = await this.db
       .update(lookupValue)
       .set({
         defaultLabel: input.label ?? row.defaultLabel,
         sortOrder: input.sortOrder ?? row.sortOrder,
         isDefault: input.isDefault ?? row.isDefault,
         attributes: input.attributes ?? row.attributes,
-        version: row.version + 1,
+        version: sql`${lookupValue.version} + 1`,
         updatedAt: sql`now()`,
         updatedBy: actor.accountId,
       })
-      .where(eq(lookupValue.id, valueId));
+      .where(versionGuard)
+      .returning();
+
+    if (!updated) {
+      const [current] = await this.db
+        .select({ version: lookupValue.version })
+        .from(lookupValue)
+        .where(eq(lookupValue.id, valueId))
+        .limit(1);
+      throw AppError.conflict(current?.version ?? row.version);
+    }
 
     if (input.label || input.translations) {
       await this.writeTranslations(

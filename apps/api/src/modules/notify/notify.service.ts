@@ -244,7 +244,12 @@ export class NotifyService {
     });
     try {
       await transporter.sendMail({
-        from: smtp.fromName ? `"${smtp.fromName}" <${smtp.fromAddress}>` : smtp.fromAddress,
+        // A structured {name, address} object (rather than a hand-built `"name" <addr>` string)
+        // so nodemailer's own address formatter escapes/quotes the display name correctly — a
+        // dashboard-saved fromName containing a stray `"` can no longer break out of the quoted
+        // portion and append a second address or inject header lines (defense in depth alongside
+        // the character-class validation on save, see email-config.controller.ts).
+        from: smtp.fromName ? { name: smtp.fromName, address: smtp.fromAddress } : smtp.fromAddress,
         to,
         subject: subject ?? undefined,
         html,

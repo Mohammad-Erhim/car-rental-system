@@ -39,7 +39,13 @@ export async function createApp(): Promise<NestExpressApplication> {
   app.set('trust proxy', 1);
   app.use(
     helmet({
-      contentSecurityPolicy: env.NODE_ENV === 'production' ? undefined : false,
+      // Explicit `true`/`false` rather than `undefined` — helmet treats an explicit `undefined`
+      // identically to `true` (applies its own default CSP; verified against helmet 7.1.0's
+      // source), so behaviour is unchanged, but that merge rule is easy to get wrong reading this
+      // call site in isolation. In production this is helmet's default directive set (self-only,
+      // no inline/eval) — safe for this app's JSON API surface; Swagger UI (which would need
+      // relaxing that) is not mounted in production at all, see below.
+      contentSecurityPolicy: env.NODE_ENV === 'production' ? true : false,
       crossOriginEmbedderPolicy: false,
     }),
   );
@@ -84,12 +90,22 @@ export async function createApp(): Promise<NestExpressApplication> {
     .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'access-token')
     .addCookieAuth('refresh_token')
     .build();
+  // Always build the document — `pnpm openapi:generate` / `--check` (verify:static) reuse this
+  // exact object via the exported `openapiDocument`, and NODE_ENV there is dev/CI, never
+  // production, so this never runs in a real prod boot. `createDocument` only builds metadata; it
+  // doesn't mount any route, so building it is free of the exposure below.
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/v1/docs', app, document, {
-    jsonDocumentUrl: 'api/v1/openapi.json',
-    swaggerOptions: { persistAuthorization: true },
-  });
   openapiDocument = document;
+
+  // The interactive UI + JSON spec at a public URL is a deliberate call, not a given — full
+  // schema/route documentation in production is more than this app needs to disclose by default.
+  // Gated off there (the safer default); flip this if that's a conscious product decision instead.
+  if (env.NODE_ENV !== 'production') {
+    SwaggerModule.setup('api/v1/docs', app, document, {
+      jsonDocumentUrl: 'api/v1/openapi.json',
+      swaggerOptions: { persistAuthorization: true },
+    });
+  }
 
   return app;
 }

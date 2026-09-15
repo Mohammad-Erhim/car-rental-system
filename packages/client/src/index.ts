@@ -10,6 +10,7 @@ export {
   setAccessToken,
   getAccessToken,
   registerRefreshHandler,
+  getRefreshHandler,
   registerStepUpHandler,
 } from './token-store';
 export { createQueryClient, type QueryClientOptions } from './query-client';

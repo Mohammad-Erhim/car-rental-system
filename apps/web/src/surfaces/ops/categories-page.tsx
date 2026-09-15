@@ -588,31 +588,35 @@ export function CategoriesPage() {
                   {t('ops.cat.manageFeaturesHint')}
                 </p>
                 <div className="flex flex-wrap gap-x-4 gap-y-1" data-testid="category-features">
-                  {(features.data ?? []).map((f) => {
-                    const checked = form.featureCodes.includes(f.code);
-                    const selectable = f.isActive || checked;
-                    return (
-                      <label
-                        key={f.code}
-                        className={`flex items-center gap-1.5 text-sm ${selectable ? '' : 'opacity-50'}`}
-                        title={f.isActive ? undefined : t('ops.cat.featureInactiveHint')}
-                      >
-                        <Checkbox
-                          checked={checked}
-                          disabled={!selectable}
-                          onChange={() =>
-                            set({
-                              featureCodes: checked
-                                ? form.featureCodes.filter((x) => x !== f.code)
-                                : [...form.featureCodes, f.code],
-                            })
-                          }
-                        />
-                        {f.label}
-                        {f.isActive ? null : ` (${t('ops.cat.inactive').toLowerCase()})`}
-                      </label>
-                    );
-                  })}
+                  {features.isLoading ? (
+                    <p className="text-sm text-muted-foreground">{t('ops.st.loading')}</p>
+                  ) : (
+                    (features.data ?? []).map((f) => {
+                      const checked = form.featureCodes.includes(f.code);
+                      const selectable = f.isActive || checked;
+                      return (
+                        <label
+                          key={f.code}
+                          className={`flex items-center gap-1.5 text-sm ${selectable ? '' : 'opacity-50'}`}
+                          title={f.isActive ? undefined : t('ops.cat.featureInactiveHint')}
+                        >
+                          <Checkbox
+                            checked={checked}
+                            disabled={!selectable}
+                            onChange={() =>
+                              set({
+                                featureCodes: checked
+                                  ? form.featureCodes.filter((x) => x !== f.code)
+                                  : [...form.featureCodes, f.code],
+                              })
+                            }
+                          />
+                          {f.label}
+                          {f.isActive ? null : ` (${t('ops.cat.inactive').toLowerCase()})`}
+                        </label>
+                      );
+                    })
+                  )}
                 </div>
               </fieldset>
 
@@ -633,7 +637,10 @@ export function CategoriesPage() {
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">{t('ops.cat.featuresCardHint')}</p>
           <ul className="divide-y divide-hairline" data-testid="features-list">
-            {(features.data ?? []).map((f) => (
+            {features.isLoading ? (
+              <li className="py-2 text-sm text-muted-foreground">{t('ops.st.loading')}</li>
+            ) : null}
+            {(features.isLoading ? [] : (features.data ?? [])).map((f) => (
               <li
                 key={f.code}
                 className="flex flex-wrap items-center justify-between gap-2 py-2"
@@ -665,7 +672,7 @@ export function CategoriesPage() {
                 ) : null}
               </li>
             ))}
-            {!features.data?.length ? (
+            {!features.isLoading && !features.data?.length ? (
               <li className="py-2 text-sm text-muted-foreground">{t('ops.cat.noFeaturesYet')}</li>
             ) : null}
           </ul>

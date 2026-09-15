@@ -156,9 +156,11 @@ export class RentalService {
             id: vehicleUnit.id,
             state: vehicleUnit.state,
             categoryCode: vehicleCategory.code,
+            locationCode: location.code,
           })
           .from(vehicleUnit)
           .innerJoin(vehicleCategory, eq(vehicleCategory.id, vehicleUnit.categoryId))
+          .innerJoin(location, eq(location.id, vehicleUnit.currentLocationId))
           .where(eq(vehicleUnit.id, unitId))
           .limit(1);
         if (!unit) throw AppError.notFound('vehicle unit');
@@ -166,6 +168,17 @@ export class RentalService {
           throw AppError.businessRule('That vehicle is a different category than what was booked', {
             reason: 'category_mismatch',
           });
+        }
+        // Same guarantee the auto-pick pool (joined on `location.code` above) and the
+        // customer-preferred-pin path (validated at hold time) already give for free — a manual
+        // override skips both, so without this a same-category car sitting at a DIFFERENT branch
+        // could be committed here and the customer would arrive to a pickup location with no
+        // matching vehicle.
+        if (unit.locationCode !== res.pickupLocationCode) {
+          throw AppError.businessRule(
+            "That vehicle is at a different location than this reservation's pickup location",
+            { reason: 'location_mismatch' },
+          );
         }
         const [clash] = await tx
           .select({ id: rental.id })
@@ -343,7 +356,20 @@ export class RentalService {
     input: { newReturnAt: string; paymentToken?: string },
   ) {
     const row = await this.load(reference);
-    this.assertInScope(actor, row.pickupLocationCode);
+    const [res] = await this.db
+      .select()
+      .from(reservation)
+      .where(eq(reservation.reference, row.reservationReference))
+      .limit(1);
+    if (!res) throw AppError.notFound('reservation');
+    // A customer may only extend their own rental — mirrors ReservationOpsService's
+    // assertOwnerOrStaff. assertInScope alone doesn't cover this: a customer actor's
+    // locationScope is always empty, so the scope check silently passes for anyone.
+    if (actor.kind === 'staff') {
+      this.assertInScope(actor, row.pickupLocationCode);
+    } else if (res.accountId !== actor.accountId) {
+      throw AppError.forbidden('This rental belongs to another account');
+    }
     if (!['active', 'overdue'].includes(row.state)) {
       throw AppError.businessRule(`A ${row.state} rental cannot be extended`, {
         reason: row.state,
@@ -357,20 +383,15 @@ export class RentalService {
     }
     const orgId = await this.orgId();
     const pickupYmd = new Date(row.scheduledPickupAt).toISOString().slice(0, 10);
-    const [res] = await this.db
-      .select()
-      .from(reservation)
-      .where(eq(reservation.reference, row.reservationReference))
-      .limit(1);
     const oldPriced = await this.pricing.priceWindow(
-      res!.categoryCode,
+      res.categoryCode,
       row.pickupLocationCode,
       new Date(row.scheduledPickupAt),
       new Date(row.scheduledReturnAt),
       pickupYmd,
     );
     const newPriced = await this.pricing.priceWindow(
-      res!.categoryCode,
+      res.categoryCode,
       row.pickupLocationCode,
       new Date(row.scheduledPickupAt),
       newReturn,

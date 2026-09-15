@@ -21,6 +21,18 @@ export interface RequestOptions {
 let refreshing: Promise<boolean> | null = null;
 let steppingUp: Promise<boolean> | null = null;
 
+// Must match `CSRF_COOKIE` in apps/api/src/modules/iam/iam.cookies.ts — duplicated rather than
+// imported since a package may not depend on an app. Deliberately non-HttpOnly on the server side
+// so this can read it; echoing it back as a header is the double-submit half of CsrfGuard's
+// defense for the cookie-authenticated auth endpoints (refresh / sign-out).
+const CSRF_COOKIE = 'carrental_csrf';
+
+function readCsrfCookie(): string | null {
+  if (typeof document === 'undefined') return null; // SSR — no cookie jar to read
+  const match = document.cookie.match(new RegExp(`(?:^|; )${CSRF_COOKIE}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]!) : null;
+}
+
 function newCorrelationId(): string {
   const { correlationPrefix } = getClientConfig();
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -54,6 +66,13 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
   if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
   if (opts.idempotencyKey) headers['Idempotency-Key'] = opts.idempotencyKey;
   if (opts.ifMatch !== undefined) headers['If-Match'] = String(opts.ifMatch);
+  // only relevant to cookie-authenticated writes (CsrfGuard only ever fires when the refresh
+  // cookie is present), but harmless to attach on every mutation — cheaper than special-casing
+  // which specific endpoints the guard happens to be decorated onto.
+  if (opts.method && opts.method !== 'GET') {
+    const csrf = readCsrfCookie();
+    if (csrf) headers['X-CSRF-Token'] = csrf;
+  }
 
   const accessToken = getAccessToken();
   if (!opts.anonymous && accessToken) headers.Authorization = `Bearer ${accessToken}`;

@@ -70,7 +70,14 @@ export class ProfileService {
       communicationPrefs: cust.communicationPrefs,
     };
 
-    await this.db
+    // guard the UPDATE itself on the loaded version so two concurrent saves can't both win
+    // (the earlier compare above is TOCTOU on its own — this is the atomic check)
+    const versionGuard =
+      expectedVersion !== undefined
+        ? and(eq(customer.id, cust.id), eq(customer.version, expectedVersion))
+        : eq(customer.id, cust.id);
+
+    const [updated] = await this.db
       .update(customer)
       .set({
         fullName: patch.fullName ?? cust.fullName,
@@ -78,11 +85,21 @@ export class ProfileService {
         timezone: patch.timezone ?? cust.timezone,
         address: patch.address ?? cust.address,
         communicationPrefs: { ...cust.communicationPrefs, ...(patch.communicationPrefs ?? {}) },
-        version: cust.version + 1,
+        version: sql`${customer.version} + 1`,
         updatedAt: sql`now()`,
         updatedBy: actor.accountId,
       })
-      .where(eq(customer.id, cust.id));
+      .where(versionGuard)
+      .returning();
+
+    if (!updated) {
+      const [current] = await this.db
+        .select({ version: customer.version })
+        .from(customer)
+        .where(eq(customer.id, cust.id))
+        .limit(1);
+      throw AppError.conflict(current?.version ?? cust.version);
+    }
 
     if (patch.localeCode || patch.fullName) {
       await this.accounts.update(actor.accountId, {

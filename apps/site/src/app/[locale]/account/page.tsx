@@ -68,7 +68,11 @@ export default function AccountOverviewPage() {
           </Button>
         </div>
 
-        {!trips.data?.length ? (
+        {trips.isLoading ? (
+          <p className="mt-4 text-sm text-ink-muted" data-testid="account-trips-loading">
+            {t('state.loading.title')}
+          </p>
+        ) : !trips.data?.length ? (
           <p className="mt-4 text-sm text-ink-muted" data-testid="account-trips-empty">
             {t('account.noTripsYet')}
           </p>

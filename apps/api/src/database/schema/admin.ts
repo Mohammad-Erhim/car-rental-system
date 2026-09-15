@@ -126,6 +126,13 @@ export const reportSchedule = pgTable(
     isActive: text('is_active').notNull().default('true'),
     lastRunAt: timestamp('last_run_at', { withTimezone: true, mode: 'string' }),
     lastSkipReason: text('last_skip_reason'),
+    /** Set together, cleared together — the outstanding half of an in-flight delivery cycle that
+     *  failed partway through (`ReportService.sendScheduleNow`). `pendingRunId` pins the
+     *  already-generated `report_run` so a retry never re-runs the report or re-sends to a
+     *  recipient who got it on a prior attempt; `pendingRecipients` narrows to just who's still
+     *  owed. Both `null` when nothing is in flight (the common case). */
+    pendingRunId: uuid('pending_run_id'),
+    pendingRecipients: jsonb('pending_recipients').$type<string[] | null>(),
   },
   (t) => ({ orgIdx: index('report_schedule_org_idx').on(t.organizationId, t.definitionCode) }),
 );

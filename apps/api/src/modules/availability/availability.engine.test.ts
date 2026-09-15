@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  computeAvailability,
-  isUnitFree,
-  overlaps,
-  pickFreeUnit,
-  type Interval,
-} from './availability.engine';
+import { computeAvailability, isUnitFree, overlaps, type Interval } from './availability.engine';
 
 const H = 3_600_000;
 const t = (day: number, hour = 10) => Date.UTC(2026, 0, day, hour); // Jan 2026
@@ -123,21 +117,5 @@ describe('computeAvailability', () => {
       classHolds: 0,
     });
     expect(r.freeUnitIds).toEqual(['u2']);
-  });
-});
-
-describe('pickFreeUnit', () => {
-  const request = win(10, 13);
-  it('returns the first candidate with no fresh conflict', () => {
-    const picked = pickFreeUnit(
-      request,
-      ['u1', 'u2', 'u3'],
-      { u1: [win(11, 12)], u2: [win(1, 2)] },
-      H,
-    );
-    expect(picked).toBe('u2');
-  });
-  it('returns null when every candidate was just taken', () => {
-    expect(pickFreeUnit(request, ['u1'], { u1: [win(10, 13)] }, 0)).toBeNull();
   });
 });

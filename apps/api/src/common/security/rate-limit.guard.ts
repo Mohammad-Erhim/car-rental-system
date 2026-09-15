@@ -1,11 +1,12 @@
 import { CanActivate, ExecutionContext, Inject, Injectable, Logger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
-import { Redis } from 'ioredis';
+import type { Redis } from 'ioredis';
 
 import { ENV } from '../../config/config.module';
 import type { Env } from '../../config/env.schema';
 import { AppError, ERROR_CODE } from '../app-error';
+import { SharedRedisService } from '../redis/redis.module';
 
 import { RATE_LIMIT_KEY, type RateLimitOptions } from './rate-limit.decorator';
 
@@ -14,23 +15,22 @@ import { RATE_LIMIT_KEY, type RateLimitOptions } from './rate-limit.decorator';
  * bucket + client IP. Redis-backed so it holds across workers; **fails open** on a Redis error
  * (availability over strict limiting for this deployment). Registered as an APP_GUARD ahead of
  * AuthGuard so unauthenticated floods are capped too.
+ *
+ * Uses the app-wide shared connection ({@link SharedRedisService}) rather than opening its own —
+ * see that module's header for why.
  */
 @Injectable()
 export class RateLimitGuard implements CanActivate {
   private readonly logger = new Logger('RateLimitGuard');
-  private client: Redis | null = null;
 
   constructor(
     private readonly reflector: Reflector,
     @Inject(ENV) private readonly env: Env,
+    private readonly shared: SharedRedisService,
   ) {}
 
   private get redis(): Redis {
-    if (!this.client) {
-      this.client = new Redis(this.env.REDIS_URL, { lazyConnect: false, maxRetriesPerRequest: 1 });
-      this.client.on('error', (e) => this.logger.warn(`redis: ${e.message}`));
-    }
-    return this.client;
+    return this.shared.client;
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -84,8 +84,13 @@ export class RateLimitGuard implements CanActivate {
   }
 }
 
+// `req.ip` (with `app.set('trust proxy', ...)` configured in bootstrap.ts) is Express's own
+// already-correct resolution of the real client IP from the *trusted* hop of X-Forwarded-For.
+// Reading the raw header here instead let any caller bypass every limit in this guard outright:
+// nginx appends to X-Forwarded-For rather than replacing it, so a client-supplied leftmost value
+// (e.g. `X-Forwarded-For: 1.2.3.4`) arrived intact and was trusted verbatim — rotate it per
+// request and there is no limit at all. Every other IP consumer in this codebase already uses
+// `req.ip`; this was the one exception.
 function clientIp(req: Request): string {
-  const fwd = req.headers['x-forwarded-for'];
-  if (typeof fwd === 'string' && fwd.length) return fwd.split(',')[0]!.trim();
   return req.ip ?? req.socket.remoteAddress ?? 'unknown';
 }

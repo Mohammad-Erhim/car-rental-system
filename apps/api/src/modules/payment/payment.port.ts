@@ -69,9 +69,23 @@ export class PaymentProviderConfigError extends Error {
 
 export abstract class PaymentPort {
   abstract authorize(input: AuthorizeInput): Promise<PaymentResult>;
-  abstract capture(providerRef: string, amountMinor: number): Promise<PaymentResult>;
+  /** `idempotencyKey` should be stable per logical capture (e.g. derived from the intent id) so a
+   *  concurrent or retried capture on the same intent is deduplicated by the provider instead of
+   *  the second call failing "already captured" against an intent the first call already settled. */
+  abstract capture(
+    providerRef: string,
+    amountMinor: number,
+    idempotencyKey?: string,
+  ): Promise<PaymentResult>;
   abstract void(providerRef: string): Promise<void>;
-  abstract refund(providerRef: string, amountMinor: number): Promise<PaymentResult>;
+  /** `idempotencyKey` should be stable per logical refund (e.g. derived from the intent id) so a
+   *  retried or racing refund call is deduplicated by the provider rather than issuing a second,
+   *  real refund. */
+  abstract refund(
+    providerRef: string,
+    amountMinor: number,
+    idempotencyKey?: string,
+  ): Promise<PaymentResult>;
 }
 
 function brandFor(token: string): { brand: string; last4: string } {
@@ -114,7 +128,11 @@ export class SimulatorPaymentAdapter extends PaymentPort {
     return { providerRef, brand, last4, customerRef, methodRef };
   }
 
-  async capture(providerRef: string, _amountMinor: number): Promise<PaymentResult> {
+  async capture(
+    providerRef: string,
+    _amountMinor: number,
+    _idempotencyKey?: string,
+  ): Promise<PaymentResult> {
     if (providerRef.includes('capture_fail')) throw new PaymentDeclinedError('capture_failed');
     this.captured.add(providerRef);
     const { brand, last4 } = brandFor(providerRef);
@@ -125,7 +143,11 @@ export class SimulatorPaymentAdapter extends PaymentPort {
     // no-op in the simulator
   }
 
-  async refund(providerRef: string, _amountMinor: number): Promise<PaymentResult> {
+  async refund(
+    providerRef: string,
+    _amountMinor: number,
+    _idempotencyKey?: string,
+  ): Promise<PaymentResult> {
     const { brand, last4 } = brandFor(providerRef);
     return { providerRef: providerRef.replace(/auth|cap/, 'ref'), brand, last4 };
   }

@@ -1,6 +1,11 @@
+import type { InvoiceView } from '@carrental/client/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiFetch } from './api.js';
+
+// `InvoiceView` is shared with `apps/site` (byte-identical shape, different endpoint per app) —
+// it lives in `@carrental/client/react`. Re-exported here so existing ops imports keep working.
+export type { InvoiceView };
 
 export interface LegalProfile {
   legalName: string | null;
@@ -13,45 +18,6 @@ export interface LegalProfileInput {
   legalName: string;
   taxId: string;
   registeredAddress: Record<string, string>;
-}
-
-export interface InvoiceView {
-  number: string;
-  docVersion: number;
-  kind: 'invoice' | 'credit_note';
-  previousNumber: string | null;
-  reservationReference: string;
-  currency: string;
-  subtotalMinor: number;
-  taxMinor: number;
-  totalMinor: number;
-  reason: string | null;
-  issuedAt: string;
-  snapshot: {
-    org: {
-      tradingName: string;
-      legalName: string;
-      taxId: string;
-      registeredAddress: Record<string, string>;
-    };
-    customer: { fullName: string | null; email: string | null };
-    trip: {
-      categoryCode: string;
-      pickupLocationCode: string;
-      returnLocationCode: string;
-      pickupAt: string;
-      returnAt: string;
-      pickedUnit: { make: string | null; model: string | null; colour: string | null } | null;
-    };
-    lines: Array<{
-      kind: string;
-      code: string;
-      label: string;
-      quantity: number;
-      unitMinor: number;
-      amountMinor: number;
-    }>;
-  };
 }
 
 const LEGAL_PROFILE_KEY = ['ops', 'organization', 'legal'];

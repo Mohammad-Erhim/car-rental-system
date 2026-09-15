@@ -58,6 +58,32 @@ describe('IAM / auth', () => {
     expect(me.body.profile.email).toBe(email);
   });
 
+  it('register rejects a returnTo that is not a same-origin relative path', async () => {
+    const email = `redirect-${uniq}@example.test`;
+    const bad = await request(server)
+      .post('/api/v1/auth/register')
+      .send({
+        fullName: 'Redirect Test',
+        email,
+        password: 'Sup3rSecret!!',
+        acceptTerms: true,
+        returnTo: 'https://evil.example/phish',
+      })
+      .expect(422);
+    expect(bad.body.fieldErrors?.[0]?.path).toBe('returnTo');
+
+    await request(server)
+      .post('/api/v1/auth/register')
+      .send({
+        fullName: 'Redirect Test',
+        email,
+        password: 'Sup3rSecret!!',
+        acceptTerms: true,
+        returnTo: '/checkout?step=review',
+      })
+      .expect(201);
+  });
+
   it('TEST-IAM-001 duplicate registration routes to sign-in, does not create a second account', async () => {
     const email = `dupe-${uniq}@example.test`;
     await request(server)
@@ -104,13 +130,29 @@ describe('IAM / auth', () => {
       .expect(201);
     const rt1 = cookieFrom(first, 'carrental_rt');
 
-    const r2 = await request(server).post('/api/v1/auth/refresh').set('Cookie', rt1).expect(201);
+    // CsrfGuard requires either an allowed Origin or the double-submit token on a cookie-authed
+    // write; a real browser always sends Origin on a same-origin POST, so simulate that here
+    // rather than the double-submit dance (already covered by security.spec.ts's own CSRF tests).
+    const origin = 'http://localhost:3000';
+    const r2 = await request(server)
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', rt1)
+      .set('Origin', origin)
+      .expect(201);
     const rt2 = cookieFrom(r2, 'carrental_rt');
     expect(rt2).not.toBe(rt1);
 
     // reusing rt1 is now a security event -> 401 and the family is revoked
-    await request(server).post('/api/v1/auth/refresh').set('Cookie', rt1).expect(401);
-    await request(server).post('/api/v1/auth/refresh').set('Cookie', rt2).expect(401);
+    await request(server)
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', rt1)
+      .set('Origin', origin)
+      .expect(401);
+    await request(server)
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', rt2)
+      .set('Origin', origin)
+      .expect(401);
   });
 
   it('TEST-IAM-004 recovery: neutral response, single-use code, sessions invalidated', async () => {
@@ -158,10 +200,12 @@ describe('IAM / auth', () => {
       })
       .expect(422);
 
-    // old session's refresh token is dead
+    // old session's refresh token is dead. Origin set for the same reason as TEST-IAM-003 above —
+    // a real browser sends it on a same-origin POST; supertest doesn't unless told to.
     await request(server)
       .post('/api/v1/auth/refresh')
       .set('Cookie', session.refreshCookie)
+      .set('Origin', 'http://localhost:3000')
       .expect(401);
 
     // new password works
@@ -201,6 +245,54 @@ describe('IAM / auth', () => {
       .expect(409);
     expect(stale.body.code).toBe('version_conflict');
     expect(stale.body.currentVersion).toBeGreaterThan(p0.body.version);
+  });
+
+  it('TEST-IAM-006 profile: two genuinely concurrent saves at the same starting version cannot both win', async () => {
+    const email = `prof-race-${uniq}@example.test`;
+    const reg = await request(server)
+      .post('/api/v1/auth/register')
+      .send({ fullName: 'P', email, password: 'Sup3rSecret!!', acceptTerms: true })
+      .expect(201);
+    const v = await request(server)
+      .post('/api/v1/auth/verify-contact')
+      .send({ challengeId: reg.body.challengeId, code: reg.body.devCode })
+      .expect(201);
+    const token = v.body.accessToken as string;
+
+    const p0 = await request(server)
+      .get('/api/v1/auth/profile')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    // fired concurrently against the SAME starting version — a sequential await-then-await (as
+    // above) wouldn't exercise the actual UPDATE...WHERE race.
+    const [a, b] = await Promise.allSettled([
+      request(server)
+        .post('/api/v1/auth/profile')
+        .set('Authorization', `Bearer ${token}`)
+        .set('If-Match', String(p0.body.version))
+        .send({ fullName: 'Race A' }),
+      request(server)
+        .post('/api/v1/auth/profile')
+        .set('Authorization', `Bearer ${token}`)
+        .set('If-Match', String(p0.body.version))
+        .send({ fullName: 'Race B' }),
+    ]);
+
+    const results = [a, b].map((r) => (r.status === 'fulfilled' ? r.value.status : -1));
+    expect(results.filter((s) => s === 201)).toHaveLength(1);
+    expect(results.filter((s) => s === 409)).toHaveLength(1);
+    const loser = [a, b].find((r) => r.status === 'fulfilled' && r.value.status === 409) as
+      | PromiseFulfilledResult<request.Response>
+      | undefined;
+    expect(loser?.value.body.code).toBe('version_conflict');
+
+    const after = await request(server)
+      .get('/api/v1/auth/profile')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(['Race A', 'Race B']).toContain(after.body.fullName);
+    expect(after.body.version).toBe(p0.body.version + 1);
   });
 
   it('TEST-IAM-008 closure request is created blocked with a retention blocker', async () => {

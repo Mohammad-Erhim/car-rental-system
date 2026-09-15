@@ -184,7 +184,9 @@ describe('reversible customer merge (FR-ADM-001)', () => {
       .set('Authorization', `Bearer ${admin}`)
       .expect(200);
     expect(
-      survWithRes.body.reservations.some((r: { reference: string }) => r.reference === reservationRef),
+      survWithRes.body.reservations.some(
+        (r: { reference: string }) => r.reference === reservationRef,
+      ),
     ).toBe(true);
 
     const dupWithoutRes = await request(server)
@@ -192,7 +194,9 @@ describe('reversible customer merge (FR-ADM-001)', () => {
       .set('Authorization', `Bearer ${admin}`)
       .expect(200);
     expect(
-      dupWithoutRes.body.reservations.some((r: { reference: string }) => r.reference === reservationRef),
+      dupWithoutRes.body.reservations.some(
+        (r: { reference: string }) => r.reference === reservationRef,
+      ),
     ).toBe(false);
 
     await request(server)
@@ -205,7 +209,9 @@ describe('reversible customer merge (FR-ADM-001)', () => {
       .set('Authorization', `Bearer ${admin}`)
       .expect(200);
     expect(
-      dupRestored.body.reservations.some((r: { reference: string }) => r.reference === reservationRef),
+      dupRestored.body.reservations.some(
+        (r: { reference: string }) => r.reference === reservationRef,
+      ),
     ).toBe(true);
   });
 });

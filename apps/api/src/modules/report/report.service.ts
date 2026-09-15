@@ -713,23 +713,80 @@ export class ReportService {
       });
     }
 
+    // Resume, don't restart: a prior attempt that failed partway through already generated the
+    // report and already sent to some recipients — reuse that same run and narrow to only the
+    // recipients still outstanding, instead of calling `run()` again (a fresh runId) and resending
+    // to everyone, including the ones who already got a copy.
+    const resuming = !!sch.pendingRunId && !!sch.pendingRecipients?.length;
+    const outstandingRecipients = resuming ? sch.pendingRecipients! : sch.recipients;
+
     try {
-      const run = await this.run(owner, sch.definitionCode, sch.params);
-      for (const recipient of sch.recipients) {
-        await this.notify.send({
-          event: 'admin.report.delivered',
-          recipient,
-          fallback: {
-            subject: `${run.title} — report`,
-            body:
-              `Your scheduled report "${run.title}" ran with ${run.rowCount} row(s). ` +
-              `Scope: ${run.scopeNote}. Sign in to the operations console → Insights to view or ` +
-              `export the full data.`,
+      const run = resuming
+        ? { runId: sch.pendingRunId!, title: sch.definitionCode, rowCount: 0, scopeNote: '' }
+        : await this.run(owner, sch.definitionCode, sch.params);
+      // A fresh run's report_run row carries the real title/rowCount/scopeNote for the message
+      // body; a resumed one re-derives that same info without generating the report a second
+      // time (the row already exists from the failed attempt).
+      const runInfo = resuming ? await this.reportRunInfo(run.runId) : run;
+
+      // Isolate each recipient: one bad address/notify failure must not stop delivery to the
+      // rest, and must not make the rest look "failed" and get resent next tick.
+      const failed: string[] = [];
+      for (const recipient of outstandingRecipients) {
+        try {
+          await this.notify.send({
+            event: 'admin.report.delivered',
+            recipient,
+            fallback: {
+              subject: `${runInfo.title} — report`,
+              body:
+                `Your scheduled report "${runInfo.title}" ran with ${runInfo.rowCount} row(s). ` +
+                `Scope: ${runInfo.scopeNote}. Sign in to the operations console → Insights to view ` +
+                `or export the full data.`,
+            },
+            sourceType: 'report_run',
+            sourceId: run.runId,
+          });
+        } catch (err) {
+          this.logger.warn(
+            { scheduleId: id, runId: run.runId, err: err instanceof Error ? err.message : err },
+            'report delivery to one recipient failed — isolated, others continue',
+          );
+          failed.push(recipient);
+        }
+      }
+
+      if (failed.length > 0) {
+        // Pin the outstanding set for the next retry and put `lastRunAt` back so it isn't stuck
+        // waiting out a full cron cycle — the recipients who already succeeded are excluded next
+        // time because `outstandingRecipients` (not `sch.recipients`) drives the loop above.
+        await this.db
+          .update(reportSchedule)
+          .set({
+            lastRunAt: sch.lastRunAt,
+            pendingRunId: run.runId,
+            pendingRecipients: failed,
+            lastSkipReason: 'partial_delivery_failure',
+            updatedAt: sql`now()`,
+          })
+          .where(eq(reportSchedule.id, id));
+        await this.audit.record({
+          action: 'report.schedule.partial_failure',
+          targetType: 'report_schedule',
+          targetId: id,
+          actor,
+          after: {
+            runId: run.runId,
+            failed: failed.length,
+            sent: outstandingRecipients.length - failed.length,
           },
-          sourceType: 'report_run',
-          sourceId: run.runId,
+        });
+        throw new AppError('business_rule_violation', {
+          title: `Report delivered to ${outstandingRecipients.length - failed.length}/${outstandingRecipients.length} recipient(s); the rest will retry`,
+          params: { reason: 'partial_delivery_failure', failedCount: failed.length },
         });
       }
+
       await this.outbox.emit({
         type: 'report.delivery.v1',
         aggregateType: 'report_schedule',
@@ -738,12 +795,17 @@ export class ReportService {
           runId: run.runId,
           definitionCode: sch.definitionCode,
           recipients: sch.recipients,
-          rowCount: run.rowCount,
+          rowCount: runInfo.rowCount,
         },
       });
       await this.db
         .update(reportSchedule)
-        .set({ lastSkipReason: null, updatedAt: sql`now()` })
+        .set({
+          lastSkipReason: null,
+          pendingRunId: null,
+          pendingRecipients: null,
+          updatedAt: sql`now()`,
+        })
         .where(eq(reportSchedule.id, id));
       await this.audit.record({
         action: 'report.schedule.sent',
@@ -754,8 +816,12 @@ export class ReportService {
       });
       return { sent: true as const, runId: run.runId, recipients: sch.recipients };
     } catch (err) {
-      // the claim must not cost a legitimate retry: if generating the report or notifying any
-      // recipient actually fails, put `lastRunAt` back so the very next tick (or another manual
+      // A partial-failure retry state was already persisted (with its own `lastRunAt` reset)
+      // above — don't clobber `pendingRunId`/`pendingRecipients` by also running the generic
+      // reset below for that same error.
+      if (err instanceof AppError && err.params?.reason === 'partial_delivery_failure') throw err;
+      // the claim must not cost a legitimate retry: if generating the report itself failed before
+      // any recipient was attempted, put `lastRunAt` back so the very next tick (or another manual
       // click) can try again immediately instead of waiting out a cron cycle.
       await this.db
         .update(reportSchedule)
@@ -763,6 +829,33 @@ export class ReportService {
         .where(eq(reportSchedule.id, id));
       throw err;
     }
+  }
+
+  /** Re-derives the message fields a resumed delivery needs from the already-generated run row,
+   *  without generating the report again. */
+  private async reportRunInfo(
+    runId: string,
+  ): Promise<{ title: string; rowCount: number; scopeNote: string }> {
+    const [row] = await this.db
+      .select({
+        definitionCode: reportRun.definitionCode,
+        rowCount: reportRun.rowCount,
+        scopeNote: reportRun.scopeNote,
+      })
+      .from(reportRun)
+      .where(eq(reportRun.id, runId))
+      .limit(1);
+    if (!row) throw AppError.notFound('report run');
+    const [def] = await this.db
+      .select({ title: reportDefinition.title })
+      .from(reportDefinition)
+      .where(eq(reportDefinition.code, row.definitionCode))
+      .limit(1);
+    return {
+      title: def?.title ?? row.definitionCode,
+      rowCount: row.rowCount,
+      scopeNote: row.scopeNote ?? '',
+    };
   }
 
   /** The Actor the schedule runs as, or `null` if that account may no longer receive it. */

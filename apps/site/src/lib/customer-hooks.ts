@@ -1,122 +1,37 @@
 /**
- * React Query hooks for the authed customer surface on `apps/site` — profile, saved drivers,
- * privacy requests, trips (reservations + rental), and the checkout quote/confirm calls.
- * Ported from the customer-relevant parts of `apps/web/src/lib/{api-hooks,discovery-hooks,
- * reservation-hooks,rental-hooks}.ts` (ops-only hooks left behind).
+ * React Query hooks for the authed customer surface on `apps/site` — trips (reservations +
+ * rental) and the checkout quote/confirm calls that stay site-specific. Profile/drivers/
+ * data-request hooks and the discovery/booking/invoice hooks used to be duplicated here from
+ * `apps/web/src/lib/{api-hooks,discovery-hooks,invoice-hooks}.ts` — they now live in
+ * `@carrental/client/react` and are re-exported below so existing imports keep working.
  */
 'use client';
 
 import { apiFetch } from '@carrental/client';
-import type {
-  AddDriverRequest,
-  AvailabilitySearchResponse,
-  ConfirmBookingRequest,
-  Driver,
-  PrivacyRequest,
-  Profile,
-  Quote,
-  Reservation,
-  VehicleCategory,
-} from '@carrental/contracts';
+import type { InvoiceView } from '@carrental/client/react';
+export {
+  useProfile,
+  useUpdateProfile,
+  useDrivers,
+  useAddDriver,
+  useRemoveDriver,
+  useDataRequests,
+  useCreateDataRequest,
+  useCancelDataRequest,
+  useLocations,
+  useCategory,
+  useAvailabilitySearch,
+  useCreateQuote,
+  useQuoteByRef,
+  useConfirmBooking,
+  useMyReservations,
+  formatMinor,
+  type Location,
+  type SearchArgs,
+  type ReservationResult,
+  type InvoiceView,
+} from '@carrental/client/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-
-import { useLocale } from './nav';
-
-// ---- profile (SCREEN-CUS-011/012) ----
-
-export function useProfile(enabled: boolean) {
-  return useQuery({
-    queryKey: ['profile'],
-    queryFn: ({ signal }) => apiFetch<Profile>('/auth/profile', { signal }),
-    enabled,
-  });
-}
-
-export function useUpdateProfile() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { patch: Record<string, unknown>; version: number }) =>
-      apiFetch<Profile>('/auth/profile', {
-        method: 'POST',
-        body: input.patch,
-        ifMatch: input.version,
-      }),
-    onSuccess: (data) => qc.setQueryData(['profile'], data),
-  });
-}
-
-// ---- saved drivers (SCREEN-CUS-013) ----
-
-export function useDrivers(enabled: boolean) {
-  return useQuery({
-    queryKey: ['drivers'],
-    queryFn: ({ signal }) => apiFetch<Driver[]>('/auth/drivers', { signal }),
-    enabled,
-  });
-}
-
-export function useAddDriver() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: AddDriverRequest) =>
-      apiFetch<Driver>('/auth/drivers', { method: 'POST', body }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['drivers'] }),
-  });
-}
-
-export function useRemoveDriver() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => apiFetch(`/auth/drivers/${id}/remove`, { method: 'POST' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['drivers'] }),
-  });
-}
-
-// ---- privacy / account closure (SCREEN-CUS-024) ----
-
-export function useDataRequests(enabled: boolean) {
-  return useQuery({
-    queryKey: ['data-requests'],
-    queryFn: ({ signal }) => apiFetch<PrivacyRequest[]>('/auth/data-requests', { signal }),
-    enabled,
-  });
-}
-
-export function useCreateDataRequest() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: { kind: 'access' | 'correction' | 'closure'; detail?: string }) =>
-      apiFetch<PrivacyRequest>('/auth/data-requests', { method: 'POST', body }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['data-requests'] }),
-  });
-}
-
-export function useCancelDataRequest() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => apiFetch(`/auth/data-requests/${id}/cancel`, { method: 'POST' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['data-requests'] }),
-  });
-}
-
-// ---- discovery / checkout (SCREEN-CUS-004..009) ----
-
-export interface Location {
-  id: string;
-  code: string;
-  name: string;
-  timezone: string;
-  afterHoursReturn: boolean;
-  regularHours: Array<{ day: number; open?: string; close?: string; closed?: boolean }>;
-}
-
-export function useLocations() {
-  return useQuery({
-    queryKey: ['config', 'locations'],
-    queryFn: ({ signal }) => apiFetch<Location[]>('/config/locations', { signal, anonymous: true }),
-    staleTime: 5 * 60 * 1000,
-  });
-}
 
 /**
  * The org's live payment provider mode (SCREEN-CUS-004/006, STAGE-003) — read anonymously so
@@ -135,66 +50,6 @@ export function usePaymentMode() {
     queryFn: ({ signal }) =>
       apiFetch<PaymentMode>('/ops/payments/mode', { signal, anonymous: true }),
     staleTime: 60 * 1000,
-  });
-}
-
-export function useCategory(code: string | null) {
-  const locale = useLocale();
-  return useQuery({
-    queryKey: ['catalogue', 'category', code, locale],
-    queryFn: ({ signal }) =>
-      apiFetch<VehicleCategory>(
-        `/catalogue/categories/${code}?locale=${encodeURIComponent(locale)}`,
-        { signal, anonymous: true },
-      ),
-    enabled: !!code,
-  });
-}
-
-export interface SearchArgs {
-  pickupLocationCode: string;
-  returnLocationCode?: string;
-  pickupAt: string;
-  returnAt: string;
-  categoryCode?: string;
-}
-
-export function useAvailabilitySearch(args: SearchArgs | null) {
-  return useQuery({
-    queryKey: ['discovery', 'search', args],
-    queryFn: ({ signal }) =>
-      apiFetch<AvailabilitySearchResponse>('/discovery/search', {
-        method: 'POST',
-        body: args ?? {},
-        anonymous: true,
-        signal,
-      }),
-    enabled: !!args,
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnMount: 'always',
-  });
-}
-
-export function useCreateQuote() {
-  return useMutation({
-    mutationFn: (
-      body: SearchArgs & {
-        categoryCode: string;
-        hold?: boolean;
-        holderKey?: string;
-        unitId?: string;
-      },
-    ) => apiFetch<Quote>('/discovery/quote', { method: 'POST', body, anonymous: true }),
-  });
-}
-
-export function useQuoteByRef(reference: string | null) {
-  return useQuery({
-    queryKey: ['discovery', 'quote', reference],
-    queryFn: ({ signal }) =>
-      apiFetch<Quote>(`/discovery/quotes/${reference}`, { signal, anonymous: true }),
-    enabled: !!reference,
   });
 }
 
@@ -252,39 +107,6 @@ export function useAvailableProducts(categoryCode: string | null, locationCode: 
         `/catalogue/products?category=${encodeURIComponent(categoryCode!)}&location=${encodeURIComponent(locationCode!)}`,
         { signal, anonymous: true },
       ),
-  });
-}
-
-export interface ReservationResult extends Reservation {
-  guestAccessToken: string | null;
-  payment: { brand: string | null; last4: string | null; alreadyProcessed: boolean };
-  heldUnitPinned: boolean;
-}
-
-export function useConfirmBooking() {
-  return useMutation({
-    mutationFn: (body: ConfirmBookingRequest) =>
-      apiFetch<ReservationResult>('/bookings/confirm', { method: 'POST', body }),
-  });
-}
-
-export function useMyReservations(enabled: boolean) {
-  return useQuery({
-    queryKey: ['booking', 'mine'],
-    queryFn: ({ signal }) =>
-      apiFetch<
-        Array<{
-          reference: string;
-          state: string;
-          categoryCode: string;
-          pickupLocationCode: string;
-          pickupAt: string;
-          returnAt: string;
-          totalMinor: number;
-          currency: string;
-        }>
-      >('/bookings/mine', { signal }),
-    enabled,
   });
 }
 
@@ -346,45 +168,6 @@ export function useReservationDetail(reference: string | null) {
     queryFn: ({ signal }) => apiFetch<ReservationDetail>(`/reservations/${reference}`, { signal }),
     enabled: !!reference,
   });
-}
-
-export interface InvoiceView {
-  number: string;
-  docVersion: number;
-  kind: 'invoice' | 'credit_note';
-  previousNumber: string | null;
-  reservationReference: string;
-  currency: string;
-  subtotalMinor: number;
-  taxMinor: number;
-  totalMinor: number;
-  reason: string | null;
-  issuedAt: string;
-  snapshot: {
-    org: {
-      tradingName: string;
-      legalName: string;
-      taxId: string;
-      registeredAddress: Record<string, string>;
-    };
-    customer: { fullName: string | null; email: string | null };
-    trip: {
-      categoryCode: string;
-      pickupLocationCode: string;
-      returnLocationCode: string;
-      pickupAt: string;
-      returnAt: string;
-      pickedUnit: { make: string | null; model: string | null; colour: string | null } | null;
-    };
-    lines: Array<{
-      kind: string;
-      code: string;
-      label: string;
-      quantity: number;
-      unitMinor: number;
-      amountMinor: number;
-    }>;
-  };
 }
 
 export function useReservationInvoices(reference: string | null) {
@@ -479,13 +262,4 @@ export function useExtendRental(reference: string) {
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['rental'] }),
   });
-}
-
-/** Format integer minor units as a localized currency string (SRS-I18N — transaction currency). */
-export function formatMinor(amountMinor: number, currency: string, locale = 'en'): string {
-  try {
-    return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(amountMinor / 100);
-  } catch {
-    return `${(amountMinor / 100).toFixed(2)} ${currency}`;
-  }
 }

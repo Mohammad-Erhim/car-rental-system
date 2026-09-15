@@ -69,12 +69,13 @@ export class CustomerMergeService {
       ).map((r) => r.id);
 
       // Reservations are owned by accountId (see customer.service.ts's `detail()`) —
-      // `reservation.customerId` is a column nothing else in the system ever populates, so
-      // repointing it here (as this previously did) always moved zero rows while still
-      // reporting success. Repoint by accountId instead, capturing exactly which reservations
-      // moved so `unmerge` restores only those. Only meaningful when both sides have an account;
-      // an account-less duplicate (a walk-in profile) has no reservations reachable this way to
-      // move, and there's nowhere valid to attach ownership if the survivor has no account either.
+      // `reservation.customerId` was a column nothing in the system ever populated, so repointing
+      // it here (as this previously did) always moved zero rows while still reporting success;
+      // it has since been dropped entirely (migration 0029). Repoint by accountId instead,
+      // capturing exactly which reservations moved so `unmerge` restores only those. Only
+      // meaningful when both sides have an account; an account-less duplicate (a walk-in profile)
+      // has no reservations reachable this way to move, and there's nowhere valid to attach
+      // ownership if the survivor has no account either.
       const movedReservations =
         dup.accountId && survivor.accountId
           ? (

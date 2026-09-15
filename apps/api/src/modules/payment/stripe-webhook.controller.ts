@@ -145,8 +145,7 @@ export class StripeWebhookController {
         : event.type === 'payment_intent.succeeded'
           ? obj.amount_received
           : undefined;
-    const ledgerAmount =
-      event.type === 'charge.refunded' ? local.refundedMinor : local.amountMinor;
+    const ledgerAmount = event.type === 'charge.refunded' ? local.refundedMinor : local.amountMinor;
     if (providerAmount != null && providerAmount !== ledgerAmount) {
       await this.payments.openReconciliationException({
         organizationId: local.organizationId,

@@ -74,6 +74,32 @@ describe('STAGE-007 security', () => {
       .then((r) => expect(r.status).not.toBe(429));
   }, 60_000);
 
+  it('TEST-SEC-015 rotating the client-supplied X-Forwarded-For entry no longer bypasses the limit', async () => {
+    // `app.set('trust proxy', 1)` trusts exactly one hop back from the socket — in production,
+    // nginx *appends* the true client IP rather than replacing the header, so the header Node
+    // actually sees is `<attacker-supplied>, <nginx's real view>`. The rightmost entry is what
+    // `req.ip` resolves to; the leftmost is attacker-controlled and must be ignored. Simulate that
+    // shape directly (a bare single-value header behaves identically before/after this fix, so it
+    // can't exercise the bug either way — this needs a genuine two-hop header).
+    if (!server.listening) {
+      await new Promise<void>((res) => server.listen(0, () => res()));
+    }
+    const realIp = `198.51.100.${1 + Math.floor(Math.random() * 200)}`;
+    const results = await Promise.all(
+      Array.from({ length: 60 }, (_, i) =>
+        request(server)
+          .post('/api/v1/auth/resend-verification')
+          // a different, freely-chosen leftmost value on every single request — if that were
+          // still trusted, each request would land in its own bucket and none would ever hit
+          // the cap; because the trusted rightmost value is constant, they all share one bucket.
+          .set('X-Forwarded-For', `203.0.113.${i}, ${realIp}`)
+          .send({ accountId: randomUUID() }),
+      ),
+    );
+    const limited = results.filter((r) => r.status === 429);
+    expect(limited.length).toBeGreaterThan(0);
+  }, 60_000);
+
   it('TEST-SEC-015 the public consent-capture route has its own burst limit, independent of the auth bucket', async () => {
     const ip = `198.51.100.${1 + Math.floor(Math.random() * 200)}`;
     if (!server.listening) {
@@ -175,6 +201,34 @@ describe('STAGE-007 security', () => {
       .post('/api/v1/auth/refresh')
       .set('Cookie', rt)
       .set('Origin', 'http://localhost:3000')
+      .expect(201);
+  });
+
+  it('TEST-SEC-003 a cookie-authed write with neither Origin nor Referer is refused by default, not silently allowed', async () => {
+    const signedIn = await request(server)
+      .post('/api/v1/auth/sign-in')
+      .send({
+        email: 'test-customer@example.test',
+        password: 'Test-Passw0rd!',
+        audience: 'customer',
+      })
+      .expect(201);
+    const setCookies = signedIn.headers['set-cookie'] as unknown as string[];
+    const rt = setCookies.find((c) => c.startsWith('carrental_rt='))!.split(';')[0]!;
+    const csrfCookieHeader = setCookies.find((c) => c.startsWith('carrental_csrf='))!;
+    expect(csrfCookieHeader).not.toMatch(/HttpOnly/i); // must be JS-readable to be double-submitted
+    const csrfCookie = csrfCookieHeader.split(';')[0]!;
+    const csrfValue = csrfCookie.split('=')[1]!;
+
+    // neither header at all — previously fell through the old `if (origin && ...)` check and
+    // passed untouched; must now require the double-submit token like any other unverified origin.
+    await request(server).post('/api/v1/auth/refresh').set('Cookie', rt).expect(403);
+
+    // the matching double-submit token (cookie + header) is what actually lets it through.
+    await request(server)
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', `${rt}; ${csrfCookie}`)
+      .set('X-CSRF-Token', csrfValue)
       .expect(201);
   });
 

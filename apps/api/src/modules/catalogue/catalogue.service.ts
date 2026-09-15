@@ -61,6 +61,18 @@ export interface FeatureView {
   version: number;
 }
 
+// ARCH-GAP (2026-09-15 audit, finding #3): `catalogue` has no catalogue.public.ts facade, even
+// though CLAUDE.md documents that a sub-domain folded into a parent module (no .module.ts of its
+// own — `catalogue` and `product.service.ts` are exactly this) "must still expose its
+// cross-module surface through the parent's .public.ts". CatalogueService is imported directly,
+// top-level, by availability/availability.service.ts, pricing/pricing.service.ts, and discovery's
+// own controllers instead. The `apiModuleBoundaries` ESLint rule only blocks imports into a
+// *subdirectory* of another module, not a top-level service file like this one, so this currently
+// lints clean despite violating the documented convention. Left as-is rather than a partial
+// migration — see the identical note on fleet.service.ts and pricing.service.ts: a real fix spans
+// fleet, pricing, catalogue, availability, and discovery together (~15 call sites) and deserves a
+// dedicated PR with its own DI-wiring verification. Follow-up: add catalogue.public.ts (+ the
+// other four) re-exporting only what's actually consumed cross-module.
 @Injectable()
 export class CatalogueService {
   constructor(

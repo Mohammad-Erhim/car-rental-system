@@ -10,6 +10,23 @@ import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 
 import { EmailConfigService } from './email-config.service';
 
+// Same header-injection defense as notification-rule's `senderIdentity` (notify.controller.ts),
+// scoped to each field's legitimate format: no CR/LF/NUL/other control characters can ever reach
+// nodemailer's From header, whichever field they arrive through. `fromName` is a free-text
+// display name (unlike senderIdentity's bare mail-local-part) so it keeps spaces/punctuation —
+// only control characters and the quote character (which would otherwise let a crafted name break
+// out of a hand-built quoted string) are rejected; `sendSmtp` also now passes a structured
+// `{name, address}` object to nodemailer rather than interpolating a string, so this is
+// defense-in-depth, not the only guard. A plain char-code scan (not a regex literal) — control
+// characters trip ESLint's `no-control-regex` when spelled as a `\x00-\x1f` regex class.
+function hasHeaderInjectionChars(value: string): boolean {
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code <= 0x1f || code === 0x7f || value[i] === '"') return true;
+  }
+  return false;
+}
+
 const zUpdate = z.object({
   activeDriver: z.enum(['outbox', 'smtp']).optional(),
   smtp: z
@@ -19,8 +36,19 @@ const zUpdate = z.object({
       secure: z.boolean().optional(),
       username: z.string().optional(),
       password: z.string().min(1).optional(),
-      fromAddress: z.string().email().optional(),
-      fromName: z.string().optional(),
+      fromAddress: z
+        .string()
+        .trim()
+        .max(320)
+        .email()
+        .refine((v) => !hasHeaderInjectionChars(v), 'invalid characters in from-address')
+        .optional(),
+      fromName: z
+        .string()
+        .trim()
+        .max(200)
+        .refine((v) => !hasHeaderInjectionChars(v), 'invalid characters in from-name')
+        .optional(),
     })
     .optional(),
 });

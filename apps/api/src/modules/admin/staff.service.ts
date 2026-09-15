@@ -12,7 +12,7 @@ import type { Actor } from '../../common/auth/types';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { account, permissionAction, role, staffProfile } from '../../database/schema/iam';
-import { organization } from '../../database/schema/org';
+import { ConfigPublic } from '../config/config.public';
 import { IamPublic } from '../iam/iam.public';
 
 @Injectable()
@@ -23,6 +23,7 @@ export class StaffService {
     private readonly audit: AuditService,
     private readonly iam: IamPublic,
     private readonly sessions: SessionService,
+    private readonly config: ConfigPublic,
   ) {}
 
   async listRoles() {
@@ -275,8 +276,11 @@ export class StaffService {
     return { accountId, ...input };
   }
 
+  /** Delegates to `ConfigPublic.defaultOrganization()` (deterministically ordered by
+   *  `createdAt`) rather than repeating the raw, unordered `organization` query — see
+   *  `config.public.ts`. */
   private async defaultOrgId(): Promise<string> {
-    const [org] = await this.db.select({ id: organization.id }).from(organization).limit(1);
+    const org = await this.config.defaultOrganization();
     if (!org) throw new AppError('policy_not_configured', { title: 'No organization configured' });
     return org.id;
   }

@@ -13,6 +13,7 @@ export {
   setAccessToken,
   getAccessToken,
   registerRefreshHandler,
+  getRefreshHandler,
   registerStepUpHandler,
   type RequestOptions,
 } from '@carrental/client';

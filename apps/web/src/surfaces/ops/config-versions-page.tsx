@@ -344,6 +344,7 @@ export function ConfigVersionsPage() {
                 variant="outline"
                 onClick={() => act(v.id, 'submit')}
                 loading={transition.isPending}
+                disabled={!canPublish}
                 data-testid={`submit-${v.revision}`}
               >
                 {t('ops.cfg.submit')}
@@ -352,6 +353,7 @@ export function ConfigVersionsPage() {
                 size="sm"
                 variant="ghost"
                 onClick={() => setDeleting(v.id)}
+                disabled={!canPublish}
                 data-testid={`delete-${v.revision}`}
               >
                 {t('ops.cfg.delete')}
@@ -459,7 +461,9 @@ export function ConfigVersionsPage() {
             data-testid="config-current-published"
           >
             <p className="mb-1 font-medium">{t('ops.cfg.currentValues')}</p>
-            {currentPublished ? (
+            {versions.isLoading ? (
+              <p className="text-muted-foreground">{t('ops.st.loading')}</p>
+            ) : currentPublished ? (
               <dl className="flex flex-wrap gap-x-6 gap-y-1 text-muted-foreground">
                 {keyDef.fields.map((f) => (
                   <div key={f.name} className="flex gap-2">
@@ -518,37 +522,53 @@ export function ConfigVersionsPage() {
         <CardContent>
           <ErrorSummary title={t('ops.cfg.checkFields')} errors={errs.summary} />
           <form onSubmit={submitDraft} className="space-y-4" noValidate>
-            <div className="grid gap-4 sm:grid-cols-2">
-              {keyDef.fields.map((f) => (
-                <Field
-                  key={f.name}
-                  label={fieldLabel(f.name)}
-                  htmlFor={`cfg-${f.name}`}
-                  required
-                  hint={fieldHint(f.name)}
-                  error={errs.fieldError(f.name)}
-                >
-                  {({ id, invalid }) => (
-                    <Input
-                      id={id}
-                      invalid={invalid}
-                      inputMode="numeric"
-                      placeholder={
-                        currentPublished ? String(currentPublished.payload[f.name] ?? '') : ''
-                      }
-                      value={values[f.name] ?? ''}
-                      onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
-                      required
-                    />
-                  )}
-                </Field>
-              ))}
-            </div>
-            <Field label={t('ops.cfg.note')} htmlFor="cfg-note" hint={t('ops.cfg.noteHint')}>
-              {({ id }) => (
-                <Textarea id={id} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
-              )}
-            </Field>
+            {/* a config.read-only viewer reaches this screen too (route allows config.read OR
+                config.publish) — disable every write control instead of letting them fill out a
+                draft they can't save. */}
+            <fieldset disabled={!canPublish} className="contents">
+              <div className="grid gap-4 sm:grid-cols-2">
+                {keyDef.fields.map((f) => (
+                  <Field
+                    key={f.name}
+                    label={fieldLabel(f.name)}
+                    htmlFor={`cfg-${f.name}`}
+                    required
+                    hint={fieldHint(f.name)}
+                    error={errs.fieldError(f.name)}
+                  >
+                    {({ id, invalid }) => (
+                      <Input
+                        id={id}
+                        invalid={invalid}
+                        inputMode="numeric"
+                        placeholder={
+                          currentPublished ? String(currentPublished.payload[f.name] ?? '') : ''
+                        }
+                        value={values[f.name] ?? ''}
+                        onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
+                        required
+                      />
+                    )}
+                  </Field>
+                ))}
+              </div>
+              <Field label={t('ops.cfg.note')} htmlFor="cfg-note" hint={t('ops.cfg.noteHint')}>
+                {({ id }) => (
+                  <Textarea
+                    id={id}
+                    rows={2}
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                  />
+                )}
+              </Field>
+
+              <div className="flex flex-wrap gap-3">
+                <Button type="submit" loading={draft.isPending} data-testid="config-draft">
+                  {t('ops.cfg.saveDraft')}
+                </Button>
+              </div>
+            </fieldset>
 
             <div className="flex flex-wrap gap-3">
               <Button
@@ -559,9 +579,6 @@ export function ConfigVersionsPage() {
                 data-testid="config-preview"
               >
                 {t('ops.cfg.preview')}
-              </Button>
-              <Button type="submit" loading={draft.isPending} data-testid="config-draft">
-                {t('ops.cfg.saveDraft')}
               </Button>
             </div>
 

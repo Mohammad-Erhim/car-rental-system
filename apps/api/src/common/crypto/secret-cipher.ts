@@ -3,12 +3,20 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:
 import { loadEnv } from '../../config/env.schema';
 
 /**
- * At-rest encryption for secrets stored in the database (payment provider API keys — SRS-SEC-*).
+ * General-purpose at-rest encryption for config secrets stored in the database (SRS-SEC-*) — despite
+ * the env var's payment-era name, this is no longer payment-specific. Current consumers: payment
+ * provider API keys (`payment.repo.ts`) and the dashboard-configured SMTP password
+ * (`notify/email-config.service.ts`). Both share the single key derived below; there is no
+ * per-domain key separation, so anyone who can decrypt one secret domain via this module could
+ * decrypt the other if they also had DB read access to that table.
+ *
  * AES-256-GCM: a fresh random IV per encryption, the auth tag caught on decrypt so a tampered or
  * corrupted ciphertext throws instead of silently returning garbage. The key itself never touches
  * the database — it's derived once from `PAYMENT_CONFIG_ENCRYPTION_KEY` (an operator secret, same
  * tier as `PASSWORD_PEPPER`/`COOKIE_SECRET`) via scrypt, so the stored key material doesn't need
- * to already be exactly 32 bytes.
+ * to already be exactly 32 bytes. The env var keeps its original name for now — renaming it means
+ * also touching `compose.prod.yaml`/`.env.example`/deployment docs, out of scope for the doc fix
+ * this comment is making.
  *
  * Ciphertext is serialized as `<iv>:<authTag>:<ciphertext>`, each base64url — one string column,
  * no extra columns needed to reconstruct it.

@@ -1,3 +1,4 @@
+import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
@@ -11,6 +12,7 @@ import {
   Field,
   Input,
   PageHeader,
+  Select,
   Textarea,
   Toolbar,
   useToast,
@@ -38,9 +40,6 @@ const stateLabel = (t: (k: string) => string, s: string) =>
   RENTAL_STATES.includes(s as (typeof RENTAL_STATES)[number])
     ? t(`ops.rent.stateLabel.${s}`)
     : s.replace(/_/g, ' ');
-
-const selectClass =
-  'flex h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -96,9 +95,9 @@ export function RentalBoardPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Toolbar aria-label={t('ops.rent.filters')}>
-          <select
+          <Select
             aria-label={t('ops.rent.filterState')}
-            className={selectClass}
+            className="w-auto"
             value={state}
             onChange={(e) => setParam('state', e.target.value)}
           >
@@ -108,20 +107,20 @@ export function RentalBoardPage() {
                 {t(`ops.rent.stateLabel.${s}`)}
               </option>
             ))}
-          </select>
-          <select
+          </Select>
+          <Select
             aria-label={t('ops.rent.filterFlow')}
-            className={selectClass}
+            className="w-auto"
             value={flow}
             onChange={(e) => setParam('flow', e.target.value)}
           >
             <option value="">{t('ops.rent.anyFlow')}</option>
             <option value="pickup">{t('ops.rent.flowPickup')}</option>
             <option value="return">{t('ops.rent.flowReturn')}</option>
-          </select>
-          <select
+          </Select>
+          <Select
             aria-label={t('ops.search.location')}
-            className={selectClass}
+            className="w-auto"
             value={locationCode}
             onChange={(e) => setParam('location', e.target.value)}
           >
@@ -131,7 +130,7 @@ export function RentalBoardPage() {
                 {l.name} ({l.code})
               </option>
             ))}
-          </select>
+          </Select>
           <Input
             type="date"
             aria-label={t('ops.search.from')}
@@ -238,6 +237,13 @@ export function RentalBoardPage() {
 function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
   const { t, fmt } = useI18n();
   const { toast } = useToast();
+  const { hasPermission } = useAuth();
+  // mirrors apps/api/src/modules/rental/*.controller.ts's per-action @Permissions — same checks
+  // rental-detail-page.tsx already applies for the identical actions.
+  const canPickup = hasPermission('rental.pickup');
+  const canReturn = hasPermission('rental.return');
+  const canIncident = hasPermission('rental.pickup', 'rental.return');
+  const canReady = hasPermission('fleet.manage', 'rental.return');
   const pickup = usePickup(r.reference);
   const ret = useReturnRental(r.reference);
   const readiness = useReadiness(r.reference);
@@ -450,7 +456,7 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
           </p>
         ) : null}
 
-        {r.state === 'awaiting_pickup' ? (
+        {r.state === 'awaiting_pickup' && canPickup ? (
           !open ? (
             <Button onClick={() => setOpen(true)} data-testid={`pickup-open-${r.reference}`}>
               {t('ops.rent.runPickup')}
@@ -530,7 +536,7 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
           )
         ) : null}
 
-        {['active', 'overdue'].includes(r.state) ? (
+        {['active', 'overdue'].includes(r.state) && canReturn ? (
           !open ? (
             <Button
               variant="outline"
@@ -654,7 +660,7 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
           )
         ) : null}
 
-        {inProgress ? (
+        {inProgress && canIncident ? (
           !incOpen ? (
             <Button
               variant="ghost"
@@ -670,9 +676,8 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label={t('ops.rent.incidentCategory')} htmlFor={`inc-cat-${r.reference}`}>
                   {({ id }) => (
-                    <select
+                    <Select
                       id={id}
-                      className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       value={incCategory}
                       onChange={(e) =>
                         setIncCategory(e.target.value as (typeof INCIDENT_CATEGORIES)[number])
@@ -684,14 +689,13 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
                           {t(`ops.rent.incidentCat.${c}`)}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   )}
                 </Field>
                 <Field label={t('ops.rent.incidentReplacement')} htmlFor={`inc-rep-${r.reference}`}>
                   {({ id }) => (
-                    <select
+                    <Select
                       id={id}
-                      className="flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       value={incReplacement}
                       onChange={(e) => setIncReplacement(e.target.value)}
                       data-testid={`incident-replacement-${r.reference}`}
@@ -702,7 +706,7 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
                           {u.plate} · {u.categoryName}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   )}
                 </Field>
               </div>
@@ -742,7 +746,7 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
                 ? t('ops.rent.readyOutcomePassed')
                 : t('ops.rent.readyOutcomeFailed')}
             </Badge>
-          ) : (
+          ) : canReady ? (
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
@@ -761,7 +765,7 @@ function RentalRow({ rental: r }: { rental: RentalBoardRow }) {
                 {t('ops.rentd.readyFailBtn')}
               </Button>
             </div>
-          )
+          ) : null
         ) : null}
       </CardContent>
 

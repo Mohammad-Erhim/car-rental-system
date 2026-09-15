@@ -25,7 +25,8 @@ export const zAddDriverRequest = z.object({
   email: z.string().email().optional(),
   phone: z.string().max(40).optional(),
   licenceNumber: z.string().max(80).optional(),
-  licenceCountry: z.string().max(2).optional(),
+  // ISO-3166 alpha-2, normalized like `zMoney.currency` (primitives.ts) does for ISO-4217.
+  licenceCountry: z.string().length(2).toUpperCase().optional(),
   licenceType: z.string().max(40).optional(),
   licenceExpiresOn: z.string().optional(),
 });

@@ -1,0 +1,1 @@
+ALTER TABLE "reservation" DROP COLUMN IF EXISTS "customer_id";

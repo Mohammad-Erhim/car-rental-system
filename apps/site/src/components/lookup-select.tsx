@@ -15,6 +15,8 @@ export function LookupSelect({
   id,
   describedBy,
   invalid,
+  disabled,
+  className,
 }: {
   typeCode: string;
   value: string;
@@ -22,6 +24,8 @@ export function LookupSelect({
   id?: string;
   describedBy?: string;
   invalid?: boolean;
+  disabled?: boolean;
+  className?: string;
 }) {
   const { t } = useI18n();
   const f = useLookupOptions(typeCode, value, onChange);
@@ -33,6 +37,8 @@ export function LookupSelect({
       id={id}
       describedBy={describedBy}
       invalid={invalid}
+      disabled={disabled}
+      className={className}
       placeholder={t('field.selectPlaceholder')}
       loadingLabel={t('state.loading.title')}
       errorLabel={t('field.optionsFailed')}
