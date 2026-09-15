@@ -1,11 +1,7 @@
 import type {
-  AddDriverRequest,
   ChallengeCreatedResponse,
-  Driver,
   LocalesResponse,
   LookupType,
-  PrivacyRequest,
-  Profile,
   TranslationCompleteness,
   TranslationEntry,
 } from '@carrental/contracts';
@@ -13,82 +9,18 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiFetch } from './api.js';
 
-// ---- customer profile ----
-
-export function useProfile(enabled: boolean) {
-  return useQuery({
-    queryKey: ['profile'],
-    queryFn: ({ signal }) => apiFetch<Profile>('/auth/profile', { signal }),
-    enabled,
-  });
-}
-
-export function useUpdateProfile() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (input: { patch: Record<string, unknown>; version: number }) =>
-      apiFetch<Profile>('/auth/profile', {
-        method: 'POST',
-        body: input.patch,
-        ifMatch: input.version,
-      }),
-    onSuccess: (data) => qc.setQueryData(['profile'], data),
-  });
-}
-
-// ---- saved drivers (SCREEN-CUS-013) ----
-
-export function useDrivers(enabled: boolean) {
-  return useQuery({
-    queryKey: ['drivers'],
-    queryFn: ({ signal }) => apiFetch<Driver[]>('/auth/drivers', { signal }),
-    enabled,
-  });
-}
-
-export function useAddDriver() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: AddDriverRequest) =>
-      apiFetch<Driver>('/auth/drivers', { method: 'POST', body }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['drivers'] }),
-  });
-}
-
-export function useRemoveDriver() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => apiFetch(`/auth/drivers/${id}/remove`, { method: 'POST' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['drivers'] }),
-  });
-}
-
-// ---- account data requests & closure (SCREEN-CUS-024) ----
-
-export function useDataRequests(enabled: boolean) {
-  return useQuery({
-    queryKey: ['data-requests'],
-    queryFn: ({ signal }) => apiFetch<PrivacyRequest[]>('/auth/data-requests', { signal }),
-    enabled,
-  });
-}
-
-export function useCreateDataRequest() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: { kind: 'access' | 'correction' | 'closure'; detail?: string }) =>
-      apiFetch<PrivacyRequest>('/auth/data-requests', { method: 'POST', body }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['data-requests'] }),
-  });
-}
-
-export function useCancelDataRequest() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => apiFetch(`/auth/data-requests/${id}/cancel`, { method: 'POST' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['data-requests'] }),
-  });
-}
+// `useProfile`/`useDrivers`/`useDataRequests` (+ mutations) are shared with `apps/site` — they
+// live in `@carrental/client/react`. Re-exported here so existing ops imports keep working.
+export {
+  useProfile,
+  useUpdateProfile,
+  useDrivers,
+  useAddDriver,
+  useRemoveDriver,
+  useDataRequests,
+  useCreateDataRequest,
+  useCancelDataRequest,
+} from '@carrental/client/react';
 
 // ---- translation catalogue (SCREEN-OPS-034) ----
 
