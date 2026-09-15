@@ -14,7 +14,7 @@ import { CatalogueService } from '../catalogue/catalogue.service';
 import { FleetService, type PublicUnitCard } from '../fleet/fleet.service';
 import { PricingService } from '../pricing/pricing.service';
 
-import { computeAvailability } from './availability.engine';
+import { computeAvailability, type AvailabilityResult } from './availability.engine';
 import { checkWithinHours, localParts } from './operating-hours';
 
 const HOLD_TTL_MS = 15 * 60 * 1000;
@@ -201,24 +201,12 @@ export class AvailabilityService {
     const options: SearchOption[] = [];
     for (const cat of cats) {
       if (supported.size && !supported.has(cat.code)) continue;
-      const { unitIds, occupiedByUnit } = await this.fleet.candidateUnits(
-        input.pickupLocationCode,
-        cat.code,
-        input.pickupAt,
-        input.returnAt,
-      );
-      const classHolds = await this.countHolds(
-        cat.code,
-        input.pickupLocationCode,
-        input.pickupAt,
-        input.returnAt,
-      );
-      const avail = computeAvailability({
-        request: { start: input.pickupAt.getTime(), end: input.returnAt.getTime() },
-        turnaroundMs: (pickupLoc.turnaroundMinutes ?? 60) * 60_000,
-        unitIds,
-        occupiedByUnit,
-        classHolds,
+      const { avail } = await this.resolveAvailability({
+        categoryCode: cat.code,
+        pickupLocationCode: input.pickupLocationCode,
+        pickupAt: input.pickupAt,
+        returnAt: input.returnAt,
+        turnaroundMinutes: pickupLoc.turnaroundMinutes,
       });
 
       let fromTotalMinor: number | null = null;
@@ -279,13 +267,6 @@ export class AvailabilityService {
     pickupAt: Date,
     returnAt: Date,
   ): Promise<PublicUnitCard[]> {
-    const { unitIds, occupiedByUnit } = await this.fleet.candidateUnits(
-      pickupLocationCode,
-      categoryCode,
-      pickupAt,
-      returnAt,
-    );
-    if (!unitIds.length) return [];
     const { loc, exceptions } = await this.loadLocation(pickupLocationCode);
     // Unlike search(), this never validated the requested window against operating hours at all —
     // it could offer specific cars to pick for a pickup time the location is actually closed at.
@@ -307,19 +288,12 @@ export class AvailabilityService {
         n.code.startsWith('return_'),
     );
     if (hoursBlocking) return [];
-    // Real class-level demand (not 0) — this used to ignore other pending reservations/holds that
-    // haven't pinned a specific unit yet, so it could keep offering cars to choose from well past
-    // the point search()'s bookableCount correctly reports the class as sold out. A customer could
-    // pick one, go through checkout, and get rejected at the very last step for no visible reason
-    // (checkAndHold's own bookableCount check does reject it there — this was never a double-
-    // booking risk, just a confusing dead end).
-    const classHolds = await this.countHolds(categoryCode, pickupLocationCode, pickupAt, returnAt);
-    const avail = computeAvailability({
-      request: { start: pickupAt.getTime(), end: returnAt.getTime() },
-      turnaroundMs: (loc.turnaroundMinutes ?? 60) * 60_000,
-      unitIds,
-      occupiedByUnit,
-      classHolds,
+    const { avail } = await this.resolveAvailability({
+      categoryCode,
+      pickupLocationCode,
+      pickupAt,
+      returnAt,
+      turnaroundMinutes: loc.turnaroundMinutes,
     });
     if (!avail.freeUnitIds.length || avail.bookableCount < 1) return [];
 
@@ -367,6 +341,51 @@ export class AvailabilityService {
       .filter((id) => !pinnedElsewhere.has(id))
       .slice(0, avail.bookableCount);
     return this.fleet.unitsByIds(selectable);
+  }
+
+  /**
+   * The single canonical "is this bookable" calculation — candidate units, what's occupying them,
+   * class-level demand, and the resulting free/bookable counts. `search()`, `listAvailableUnits()`,
+   * and `checkAndHold()` each used to independently re-orchestrate this same sequence of three
+   * calls; three implementations of the same math will eventually drift (exactly what happened
+   * here — three real bugs in one night, each one a divergence between two of these three
+   * call sites). Every caller of any of the three now routes through this one function instead.
+   */
+  private async resolveAvailability(params: {
+    categoryCode: string;
+    pickupLocationCode: string;
+    pickupAt: Date;
+    returnAt: Date;
+    turnaroundMinutes: number | null;
+    tx?: Database;
+    excludeReservationRef?: string;
+  }): Promise<{
+    unitIds: string[];
+    occupiedByUnit: Record<string, Array<{ start: number; end: number }>>;
+    avail: AvailabilityResult;
+  }> {
+    const { unitIds, occupiedByUnit } = await this.fleet.candidateUnits(
+      params.pickupLocationCode,
+      params.categoryCode,
+      params.pickupAt,
+      params.returnAt,
+    );
+    const classHolds = await this.countHolds(
+      params.categoryCode,
+      params.pickupLocationCode,
+      params.pickupAt,
+      params.returnAt,
+      params.tx,
+      params.excludeReservationRef,
+    );
+    const avail = computeAvailability({
+      request: { start: params.pickupAt.getTime(), end: params.returnAt.getTime() },
+      turnaroundMs: (params.turnaroundMinutes ?? 60) * 60_000,
+      unitIds,
+      occupiedByUnit,
+      classHolds,
+    });
+    return { unitIds, occupiedByUnit, avail };
   }
 
   /**
@@ -504,27 +523,15 @@ export class AvailabilityService {
           ),
         );
 
-      const { unitIds, occupiedByUnit } = await this.fleet.candidateUnits(
-        input.pickupLocationCode,
-        input.categoryCode,
-        input.pickupAt,
-        input.returnAt,
-      );
-      const classHolds = await this.countHolds(
-        input.categoryCode,
-        input.pickupLocationCode,
-        input.pickupAt,
-        input.returnAt,
-        tx,
-        input.excludeReservationRef,
-      );
       const { loc } = await this.loadLocation(input.pickupLocationCode);
-      const avail = computeAvailability({
-        request: { start: input.pickupAt.getTime(), end: input.returnAt.getTime() },
-        turnaroundMs: (loc.turnaroundMinutes ?? 60) * 60_000,
-        unitIds,
-        occupiedByUnit,
-        classHolds,
+      const { avail } = await this.resolveAvailability({
+        categoryCode: input.categoryCode,
+        pickupLocationCode: input.pickupLocationCode,
+        pickupAt: input.pickupAt,
+        returnAt: input.returnAt,
+        turnaroundMinutes: loc.turnaroundMinutes,
+        tx,
+        excludeReservationRef: input.excludeReservationRef,
       });
       if (avail.bookableCount < 1) {
         throw AppError.businessRule('That vehicle class is no longer available for those dates', {
