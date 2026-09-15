@@ -130,13 +130,29 @@ describe('IAM / auth', () => {
       .expect(201);
     const rt1 = cookieFrom(first, 'carrental_rt');
 
-    const r2 = await request(server).post('/api/v1/auth/refresh').set('Cookie', rt1).expect(201);
+    // CsrfGuard requires either an allowed Origin or the double-submit token on a cookie-authed
+    // write; a real browser always sends Origin on a same-origin POST, so simulate that here
+    // rather than the double-submit dance (already covered by security.spec.ts's own CSRF tests).
+    const origin = 'http://localhost:3000';
+    const r2 = await request(server)
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', rt1)
+      .set('Origin', origin)
+      .expect(201);
     const rt2 = cookieFrom(r2, 'carrental_rt');
     expect(rt2).not.toBe(rt1);
 
     // reusing rt1 is now a security event -> 401 and the family is revoked
-    await request(server).post('/api/v1/auth/refresh').set('Cookie', rt1).expect(401);
-    await request(server).post('/api/v1/auth/refresh').set('Cookie', rt2).expect(401);
+    await request(server)
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', rt1)
+      .set('Origin', origin)
+      .expect(401);
+    await request(server)
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', rt2)
+      .set('Origin', origin)
+      .expect(401);
   });
 
   it('TEST-IAM-004 recovery: neutral response, single-use code, sessions invalidated', async () => {
@@ -184,10 +200,12 @@ describe('IAM / auth', () => {
       })
       .expect(422);
 
-    // old session's refresh token is dead
+    // old session's refresh token is dead. Origin set for the same reason as TEST-IAM-003 above —
+    // a real browser sends it on a same-origin POST; supertest doesn't unless told to.
     await request(server)
       .post('/api/v1/auth/refresh')
       .set('Cookie', session.refreshCookie)
+      .set('Origin', 'http://localhost:3000')
       .expect(401);
 
     // new password works

@@ -203,6 +203,21 @@ describe('rental lifecycle', () => {
       .set('Authorization', `Bearer ${customerToken}`)
       .send({ newReturnAt: isoIn(46), paymentToken: 'tok_ok' })
       .expect(201);
+
+    // return + pass readiness — this file's shared TST1 `compact` pool is small and every test in
+    // it runs against the same units; leaving this rental open (as the assertions above alone
+    // would) permanently drains one unit for every later test in this file, same as TEST-RNT-001
+    // already does deliberately at the end of its own cycle.
+    await request(server)
+      .post(`/api/v1/ops/rentals/${rentalRef}/return`)
+      .set('Authorization', `Bearer ${agentToken}`)
+      .send({ odometerKm: 1010, fuelPct: 100 })
+      .expect(201);
+    await request(server)
+      .post(`/api/v1/ops/rentals/${rentalRef}/readiness`)
+      .set('Authorization', `Bearer ${agentToken}`)
+      .send({ passed: true })
+      .expect(201);
   });
 
   it('a declined return-settlement charge never blocks the return itself — the car checks in and a recovery case opens', async () => {
