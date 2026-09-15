@@ -17,6 +17,7 @@ import {
   Input,
   MediaPicker,
   PageHeader,
+  Select,
   Textarea,
   Toolbar,
   type DataTableColumn,
@@ -48,9 +49,6 @@ import { useUrlParams } from '../../lib/use-url-param.js';
 const IMPORT_HEADER = 'plate,vin,categoryCode,locationCode,year,make,model,colour';
 const UNIT_STATES = ['available', 'on_rent', 'prep', 'maintenance', 'out_of_service', 'retired'];
 const BLOCK_KINDS = ['maintenance', 'damage', 'admin_block'] as const;
-
-const selectClass =
-  'flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 const stateVariant = (s: string) =>
   s === 'available'
@@ -474,9 +472,9 @@ export function FleetInventoryPage() {
             </p>
           </div>
           <Toolbar aria-label={t('ops.fleet.card')}>
-            <select
+            <Select
               aria-label={t('ops.search.location')}
-              className={selectClass}
+              className="w-auto"
               value={locationCode}
               onChange={(e) => setParam('location', e.target.value)}
             >
@@ -486,10 +484,10 @@ export function FleetInventoryPage() {
                   {l.name} ({l.code})
                 </option>
               ))}
-            </select>
-            <select
+            </Select>
+            <Select
               aria-label={t('ops.fleet.filterCat')}
-              className={selectClass}
+              className="w-auto"
               value={categoryCode}
               onChange={(e) => setParam('category', e.target.value)}
             >
@@ -499,10 +497,10 @@ export function FleetInventoryPage() {
                   {c.displayName}
                 </option>
               ))}
-            </select>
-            <select
+            </Select>
+            <Select
               aria-label={t('ops.fleet.filterState')}
-              className={selectClass}
+              className="w-auto"
               value={stateFilter}
               onChange={(e) => setParam('state', e.target.value)}
             >
@@ -512,7 +510,7 @@ export function FleetInventoryPage() {
                   {unitStateLabel(t, s)}
                 </option>
               ))}
-            </select>
+            </Select>
             {anyFilter ? (
               <Button
                 variant="ghost"
@@ -566,10 +564,9 @@ export function FleetInventoryPage() {
                 error={unitErrs.fieldError('categoryCode')}
               >
                 {({ id, invalid }) => (
-                  <select
+                  <Select
                     id={id}
-                    aria-invalid={invalid}
-                    className={selectClass}
+                    invalid={invalid}
                     value={unitForm.categoryCode}
                     onChange={(e) => setUnitField({ categoryCode: e.target.value })}
                     data-testid="unit-category"
@@ -580,7 +577,7 @@ export function FleetInventoryPage() {
                         {c.displayName}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 )}
               </Field>
               <Field
@@ -595,10 +592,9 @@ export function FleetInventoryPage() {
                       {unitForm.locationCode} ({t('ops.fleet.locationEditHint')})
                     </p>
                   ) : (
-                    <select
+                    <Select
                       id={id}
-                      aria-invalid={invalid}
-                      className={selectClass}
+                      invalid={invalid}
                       value={unitForm.locationCode}
                       onChange={(e) => setUnitField({ locationCode: e.target.value })}
                       data-testid="unit-location"
@@ -609,7 +605,7 @@ export function FleetInventoryPage() {
                           {l.name} ({l.code})
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   )
                 }
               </Field>
@@ -779,9 +775,8 @@ export function FleetInventoryPage() {
             ) : null}
             <Field label={t('ops.fin.kind')} htmlFor="fb-kind">
               {({ id }) => (
-                <select
+                <Select
                   id={id}
-                  className={selectClass}
                   value={blockKind}
                   onChange={(e) => setBlockKind(e.target.value as (typeof BLOCK_KINDS)[number])}
                 >
@@ -790,7 +785,7 @@ export function FleetInventoryPage() {
                       {blockKindLabel(t, k)}
                     </option>
                   ))}
-                </select>
+                </Select>
               )}
             </Field>
             <Field label={t('ops.fleet.reason')} htmlFor="fb-reason" required>
@@ -821,12 +816,7 @@ export function FleetInventoryPage() {
             <p>{t('ops.fleet.transferBody')}</p>
             <Field label={t('ops.fleet.transferTo')} htmlFor="xfer-to" required>
               {({ id }) => (
-                <select
-                  id={id}
-                  className={selectClass}
-                  value={xferTo}
-                  onChange={(e) => setXferTo(e.target.value)}
-                >
+                <Select id={id} value={xferTo} onChange={(e) => setXferTo(e.target.value)}>
                   <option value="">{t('ops.fleet.transferPick')}</option>
                   {(locations.data ?? [])
                     .filter((l) => l.code !== xferUnit?.currentLocationCode)
@@ -835,7 +825,7 @@ export function FleetInventoryPage() {
                         {l.name} ({l.code})
                       </option>
                     ))}
-                </select>
+                </Select>
               )}
             </Field>
           </div>

@@ -11,6 +11,7 @@ import {
   ConfirmDialog,
   Input,
   PageHeader,
+  Select,
   useToast,
 } from '@carrental/ui';
 import { useState } from 'react';
@@ -407,20 +408,20 @@ function RestrictionsCard({ customerId, record }: { customerId: string; record: 
           <form onSubmit={submit} className="flex flex-wrap items-end gap-2 border-t pt-3">
             <label className="text-xs">
               {t('ops.cust.rstrCategory')}
-              <select
-                className="mt-1 block h-9 rounded-md border border-input bg-background px-2 text-sm"
+              <Select
+                className="mt-1 h-9 w-auto"
                 value={form.category}
                 onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
                 data-testid="rstr-category"
               >
                 <option value="block">{t('ops.cust.rstrCatBlock')}</option>
                 <option value="review">{t('ops.cust.rstrCatReview')}</option>
-              </select>
+              </Select>
             </label>
             <label className="text-xs">
               {t('ops.cust.scopeKind')}
-              <select
-                className="mt-1 block h-9 rounded-md border border-input bg-background px-2 text-sm"
+              <Select
+                className="mt-1 h-9 w-auto"
                 value={form.scopeKind}
                 onChange={(e) =>
                   setForm((f) => ({
@@ -434,7 +435,7 @@ function RestrictionsCard({ customerId, record }: { customerId: string; record: 
                 <option value="all">{t('ops.cust.scopeAll')}</option>
                 <option value="category">{t('ops.cust.scopeCategory')}</option>
                 <option value="location">{t('ops.cust.scopeLocation')}</option>
-              </select>
+              </Select>
             </label>
             {form.scopeKind !== 'all' ? (
               <label className="text-xs">

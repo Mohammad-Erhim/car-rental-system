@@ -1,3 +1,4 @@
+import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
@@ -28,6 +29,8 @@ const ADDRESS_FIELDS = ['line1', 'line2', 'city', 'region', 'postalCode', 'count
 export function OrganizationPage() {
   const { t } = useI18n();
   const { toast } = useToast();
+  const { hasPermission } = useAuth();
+  const canPublish = hasPermission('config.publish');
   const profile = useLegalProfile();
   const update = useUpdateLegalProfile();
 
@@ -105,48 +108,52 @@ export function OrganizationPage() {
           <CardDescription>{t('ops.org.legalSectionHint')}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Field label={t('ops.org.legalName')} htmlFor="org-legal-name" required>
-            {({ id }) => (
-              <Input
-                id={id}
-                value={legalName}
-                onChange={(e) => setLegalName(e.target.value)}
-                data-testid="org-legal-name"
-              />
-            )}
-          </Field>
-          <Field label={t('ops.org.taxId')} htmlFor="org-tax-id" required>
-            {({ id }) => (
-              <Input
-                id={id}
-                value={taxId}
-                onChange={(e) => setTaxId(e.target.value)}
-                data-testid="org-tax-id"
-              />
-            )}
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {ADDRESS_FIELDS.map((field) => (
-              <Field
-                key={field}
-                label={t(`ops.org.address.${field}`)}
-                htmlFor={`org-addr-${field}`}
-                required={field === 'line1' || field === 'city'}
-              >
-                {({ id }) => (
-                  <Input
-                    id={id}
-                    value={address[field] ?? ''}
-                    onChange={(e) => setAddress((a) => ({ ...a, [field]: e.target.value }))}
-                    data-testid={`org-addr-${field}`}
-                  />
-                )}
-              </Field>
-            ))}
-          </div>
-          <Button onClick={save} loading={update.isPending} data-testid="org-save">
-            {t('action.save')}
-          </Button>
+          {/* a config.read-only viewer reaches this screen too — disable every write control
+              instead of letting them edit fields that appear on every future customer invoice. */}
+          <fieldset disabled={!canPublish} className="contents">
+            <Field label={t('ops.org.legalName')} htmlFor="org-legal-name" required>
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={legalName}
+                  onChange={(e) => setLegalName(e.target.value)}
+                  data-testid="org-legal-name"
+                />
+              )}
+            </Field>
+            <Field label={t('ops.org.taxId')} htmlFor="org-tax-id" required>
+              {({ id }) => (
+                <Input
+                  id={id}
+                  value={taxId}
+                  onChange={(e) => setTaxId(e.target.value)}
+                  data-testid="org-tax-id"
+                />
+              )}
+            </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {ADDRESS_FIELDS.map((field) => (
+                <Field
+                  key={field}
+                  label={t(`ops.org.address.${field}`)}
+                  htmlFor={`org-addr-${field}`}
+                  required={field === 'line1' || field === 'city'}
+                >
+                  {({ id }) => (
+                    <Input
+                      id={id}
+                      value={address[field] ?? ''}
+                      onChange={(e) => setAddress((a) => ({ ...a, [field]: e.target.value }))}
+                      data-testid={`org-addr-${field}`}
+                    />
+                  )}
+                </Field>
+              ))}
+            </div>
+            <Button onClick={save} loading={update.isPending} data-testid="org-save">
+              {t('action.save')}
+            </Button>
+          </fieldset>
         </CardContent>
       </Card>
     </div>

@@ -1,4 +1,4 @@
-import { useFormErrors } from '@carrental/client/react';
+import { useAuth, useFormErrors } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import {
   Alert,
@@ -116,6 +116,8 @@ function planToForm(p: RatePlan): FormState {
 export function RatePlansPage() {
   const { t, fmt } = useI18n();
   const { toast } = useToast();
+  const { hasPermission } = useAuth();
+  const canPublish = hasPermission('config.publish');
   const plans = useRatePlans();
   const cats = useOpsCategories();
   const locs = useLocations();
@@ -366,41 +368,42 @@ export function RatePlansPage() {
       key: 'actions',
       header: '',
       className: 'text-end',
-      cell: (p) => (
-        <span className="flex justify-end gap-1">
-          {editableStatus(p.status) ? (
-            <>
+      cell: (p) =>
+        canPublish ? (
+          <span className="flex justify-end gap-1">
+            {editableStatus(p.status) ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => editPlan(planToForm(p))}
+                  data-testid={`rp-edit-${p.id}`}
+                >
+                  {t('ops.rp.editDraft')}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(p)}>
+                  {t('ops.rp.deleteDraft')}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => setConfirmPublish(p)}
+                  data-testid={`rp-publish-${p.id}`}
+                >
+                  {t('ops.rp.publish')}
+                </Button>
+              </>
+            ) : (
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => editPlan(planToForm(p))}
-                data-testid={`rp-edit-${p.id}`}
+                onClick={() => editPlan(clonePlan(p))}
+                data-testid={`rp-clone-${p.id}`}
               >
-                {t('ops.rp.editDraft')}
+                {t('ops.rp.clone')}
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(p)}>
-                {t('ops.rp.deleteDraft')}
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => setConfirmPublish(p)}
-                data-testid={`rp-publish-${p.id}`}
-              >
-                {t('ops.rp.publish')}
-              </Button>
-            </>
-          ) : (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => editPlan(clonePlan(p))}
-              data-testid={`rp-clone-${p.id}`}
-            >
-              {t('ops.rp.clone')}
-            </Button>
-          )}
-        </span>
-      ),
+            )}
+          </span>
+        ) : null,
     },
   ];
 
@@ -507,309 +510,324 @@ export function RatePlansPage() {
         <CardContent>
           <ErrorSummary title={t('ops.cfg.checkFields')} errors={errs.summary} />
           <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2" noValidate>
-            <Field
-              label={t('ops.rp.category')}
-              htmlFor="rp-category"
-              required
-              error={errs.fieldError('categoryCode')}
-            >
-              {({ id, invalid }) => (
-                <Select
-                  id={id}
-                  invalid={invalid}
-                  value={form.categoryCode}
-                  onChange={(e) => set({ categoryCode: e.target.value })}
-                >
-                  <option value="">{t('ops.rp.chooseCategory')}</option>
-                  {(cats.data ?? []).map((c) => (
-                    <option key={c.code} value={c.code}>
-                      {c.displayName} ({c.code})
-                    </option>
-                  ))}
-                </Select>
-              )}
-            </Field>
-            <Field
-              label={t('ops.rp.name')}
-              htmlFor="rp-name"
-              required
-              error={errs.fieldError('name')}
-            >
-              {({ id, invalid }) => (
-                <Input
-                  id={id}
-                  invalid={invalid}
-                  value={form.name}
-                  onChange={(e) => set({ name: e.target.value })}
-                />
-              )}
-            </Field>
-
-            <Field
-              label={t('ops.rp.scope')}
-              htmlFor="rp-scope"
-              error={errs.fieldError('locationCode')}
-            >
-              {({ id }) => (
-                <Select id={id} value={form.scope} onChange={(e) => set({ scope: e.target.value })}>
-                  <option value="">{t('ops.rp.allLocations')}</option>
-                  {(locs.data ?? []).map((l) => (
-                    <option key={l.code} value={l.code}>
-                      {l.name} ({l.code})
-                    </option>
-                  ))}
-                </Select>
-              )}
-            </Field>
-            <Field
-              label={t('ops.rp.currency')}
-              htmlFor="rp-currency"
-              error={errs.fieldError('currency')}
-            >
-              {({ id, describedBy, invalid }) => (
-                <LookupSelect
-                  typeCode="currency"
-                  id={id}
-                  describedBy={describedBy}
-                  invalid={invalid}
-                  value={form.currency}
-                  onChange={(code) => set({ currency: code })}
-                />
-              )}
-            </Field>
-
-            <Field
-              label={t('ops.rp.baseDay')}
-              htmlFor="rp-base"
-              required
-              hint={t('ops.rp.baseDayHint')}
-              error={errs.fieldError('baseDayMinor')}
-            >
-              {({ id, invalid }) => (
-                <Input
-                  id={id}
-                  invalid={invalid}
-                  inputMode="decimal"
-                  value={form.baseDay}
-                  onChange={(e) => set({ baseDay: e.target.value })}
-                />
-              )}
-            </Field>
-            <Field label={t('ops.rp.extraHour')} htmlFor="rp-hour" hint={t('ops.rp.extraHourHint')}>
-              {({ id }) => (
-                <Input
-                  id={id}
-                  inputMode="decimal"
-                  value={form.hour}
-                  onChange={(e) => set({ hour: e.target.value })}
-                />
-              )}
-            </Field>
-
-            <Field label={t('ops.rp.taxPct')} htmlFor="rp-tax">
-              {({ id }) => (
-                <Input
-                  id={id}
-                  inputMode="decimal"
-                  value={form.taxPct}
-                  onChange={(e) => set({ taxPct: e.target.value })}
-                />
-              )}
-            </Field>
-            <div />
-
-            <Field
-              label={t('ops.rp.effectiveFrom')}
-              htmlFor="rp-from"
-              hint={t('ops.rp.effectiveFromHint')}
-            >
-              {({ id }) => (
-                <Input
-                  id={id}
-                  type="date"
-                  value={form.effectiveFrom}
-                  min={form.id ? undefined : today()}
-                  onChange={(e) => set({ effectiveFrom: e.target.value })}
-                />
-              )}
-            </Field>
-            <Field
-              label={t('ops.rp.effectiveTo')}
-              htmlFor="rp-to"
-              hint={t('ops.rp.effectiveToHint')}
-              error={errs.fieldError('effectiveTo')}
-            >
-              {({ id, invalid }) => (
-                <Input
-                  id={id}
-                  invalid={invalid}
-                  type="date"
-                  value={form.effectiveTo}
-                  min={form.effectiveFrom}
-                  onChange={(e) => set({ effectiveTo: e.target.value })}
-                />
-              )}
-            </Field>
-
-            <Field label={t('ops.rp.minDuration')} htmlFor="rp-min">
-              {({ id }) => (
-                <Input
-                  id={id}
-                  inputMode="numeric"
-                  value={form.minDuration}
-                  onChange={(e) => set({ minDuration: e.target.value })}
-                />
-              )}
-            </Field>
-            <Field
-              label={t('ops.rp.maxDuration')}
-              htmlFor="rp-max"
-              hint={t('ops.rp.maxDurationHint')}
-              error={errs.fieldError('maxDurationHours')}
-            >
-              {({ id, invalid }) => (
-                <Input
-                  id={id}
-                  invalid={invalid}
-                  inputMode="numeric"
-                  value={form.maxDuration}
-                  onChange={(e) => set({ maxDuration: e.target.value })}
-                />
-              )}
-            </Field>
-
-            <fieldset className="space-y-2 sm:col-span-2">
-              <legend className="text-sm font-medium">{t('ops.rp.fees')}</legend>
-              {form.fees.map((fee, i) => (
-                <div key={i} className="flex flex-wrap items-center gap-2">
+            {/* a config.read-only viewer reaches this screen too (route allows config.read OR
+                config.publish) — disable every write control instead of letting them build a
+                plan they can't save. */}
+            <fieldset disabled={!canPublish} className="contents">
+              <Field
+                label={t('ops.rp.category')}
+                htmlFor="rp-category"
+                required
+                error={errs.fieldError('categoryCode')}
+              >
+                {({ id, invalid }) => (
+                  <Select
+                    id={id}
+                    invalid={invalid}
+                    value={form.categoryCode}
+                    onChange={(e) => set({ categoryCode: e.target.value })}
+                  >
+                    <option value="">{t('ops.rp.chooseCategory')}</option>
+                    {(cats.data ?? []).map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.displayName} ({c.code})
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+              <Field
+                label={t('ops.rp.name')}
+                htmlFor="rp-name"
+                required
+                error={errs.fieldError('name')}
+              >
+                {({ id, invalid }) => (
                   <Input
-                    className="w-28"
-                    placeholder={t('ops.rp.feeCode')}
-                    value={fee.code}
-                    onChange={(e) =>
-                      set({
-                        fees: form.fees.map((x, j) =>
-                          j === i ? { ...x, code: e.target.value } : x,
-                        ),
-                      })
-                    }
+                    id={id}
+                    invalid={invalid}
+                    value={form.name}
+                    onChange={(e) => set({ name: e.target.value })}
                   />
-                  <Input
-                    className="w-40"
-                    placeholder={t('ops.rp.feeLabel')}
-                    value={fee.label}
-                    onChange={(e) =>
-                      set({
-                        fees: form.fees.map((x, j) =>
-                          j === i ? { ...x, label: e.target.value } : x,
-                        ),
-                      })
-                    }
+                )}
+              </Field>
+
+              <Field
+                label={t('ops.rp.scope')}
+                htmlFor="rp-scope"
+                error={errs.fieldError('locationCode')}
+              >
+                {({ id }) => (
+                  <Select
+                    id={id}
+                    value={form.scope}
+                    onChange={(e) => set({ scope: e.target.value })}
+                  >
+                    <option value="">{t('ops.rp.allLocations')}</option>
+                    {(locs.data ?? []).map((l) => (
+                      <option key={l.code} value={l.code}>
+                        {l.name} ({l.code})
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+              <Field
+                label={t('ops.rp.currency')}
+                htmlFor="rp-currency"
+                error={errs.fieldError('currency')}
+              >
+                {({ id, describedBy, invalid }) => (
+                  <LookupSelect
+                    typeCode="currency"
+                    id={id}
+                    describedBy={describedBy}
+                    invalid={invalid}
+                    value={form.currency}
+                    onChange={(code) => set({ currency: code })}
                   />
+                )}
+              </Field>
+
+              <Field
+                label={t('ops.rp.baseDay')}
+                htmlFor="rp-base"
+                required
+                hint={t('ops.rp.baseDayHint')}
+                error={errs.fieldError('baseDayMinor')}
+              >
+                {({ id, invalid }) => (
                   <Input
-                    className="w-24"
+                    id={id}
+                    invalid={invalid}
                     inputMode="decimal"
-                    placeholder={t('ops.rp.feeAmount')}
-                    value={fee.amount}
-                    onChange={(e) =>
-                      set({
-                        fees: form.fees.map((x, j) =>
-                          j === i ? { ...x, amount: e.target.value } : x,
-                        ),
-                      })
-                    }
+                    value={form.baseDay}
+                    onChange={(e) => set({ baseDay: e.target.value })}
                   />
-                  <label className="flex items-center gap-1 text-xs">
-                    <Checkbox
-                      checked={fee.taxable}
+                )}
+              </Field>
+              <Field
+                label={t('ops.rp.extraHour')}
+                htmlFor="rp-hour"
+                hint={t('ops.rp.extraHourHint')}
+              >
+                {({ id }) => (
+                  <Input
+                    id={id}
+                    inputMode="decimal"
+                    value={form.hour}
+                    onChange={(e) => set({ hour: e.target.value })}
+                  />
+                )}
+              </Field>
+
+              <Field label={t('ops.rp.taxPct')} htmlFor="rp-tax">
+                {({ id }) => (
+                  <Input
+                    id={id}
+                    inputMode="decimal"
+                    value={form.taxPct}
+                    onChange={(e) => set({ taxPct: e.target.value })}
+                  />
+                )}
+              </Field>
+              <div />
+
+              <Field
+                label={t('ops.rp.effectiveFrom')}
+                htmlFor="rp-from"
+                hint={t('ops.rp.effectiveFromHint')}
+              >
+                {({ id }) => (
+                  <Input
+                    id={id}
+                    type="date"
+                    value={form.effectiveFrom}
+                    min={form.id ? undefined : today()}
+                    onChange={(e) => set({ effectiveFrom: e.target.value })}
+                  />
+                )}
+              </Field>
+              <Field
+                label={t('ops.rp.effectiveTo')}
+                htmlFor="rp-to"
+                hint={t('ops.rp.effectiveToHint')}
+                error={errs.fieldError('effectiveTo')}
+              >
+                {({ id, invalid }) => (
+                  <Input
+                    id={id}
+                    invalid={invalid}
+                    type="date"
+                    value={form.effectiveTo}
+                    min={form.effectiveFrom}
+                    onChange={(e) => set({ effectiveTo: e.target.value })}
+                  />
+                )}
+              </Field>
+
+              <Field label={t('ops.rp.minDuration')} htmlFor="rp-min">
+                {({ id }) => (
+                  <Input
+                    id={id}
+                    inputMode="numeric"
+                    value={form.minDuration}
+                    onChange={(e) => set({ minDuration: e.target.value })}
+                  />
+                )}
+              </Field>
+              <Field
+                label={t('ops.rp.maxDuration')}
+                htmlFor="rp-max"
+                hint={t('ops.rp.maxDurationHint')}
+                error={errs.fieldError('maxDurationHours')}
+              >
+                {({ id, invalid }) => (
+                  <Input
+                    id={id}
+                    invalid={invalid}
+                    inputMode="numeric"
+                    value={form.maxDuration}
+                    onChange={(e) => set({ maxDuration: e.target.value })}
+                  />
+                )}
+              </Field>
+
+              <fieldset className="space-y-2 sm:col-span-2">
+                <legend className="text-sm font-medium">{t('ops.rp.fees')}</legend>
+                {form.fees.map((fee, i) => (
+                  <div key={i} className="flex flex-wrap items-center gap-2">
+                    <Input
+                      className="w-28"
+                      placeholder={t('ops.rp.feeCode')}
+                      value={fee.code}
                       onChange={(e) =>
                         set({
                           fees: form.fees.map((x, j) =>
-                            j === i ? { ...x, taxable: e.target.checked } : x,
+                            j === i ? { ...x, code: e.target.value } : x,
                           ),
                         })
                       }
                     />
-                    {t('ops.rp.feeTaxable')}
-                  </label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => set({ fees: form.fees.filter((_, j) => j !== i) })}
-                  >
-                    {t('ops.rp.remove')}
-                  </Button>
-                </div>
-              ))}
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  set({ fees: [...form.fees, { code: '', label: '', amount: '', taxable: true }] })
-                }
-              >
-                {t('ops.rp.addFee')}
-              </Button>
-            </fieldset>
+                    <Input
+                      className="w-40"
+                      placeholder={t('ops.rp.feeLabel')}
+                      value={fee.label}
+                      onChange={(e) =>
+                        set({
+                          fees: form.fees.map((x, j) =>
+                            j === i ? { ...x, label: e.target.value } : x,
+                          ),
+                        })
+                      }
+                    />
+                    <Input
+                      className="w-24"
+                      inputMode="decimal"
+                      placeholder={t('ops.rp.feeAmount')}
+                      value={fee.amount}
+                      onChange={(e) =>
+                        set({
+                          fees: form.fees.map((x, j) =>
+                            j === i ? { ...x, amount: e.target.value } : x,
+                          ),
+                        })
+                      }
+                    />
+                    <label className="flex items-center gap-1 text-xs">
+                      <Checkbox
+                        checked={fee.taxable}
+                        onChange={(e) =>
+                          set({
+                            fees: form.fees.map((x, j) =>
+                              j === i ? { ...x, taxable: e.target.checked } : x,
+                            ),
+                          })
+                        }
+                      />
+                      {t('ops.rp.feeTaxable')}
+                    </label>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => set({ fees: form.fees.filter((_, j) => j !== i) })}
+                    >
+                      {t('ops.rp.remove')}
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    set({
+                      fees: [...form.fees, { code: '', label: '', amount: '', taxable: true }],
+                    })
+                  }
+                >
+                  {t('ops.rp.addFee')}
+                </Button>
+              </fieldset>
 
-            <fieldset className="space-y-2 sm:col-span-2">
-              <legend className="text-sm font-medium">{t('ops.rp.tiers')}</legend>
-              <p className="text-xs text-muted-foreground">{t('ops.rp.tiersHint')}</p>
-              {form.tiers.map((tier, i) => (
-                <div key={i} className="flex flex-wrap items-center gap-2">
-                  <Input
-                    className="w-32"
-                    inputMode="numeric"
-                    placeholder={t('ops.rp.tierMinHours')}
-                    value={tier.minHours}
-                    onChange={(e) =>
-                      set({
-                        tiers: form.tiers.map((x, j) =>
-                          j === i ? { ...x, minHours: e.target.value } : x,
-                        ),
-                      })
-                    }
-                  />
-                  <Input
-                    className="w-28"
-                    inputMode="decimal"
-                    placeholder={t('ops.rp.tierRate')}
-                    value={tier.day}
-                    onChange={(e) =>
-                      set({
-                        tiers: form.tiers.map((x, j) =>
-                          j === i ? { ...x, day: e.target.value } : x,
-                        ),
-                      })
-                    }
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => set({ tiers: form.tiers.filter((_, j) => j !== i) })}
-                  >
-                    {t('ops.rp.remove')}
-                  </Button>
-                </div>
-              ))}
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => set({ tiers: [...form.tiers, { minHours: '', day: '' }] })}
-              >
-                {t('ops.rp.addTier')}
-              </Button>
-            </fieldset>
+              <fieldset className="space-y-2 sm:col-span-2">
+                <legend className="text-sm font-medium">{t('ops.rp.tiers')}</legend>
+                <p className="text-xs text-muted-foreground">{t('ops.rp.tiersHint')}</p>
+                {form.tiers.map((tier, i) => (
+                  <div key={i} className="flex flex-wrap items-center gap-2">
+                    <Input
+                      className="w-32"
+                      inputMode="numeric"
+                      placeholder={t('ops.rp.tierMinHours')}
+                      value={tier.minHours}
+                      onChange={(e) =>
+                        set({
+                          tiers: form.tiers.map((x, j) =>
+                            j === i ? { ...x, minHours: e.target.value } : x,
+                          ),
+                        })
+                      }
+                    />
+                    <Input
+                      className="w-28"
+                      inputMode="decimal"
+                      placeholder={t('ops.rp.tierRate')}
+                      value={tier.day}
+                      onChange={(e) =>
+                        set({
+                          tiers: form.tiers.map((x, j) =>
+                            j === i ? { ...x, day: e.target.value } : x,
+                          ),
+                        })
+                      }
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => set({ tiers: form.tiers.filter((_, j) => j !== i) })}
+                    >
+                      {t('ops.rp.remove')}
+                    </Button>
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => set({ tiers: [...form.tiers, { minHours: '', day: '' }] })}
+                >
+                  {t('ops.rp.addTier')}
+                </Button>
+              </fieldset>
 
-            <div className="sm:col-span-2">
-              <Button type="submit" loading={save.isPending} data-testid="rate-plan-create">
-                {form.id ? t('ops.rp.saveDraft') : t('ops.rp.createDraft')}
-              </Button>
-            </div>
+              <div className="sm:col-span-2">
+                <Button type="submit" loading={save.isPending} data-testid="rate-plan-create">
+                  {form.id ? t('ops.rp.saveDraft') : t('ops.rp.createDraft')}
+                </Button>
+              </div>
+            </fieldset>
           </form>
         </CardContent>
       </Card>

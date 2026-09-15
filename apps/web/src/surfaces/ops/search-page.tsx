@@ -8,6 +8,7 @@ import {
   Field,
   Input,
   PageHeader,
+  Select,
   Spinner,
   type DataTableColumn,
 } from '@carrental/ui';
@@ -28,9 +29,6 @@ import { useUrlParams } from '../../lib/use-url-param.js';
 
 const RESERVATION_STATES = ['pending', 'confirmed', 'cancelled', 'no_show', 'fulfilled'];
 const RENTAL_STATES = ['awaiting_pickup', 'active', 'overdue', 'closed'];
-
-const selectClass =
-  'flex h-11 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
 export function SearchPage() {
   const { t, fmt } = useI18n();
@@ -205,9 +203,8 @@ export function SearchPage() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
             <Field label={t('ops.search.kind')} htmlFor="ops-search-kind">
               {({ id }) => (
-                <select
+                <Select
                   id={id}
-                  className={selectClass}
                   value={kind}
                   onChange={(e) => setParam('kind', e.target.value)}
                   data-testid="ops-search-kind"
@@ -215,14 +212,13 @@ export function SearchPage() {
                   <option value="">{t('ops.search.anyKind')}</option>
                   <option value="reservation">{t('ops.search.reservation')}</option>
                   <option value="rental">{t('ops.search.rental')}</option>
-                </select>
+                </Select>
               )}
             </Field>
             <Field label={t('ops.tbl.status')} htmlFor="ops-search-status">
               {({ id }) => (
-                <select
+                <Select
                   id={id}
-                  className={selectClass}
                   value={status}
                   onChange={(e) => setParam('status', e.target.value)}
                   data-testid="ops-search-status"
@@ -233,14 +229,13 @@ export function SearchPage() {
                       {s.replace(/_/g, ' ')}
                     </option>
                   ))}
-                </select>
+                </Select>
               )}
             </Field>
             <Field label={t('ops.search.location')} htmlFor="ops-search-loc">
               {({ id }) => (
-                <select
+                <Select
                   id={id}
-                  className={selectClass}
                   value={locationCode}
                   onChange={(e) => setParam('location', e.target.value)}
                 >
@@ -250,7 +245,7 @@ export function SearchPage() {
                       {l.name} ({l.code})
                     </option>
                   ))}
-                </select>
+                </Select>
               )}
             </Field>
             <Field label={t('ops.search.from')} htmlFor="ops-search-from">
