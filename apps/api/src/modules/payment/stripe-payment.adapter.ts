@@ -35,6 +35,14 @@ export class StripePaymentAdapter extends PaymentPort {
 
   async authorize(input: AuthorizeInput): Promise<PaymentResult> {
     try {
+      // `payment_method_types: ['card']` is required, not cosmetic: leaving it unset lets Stripe
+      // fall back to the account's automatic-payment-methods config (whatever's enabled in the
+      // Dashboard — bank, Klarna, Cash App, …), and confirming a PaymentIntent server-side
+      // (`confirm: true`) with any redirect-capable type in play requires a `return_url`, which
+      // this single-request confirm flow (see class doc) never provides — Stripe then refuses the
+      // confirm with a generic, code-less invalid_request_error. Pinning to card avoids that
+      // entirely and matches the Payment Element's own `paymentMethodOrder`/wallet restriction on
+      // the frontend (checkout/page.tsx).
       const intent = input.reuse
         ? await this.stripe.paymentIntents.create(
             {
@@ -42,6 +50,7 @@ export class StripePaymentAdapter extends PaymentPort {
               currency: input.currency.toLowerCase(),
               customer: input.reuse.customerRef,
               payment_method: input.reuse.methodRef,
+              payment_method_types: ['card'],
               off_session: true,
               confirm: true,
               capture_method: 'manual',
@@ -54,6 +63,7 @@ export class StripePaymentAdapter extends PaymentPort {
               amount: input.amountMinor,
               currency: input.currency.toLowerCase(),
               payment_method: input.token,
+              payment_method_types: ['card'],
               confirm: true,
               capture_method: 'manual',
               ...(input.saveForReuse
