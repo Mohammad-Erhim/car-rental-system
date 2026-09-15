@@ -2,7 +2,7 @@
 
 Dev-seed vehicle photos for the fleet's make/model catalogue. Not evidence, not test fixtures —
 real reference photography, checked in so the images are present right after `git clone`/`pull`
-(see `discovery.ts`'s `loadMakeModelPhotoIndex`).
+(see `discovery.ts`'s `getOrCreateVehiclePhotoRef`).
 
 ## Sourced this session (Wikimedia Commons — license verified before download)
 
