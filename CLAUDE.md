@@ -10,6 +10,17 @@ it — an API client, auth/session handling, form-error mapping, a query-client,
 React hook, a type — it goes in a `packages/*` library and both import it. A file header that
 says "adapted from" or "ported from" another app is a bug report, not a comment.
 
+`apps/mobile` (React Native/Expo) is the fourth app and the same rule applies, with one caveat:
+`packages/client` is documented as a *browser* runtime (`apiFetch` reads `document.cookie`,
+`token-store`/`return-to` use `localStorage`/`sessionStorage`) and has no injection seam, so
+`apps/mobile` cannot literally import its `apiFetch`/token-store/React hooks the way `apps/web`
+and `apps/site` do. What it *does* reuse: `packages/contracts` and `packages/theme` (already
+framework-agnostic), `packages/i18n` including its React bindings (DOM-touches are all guarded
+no-ops), and `packages/client`'s root-level `ApiError`/`createQueryClient` (genuinely DOM-free).
+Its own `src/lib/api/*` reimplements only the browser-specific glue (fetch orchestration, session
+state, refresh/step-up), deliberately kept in lockstep with `packages/client`'s browser version —
+see that directory's doc comments before assuming something there is duplicated by accident.
+
 Precedence when they conflict: an explicit spec/DEC decision > an existing project convention >
 personal preference.
 
@@ -19,6 +30,8 @@ personal preference.
 apps/api    NestJS modular monolith + worker + Drizzle (schema / migrations / seed)
 apps/web    Vite React SPA — operations & admin dashboard (APP-OPS), served under /ops
 apps/site   Next.js 14 App Router — customer surface (APP-CWEB): SSG/ISR, /[locale]/, SEO
+apps/mobile Expo/React Native — customer surface as a native app: expo-router, same contracts
+            and (mostly) the same session model as apps/site, see apps/mobile/README.md
 packages/config     shared tsconfig + ESLint presets (incl. the module-boundary rule)
 packages/contracts  zod schemas + types — the API boundary, shared by all three apps
 packages/client     framework-agnostic browser runtime: apiFetch, ApiError, token store,
@@ -76,13 +89,19 @@ inputs — keep that convention rather than reading it from the actor deep in a 
 
 - **All API traffic** goes through `@carrental/client` (`apiFetch` + `ApiError`). Apps never
   hand-roll `fetch` against `/api/v1`, never re-implement the 401-refresh dance, never define a
-  second `ApiError`.
+  second `ApiError`. (`apps/mobile` is the one exception to "goes through `@carrental/client`"
+  for `apiFetch` itself — see the "one rule" section above — but still reuses its `ApiError`.)
 - **Query keys + shared response hooks** live in `@carrental/client` too. App-local
   `lib/*-hooks.ts` files hold only genuinely surface-specific composition.
 - The React provider tree (`QueryClientProvider` config, `AuthProvider`) uses the shared
-  factories; only the outer shell differs per app.
-- UI primitives come from `@carrental/ui`; don't import `@radix-ui/*` directly in an app unless
-  the primitive genuinely doesn't exist yet (then add it to `ui`).
+  factories; only the outer shell differs per app. `apps/mobile` mirrors the shape of
+  `@carrental/client/react`'s `AuthProvider` (same session model) rather than importing it, for
+  the same browser-only reason.
+- UI primitives come from `@carrental/ui` on the web apps; don't import `@radix-ui/*` directly in
+  `apps/web`/`apps/site` unless the primitive genuinely doesn't exist yet (then add it to `ui`).
+  `apps/mobile` has its own `src/components/ui` — `@carrental/ui`'s components are DOM/Radix-based
+  and not portable to RN — styled from the same `@carrental/theme` tokens instead of a parallel
+  palette.
 
 ## Contracts-first workflow
 

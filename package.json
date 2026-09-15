@@ -2,7 +2,7 @@
   "name": "car-rental-system",
   "version": "0.1.0",
   "private": true,
-  "description": "Car Rental System — customer web, operations dashboard, and shared backend (also serves the deferred mobile app).",
+  "description": "Car Rental System — customer web, operations dashboard, native mobile app, and shared backend.",
   "packageManager": "pnpm@9.15.0",
   "engines": {
     "node": ">=22.12.0"

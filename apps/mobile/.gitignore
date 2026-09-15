@@ -1,0 +1,15 @@
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+*.orig.*
+.env
+.env.local
+
+# macOS
+.DS_Store
+
+# native builds if ever prebuilt locally
+/ios
+/android
