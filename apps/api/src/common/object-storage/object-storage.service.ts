@@ -43,6 +43,19 @@ export class ObjectStorageService {
     @Inject(DB) private readonly db: Database,
     @Inject(ENV) private readonly env: Env,
   ) {
+    // OBJECT_STORAGE_DRIVER=s3 validates in env.schema.ts (DEC-015 names it as the future
+    // adapter) but has no implementation here — every method below unconditionally uses the
+    // local filesystem regardless of this setting. Silently falling back to `fs` in that case
+    // would be a data-durability trap on a multi-instance or ephemeral-disk deployment (brand
+    // assets/receipts/exports vanish on restart/scale) with no signal until something goes
+    // missing. Fail loud at boot instead — the app must not start half-configured this way.
+    if (this.env.OBJECT_STORAGE_DRIVER === 's3') {
+      throw new Error(
+        'OBJECT_STORAGE_DRIVER=s3 is configured but not implemented — ObjectStorageService only ' +
+          'has a filesystem driver. Set OBJECT_STORAGE_DRIVER=fs, or implement the s3 driver ' +
+          'before selecting it.',
+      );
+    }
     this.root = resolve(this.env.OBJECT_STORAGE_FS_ROOT);
   }
 

@@ -1,6 +1,7 @@
 import { hash } from '@node-rs/argon2';
 import { sql } from 'drizzle-orm';
 
+import { loadEnv } from '../../config/env.schema';
 import type { Database } from '../drizzle';
 import { customer } from '../schema/customer';
 import { account, staffProfile } from '../schema/iam';
@@ -18,7 +19,11 @@ export const DEV_PASSWORD = 'DevPassw0rd!';
 const ARGON_OPTS = { memoryCost: 19456, timeCost: 2, parallelism: 1 } as const;
 
 export async function seedDevelopment(db: Database): Promise<void> {
-  const pepper = process.env.PASSWORD_PEPPER ?? 'dev-pepper';
+  // `loadEnv()` is memoized (env.schema.ts) — this reuses the already-validated env from
+  // `bootstrapEnvForScript()` when a CLI entrypoint ran it first, and otherwise validates
+  // process.env itself (failing fast if PASSWORD_PEPPER is unset) rather than silently falling
+  // back to a hardcoded placeholder for any future caller that skips that bootstrap step.
+  const pepper = loadEnv().PASSWORD_PEPPER;
   const passwordHash = await hash(DEV_PASSWORD + pepper, ARGON_OPTS);
 
   // --- organization ---

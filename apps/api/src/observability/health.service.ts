@@ -1,5 +1,5 @@
 import type { Readiness, BuildInfo } from '@carrental/contracts';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, type OnModuleDestroy } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 import { Redis } from 'ioredis';
 
@@ -15,7 +15,7 @@ import { MetricsService } from './metrics';
 type Status = 'ok' | 'degraded' | 'down';
 
 @Injectable()
-export class HealthService {
+export class HealthService implements OnModuleDestroy {
   private redis: Redis | null = null;
 
   constructor(
@@ -24,6 +24,11 @@ export class HealthService {
     private readonly metrics: MetricsService,
   ) {}
 
+  // Deliberately its own connection rather than the app-wide SharedRedisService
+  // (common/redis/redis.module.ts): the readiness probe needs `lazyConnect` + a bounded
+  // `connectTimeout` + `enableOfflineQueue: false` so a down Redis fails this specific check
+  // quickly instead of queuing/hanging — different semantics from the eager, always-connected
+  // client the cache bus and rate limiter share.
   private getRedis(): Redis {
     if (!this.redis) {
       this.redis = new Redis(this.env.REDIS_URL, {
@@ -35,6 +40,10 @@ export class HealthService {
       this.redis.on('error', () => {});
     }
     return this.redis;
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    await this.redis?.quit().catch(() => {});
   }
 
   version(): BuildInfo {

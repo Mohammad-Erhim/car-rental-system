@@ -52,6 +52,12 @@ const baseEnvSchema = z.object({
   MAIL_DRIVER: z.enum(['outbox', 'smtp']).default('outbox'),
   MAIL_FROM: z.string().default('Car Rental <no-reply@example.test>'),
   SMTP_URL: z.string().optional(),
+  // DEC-016 plans SMS/push on the same outbox pattern as mail ("SMS/push use the same outbox
+  // pattern with a dev viewer"), but neither is wired up anywhere yet — notify.service.ts's
+  // 'sms'/'push' channels exist as a concept but never read these. Unlike MAIL_DRIVER (genuinely
+  // implemented, see notify.service.ts), these two are declared ahead of the implementation.
+  // Kept (not removed) because DEC-016 explicitly commits to building them; remove this comment
+  // once a real driver reads them.
   SMS_DRIVER: z.enum(['outbox', 'twilio']).default('outbox'),
   PUSH_DRIVER: z.enum(['outbox', 'fcm']).default('outbox'),
 
@@ -73,7 +79,6 @@ const baseEnvSchema = z.object({
 
   MAPS_ENABLED: z.coerce.boolean().default(false),
   MAP_STYLE_URL: z.string().optional(),
-  IDENTITY_DRIVER: z.enum(['simulator', 'manual']).default('simulator'),
 
   /** SRS-SEC-015 — abuse controls. `RATE_LIMIT_ENABLED=false` disables the guard entirely.
    * `RATE_LIMIT_AUTH_MAX` requests per `RATE_LIMIT_AUTH_WINDOW_SEC` per client IP on auth routes. */
@@ -93,6 +98,13 @@ const baseEnvSchema = z.object({
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
   METRICS_ENABLED: z.coerce.boolean().default(true),
+  /** Shared secret required on the `X-Metrics-Token` header to read `/metrics` (SRS DEC-017)
+   *  — that endpoint has no other auth (it must be scrapeable by an external Prometheus, which
+   *  isn't a staff/customer actor) and otherwise hands any unauthenticated caller Node process
+   *  internals + per-route request-rate/latency histograms. Optional: unset keeps today's
+   *  behaviour (open) for a fresh local checkout; every real deployment should set it and point
+   *  its scraper's `Authorization`/custom-header config at the same value. */
+  METRICS_TOKEN: z.string().optional(),
 
   GIT_SHA: z.string().optional(),
   BUILD_TIME: z.string().optional(),

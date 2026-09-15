@@ -27,6 +27,10 @@ const log = pino({ name: 'carrental-worker', level: process.env.LOG_LEVEL ?? 'in
 
 async function main() {
   const env = bootstrapEnvForScript();
+  // Its own connection, not the app-wide SharedRedisService (common/redis/redis.module.ts) —
+  // this is a separate process outside that Nest app's DI graph, and BullMQ *requires*
+  // `maxRetriesPerRequest: null` for its blocking commands, which is incompatible with the
+  // shared client's settings anyway. Already cleaned up in `shutdown()` below.
   const connection = new IORedis(env.REDIS_URL, { maxRetriesPerRequest: null });
   const { db, close } = createDb(env.DATABASE_URL);
   const appCtx = await NestFactory.createApplicationContext(AppModule, { logger: false });

@@ -10,6 +10,8 @@ import type { Request, Response } from 'express';
 import { Observable, from, of, switchMap, tap } from 'rxjs';
 
 import type { Actor } from '../auth/types';
+import { currentRequestId } from '../correlation';
+import { toProblem } from '../problem';
 
 import { IdempotencyService } from './idempotency.service';
 
@@ -54,8 +56,13 @@ export class IdempotencyInterceptor implements NestInterceptor {
             next: (body) => {
               void result.finalize(res.statusCode ?? 200, body as unknown);
             },
-            error: () => {
-              void result.finalize(500, { error: true });
+            error: (err: unknown) => {
+              // Store the REAL status/body the client would have received (e.g. a 409 conflict
+              // or 422 validation failure), not a hardcoded 500 — a retry with the same
+              // Idempotency-Key must replay the actual, actionable error rather than a misleading
+              // generic failure for the life of the key (24h, see IdempotencyService's TTL_MS).
+              const problem = toProblem(err, currentRequestId());
+              void result.finalize(problem.status, problem);
             },
           }),
         );
