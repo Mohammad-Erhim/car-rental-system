@@ -141,7 +141,13 @@ export class PaymentService {
     };
     try {
       auth = await this.port.authorize({
-        idempotencyKey: `${input.reservationReference}:${purpose}`,
+        // Keyed on the specific payment method, not just reservation+purpose: a genuine retry of
+        // the *same* card (double-click, network hiccup) reuses the same Stripe idempotency key
+        // and is safely deduped, but a customer retrying with a *different* card after a decline
+        // must get a fresh key — Stripe itself rejects a reused key whose request body differs
+        // (StripeIdempotencyError), which is exactly what a fixed `reservationReference:purpose`
+        // key caused on every retry-with-a-different-card.
+        idempotencyKey: `${input.reservationReference}:${purpose}:${input.token ?? saved?.methodRef ?? 'off-session'}`,
         amountMinor: input.amountMinor,
         currency: input.currency,
         token: input.token,

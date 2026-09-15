@@ -206,8 +206,11 @@ export class StripePaymentAdapter extends PaymentPort {
         return new PaymentDeclinedError('already_settled');
       return new PaymentDeclinedError(e.code ?? 'invalid_request');
     }
-    if (type === 'StripeRateLimitError' || type === 'StripeIdempotencyError') {
-      return new PaymentDeclinedError(type);
+    if (type === 'StripeRateLimitError') {
+      return new PaymentDeclinedError('rate_limit_error');
+    }
+    if (type === 'StripeIdempotencyError') {
+      return new PaymentDeclinedError('idempotency_error');
     }
     if (err instanceof Error) return err;
     return new Error(message);

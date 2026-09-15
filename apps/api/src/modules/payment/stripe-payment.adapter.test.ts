@@ -215,6 +215,28 @@ describe('StripePaymentAdapter', () => {
         .catch((e) => e);
       expect(err).toBeInstanceOf(PaymentProviderConfigError);
     });
+
+    it('a Stripe idempotency_error (reused key, different request) maps to a clean decline reason', async () => {
+      const stripe = fakeStripe();
+      stripe.paymentIntents.create.mockRejectedValue({
+        type: 'StripeIdempotencyError',
+        message: 'Keys for idempotent requests can only be used with the same parameters',
+      });
+      const adapter = adapterFor(stripe);
+
+      const err = await adapter
+        .authorize({
+          idempotencyKey: 'k',
+          amountMinor: 100,
+          currency: 'USD',
+          token: 'pm_x',
+          reference: 'res-7',
+        })
+        .catch((e) => e);
+      expect(err).toBeInstanceOf(PaymentDeclinedError);
+      // the raw SDK class name must never leak to the customer-facing reason
+      expect(err.failureCode).toBe('idempotency_error');
+    });
   });
 
   describe('capture / void / refund', () => {
