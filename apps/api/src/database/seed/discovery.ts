@@ -1,4 +1,9 @@
+import { createHash } from 'node:crypto';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
+
 import { and, eq, inArray, sql } from 'drizzle-orm';
+import { nanoid } from 'nanoid';
 
 import type { Database } from '../drizzle';
 import {
@@ -11,6 +16,7 @@ import { vehicleUnit } from '../schema/fleet';
 import { location } from '../schema/org';
 import { storedObject } from '../schema/platform';
 import { ratePlan, rateTier } from '../schema/pricing';
+import { bootstrapEnvForScript } from '../script-env';
 
 export interface CategorySpec {
   code: string;
@@ -51,10 +57,13 @@ export const CATEGORIES: CategorySpec[] = [
     fleetPerLocation: 5,
     // one distinct make/model/colour combo per unit — never fewer combos than fleetPerLocation,
     // or `n % makes.length` wraps around and seeds two identical cars at the same location
+    // colour matches the actual committed photo for each make/model that has one (see
+    // `getOrCreateVehiclePhotoRef` below and `assets/vehicle-photos/`) — corrected against what
+    // the real photo shows, not the other way around, so photo and printed colour never disagree.
     makes: [
-      ['Toyota', 'Aygo X', 'White'],
-      ['Kia', 'Picanto', 'Silver'],
-      ['Hyundai', 'i10', 'Blue'],
+      ['Toyota', 'Aygo X', 'Black'],
+      ['Kia', 'Picanto', 'Orange'],
+      ['Hyundai', 'i10', 'Silver'],
       ['Volkswagen', 'up!', 'Red'],
       ['Fiat', 'Panda', 'Grey'],
     ],
@@ -71,9 +80,9 @@ export const CATEGORIES: CategorySpec[] = [
     features: ['aircon', 'bluetooth', 'carplay', 'cruise'],
     fleetPerLocation: 4,
     makes: [
-      ['Volkswagen', 'Golf', 'Grey'],
-      ['Ford', 'Focus', 'Blue'],
-      ['Mazda', '3', 'Red'],
+      ['Volkswagen', 'Golf', 'White'],
+      ['Ford', 'Focus', 'Black'],
+      ['Mazda', '3', 'Silver'],
       ['Honda', 'Civic', 'White'],
     ],
   },
@@ -89,8 +98,8 @@ export const CATEGORIES: CategorySpec[] = [
     features: ['aircon', 'carplay', 'cruise', 'parking_sensors', 'gps'],
     fleetPerLocation: 4,
     makes: [
-      ['Toyota', 'Corolla', 'Silver'],
-      ['Nissan', 'Sentra', 'White'],
+      ['Toyota', 'Corolla', 'Teal'],
+      ['Nissan', 'Sentra', 'Silver'],
       ['Hyundai', 'Elantra', 'Black'],
       ['Skoda', 'Octavia', 'Blue'],
     ],
@@ -127,7 +136,7 @@ export const CATEGORIES: CategorySpec[] = [
     // capacity-exhaustion fixture
     fleetPerLocation: 2,
     makes: [
-      ['BMW', '3 Series', 'Black'],
+      ['BMW', '3 Series', 'White'],
       ['Mercedes-Benz', 'C-Class', 'Silver'],
     ],
   },
@@ -147,22 +156,59 @@ function makeModelKey(make: string, model: string): string {
 }
 
 /**
- * Real photos already sitting in object storage from an earlier upload (`ops/media`, purpose
- * `vehicle_unit`, `ownerId` labeled `Make_Model`) — this only *links* what's already there to the
- * seeded categories/units by make+model; it never fabricates or fetches new images. A category or
- * unit whose make/model has no matching upload simply keeps `imageRef` unset (the client's
- * existing generated-art fallback covers that, per `vehicleUnit.imageRef`'s own column comment).
+ * Real vehicle photos, committed as files under `assets/vehicle-photos/<Make_Model>.jpg` (see
+ * that directory's `CREDITS.md` for source/license/attribution on each one — several are
+ * CC BY/BY-SA and require it). This only *links* what's genuinely a real photo of that make/model
+ * to the seeded category/unit; it never fabricates or generates one. A make/model with no
+ * committed file simply keeps `imageRef` unset (the client's existing generated-art fallback
+ * covers that, per `vehicleUnit.imageRef`'s own column comment) rather than erroring.
+ *
+ * Idempotent per key within one run (and across runs, via the `stored_object` lookup) — re-seeding
+ * finds the row a prior run already inserted and reuses its ref instead of writing a duplicate.
  */
-async function loadMakeModelPhotoIndex(db: Database): Promise<Map<string, string>> {
-  const rows = await db
-    .select({ ownerId: storedObject.ownerId, objectKey: storedObject.objectKey })
+async function getOrCreateVehiclePhotoRef(
+  db: Database,
+  objectRoot: string,
+  key: string,
+): Promise<string | null> {
+  const ownerType = 'vehicle_unit';
+  const [existing] = await db
+    .select({ objectKey: storedObject.objectKey })
     .from(storedObject)
     .where(
-      and(eq(storedObject.purpose, 'vehicle_unit'), eq(storedObject.ownerType, 'vehicle_unit')),
-    );
-  const index = new Map<string, string>();
-  for (const r of rows) if (r.ownerId) index.set(r.ownerId, r.objectKey);
-  return index;
+      and(
+        eq(storedObject.purpose, 'vehicle_unit'),
+        eq(storedObject.ownerType, ownerType),
+        eq(storedObject.ownerId, key),
+      ),
+    )
+    .limit(1);
+  if (existing) return `obj:${existing.objectKey}`;
+
+  let photo: Buffer;
+  try {
+    photo = await readFile(join(__dirname, 'assets', 'vehicle-photos', `${key}.jpg`));
+  } catch {
+    return null; // no committed photo for this make/model
+  }
+
+  const objectKey = `vehicle_unit/${new Date().getFullYear()}/${nanoid(24)}`;
+  const abs = join(objectRoot, objectKey);
+  await mkdir(dirname(abs), { recursive: true });
+  await writeFile(abs, photo);
+  await db.insert(storedObject).values({
+    purpose: 'vehicle_unit',
+    ownerType,
+    ownerId: key,
+    objectKey,
+    mediaType: 'image/jpeg',
+    sizeBytes: photo.byteLength,
+    checksumSha256: createHash('sha256').update(photo).digest('hex'),
+    scanState: 'clean',
+    reviewState: 'none',
+    uploadComplete: 'yes',
+  });
+  return `obj:${objectKey}`;
 }
 
 /**
@@ -173,10 +219,28 @@ async function loadMakeModelPhotoIndex(db: Database): Promise<Map<string, string
 export async function seedDiscovery(
   db: Database,
   orgId: string,
-  opts: { categories?: CategorySpec[]; locationCodes?: string[] } = {},
+  opts: {
+    categories?: CategorySpec[];
+    locationCodes?: string[];
+    /** Only `development.ts` opts in — the test profile's fixtures stay fast/minimal/side-effect
+     *  free, and this only ever touches local disk (`OBJECT_STORAGE_FS_ROOT`, DEC-015's `fs`
+     *  driver), never a real object store. */
+    seedPhotos?: boolean;
+  } = {},
 ): Promise<void> {
   const categories = opts.categories ?? CATEGORIES;
-  const photoIndex = await loadMakeModelPhotoIndex(db);
+  const objectRoot = opts.seedPhotos
+    ? resolve(bootstrapEnvForScript().OBJECT_STORAGE_FS_ROOT)
+    : null;
+  const photoRefCache = new Map<string, string | null>();
+  const photoRefFor = async (mk: string, md: string): Promise<string | null> => {
+    if (!objectRoot) return null;
+    const key = makeModelKey(mk, md);
+    if (!photoRefCache.has(key)) {
+      photoRefCache.set(key, await getOrCreateVehiclePhotoRef(db, objectRoot, key));
+    }
+    return photoRefCache.get(key)!;
+  };
 
   for (const [i, f] of FEATURES.entries()) {
     await db
@@ -197,13 +261,9 @@ export async function seedDiscovery(
     .where(locWhere);
 
   for (const [ci, cat] of categories.entries()) {
-    // The category's own "hero" photo: whichever of its makes has a real upload first, in list
-    // order — every category's first-listed make happens to have one today, but this degrades to
-    // "no photo" (client fallback art) rather than erroring if that ever stops being true.
-    const categoryImageKey = cat.makes
-      .map(([mk, md]) => photoIndex.get(makeModelKey(mk, md)))
-      .find((key): key is string => !!key);
-
+    // Category-level imageRef is intentionally left alone here (not set from a make's photo) —
+    // only the per-unit photos below are linked. A category's own hero image is a distinct,
+    // deliberate ops decision (uploaded/set explicitly), not something to infer from one member.
     const [row] = await db
       .insert(vehicleCategory)
       .values({
@@ -218,7 +278,6 @@ export async function seedDiscovery(
         transmission: cat.transmission,
         sortOrder: ci,
         isActive: true,
-        ...(categoryImageKey ? { imageRef: `obj:${categoryImageKey}` } : {}),
       })
       .onConflictDoUpdate({
         target: [vehicleCategory.organizationId, vehicleCategory.code],
@@ -231,7 +290,6 @@ export async function seedDiscovery(
           sortOrder: ci,
           isActive: true,
           updatedAt: sql`now()`,
-          ...(categoryImageKey ? { imageRef: `obj:${categoryImageKey}` } : {}),
         },
       })
       .returning();
@@ -249,7 +307,7 @@ export async function seedDiscovery(
     for (const loc of locs) {
       for (let n = 0; n < cat.fleetPerLocation; n++) {
         const [mk, md, col] = cat.makes[n % cat.makes.length]!;
-        const unitImageKey = photoIndex.get(makeModelKey(mk, md));
+        const unitImageRef = await photoRefFor(mk, md);
         const vin =
           `DEV${cat.code.toUpperCase().slice(0, 3)}${loc.code}${String(n + 1).padStart(2, '0')}${'0'.repeat(8)}`.slice(
             0,
@@ -270,7 +328,7 @@ export async function seedDiscovery(
             model: md,
             colour: col,
             state: 'available',
-            ...(unitImageKey ? { imageRef: `obj:${unitImageKey}` } : {}),
+            ...(unitImageRef ? { imageRef: unitImageRef } : {}),
           })
           .onConflictDoUpdate({
             // re-seeding must correct a previously-wrong make/model/colour on an existing VIN
@@ -283,7 +341,7 @@ export async function seedDiscovery(
               colour: col,
               year: '2024',
               updatedAt: sql`now()`,
-              ...(unitImageKey ? { imageRef: `obj:${unitImageKey}` } : {}),
+              ...(unitImageRef ? { imageRef: unitImageRef } : {}),
             },
           });
       }
