@@ -217,7 +217,9 @@ export async function seedDevelopment(db: Database): Promise<void> {
       });
   }
 
-  await seedDiscovery(db, org.id);
+  // seedPhotos: links each seeded vehicle unit to its real committed make/model photo (see
+  // discovery.ts's `assets/vehicle-photos/`) instead of leaving imageRef null on a fresh install.
+  await seedDiscovery(db, org.id, { seedPhotos: true });
 }
 
 function weekly(open: string, close: string, closedDays: number[] = []) {
