@@ -420,6 +420,10 @@ function CheckoutInner() {
                     amount: Math.max(1, totalWithExtrasMinor),
                     currency: quote.data.currency.toLowerCase(),
                     locale: uiLocale as StripeElementLocale,
+                    // required by Stripe.js for the deferred `stripe.createPaymentMethod({ elements })`
+                    // call below — without it, Stripe assumes the standard `confirmPayment` flow and
+                    // throws "your elements instance must be created with paymentMethodCreation: 'manual'".
+                    paymentMethodCreation: 'manual',
                   }}
                 >
                   <StripePaymentForm
