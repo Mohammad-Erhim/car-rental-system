@@ -18,6 +18,7 @@
     "db:migrate": "node -r @swc-node/register src/database/migrate.ts",
     "db:seed": "node -r @swc-node/register src/database/seed/seed.ts",
     "db:reset": "node -r @swc-node/register src/database/reset.ts",
+    "gen:car-art": "node -r @swc-node/register scripts/gen-car-art.ts",
     "openapi:generate": "node -r @swc-node/register src/openapi.ts",
     "openapi:check": "node -r @swc-node/register src/openapi.ts --check"
   },

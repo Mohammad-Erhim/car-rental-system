@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
 import { and, eq, inArray, sql } from 'drizzle-orm';
@@ -18,7 +18,7 @@ import { storedObject } from '../schema/platform';
 import { ratePlan, rateTier } from '../schema/pricing';
 import { bootstrapEnvForScript } from '../script-env';
 
-import { renderCarArtPng, type CarVariant } from './car-art';
+import type { CarVariant } from './car-art';
 
 export interface CategorySpec {
   code: string;
@@ -151,10 +151,14 @@ const KNOWN_CAR_VARIANTS = new Set<CarVariant>([
 ]);
 
 /**
- * One rendered illustration per category *class* (not per category/unit — every economy category
- * across every org would look the same anyway), reused as the `imageRef` for that category and
- * every seeded unit in it. Idempotent: re-running the seed finds the row `getOrCreateCarArtRef`
- * already inserted and returns its ref instead of writing a new file + row each time.
+ * One committed illustration per category *class* (not per category/unit — every economy
+ * category across every org would look the same anyway), reused as the `imageRef` for that
+ * category and every seeded unit in it. The PNG bytes themselves are real files checked into the
+ * repo (`assets/vehicle-category/<variant>.png`, produced by `../../../scripts/gen-car-art.ts`)
+ * rather than rendered on the fly here — so the images genuinely exist in git, visible in a diff
+ * and present right after `git clone`, not just conjured at seed time. Idempotent: re-running the
+ * seed finds the row this function already inserted and returns its ref instead of writing a new
+ * object-storage file + row each time.
  */
 async function getOrCreateCarArtRef(
   db: Database,
@@ -175,7 +179,7 @@ async function getOrCreateCarArtRef(
     .limit(1);
   if (existing) return `obj:${existing.objectKey}`;
 
-  const png = renderCarArtPng(variant);
+  const png = await readFile(join(__dirname, 'assets', 'vehicle-category', `${variant}.png`));
   const key = `vehicle_category_art/${new Date().getFullYear()}/${nanoid(24)}`;
   const abs = join(objectRoot, key);
   await mkdir(dirname(abs), { recursive: true });
