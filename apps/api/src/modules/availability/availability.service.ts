@@ -371,8 +371,13 @@ export class AvailabilityService {
 
   /**
    * Capacity already committed against a category + pickup location for a window: live holds
-   * (checkout in progress) + confirmed reservations that have not yet been picked up. Both
-   * consume a unit from the free pool.
+   * (checkout in progress) + confirmed reservations that have not yet been picked up — i.e. have
+   * no rental of their own yet. The moment a reservation gets an actual rental, that rental's own
+   * unit (open or since returned) is what the caller's `occupiedByUnit`/candidate-unit computation
+   * already accounts for; counting the reservation here too would subtract that same capacity a
+   * second time — permanently, in the closed-rental case, since a `fulfilled` reservation whose
+   * trip is long over would otherwise go on consuming a phantom slot from every future search of
+   * the same date window forever.
    */
   private async countHolds(
     categoryCode: string,
@@ -406,6 +411,7 @@ export class AvailabilityService {
           sql`${reservation.state} in ('confirmed','fulfilled')`,
           sql`${reservation.pickupAt} < ${returnAt.toISOString()}`,
           sql`${pickupAt.toISOString()} < ${reservation.returnAt}`,
+          sql`not exists (select 1 from rental r where r.reservation_reference = ${reservation.reference})`,
           excludeReservationRef
             ? sql`${reservation.reference} <> ${excludeReservationRef}`
             : sql`true`,
