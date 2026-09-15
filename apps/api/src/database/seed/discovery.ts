@@ -48,10 +48,14 @@ export const CATEGORIES: CategorySpec[] = [
     baseDayMinor: 3200,
     features: ['aircon', 'bluetooth'],
     fleetPerLocation: 5,
+    // one distinct make/model/colour combo per unit — never fewer combos than fleetPerLocation,
+    // or `n % makes.length` wraps around and seeds two identical cars at the same location
     makes: [
-      ['Toyota', 'Aygo', 'White'],
+      ['Toyota', 'Aygo X', 'White'],
       ['Kia', 'Picanto', 'Silver'],
       ['Hyundai', 'i10', 'Blue'],
+      ['Volkswagen', 'up!', 'Red'],
+      ['Fiat', 'Panda', 'Grey'],
     ],
   },
   {
@@ -69,6 +73,7 @@ export const CATEGORIES: CategorySpec[] = [
       ['Volkswagen', 'Golf', 'Grey'],
       ['Ford', 'Focus', 'Blue'],
       ['Mazda', '3', 'Red'],
+      ['Honda', 'Civic', 'White'],
     ],
   },
   {
@@ -84,8 +89,9 @@ export const CATEGORIES: CategorySpec[] = [
     fleetPerLocation: 4,
     makes: [
       ['Toyota', 'Corolla', 'Silver'],
-      ['Honda', 'Civic', 'Black'],
       ['Nissan', 'Sentra', 'White'],
+      ['Hyundai', 'Elantra', 'Black'],
+      ['Skoda', 'Octavia', 'Blue'],
     ],
   },
   {
@@ -115,11 +121,13 @@ export const CATEGORIES: CategorySpec[] = [
     transmission: 'automatic',
     baseDayMinor: 11800,
     features: ['aircon', 'carplay', 'cruise', 'parking_sensors', 'leather', 'gps'],
+    // kept at 2 — apps/api/test/discovery.spec.ts TEST-AVL-002 and its callers in booking.spec.ts
+    // / reservation-ops.spec.ts deliberately depend on "premium @ TST1 has exactly 2 units" as a
+    // capacity-exhaustion fixture
     fleetPerLocation: 2,
     makes: [
       ['BMW', '3 Series', 'Black'],
       ['Mercedes-Benz', 'C-Class', 'Silver'],
-      ['Audi', 'A4', 'Grey'],
     ],
   },
 ];
@@ -219,7 +227,13 @@ export async function seedDiscovery(
             colour: col,
             state: 'available',
           })
-          .onConflictDoNothing({ target: vehicleUnit.vin });
+          .onConflictDoUpdate({
+            // re-seeding must correct a previously-wrong make/model/colour on an existing VIN
+            // (e.g. this file's own make/model list changing) — but never touch state or
+            // currentLocationId, which reflect real operational activity against this unit
+            target: vehicleUnit.vin,
+            set: { make: mk, model: md, colour: col, year: '2024', updatedAt: sql`now()` },
+          });
       }
     }
 
