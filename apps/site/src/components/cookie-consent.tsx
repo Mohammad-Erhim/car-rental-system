@@ -2,10 +2,17 @@
 
 import { pickText, type ConsentCategory, type ConsentChoices } from '@carrental/contracts';
 import { useI18n } from '@carrental/i18n/react';
-import { Button } from '@carrental/ui';
-import { Cookie, X } from 'lucide-react';
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@carrental/ui';
+import { Cookie } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { useConsent } from '../lib/consent';
 
@@ -56,7 +63,6 @@ export function CookieConsent({ locale }: { locale: string }) {
   } = useConsent();
 
   const [mounted, setMounted] = useState(false);
-  const panelRef = useRef<HTMLDivElement | null>(null);
 
   const categories = useMemo(
     () => config.categories.filter((c) => c.id === 'necessary' || c.shown),
@@ -80,15 +86,6 @@ export function CookieConsent({ locale }: { locale: string }) {
   useEffect(() => {
     if (prefsOpen) setDraft(seedDraft());
   }, [prefsOpen]);
-  useEffect(() => {
-    if (!prefsOpen) return;
-    panelRef.current?.focus();
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') closePreferences();
-    }
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [prefsOpen, closePreferences]);
 
   if (!mounted || isPreview || (!bannerOpen && !prefsOpen)) return null;
 
@@ -154,83 +151,69 @@ export function CookieConsent({ locale }: { locale: string }) {
         </div>
       ) : null}
 
-      {prefsOpen ? (
-        <div
-          className="fixed inset-0 z-[70] grid place-items-end sm:place-items-center"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) closePreferences();
-          }}
+      {/* Every other modal in both apps uses @carrental/ui's Radix-based Dialog, which traps
+          focus automatically (Tab can't walk out into the page behind the overlay) — this used
+          to be a hand-built <div role="dialog"> with a manual Escape handler and no focus trap. */}
+      <Dialog open={prefsOpen} onOpenChange={(open) => !open && closePreferences()}>
+        <DialogContent
+          data-testid="cookie-prefs-dialog"
+          className={
+            'start-0 end-0 top-auto bottom-0 max-h-[92vh] w-full max-w-none translate-x-0 ' +
+            'translate-y-0 gap-4 overflow-y-auto rounded-b-none rounded-t-2xl p-5 ' +
+            'sm:start-1/2 sm:end-auto sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-x-1/2 ' +
+            'sm:-translate-y-1/2 sm:rounded-2xl sm:p-6'
+          }
         >
-          <div className="absolute inset-0 bg-ink/40" aria-hidden />
-          <div
-            ref={panelRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="cookie-prefs-title"
-            tabIndex={-1}
-            className="relative m-0 max-h-[92vh] w-full overflow-y-auto rounded-t-2xl bg-surface p-5 shadow-xl outline-none sm:m-4 sm:max-w-lg sm:rounded-2xl sm:p-6"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <h2 id="cookie-prefs-title" className="text-lg font-semibold text-ink">
-                {t('site.cookie.prefsTitle')}
-              </h2>
-              <button
-                type="button"
-                onClick={closePreferences}
-                aria-label={t('site.cookie.close')}
-                className="-m-1 rounded p-1 text-ink-muted hover:text-ink"
-              >
-                <X className="size-5" />
-              </button>
-            </div>
-            <p className="mt-1 text-sm text-ink-muted">
+          <DialogHeader>
+            <DialogTitle>{t('site.cookie.prefsTitle')}</DialogTitle>
+            <DialogDescription>
               {pickText(config.text.prefsIntro, locale)} {policyLinks}
-            </p>
+            </DialogDescription>
+          </DialogHeader>
 
-            <div className="mt-4 divide-y divide-hairline border-y border-hairline">
-              {categories.map((c: { id: ConsentCategory }) => {
-                const full = config.categories.find((x) => x.id === c.id)!;
-                const locked = c.id === 'necessary';
-                return (
-                  <div key={c.id} className="flex items-start justify-between gap-4 py-3">
-                    <div>
-                      <p className="text-sm font-medium text-ink">
-                        {pickText(full.name, locale)}
-                        {locked ? (
-                          <span className="ms-2 text-xs font-normal text-ink-muted">
-                            {t('site.cookie.alwaysOn')}
-                          </span>
-                        ) : null}
-                      </p>
-                      <p className="mt-0.5 text-xs text-ink-muted">
-                        {pickText(full.description, locale)}
-                      </p>
-                    </div>
-                    <Switch
-                      label={pickText(full.name, locale)}
-                      checked={locked ? true : !!draft[c.id]}
-                      disabled={locked}
-                      onChange={(v) => setDraft((d) => ({ ...d, [c.id]: v }))}
-                    />
+          <div className="divide-y divide-hairline border-y border-hairline">
+            {categories.map((c: { id: ConsentCategory }) => {
+              const full = config.categories.find((x) => x.id === c.id)!;
+              const locked = c.id === 'necessary';
+              return (
+                <div key={c.id} className="flex items-start justify-between gap-4 py-3">
+                  <div>
+                    <p className="text-sm font-medium text-ink">
+                      {pickText(full.name, locale)}
+                      {locked ? (
+                        <span className="ms-2 text-xs font-normal text-ink-muted">
+                          {t('site.cookie.alwaysOn')}
+                        </span>
+                      ) : null}
+                    </p>
+                    <p className="mt-0.5 text-xs text-ink-muted">
+                      {pickText(full.description, locale)}
+                    </p>
                   </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-5 flex flex-wrap justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={rejectAll}>
-                {t('site.cookie.rejectAll')}
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => savePreferences(draft)}>
-                {t('site.cookie.savePreferences')}
-              </Button>
-              <Button size="sm" onClick={acceptAll}>
-                {t('site.cookie.acceptAll')}
-              </Button>
-            </div>
+                  <Switch
+                    label={pickText(full.name, locale)}
+                    checked={locked ? true : !!draft[c.id]}
+                    disabled={locked}
+                    onChange={(v) => setDraft((d) => ({ ...d, [c.id]: v }))}
+                  />
+                </div>
+              );
+            })}
           </div>
-        </div>
-      ) : null}
+
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={rejectAll}>
+              {t('site.cookie.rejectAll')}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => savePreferences(draft)}>
+              {t('site.cookie.savePreferences')}
+            </Button>
+            <Button size="sm" onClick={acceptAll}>
+              {t('site.cookie.acceptAll')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
