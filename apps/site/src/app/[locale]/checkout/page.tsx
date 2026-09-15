@@ -505,7 +505,20 @@ function StripePaymentForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4" noValidate>
       <Field label={t('checkout.cardDetails')} htmlFor="co-stripe-card">
-        {() => <PaymentElement id="co-stripe-card" />}
+        {() => (
+          <PaymentElement
+            id="co-stripe-card"
+            // Card only: this checkout is a single-request server-side confirm with no
+            // return_url / redirect step, so redirect-based methods (bank, Klarna, Cash App —
+            // whatever's enabled in the Stripe Dashboard) can never actually complete here and
+            // would otherwise be offered only to fail. Matches the adapter's documented scope
+            // boundary (see stripe-payment.adapter.ts).
+            options={{
+              paymentMethodOrder: ['card'],
+              wallets: { applePay: 'never', googlePay: 'never' },
+            }}
+          />
+        )}
       </Field>
       {stripeError ? (
         <p className="text-sm text-destructive" data-testid="co-stripe-error">

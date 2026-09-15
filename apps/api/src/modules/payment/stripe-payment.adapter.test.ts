@@ -63,6 +63,10 @@ describe('StripePaymentAdapter', () => {
           amount: 5000,
           currency: 'usd',
           payment_method: 'pm_test_123',
+          // pinned to card — leaving this unset lets Stripe fall back to the account's automatic
+          // payment methods (bank/Klarna/etc.), which then requires a return_url this
+          // single-request server-side confirm never provides.
+          payment_method_types: ['card'],
           confirm: true,
           capture_method: 'manual',
         }),
