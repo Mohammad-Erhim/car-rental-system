@@ -14,6 +14,7 @@ import {
   ConfirmDialog,
   DetailList,
   Field,
+  Input,
   PageHeader,
   Select,
   Textarea,
@@ -576,7 +577,7 @@ export function ReservationDetailPage() {
             </p>
             <Field label={t('ops.resv.refundAmount')} htmlFor="rf-amount" required>
               {({ id }) => (
-                <input
+                <Input
                   id={id}
                   type="number"
                   min="0.01"
@@ -584,7 +585,6 @@ export function ReservationDetailPage() {
                   max={(refundableMinor / 100).toFixed(2)}
                   value={refundAmount}
                   onChange={(e) => setRefundAmount(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                   data-testid="refund-amount"
                 />
               )}

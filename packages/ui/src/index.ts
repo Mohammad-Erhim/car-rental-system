@@ -50,6 +50,7 @@ export { ToastProvider, useToast } from './components/toast.js';
 export { ConfirmDialog } from './components/confirm-dialog.js';
 export {
   MediaPicker,
+  defaultDescribeItem,
   type MediaPickerItem,
   type MediaPickerLabels,
 } from './components/media-picker.js';
