@@ -370,6 +370,17 @@ export class ReservationOpsService {
     if (!(pickupAt.getTime() < returnAt.getTime())) {
       throw AppError.businessRule('Return must be after pickup', { reason: 'invalid_window' });
     }
+    // checkAndHold() below never checks operating hours itself — every other path that reaches it
+    // (the discovery/quote endpoint) already went through search()'s own hours validation first.
+    // A modify() to a new pickup/return time is a window that has never been validated at all;
+    // without this, a customer could "successfully" modify a reservation to a time the location
+    // is literally closed at.
+    await this.availability.assertWindowBookable(
+      row.pickupLocationCode,
+      row.returnLocationCode,
+      pickupAt,
+      returnAt,
+    );
     const orgId = await this.orgId();
 
     // 1) secure the NEW window first (a fresh hold) — a failure here leaves the reservation

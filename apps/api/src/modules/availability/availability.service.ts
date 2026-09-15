@@ -415,6 +415,44 @@ export class AvailabilityService {
   }
 
   /**
+   * Hard rejection if the window falls outside the pickup/return location's operating hours (or
+   * is otherwise invalid — inverted, in the past). `checkAndHold()` itself does NOT check this —
+   * it trusts the caller to have already validated the window, the same way `search()` does
+   * before ever computing availability. `discovery.controller.ts`'s quote endpoint gets this for
+   * free by calling `search()` first; any other caller that creates a hold/reservation for a
+   * window that hasn't already been through that (e.g. re-holding a NEW window on a reservation
+   * modify, not the original one search() already validated) must call this first, or
+   * `checkAndHold()` will happily place a hold for a time the location is literally closed at.
+   */
+  async assertWindowBookable(
+    pickupLocationCode: string,
+    returnLocationCode: string,
+    pickupAt: Date,
+    returnAt: Date,
+  ): Promise<void> {
+    const { loc: pickupLoc, exceptions: pickupExc } = await this.loadLocation(pickupLocationCode);
+    const { loc: returnLoc, exceptions: returnExc } = await this.loadLocation(returnLocationCode);
+    const notices = this.validateWindow(
+      pickupLoc,
+      returnLoc,
+      pickupExc.map((e) => ({ date: e.date, closed: e.closed, open: e.open, close: e.close })),
+      returnExc.map((e) => ({ date: e.date, closed: e.closed, open: e.open, close: e.close })),
+      pickupAt,
+      returnAt,
+    );
+    const blocking = notices.find(
+      (n) =>
+        n.code === 'invalid_window' ||
+        n.code === 'past_pickup' ||
+        n.code.startsWith('pickup_') ||
+        n.code.startsWith('return_'),
+    );
+    if (blocking) {
+      throw AppError.businessRule(blocking.message, { reason: blocking.code });
+    }
+  }
+
+  /**
    * Atomically confirm capacity and place a hold (FR-BKG-001). A transaction-scoped advisory
    * lock on (org, category, pickup location) serialises concurrent takers so the last unit
    * cannot be double-held.
