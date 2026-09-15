@@ -286,15 +286,42 @@ export class AvailabilityService {
       returnAt,
     );
     if (!unitIds.length) return [];
-    const { loc } = await this.loadLocation(pickupLocationCode);
+    const { loc, exceptions } = await this.loadLocation(pickupLocationCode);
+    // Unlike search(), this never validated the requested window against operating hours at all —
+    // it could offer specific cars to pick for a pickup time the location is actually closed at.
+    // Same blocking-notice check search() already applies (invalid window, in the past, outside
+    // hours), scoped to one location since this function has no separate return-location concept.
+    const hoursNotices = this.validateWindow(
+      loc,
+      loc,
+      exceptions.map((e) => ({ date: e.date, closed: e.closed, open: e.open, close: e.close })),
+      exceptions.map((e) => ({ date: e.date, closed: e.closed, open: e.open, close: e.close })),
+      pickupAt,
+      returnAt,
+    );
+    const hoursBlocking = hoursNotices.some(
+      (n) =>
+        n.code === 'invalid_window' ||
+        n.code === 'past_pickup' ||
+        n.code.startsWith('pickup_') ||
+        n.code.startsWith('return_'),
+    );
+    if (hoursBlocking) return [];
+    // Real class-level demand (not 0) — this used to ignore other pending reservations/holds that
+    // haven't pinned a specific unit yet, so it could keep offering cars to choose from well past
+    // the point search()'s bookableCount correctly reports the class as sold out. A customer could
+    // pick one, go through checkout, and get rejected at the very last step for no visible reason
+    // (checkAndHold's own bookableCount check does reject it there — this was never a double-
+    // booking risk, just a confusing dead end).
+    const classHolds = await this.countHolds(categoryCode, pickupLocationCode, pickupAt, returnAt);
     const avail = computeAvailability({
       request: { start: pickupAt.getTime(), end: returnAt.getTime() },
       turnaroundMs: (loc.turnaroundMinutes ?? 60) * 60_000,
       unitIds,
       occupiedByUnit,
-      classHolds: 0,
+      classHolds,
     });
-    if (!avail.freeUnitIds.length) return [];
+    if (!avail.freeUnitIds.length || avail.bookableCount < 1) return [];
 
     const pinnedElsewhere = new Set<string>();
     const pinnedHolds = await this.db
@@ -332,7 +359,13 @@ export class AvailabilityService {
     // — `FleetService.candidateUnits` feeds it into `occupiedByUnit` the same as a maintenance
     // block, so there's nothing left to filter for that case here.
 
-    const selectable = avail.freeUnitIds.filter((id) => !pinnedElsewhere.has(id));
+    // Cap to the real remaining class-level capacity — never offer more choices than
+    // `bookableCount` actually allows, even after removing units explicitly pinned elsewhere
+    // above (that alone doesn't account for OTHER pending reservations that haven't pinned a
+    // specific unit yet but still consume a slot from this same pool).
+    const selectable = avail.freeUnitIds
+      .filter((id) => !pinnedElsewhere.has(id))
+      .slice(0, avail.bookableCount);
     return this.fleet.unitsByIds(selectable);
   }
 
