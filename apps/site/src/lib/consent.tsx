@@ -156,7 +156,10 @@ export function ConsentProvider({
       setDecided(true);
       setPrefsOpen(false);
 
-      // fire-and-forget accountability record
+      // fire-and-forget accountability record. Deliberately bypasses @carrental/client's
+      // apiFetch: this beacon must survive the page navigation/unload a consent choice often
+      // triggers immediately after (accept-and-continue, reject-and-leave), which needs
+      // `keepalive: true` on the request — apiFetch doesn't support that option.
       try {
         void fetch('/api/v1/consent', {
           method: 'POST',
