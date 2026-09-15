@@ -1,9 +1,4 @@
-import { createHash } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
-
 import { and, eq, inArray, sql } from 'drizzle-orm';
-import { nanoid } from 'nanoid';
 
 import type { Database } from '../drizzle';
 import {
@@ -14,11 +9,7 @@ import {
 } from '../schema/catalogue';
 import { vehicleUnit } from '../schema/fleet';
 import { location } from '../schema/org';
-import { storedObject } from '../schema/platform';
 import { ratePlan, rateTier } from '../schema/pricing';
-import { bootstrapEnvForScript } from '../script-env';
-
-import { renderCarArtPng, type CarVariant } from './car-art';
 
 export interface CategorySpec {
   code: string;
@@ -141,60 +132,6 @@ export const CATEGORIES: CategorySpec[] = [
   },
 ];
 
-const KNOWN_CAR_VARIANTS = new Set<CarVariant>([
-  'economy',
-  'compact',
-  'intermediate',
-  'suv',
-  'premium',
-  'van',
-]);
-
-/**
- * One rendered illustration per category *class* (not per category/unit — every economy category
- * across every org would look the same anyway), reused as the `imageRef` for that category and
- * every seeded unit in it. Idempotent: re-running the seed finds the row `getOrCreateCarArtRef`
- * already inserted and returns its ref instead of writing a new file + row each time.
- */
-async function getOrCreateCarArtRef(
-  db: Database,
-  objectRoot: string,
-  variant: CarVariant,
-): Promise<string> {
-  const ownerType = 'vehicle_category_class';
-  const [existing] = await db
-    .select({ objectKey: storedObject.objectKey })
-    .from(storedObject)
-    .where(
-      and(
-        eq(storedObject.purpose, 'vehicle_category_art'),
-        eq(storedObject.ownerType, ownerType),
-        eq(storedObject.ownerId, variant),
-      ),
-    )
-    .limit(1);
-  if (existing) return `obj:${existing.objectKey}`;
-
-  const png = renderCarArtPng(variant);
-  const key = `vehicle_category_art/${new Date().getFullYear()}/${nanoid(24)}`;
-  const abs = join(objectRoot, key);
-  await mkdir(dirname(abs), { recursive: true });
-  await writeFile(abs, png);
-  await db.insert(storedObject).values({
-    purpose: 'vehicle_category_art',
-    ownerType,
-    ownerId: variant,
-    objectKey: key,
-    mediaType: 'image/png',
-    sizeBytes: png.byteLength,
-    checksumSha256: createHash('sha256').update(png).digest('hex'),
-    scanState: 'clean',
-    reviewState: 'none',
-    uploadComplete: 'yes',
-  });
-  return `obj:${key}`;
-}
-
 /**
  * Seed vehicle categories + features + a small fleet + one published rate plan per category so
  * `POST /discovery/search` returns real, priced, bookable options. Shared by the development and
@@ -203,16 +140,9 @@ async function getOrCreateCarArtRef(
 export async function seedDiscovery(
   db: Database,
   orgId: string,
-  opts: { categories?: CategorySpec[]; locationCodes?: string[]; seedImages?: boolean } = {},
+  opts: { categories?: CategorySpec[]; locationCodes?: string[] } = {},
 ): Promise<void> {
   const categories = opts.categories ?? CATEGORIES;
-  // Only the development profile opts in (`development.ts`) — the test profile's fixtures stay
-  // fast/minimal/side-effect-free, and this only ever touches local disk (`OBJECT_STORAGE_FS_ROOT`,
-  // DEC-015's `fs` driver), never a real object store.
-  const objectRoot = opts.seedImages
-    ? resolve(bootstrapEnvForScript().OBJECT_STORAGE_FS_ROOT)
-    : null;
-  const artRefCache = new Map<CarVariant, string>();
 
   for (const [i, f] of FEATURES.entries()) {
     await db
@@ -233,16 +163,6 @@ export async function seedDiscovery(
     .where(locWhere);
 
   for (const [ci, cat] of categories.entries()) {
-    let imageRef: string | undefined;
-    if (objectRoot) {
-      const variant = cat.klass as CarVariant;
-      if (KNOWN_CAR_VARIANTS.has(variant)) {
-        imageRef =
-          artRefCache.get(variant) ?? (await getOrCreateCarArtRef(db, objectRoot, variant));
-        artRefCache.set(variant, imageRef);
-      }
-    }
-
     const [row] = await db
       .insert(vehicleCategory)
       .values({
@@ -257,7 +177,6 @@ export async function seedDiscovery(
         transmission: cat.transmission,
         sortOrder: ci,
         isActive: true,
-        ...(imageRef ? { imageRef } : {}),
       })
       .onConflictDoUpdate({
         target: [vehicleCategory.organizationId, vehicleCategory.code],
@@ -270,7 +189,6 @@ export async function seedDiscovery(
           sortOrder: ci,
           isActive: true,
           updatedAt: sql`now()`,
-          ...(imageRef ? { imageRef } : {}),
         },
       })
       .returning();
@@ -308,21 +226,13 @@ export async function seedDiscovery(
             model: md,
             colour: col,
             state: 'available',
-            ...(imageRef ? { imageRef } : {}),
           })
           .onConflictDoUpdate({
             // re-seeding must correct a previously-wrong make/model/colour on an existing VIN
             // (e.g. this file's own make/model list changing) — but never touch state or
             // currentLocationId, which reflect real operational activity against this unit
             target: vehicleUnit.vin,
-            set: {
-              make: mk,
-              model: md,
-              colour: col,
-              year: '2024',
-              updatedAt: sql`now()`,
-              ...(imageRef ? { imageRef } : {}),
-            },
+            set: { make: mk, model: md, colour: col, year: '2024', updatedAt: sql`now()` },
           });
       }
     }

@@ -217,11 +217,7 @@ export async function seedDevelopment(db: Database): Promise<void> {
       });
   }
 
-  // seedImages: a first-time install shouldn't start with every vehicle category/unit imageRef
-  // null — render + store the same on-brand car-class art apps/site already falls back to (see
-  // car-art.ts) so object storage (and every screen that displays a category/unit photo) has
-  // something real from the very first `pnpm db:seed`, not just a text placeholder.
-  await seedDiscovery(db, org.id, { seedImages: true });
+  await seedDiscovery(db, org.id);
 }
 
 function weekly(open: string, close: string, closedDays: number[] = []) {
