@@ -157,9 +157,20 @@ function RtlSync({ children }: { children: ReactNode }) {
   const { direction, t } = useI18n();
   const insets = useSafeAreaInsets();
   const mismatch = I18nManager.isRTL !== (direction === 'rtl');
-  const [dismissed, setDismissed] = useState(false);
+  // Keyed to the specific mismatch it was dismissed for (not just a bare boolean) — otherwise a
+  // dismiss from one language switch would permanently suppress the banner for every later one:
+  // switch to Arabic, dismiss, switch back to English still-mid-mismatch, and the banner that
+  // should now be warning about *this* mismatch would never reappear.
+  const [dismissedFor, setDismissedFor] = useState<string | null>(null);
+  const [restartFailed, setRestartFailed] = useState(false);
+  const mismatchKey = `${I18nManager.isRTL}:${direction}`;
 
-  if (!mismatch || dismissed) return children;
+  if (!mismatch || dismissedFor === mismatchKey) return children;
+
+  const dismiss = () => {
+    setDismissedFor(mismatchKey);
+    setRestartFailed(false);
+  };
 
   const restart = async () => {
     I18nManager.allowRTL(true);
@@ -167,8 +178,12 @@ function RtlSync({ children }: { children: ReactNode }) {
     try {
       await Updates.reloadAsync();
     } catch {
-      // Expo Go / no update runtime available — the flag is set for next natural relaunch.
-      setDismissed(true);
+      // No update runtime available (e.g. a dev client with no EAS Update channel configured) —
+      // the forceRTL flag above is still set for the next natural relaunch, but silently
+      // dismissing here as if the restart succeeded would leave the UI stuck in a half-mirrored
+      // state (RTL native layout, LTR content or vice versa) with no indication why. Tell the
+      // user to close and reopen manually instead of pretending it's handled.
+      setRestartFailed(true);
     }
   };
 
@@ -176,16 +191,26 @@ function RtlSync({ children }: { children: ReactNode }) {
     <View style={{ flex: 1 }}>
       {children}
       <View style={[styles.banner, { paddingBottom: insets.bottom + 12 }]}>
-        <Text style={styles.bannerText}>{t('mobile.restartForLanguage')}</Text>
+        <Text style={styles.bannerText}>
+          {restartFailed ? t('mobile.restartFailedManual') : t('mobile.restartForLanguage')}
+        </Text>
         <View style={styles.bannerActions}>
-          <Pressable onPress={() => setDismissed(true)} hitSlop={8}>
-            <Text style={styles.bannerLink}>{t('mobile.later')}</Text>
-          </Pressable>
-          <Pressable onPress={restart} hitSlop={8}>
-            <Text style={[styles.bannerLink, styles.bannerLinkStrong]}>
-              {t('mobile.restartNow')}
-            </Text>
-          </Pressable>
+          {restartFailed ? (
+            <Pressable onPress={dismiss} hitSlop={8}>
+              <Text style={[styles.bannerLink, styles.bannerLinkStrong]}>{t('mobile.gotIt')}</Text>
+            </Pressable>
+          ) : (
+            <>
+              <Pressable onPress={dismiss} hitSlop={8}>
+                <Text style={styles.bannerLink}>{t('mobile.later')}</Text>
+              </Pressable>
+              <Pressable onPress={restart} hitSlop={8}>
+                <Text style={[styles.bannerLink, styles.bannerLinkStrong]}>
+                  {t('mobile.restartNow')}
+                </Text>
+              </Pressable>
+            </>
+          )}
         </View>
       </View>
     </View>

@@ -18,6 +18,8 @@ export const MOBILE_TRANSLATIONS: ResourceBundle = {
     'mobile.restartForLanguage': 'Restart the app to finish switching this language.',
     'mobile.later': 'Later',
     'mobile.restartNow': 'Restart now',
+    'mobile.restartFailedManual': "Couldn't restart automatically — please close and reopen the app to finish switching the language.",
+    'mobile.gotIt': 'Got it',
 
     'mobile.onboarding.skip': 'Skip',
     'mobile.onboarding.next': 'Next',
@@ -137,6 +139,9 @@ export const MOBILE_TRANSLATIONS: ResourceBundle = {
     'mobile.restartForLanguage': "Redémarrez l'application pour terminer le changement de langue.",
     'mobile.later': 'Plus tard',
     'mobile.restartNow': 'Redémarrer maintenant',
+    'mobile.restartFailedManual':
+      "Le redémarrage automatique a échoué — fermez et rouvrez l'application pour terminer le changement de langue.",
+    'mobile.gotIt': 'Compris',
 
     'mobile.onboarding.skip': 'Passer',
     'mobile.onboarding.next': 'Suivant',
@@ -260,6 +265,8 @@ export const MOBILE_TRANSLATIONS: ResourceBundle = {
     'mobile.restartForLanguage': 'أعد تشغيل التطبيق لإتمام تغيير اللغة.',
     'mobile.later': 'لاحقًا',
     'mobile.restartNow': 'إعادة التشغيل الآن',
+    'mobile.restartFailedManual': 'تعذّر إعادة التشغيل تلقائيًا — أغلق التطبيق وأعد فتحه لإتمام تغيير اللغة.',
+    'mobile.gotIt': 'حسنًا',
 
     'mobile.onboarding.skip': 'تخطي',
     'mobile.onboarding.next': 'التالي',
