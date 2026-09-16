@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { CheckoutConfirmation } from '../../components/checkout/confirmation-view';
-import { AppStateView, Badge, Button, Card, Field, Input, Screen, SegmentedControl, Text } from '../../components/ui';
+import { AppStateView, Badge, Button, Card, Divider, Field, Input, Screen, SegmentedControl, Text } from '../../components/ui';
 import {
   formatMinor,
   useAvailableProducts,
@@ -180,24 +180,30 @@ export default function CheckoutScreen() {
           </Card>
 
           {!!products.data?.length && (
-            <Card style={{ gap: space(3) }}>
-              <Text variant="h3">{t('checkout.extrasTitle')}</Text>
-              {products.data.map((p) => (
-                <ExtraRow
-                  key={p.code}
-                  product={p}
-                  qty={extras[p.code] ?? 0}
-                  billableDays={billableDays}
-                  onChange={(n) =>
-                    setExtras((cur) => {
-                      const next = { ...cur };
-                      const clamped = Math.max(0, Math.min(p.maxQuantity, n));
-                      if (clamped === 0) delete next[p.code];
-                      else next[p.code] = clamped;
-                      return next;
-                    })
-                  }
-                />
+            <Card style={{ gap: space(1) }}>
+              <Text variant="h3" style={{ marginBottom: space(2) }}>
+                {t('checkout.extrasTitle')}
+              </Text>
+              {products.data.map((p, index) => (
+                <View key={p.code}>
+                  {index > 0 && <Divider />}
+                  <View style={{ paddingVertical: space(3) }}>
+                    <ExtraRow
+                      product={p}
+                      qty={extras[p.code] ?? 0}
+                      billableDays={billableDays}
+                      onChange={(n) =>
+                        setExtras((cur) => {
+                          const next = { ...cur };
+                          const clamped = Math.max(0, Math.min(p.maxQuantity, n));
+                          if (clamped === 0) delete next[p.code];
+                          else next[p.code] = clamped;
+                          return next;
+                        })
+                      }
+                    />
+                  </View>
+                </View>
               ))}
               {extrasEstimateMinor > 0 && (
                 <Text variant="small" style={{ paddingTop: space(2), borderTopWidth: 1, borderTopColor: colors.border }}>
