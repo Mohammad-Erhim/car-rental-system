@@ -18,6 +18,7 @@ import {
 } from '../../lib/api/hooks/use-discovery';
 import { guestId } from '../../lib/guest-id';
 import { useTheme } from '../../lib/theme/theme-provider';
+import { withAlpha } from '../../lib/theme/tokens';
 import { useTripDraft } from '../../lib/trip/trip-draft-store';
 
 export default function VehicleDetailScreen() {
@@ -138,7 +139,7 @@ export default function VehicleDetailScreen() {
               borderRadius: 23,
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: `${colors.primaryForeground}E6`,
+              backgroundColor: withAlpha(colors.primaryForeground, 0.9),
               opacity: pressed ? 0.82 : 1,
             },
           ]}
@@ -164,7 +165,7 @@ export default function VehicleDetailScreen() {
             right: space(4),
             top: space(4),
             borderRadius: 999,
-            backgroundColor: `${colors.primaryForeground}33`,
+            backgroundColor: withAlpha(colors.primaryForeground, 0.2),
             paddingHorizontal: space(3),
             paddingVertical: space(1.5),
           }}

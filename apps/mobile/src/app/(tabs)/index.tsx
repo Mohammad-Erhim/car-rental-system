@@ -10,6 +10,7 @@ import { CategoryCard } from '../../components/vehicle/category-card';
 import { useCategories, useLocations } from '../../lib/api/hooks/use-discovery';
 import { useAuth } from '../../lib/auth/auth-provider';
 import { useTheme } from '../../lib/theme/theme-provider';
+import { withAlpha } from '../../lib/theme/tokens';
 
 const TRUST_ITEMS = [
   {
@@ -69,7 +70,7 @@ export default function HomeScreen() {
           <Text variant="display" style={{ color: colors.primaryForeground }}>
             {firstName ? t('mobile.home.greeting', { name: firstName }) : t('site.home.heroTitle')}
           </Text>
-          <Text variant="body" style={{ color: `${colors.primaryForeground}CC` }}>
+          <Text variant="body" style={{ color: withAlpha(colors.primaryForeground, 0.8) }}>
             {t('site.home.heroSubtitle')}
           </Text>
         </View>
@@ -87,7 +88,7 @@ export default function HomeScreen() {
               fill={colors.primaryForeground}
             />
           ))}
-          <Text variant="small" style={{ color: `${colors.primaryForeground}DD` }}>
+          <Text variant="small" style={{ color: withAlpha(colors.primaryForeground, 0.87) }}>
             {t('site.home.heroRating')}
           </Text>
         </View>

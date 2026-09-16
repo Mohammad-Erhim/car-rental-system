@@ -1,6 +1,7 @@
 import { useI18n } from '@carrental/i18n/react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
+import { CalendarCheck2, Car, LayoutGrid, type LucideIcon } from 'lucide-react-native';
 import { useCallback, useRef, useState } from 'react';
 import { Dimensions, FlatList, View, type ViewToken } from 'react-native';
 
@@ -11,10 +12,22 @@ import { useTheme } from '../lib/theme/theme-provider';
 const { width } = Dimensions.get('window');
 
 const SLIDES = [
-  { titleKey: 'mobile.onboarding.slide1.title', bodyKey: 'mobile.onboarding.slide1.body' },
-  { titleKey: 'mobile.onboarding.slide2.title', bodyKey: 'mobile.onboarding.slide2.body' },
-  { titleKey: 'mobile.onboarding.slide3.title', bodyKey: 'mobile.onboarding.slide3.body' },
-] as const;
+  {
+    titleKey: 'mobile.onboarding.slide1.title',
+    bodyKey: 'mobile.onboarding.slide1.body',
+    icon: Car,
+  },
+  {
+    titleKey: 'mobile.onboarding.slide2.title',
+    bodyKey: 'mobile.onboarding.slide2.body',
+    icon: CalendarCheck2,
+  },
+  {
+    titleKey: 'mobile.onboarding.slide3.title',
+    bodyKey: 'mobile.onboarding.slide3.body',
+    icon: LayoutGrid,
+  },
+] as const satisfies ReadonlyArray<{ titleKey: string; bodyKey: string; icon: LucideIcon }>;
 
 export default function OnboardingScreen() {
   const { t } = useI18n();
@@ -54,7 +67,19 @@ export default function OnboardingScreen() {
         onViewableItemsChanged={onViewableChanged}
         viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
         renderItem={({ item }) => (
-          <View style={{ width, padding: space(6), alignItems: 'center', justifyContent: 'center', gap: space(3) }}>
+          <View style={{ width, padding: space(6), alignItems: 'center', justifyContent: 'center', gap: space(5) }}>
+            <View
+              style={{
+                width: 112,
+                height: 112,
+                borderRadius: 56,
+                backgroundColor: colors.accent,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <item.icon size={48} color={colors.primary} strokeWidth={1.75} />
+            </View>
             <Text variant="display" style={{ textAlign: 'center' }}>
               {t(item.titleKey)}
             </Text>

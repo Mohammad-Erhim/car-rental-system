@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { View, type ViewStyle } from 'react-native';
 
 import { useTheme } from '../../lib/theme/theme-provider';
+import { withAlpha } from '../../lib/theme/tokens';
 import { Card, Text } from '../ui';
 
 import { CarArt } from './car-art';
@@ -85,7 +86,7 @@ export function CategoryCard({ vehicle, onPress, style }: CategoryCardProps) {
             right: space(3),
             top: space(3),
             borderRadius: Math.min(radius * 2, 999),
-            backgroundColor: `${colors.primaryForeground}33`,
+            backgroundColor: withAlpha(colors.primaryForeground, 0.2),
             paddingHorizontal: space(2.5),
             paddingVertical: space(1),
           }}

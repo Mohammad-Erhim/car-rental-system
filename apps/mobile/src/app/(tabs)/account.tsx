@@ -15,9 +15,21 @@ export default function AccountScreen() {
 
   if (status !== 'authenticated' || !actor) {
     return (
-      <Screen contentContainerStyle={{ gap: space(5), justifyContent: 'center', flex: 1 }}>
-        <View style={{ gap: space(1), alignItems: 'center' }}>
-          <User size={40} color={colors.mutedForeground} />
+      <Screen contentContainerStyle={{ gap: space(6), flex: 1, paddingTop: space(16) }}>
+        <View style={{ gap: space(2), alignItems: 'center' }}>
+          <View
+            style={{
+              width: 88,
+              height: 88,
+              borderRadius: 44,
+              backgroundColor: colors.accent,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: space(2),
+            }}
+          >
+            <User size={36} color={colors.primary} strokeWidth={1.75} />
+          </View>
           <Text variant="h2" style={{ textAlign: 'center' }}>
             {t('nav.account')}
           </Text>
