@@ -14,9 +14,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { apiFetch } from '../api/api-fetch';
 
-import { MOBILE_RESOURCES } from './mobile-resources';
-
 const LOCALE_KEY = 'carrental.locale.v1';
+const MOBILE_NS_CACHE_PREFIX = 'carrental.i18n.mobile.v1.';
 
 /**
  * RN counterpart of the web `I18nProvider` wiring in `apps/site`'s root layout: fetches the
@@ -55,8 +54,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const activeLocale = userChosenLocale ?? initialLocale ?? 'en';
 
   // Published translation overrides from the ops dashboard's catalogue (DEC-024) — mirrors
-  // `apps/site`'s `fetchOverrides`. Merged over the bundled base + the mobile-only additions
-  // below, so a dashboard edit reaches the app without a store release.
+  // `apps/site`'s `fetchOverrides`. Merged over the shared bundled base, so a dashboard edit
+  // reaches the app without a store release.
   const overridesQuery = useQuery({
     queryKey: ['meta', 'translations', 'common', activeLocale],
     queryFn: ({ signal }) =>
@@ -68,14 +67,66 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Mobile-only strings (RTL relaunch, onboarding, push/biometric priming, …) have no static
+  // bundle at all — unlike `common`, they exist only in the `translation` table under the
+  // `mobile` namespace (seeded from apps/api/src/database/seed/mobile-i18n.ts) and are fetched
+  // the same way `common`'s overrides are. A last-fetched copy is cached to disk so a warm start
+  // (or a brief network blip) doesn't fall through to `@carrental/i18n`'s humanised-key fallback
+  // (e.g. "Get started") while the request is in flight.
+  // Tagged with the locale it was read for, rather than reset to null on locale change, so the
+  // effect never needs a synchronous setState of its own — a cache from the previous locale is
+  // simply ignored below until the new locale's read resolves.
+  const [cachedMobileNs, setCachedMobileNs] = useState<{
+    locale: string;
+    data: Record<string, string>;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!activeLocale) return;
+    let cancelled = false;
+    AsyncStorage.getItem(MOBILE_NS_CACHE_PREFIX + activeLocale).then((raw) => {
+      if (cancelled || !raw) return;
+      try {
+        setCachedMobileNs({ locale: activeLocale, data: JSON.parse(raw) as Record<string, string> });
+      } catch {
+        /* ignore corrupt cache */
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeLocale]);
+
+  const mobileNsCache = cachedMobileNs?.locale === activeLocale ? cachedMobileNs.data : null;
+
+  const mobileNsQuery = useQuery({
+    queryKey: ['meta', 'translations', 'mobile', activeLocale],
+    queryFn: ({ signal }) =>
+      apiFetch<Record<string, string>>(
+        `/meta/translations?namespace=mobile&locale=${encodeURIComponent(activeLocale)}`,
+        { signal, anonymous: true },
+      ),
+    enabled: !!activeLocale,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    if (mobileNsQuery.data && activeLocale) {
+      void AsyncStorage.setItem(
+        MOBILE_NS_CACHE_PREFIX + activeLocale,
+        JSON.stringify(mobileNsQuery.data),
+      );
+    }
+  }, [mobileNsQuery.data, activeLocale]);
+
   // Wait for the persisted/device locale read before mounting the shared provider so it doesn't
   // briefly resolve to `en`, apply RTL layout for nothing, then flip once the real value loads.
   if (initialLocale === undefined) return null;
 
   const resources = {
-    ...MOBILE_RESOURCES,
     [activeLocale]: {
-      ...(MOBILE_RESOURCES[activeLocale] ?? {}),
+      ...(mobileNsCache ?? {}),
+      ...(mobileNsQuery.data ?? {}),
       ...(overridesQuery.data ?? {}),
     },
   };
