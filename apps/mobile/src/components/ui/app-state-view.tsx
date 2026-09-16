@@ -130,9 +130,29 @@ export function AppStateView({
       >
         {skeleton ?? (
           <>
-            <Skeleton height={24} width="35%" />
-            <Skeleton height={96} />
-            <Skeleton height={96} />
+            <Skeleton height={22} width="42%" />
+            {[0, 1].map((i) => (
+              <View
+                key={i}
+                style={{
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  borderRadius: 18,
+                  backgroundColor: colors.card,
+                  padding: space(4),
+                  gap: space(2.5),
+                }}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: space(3) }}>
+                  <Skeleton height={52} width={72} radius={16} />
+                  <View style={{ flex: 1, gap: space(2) }}>
+                    <Skeleton height={18} width="70%" />
+                    <Skeleton height={14} width="48%" />
+                  </View>
+                </View>
+                <Skeleton height={14} width="92%" />
+              </View>
+            ))}
           </>
         )}
       </View>

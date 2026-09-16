@@ -1,11 +1,12 @@
 import { useI18n } from '@carrental/i18n/react';
 import { Image } from 'expo-image';
 import { Stack, useRouter } from 'expo-router';
-import { Car } from 'lucide-react-native';
+import { ArrowRight, CheckCircle2, XCircle } from 'lucide-react-native';
 import { useMemo } from 'react';
 import { FlatList, View } from 'react-native';
 
 import { AppStateView, Badge, Card, Screen, Text } from '../components/ui';
+import { CarArt } from '../components/vehicle/car-art';
 import {
   formatMinor,
   useAvailabilitySearch,
@@ -24,7 +25,9 @@ export default function SearchResultsScreen() {
   const categoriesQuery = useCategories(locale);
   const locationsQuery = useLocations();
   const pickupLocationName =
-    locationsQuery.data?.find((l) => l.code === draft.pickupLocationCode)?.name ?? draft.pickupLocationCode ?? '';
+    locationsQuery.data?.find((l) => l.code === draft.pickupLocationCode)?.name ??
+    draft.pickupLocationCode ??
+    '';
 
   const args: SearchArgs | null = useMemo(() => {
     if (!draft.pickupLocationCode || !draft.pickupAt || !draft.returnAt) return null;
@@ -75,31 +78,41 @@ export default function SearchResultsScreen() {
           ListEmptyComponent={<AppStateView kind="no-results" title={t('site.search.noResults')} />}
           renderItem={({ item }) => {
             const imageUrl = imageByCategory.get(item.categoryCode);
+            const soldOut = item.bookableCount < 1;
             return (
               <Card
-                onPress={() =>
-                  router.push({ pathname: '/vehicles/[categoryCode]', params: { categoryCode: item.categoryCode } })
-                }
+                onPress={() => {
+                  draft.setDraft({ categoryCode: item.categoryCode, unitId: null });
+                  router.push({
+                    pathname: '/vehicles/[categoryCode]',
+                    params: { categoryCode: item.categoryCode },
+                  });
+                }}
+                padded={false}
+                style={{ overflow: 'hidden' }}
               >
-                <View style={{ flexDirection: 'row', gap: space(3) }}>
+                <View style={{ flexDirection: 'row' }}>
                   <View
                     style={{
-                      width: 72,
-                      height: 72,
-                      borderRadius: 12,
-                      backgroundColor: colors.muted,
+                      width: 116,
+                      minHeight: 126,
+                      backgroundColor: colors.primary,
                       alignItems: 'center',
                       justifyContent: 'center',
                       overflow: 'hidden',
                     }}
                   >
                     {imageUrl ? (
-                      <Image source={{ uri: imageUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+                      <Image
+                        source={{ uri: imageUrl }}
+                        style={{ width: '100%', height: '100%' }}
+                        contentFit="cover"
+                      />
                     ) : (
-                      <Car size={28} color={colors.mutedForeground} />
+                      <CarArt code={item.categoryCode} width={104} height={76} />
                     )}
                   </View>
-                  <View style={{ flex: 1, gap: 2 }}>
+                  <View style={{ flex: 1, gap: space(2), padding: space(3.5) }}>
                     <Text variant="bodyStrong">{item.categoryName}</Text>
                     <Text variant="small" color="mutedForeground">
                       {t('site.vehicle.specs', {
@@ -112,20 +125,37 @@ export default function SearchResultsScreen() {
                         ),
                       })}
                     </Text>
-                    <Text variant="small" color="mutedForeground">
-                      {t('site.search.available', { n: item.bookableCount })}
-                    </Text>
-                  </View>
-                  <View style={{ alignItems: 'flex-end', justifyContent: 'center' }}>
-                    {item.fromTotalMinor !== null && item.currency ? (
-                      <Text variant="bodyStrong">
-                        {t('site.search.fromPrice', { price: formatMinor(item.fromTotalMinor, item.currency, locale) })}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space(1) }}>
+                      {soldOut ? (
+                        <XCircle size={14} color={colors.mutedForeground} />
+                      ) : (
+                        <CheckCircle2 size={14} color={colors.success} />
+                      )}
+                      <Text variant="small" color={soldOut ? 'mutedForeground' : 'success'}>
+                        {t('site.search.available', { n: item.bookableCount })}
                       </Text>
-                    ) : (
-                      <Text variant="small" color="mutedForeground">
-                        {t('site.vehicle.noPrice')}
-                      </Text>
-                    )}
+                    </View>
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'flex-end',
+                        justifyContent: 'space-between',
+                        gap: space(2),
+                      }}
+                    >
+                      {item.fromTotalMinor !== null && item.currency ? (
+                        <Text variant="bodyStrong">
+                          {t('site.search.fromPrice', {
+                            price: formatMinor(item.fromTotalMinor, item.currency, locale),
+                          })}
+                        </Text>
+                      ) : (
+                        <Text variant="small" color="mutedForeground">
+                          {t('site.vehicle.noPrice')}
+                        </Text>
+                      )}
+                      <ArrowRight size={18} color={colors.primary} />
+                    </View>
                   </View>
                 </View>
               </Card>

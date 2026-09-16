@@ -1,22 +1,24 @@
 import type { ChallengeCreatedResponse } from '@carrental/contracts';
 import { useI18n } from '@carrental/i18n/react';
 import { useRouter } from 'expo-router';
+import { KeyRound, ShieldCheck } from 'lucide-react-native';
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { AppStateView, Button, Field, Input, PasswordInput, Screen, Text } from '../../components/ui';
+import { AppStateView, Button, Card, Field, Input, PasswordInput, Screen, Text } from '../../components/ui';
 import { apiFetch } from '../../lib/api/api-fetch';
 import { ApiError } from '../../lib/api/query-client';
 import { useTheme } from '../../lib/theme/theme-provider';
 
 export default function RecoveryScreen() {
   const { t } = useI18n();
-  const { space } = useTheme();
+  const { colors, space } = useTheme();
   const router = useRouter();
 
   const [email, setEmail] = useState('');
   const [starting, setStarting] = useState(false);
   const [challenge, setChallenge] = useState<ChallengeCreatedResponse | null>(null);
+  const [sentMessage, setSentMessage] = useState<string | null>(null);
 
   const [code, setCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -32,7 +34,8 @@ export default function RecoveryScreen() {
         anonymous: true,
         body: { email: email.trim(), audience: 'customer' },
       });
-      setChallenge(res);
+      if (res.challengeId) setChallenge(res);
+      else setSentMessage(res.message);
     } finally {
       setStarting(false);
     }
@@ -69,6 +72,19 @@ export default function RecoveryScreen() {
     );
   }
 
+  if (sentMessage) {
+    return (
+      <Screen contentContainerStyle={{ gap: space(6) }}>
+        <AppStateView
+          kind="success"
+          title={t('state.success.title')}
+          description={sentMessage}
+          primaryAction={{ label: t('action.signIn'), onPress: () => router.replace('/sign-in') }}
+        />
+      </Screen>
+    );
+  }
+
   if (challenge) {
     return (
       <Screen scroll keyboardAvoiding contentContainerStyle={{ gap: space(6) }}>
@@ -97,22 +113,47 @@ export default function RecoveryScreen() {
   }
 
   return (
-    <Screen scroll keyboardAvoiding contentContainerStyle={{ gap: space(6) }}>
+    <Screen scroll keyboardAvoiding contentContainerStyle={{ gap: space(5), paddingBottom: space(8) }}>
       <View style={{ gap: space(1) }}>
         <Text variant="display">{t('auth.recoverTitle')}</Text>
         <Text variant="body" color="mutedForeground">
           {t('site.auth.recoverySub')}
         </Text>
       </View>
-      <Field label={t('auth.email')} required>
-        <Input value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-      </Field>
-      <Button fullWidth size="lg" loading={starting} disabled={!email} onPress={start}>
-        {t('auth.sendInstructions')}
-      </Button>
-      <Text variant="small" color="primary" style={{ textAlign: 'center' }} onPress={() => router.replace('/sign-in')}>
-        {t('auth.backToSignIn')}
-      </Text>
+      <Card style={{ gap: space(4) }}>
+        <Field label={t('auth.email')} required>
+          <Input
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            textContentType="emailAddress"
+            autoComplete="email"
+            placeholder="name@example.com"
+            leftIcon={<KeyRound size={18} color={colors.mutedForeground} />}
+          />
+        </Field>
+        <Button fullWidth size="lg" loading={starting} disabled={!email} onPress={start}>
+          {t('auth.sendInstructions')}
+        </Button>
+        <Text
+          variant="small"
+          color="primary"
+          style={{ textAlign: 'center' }}
+          onPress={() => router.replace('/sign-in')}
+        >
+          {t('auth.backToSignIn')}
+        </Text>
+      </Card>
+      <Card style={{ gap: space(2), backgroundColor: colors.muted }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space(2) }}>
+          <ShieldCheck size={18} color={colors.primary} />
+          <Text variant="bodyStrong">{t('site.auth.pitchTitle')}</Text>
+        </View>
+        <Text variant="small" color="mutedForeground">
+          {t('site.auth.pitchText')}
+        </Text>
+      </Card>
     </Screen>
   );
 }

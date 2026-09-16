@@ -1,6 +1,6 @@
 import type { ChallengeCreatedResponse, SessionResponse } from '@carrental/contracts';
 import { useI18n } from '@carrental/i18n/react';
-import { Link, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -165,11 +165,9 @@ export default function RegisterScreen() {
           <Text variant="small" color="mutedForeground">
             {t('auth.register.haveAccount')}
           </Text>
-          <Link href="/sign-in" asChild>
-            <Text variant="small" color="primary">
-              {t('action.signIn')}
-            </Text>
-          </Link>
+          <Text variant="small" color="primary" onPress={() => router.push('/sign-in')}>
+            {t('action.signIn')}
+          </Text>
         </View>
       </View>
     </Screen>

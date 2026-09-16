@@ -65,6 +65,7 @@
   "auth.sendInstructions": "إرسال تعليمات الاستعادة",
   "auth.showPw": "إظهار",
   "auth.signingIn": "جارٍ تسجيل الدخول…",
+  "auth.signIn.noAccount": "ليس لديك حساب؟",
   "auth.staffEmail": "بريد الموظف الإلكتروني",
   "auth.staffSubtitle": "سجّل الدخول إلى وحدة تحكم العمليات",
   "auth.staffTitle": "تسجيل دخول الموظفين",

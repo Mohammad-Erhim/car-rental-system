@@ -1,5 +1,5 @@
 import { useI18n } from '@carrental/i18n/react';
-import BottomSheet, { BottomSheetFlatList, BottomSheetTextInput } from '@gorhom/bottom-sheet';
+import BottomSheet, { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import * as Location from 'expo-location';
 import { MapPin, Navigation, Search } from 'lucide-react-native';
 import { forwardRef, useMemo, useState } from 'react';
@@ -31,7 +31,9 @@ export const LocationPickerSheet = forwardRef<BottomSheet, LocationPickerSheetPr
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === 'granted') {
-          const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          const pos = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
           setOrigin({ lat: pos.coords.latitude, lon: pos.coords.longitude });
         }
       } finally {
@@ -47,16 +49,23 @@ export const LocationPickerSheet = forwardRef<BottomSheet, LocationPickerSheetPr
       const withDistance = list.map((l) => {
         const lat = l.latitude ? Number(l.latitude) : null;
         const lon = l.longitude ? Number(l.longitude) : null;
-        const distance = lat !== null && lon !== null && !Number.isNaN(lat) && !Number.isNaN(lon)
-          ? distanceKm(origin, { lat, lon })
-          : null;
+        const distance =
+          lat !== null && lon !== null && !Number.isNaN(lat) && !Number.isNaN(lon)
+            ? distanceKm(origin, { lat, lon })
+            : null;
         return { location: l, distance };
       });
       return withDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
     }, [locationsQuery.data, query, origin]);
 
     return (
-      <BottomSheet ref={ref} index={-1} snapPoints={['70%']} enablePanDownToClose backgroundStyle={{ backgroundColor: colors.card }}>
+      <BottomSheet
+        ref={ref}
+        index={-1}
+        snapPoints={['70%']}
+        enablePanDownToClose
+        backgroundStyle={{ backgroundColor: colors.card }}
+      >
         <View style={{ paddingHorizontal: space(4), gap: space(3), flex: 1 }}>
           <View
             style={{
@@ -82,7 +91,12 @@ export const LocationPickerSheet = forwardRef<BottomSheet, LocationPickerSheetPr
           {!origin && (
             <Pressable
               onPress={requestNearby}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: space(2), paddingVertical: space(1) }}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: space(2),
+                paddingVertical: space(1),
+              }}
             >
               <Navigation size={16} color={colors.primary} />
               <Text variant="small" color="primary">
@@ -98,27 +112,30 @@ export const LocationPickerSheet = forwardRef<BottomSheet, LocationPickerSheetPr
           ) : rows.length === 0 ? (
             <AppStateView kind="no-results" inline />
           ) : (
-            <BottomSheetFlatList
-              data={rows}
-              keyExtractor={(row) => row.location.id}
-              contentContainerStyle={{ paddingBottom: space(6) }}
-              renderItem={({ item }) => (
+            <BottomSheetScrollView contentContainerStyle={{ paddingBottom: space(6) }}>
+              {rows.map((item) => (
                 <Pressable
+                  key={item.location.id}
                   onPress={() => onSelect(item.location)}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: space(3), paddingVertical: space(3) }}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: space(3),
+                    paddingVertical: space(3),
+                  }}
                 >
                   <MapPin size={18} color={colors.mutedForeground} />
                   <Text variant="body" style={{ flex: 1 }}>
                     {item.location.name}
                   </Text>
-                  {item.distance !== null && (
+                  {item.distance !== null ? (
                     <Text variant="small" color="mutedForeground">
                       {formatDistanceKm(item.distance, fmt.number)}
                     </Text>
-                  )}
+                  ) : null}
                 </Pressable>
-              )}
-            />
+              ))}
+            </BottomSheetScrollView>
           )}
         </View>
       </BottomSheet>

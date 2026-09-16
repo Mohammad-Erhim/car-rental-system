@@ -43,7 +43,7 @@ export function Screen({
     <ScrollView
       style={{ flex: 1 }}
       contentContainerStyle={[padded && { padding: space(4) }, contentContainerStyle]}
-      keyboardShouldPersistTaps="handled"
+      keyboardShouldPersistTaps="always"
       refreshControl={
         onRefresh ? (
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />

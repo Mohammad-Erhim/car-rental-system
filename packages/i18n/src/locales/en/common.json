@@ -65,6 +65,7 @@
   "auth.sendInstructions": "Send recovery instructions",
   "auth.showPw": "Show",
   "auth.signingIn": "Signing in…",
+  "auth.signIn.noAccount": "Don’t have an account?",
   "auth.staffEmail": "Staff email",
   "auth.staffSubtitle": "Sign in to the operations console",
   "auth.staffTitle": "Staff sign in",

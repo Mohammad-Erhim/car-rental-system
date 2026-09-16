@@ -1,12 +1,13 @@
 import { useI18n } from '@carrental/i18n/react';
 import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { Briefcase, Car, Cog, DoorOpen, Users } from 'lucide-react-native';
+import { ArrowRight, Briefcase, Car, ChevronLeft, Cog, DoorOpen, Users } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { I18nManager, Pressable, ScrollView, View } from 'react-native';
 
 import { AppStateView, Badge, Button, Card, Screen, Text } from '../../components/ui';
 import { useToast } from '../../components/ui/toast';
+import { CarArt } from '../../components/vehicle/car-art';
 import {
   formatMinor,
   useAvailabilitySearch,
@@ -15,6 +16,7 @@ import {
   useCreateQuote,
   type SearchArgs,
 } from '../../lib/api/hooks/use-discovery';
+import { guestId } from '../../lib/guest-id';
 import { useTheme } from '../../lib/theme/theme-provider';
 import { useTripDraft } from '../../lib/trip/trip-draft-store';
 
@@ -29,7 +31,8 @@ export default function VehicleDetailScreen() {
   const categoryQuery = useCategory(categoryCode ?? null, locale);
 
   const args: SearchArgs | null = useMemo(() => {
-    if (!categoryCode || !draft.pickupLocationCode || !draft.pickupAt || !draft.returnAt) return null;
+    if (!categoryCode || !draft.pickupLocationCode || !draft.pickupAt || !draft.returnAt)
+      return null;
     return {
       pickupLocationCode: draft.pickupLocationCode,
       returnLocationCode: draft.returnLocationCode ?? undefined,
@@ -37,7 +40,13 @@ export default function VehicleDetailScreen() {
       returnAt: draft.returnAt,
       categoryCode,
     };
-  }, [categoryCode, draft.pickupLocationCode, draft.returnLocationCode, draft.pickupAt, draft.returnAt]);
+  }, [
+    categoryCode,
+    draft.pickupLocationCode,
+    draft.returnLocationCode,
+    draft.pickupAt,
+    draft.returnAt,
+  ]);
 
   const priceQuery = useAvailabilitySearch(args);
   const priceOption = priceQuery.data?.options.find((o) => o.categoryCode === categoryCode);
@@ -45,7 +54,11 @@ export default function VehicleDetailScreen() {
   const unitsQuery = useAvailableUnits(
     categoryCode ?? '',
     args && draft.pickupAt && draft.returnAt
-      ? { locationCode: draft.pickupLocationCode!, pickupAt: draft.pickupAt, returnAt: draft.returnAt }
+      ? {
+          locationCode: draft.pickupLocationCode!,
+          pickupAt: draft.pickupAt,
+          returnAt: draft.returnAt,
+        }
       : null,
   );
 
@@ -68,6 +81,7 @@ export default function VehicleDetailScreen() {
   }
 
   const category = categoryQuery.data;
+  const selectedUnitId = draft.categoryCode === category.code ? draft.unitId : null;
 
   const reserve = async () => {
     if (!args) {
@@ -80,9 +94,10 @@ export default function VehicleDetailScreen() {
         ...args,
         categoryCode: category.code,
         hold: true,
-        unitId: draft.unitId ?? undefined,
+        holderKey: await guestId(),
+        unitId: selectedUnitId ?? undefined,
       });
-      draft.setDraft({ categoryCode: category.code });
+      draft.setDraft({ categoryCode: category.code, unitId: selectedUnitId });
       router.push({ pathname: '/checkout', params: { reference: quote.reference } });
     } catch {
       toast.show(t('checkout.quoteGone'), 'error');
@@ -93,13 +108,74 @@ export default function VehicleDetailScreen() {
 
   return (
     <Screen padded={false} scroll>
-      <Stack.Screen options={{ title: category.displayName }} />
-      <View style={{ height: 260, backgroundColor: colors.muted, alignItems: 'center', justifyContent: 'center' }}>
+      <Stack.Screen
+        options={{
+          headerShown: false,
+        }}
+      />
+      <View
+        style={{
+          height: 260,
+          backgroundColor: colors.primary,
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          overflow: 'hidden',
+          paddingBottom: space(4),
+        }}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('action.back')}
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/search'))}
+          style={({ pressed }) => [
+            {
+              position: 'absolute',
+              top: space(4),
+              left: space(4),
+              zIndex: 2,
+              width: 46,
+              height: 46,
+              borderRadius: 23,
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: `${colors.primaryForeground}E6`,
+              opacity: pressed ? 0.82 : 1,
+            },
+          ]}
+        >
+          <ChevronLeft
+            size={25}
+            color={colors.primary}
+            style={{ transform: [{ scaleX: I18nManager.isRTL ? -1 : 1 }] }}
+          />
+        </Pressable>
         {category.imageUrl ? (
-          <Image source={{ uri: category.imageUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+          <Image
+            source={{ uri: category.imageUrl }}
+            style={{ width: '100%', height: '100%' }}
+            contentFit="cover"
+          />
         ) : (
-          <Car size={64} color={colors.mutedForeground} />
+          <CarArt code={category.code} width="86%" height={170} />
         )}
+        <View
+          style={{
+            position: 'absolute',
+            right: space(4),
+            top: space(4),
+            borderRadius: 999,
+            backgroundColor: `${colors.primaryForeground}33`,
+            paddingHorizontal: space(3),
+            paddingVertical: space(1.5),
+          }}
+        >
+          <Text
+            variant="caption"
+            style={{ color: colors.primaryForeground, textTransform: 'uppercase' }}
+          >
+            {category.class}
+          </Text>
+        </View>
       </View>
 
       <View style={{ padding: space(4), gap: space(5) }}>
@@ -120,9 +196,21 @@ export default function VehicleDetailScreen() {
             {t('site.vehicle.specsTitle')}
           </Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space(4) }}>
-            <SpecItem icon={<Users size={18} color={colors.primary} />} label={t('site.vehicle.passengers')} value={String(category.passengers)} />
-            <SpecItem icon={<Briefcase size={18} color={colors.primary} />} label={t('site.vehicle.luggage')} value={String(category.luggage)} />
-            <SpecItem icon={<DoorOpen size={18} color={colors.primary} />} label={t('site.vehicle.doors')} value={String(category.doors)} />
+            <SpecItem
+              icon={<Users size={18} color={colors.primary} />}
+              label={t('site.vehicle.passengers')}
+              value={String(category.passengers)}
+            />
+            <SpecItem
+              icon={<Briefcase size={18} color={colors.primary} />}
+              label={t('site.vehicle.luggage')}
+              value={String(category.luggage)}
+            />
+            <SpecItem
+              icon={<DoorOpen size={18} color={colors.primary} />}
+              label={t('site.vehicle.doors')}
+              value={String(category.doors)}
+            />
             <SpecItem
               icon={<Cog size={18} color={colors.primary} />}
               label={t('site.vehicle.transmissionLabel')}
@@ -153,12 +241,20 @@ export default function VehicleDetailScreen() {
             <Text variant="body" style={{ marginBottom: space(3) }}>
               {t('site.vehicle.pickTripPrompt')}
             </Text>
-            <Button onPress={() => router.push('/search')}>{t('site.vehicle.checkAvailability')}</Button>
+            <Button onPress={() => router.push('/search')}>
+              {t('site.vehicle.checkAvailability')}
+            </Button>
           </Card>
         ) : (
           <>
             <Card>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
                 <Text variant="bodyStrong">{t('site.vehicle.priceForTrip')}</Text>
                 <Text variant="small" color="primary" onPress={() => router.push('/search')}>
                   {t('site.vehicle.changeTrip')}
@@ -180,26 +276,37 @@ export default function VehicleDetailScreen() {
             {!!unitsQuery.data?.length && (
               <View style={{ gap: space(2) }}>
                 <Text variant="h3">{t('site.vehicle.chooseYourCar')}</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: space(2) }}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: space(2) }}
+                >
                   <UnitOption
                     label={t('site.vehicle.anyAvailableCar')}
-                    selected={!draft.unitId}
-                    onPress={() => draft.setDraft({ unitId: null })}
+                    selected={!selectedUnitId}
+                    onPress={() => draft.setDraft({ categoryCode: category.code, unitId: null })}
                   />
                   {unitsQuery.data.map((u) => (
                     <UnitOption
                       key={u.id}
                       label={[u.colour, u.make, u.model].filter(Boolean).join(' ') || u.id}
                       imageUrl={u.imageUrl}
-                      selected={draft.unitId === u.id}
-                      onPress={() => draft.setDraft({ unitId: u.id })}
+                      selected={selectedUnitId === u.id}
+                      onPress={() => draft.setDraft({ categoryCode: category.code, unitId: u.id })}
                     />
                   ))}
                 </ScrollView>
               </View>
             )}
 
-            <Button fullWidth size="lg" loading={reserving} onPress={reserve}>
+            <Button
+              fullWidth
+              size="lg"
+              loading={reserving}
+              disabled={priceQuery.isLoading || !priceOption || priceOption.bookableCount < 1}
+              trailingIcon={<ArrowRight size={18} color={colors.primaryForeground} />}
+              onPress={reserve}
+            >
               {t('site.vehicle.reserveContinue')}
             </Button>
           </>
@@ -247,9 +354,20 @@ function UnitOption({
         overflow: 'hidden',
       }}
     >
-      <View style={{ height: 80, backgroundColor: colors.muted, alignItems: 'center', justifyContent: 'center' }}>
+      <View
+        style={{
+          height: 80,
+          backgroundColor: colors.muted,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
         {imageUrl ? (
-          <Image source={{ uri: imageUrl }} style={{ width: '100%', height: '100%' }} contentFit="cover" />
+          <Image
+            source={{ uri: imageUrl }}
+            style={{ width: '100%', height: '100%' }}
+            contentFit="cover"
+          />
         ) : (
           <Car size={28} color={colors.mutedForeground} />
         )}
