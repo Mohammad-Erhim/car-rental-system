@@ -40,6 +40,7 @@ export const MOBILE_TRANSLATIONS: ResourceBundle = {
     'mobile.push.allow': 'Enable notifications',
     'mobile.push.notNow': 'Not now',
     'mobile.push.deniedHint': 'You can turn these on any time from your phone Settings.',
+    'mobile.push.unsupportedHint': "Push notifications aren't available on this device.",
 
     'mobile.biometric.enableTitle': 'Unlock faster next time',
     'mobile.biometric.enableBody': 'Use {method} instead of your password to sign back in.',
@@ -163,6 +164,7 @@ export const MOBILE_TRANSLATIONS: ResourceBundle = {
     'mobile.push.notNow': 'Pas maintenant',
     'mobile.push.deniedHint':
       'Vous pouvez les activer à tout moment dans les réglages de votre téléphone.',
+    'mobile.push.unsupportedHint': "Les notifications ne sont pas disponibles sur cet appareil.",
 
     'mobile.biometric.enableTitle': 'Déverrouillez plus vite la prochaine fois',
     'mobile.biometric.enableBody':
@@ -284,6 +286,7 @@ export const MOBILE_TRANSLATIONS: ResourceBundle = {
     'mobile.push.allow': 'تفعيل الإشعارات',
     'mobile.push.notNow': 'ليس الآن',
     'mobile.push.deniedHint': 'يمكنك تفعيلها لاحقًا من إعدادات هاتفك.',
+    'mobile.push.unsupportedHint': 'الإشعارات غير متاحة على هذا الجهاز.',
 
     'mobile.biometric.enableTitle': 'فتح أسرع في المرة القادمة',
     'mobile.biometric.enableBody': 'استخدم {method} بدلاً من كلمة المرور لتسجيل الدخول.',

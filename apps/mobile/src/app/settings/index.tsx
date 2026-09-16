@@ -11,6 +11,7 @@ import { useToast } from '../../components/ui/toast';
 import { useAppLock } from '../../lib/auth/app-lock-store';
 import { useAuth } from '../../lib/auth/auth-provider';
 import { registerForPushNotificationsAsync } from '../../lib/notifications/push';
+import { usePushPreference } from '../../lib/notifications/push-preference-store';
 import { useTheme } from '../../lib/theme/theme-provider';
 
 export default function SettingsScreen() {
@@ -23,6 +24,10 @@ export default function SettingsScreen() {
 
   const [biometricAvailable, setBiometricAvailable] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState(t('mobile.biometric.fingerprint'));
+  const pushPreference = usePushPreference();
+  // Falls back to the live OS permission grant only when the user has never explicitly chosen —
+  // once they have, that choice (including "off") is what the switch reflects, not the OS grant,
+  // which an app can request but never revoke.
   const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
@@ -41,8 +46,12 @@ export default function SettingsScreen() {
         setBiometricLabel(Platform.OS === 'ios' ? t('mobile.biometric.touchId') : t('mobile.biometric.fingerprint'));
       }
     })();
-    Notifications.getPermissionsAsync().then(({ status }) => setPushEnabled(status === 'granted'));
-  }, [t]);
+    if (pushPreference.enabled !== null) {
+      setPushEnabled(pushPreference.enabled);
+    } else {
+      Notifications.getPermissionsAsync().then(({ status }) => setPushEnabled(status === 'granted'));
+    }
+  }, [t, pushPreference.enabled]);
 
   const toggleBiometric = async (next: boolean) => {
     if (next) {
@@ -56,9 +65,18 @@ export default function SettingsScreen() {
     if (next) {
       const { result } = await registerForPushNotificationsAsync();
       setPushEnabled(result === 'granted');
+      pushPreference.setEnabled(result === 'granted');
       if (result === 'denied') toast.show(t('mobile.push.deniedHint'));
+      // 'unsupported' (a simulator, or a device with no push capability) previously showed
+      // nothing at all — the user taps the switch, it silently stays off, no explanation.
+      if (result === 'unsupported') toast.show(t('mobile.push.unsupportedHint'));
     } else {
-      toast.show(t('mobile.push.deniedHint'));
+      // Neither Android nor iOS lets an app programmatically revoke a permission it was already
+      // granted (only request it) — turning this off is therefore an in-app preference, not an
+      // OS-level change, persisted so it survives navigating away and app restarts instead of
+      // reverting to the (still-granted) OS permission next time this screen reads it.
+      setPushEnabled(false);
+      pushPreference.setEnabled(false);
     }
   };
 
