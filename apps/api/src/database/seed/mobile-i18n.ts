@@ -1,15 +1,18 @@
 import type { ResourceBundle } from '@carrental/i18n';
 
 /**
- * Mobile-only additions to the shared `@carrental/i18n` catalogue (en/fr/ar) — concepts that
- * only exist on a native surface (RTL relaunch, push priming, biometric unlock, onboarding,
- * camera capture, app-store rating). Everything else in this app deliberately reuses the
- * existing `site.*` / `checkout.*` / `trips.*` / `auth.*` / … keys from the shared bundle
- * (packages/i18n/src/locales) so product copy and translations never drift between apps/site
- * and this app — CLAUDE.md's "never solve the same problem twice" applies to translated copy
- * every bit as much as to code. Merged over `BASE_RESOURCES` by `I18nProvider`.
+ * Seed source for the `mobile` translation namespace — native-only concepts (RTL relaunch, push
+ * priming, biometric unlock, onboarding, camera capture, app-store rating) that have no
+ * `apps/site` equivalent, so they don't belong in `@carrental/i18n`'s shared bundle (that package
+ * is imported by every frontend, and site/web would ship these strings for nothing).
+ *
+ * Unlike `common` (which is seeded *from* `@carrental/i18n`'s bundled JSON — see `seedSystem`),
+ * this namespace has no static bundle anywhere: this file is the only source of truth, and
+ * `apps/mobile` fetches it at runtime via `GET /meta/translations?namespace=mobile&locale=<x>`
+ * (`TranslationService.publishedBundle`, namespace-agnostic by design). Edit values here and
+ * re-run the system seed to publish a change with no app release required.
  */
-export const MOBILE_RESOURCES: ResourceBundle = {
+export const MOBILE_TRANSLATIONS: ResourceBundle = {
   en: {
     'mobile.tabs.home': 'Home',
     'mobile.restartForLanguage': 'Restart the app to finish switching this language.',
@@ -163,7 +166,7 @@ export const MOBILE_RESOURCES: ResourceBundle = {
     'mobile.biometric.unlockPrompt': 'Déverrouillez pour continuer',
     'mobile.biometric.faceId': 'Face ID',
     'mobile.biometric.touchId': 'Touch ID',
-    'mobile.biometric.fingerprint': "le déverrouillage par empreinte",
+    'mobile.biometric.fingerprint': 'le déverrouillage par empreinte',
 
     'mobile.camera.licenceTitle': 'Photographiez votre permis',
     'mobile.camera.retake': 'Reprendre',
@@ -181,8 +184,8 @@ export const MOBILE_RESOURCES: ResourceBundle = {
     'mobile.location.skip': 'Choisir manuellement',
     'mobile.location.distanceAway': 'à {distance}',
 
-    'mobile.rate.title': "Vous appréciez Car Rental ?",
-    'mobile.rate.body': 'Une note rapide aide d’autres voyageurs à nous trouver.',
+    'mobile.rate.title': 'Vous appréciez Car Rental ?',
+    'mobile.rate.body': "Une note rapide aide d'autres voyageurs à nous trouver.",
     'mobile.rate.rate': "Noter l'application",
     'mobile.rate.later': 'Plus tard',
     'mobile.rate.never': 'Ne plus demander',
@@ -243,7 +246,7 @@ export const MOBILE_RESOURCES: ResourceBundle = {
     'mobile.checkout.googlePay': 'Payer avec Google Pay',
 
     'mobile.deepLink.invalidTitle': "Ce lien n'a pas fonctionné",
-    'mobile.deepLink.invalidBody': "La page demandée est introuvable.",
+    'mobile.deepLink.invalidBody': 'La page demandée est introuvable.',
 
     'mobile.offline.cannotBook': 'Vous êtes hors ligne — la réservation nécessite une connexion.',
     'mobile.nav.viewOn': 'Ouvrir dans Plans',

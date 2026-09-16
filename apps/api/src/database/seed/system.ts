@@ -8,6 +8,8 @@ import { locale, translation } from '../schema/i18n';
 import { permissionAction, role } from '../schema/iam';
 import { lookupType, lookupValue } from '../schema/lookup';
 
+import { MOBILE_TRANSLATIONS } from './mobile-i18n';
+
 /**
  * SYSTEM seed — required catalogues + system-fixed invariants only (SRS-DAT-011).
  * No people, vehicles, bookings, or money. Idempotent (safe to re-run).
@@ -500,15 +502,32 @@ export async function seedSystem(db: Database): Promise<void> {
       });
   }
 
-  // --- base UI translations (from @carrental/i18n static bundles) ---
+  // --- base UI translations (from @carrental/i18n static bundles, plus mobile-only strings that
+  // have no static bundle anywhere — see mobile-i18n.ts) ---
   // Every bundled string is seeded as already published: `value` and `publishedValue` both set, and
   // `sourceRevision` stamped with the hash of the *English* source so the Translations screen shows
   // the catalogue as up to date (not a wall of "outdated" badges) straight after a seed.
   const enBundle = NAMESPACED_RESOURCES.en ?? {};
-  for (const [loc, namespaces] of Object.entries(NAMESPACED_RESOURCES)) {
+  const enMobile = MOBILE_TRANSLATIONS.en ?? {};
+  const seededLocales = new Set([
+    ...Object.keys(NAMESPACED_RESOURCES),
+    ...Object.keys(MOBILE_TRANSLATIONS),
+  ]);
+  const seededNamespaces: Record<string, Record<string, Record<string, string>>> = {};
+  for (const loc of seededLocales) {
+    seededNamespaces[loc] = {
+      ...(NAMESPACED_RESOURCES[loc] ?? {}),
+      mobile: MOBILE_TRANSLATIONS[loc] ?? {},
+    };
+  }
+  for (const [loc, namespaces] of Object.entries(seededNamespaces)) {
     for (const [ns, entries] of Object.entries(namespaces)) {
       for (const [key, value] of Object.entries(entries)) {
-        const rev = revOf((enBundle as Record<string, Record<string, string>>)[ns]?.[key] ?? value);
+        const rev = revOf(
+          ns === 'mobile'
+            ? (enMobile[key] ?? value)
+            : ((enBundle as Record<string, Record<string, string>>)[ns]?.[key] ?? value),
+        );
         await db
           .insert(translation)
           .values({
