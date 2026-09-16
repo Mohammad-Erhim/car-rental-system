@@ -32,7 +32,11 @@ export default function SettingsScreen() {
       setBiometricAvailable(hasHardware && enrolled);
       const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
       if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
-        setBiometricLabel(t('mobile.biometric.faceId'));
+        // "Face ID" is an Apple trademark for iOS's specific implementation — Android's
+        // equivalent (whatever the OEM brands it) is generic "face unlock" in every Android
+        // system UI string, the same way the fingerprint branch below already distinguishes
+        // "Touch ID" from a platform-neutral "fingerprint unlock".
+        setBiometricLabel(Platform.OS === 'ios' ? t('mobile.biometric.faceId') : t('mobile.biometric.faceUnlock'));
       } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) {
         setBiometricLabel(Platform.OS === 'ios' ? t('mobile.biometric.touchId') : t('mobile.biometric.fingerprint'));
       }

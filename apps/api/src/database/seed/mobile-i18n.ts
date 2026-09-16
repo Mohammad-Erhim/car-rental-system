@@ -45,6 +45,7 @@ export const MOBILE_TRANSLATIONS: ResourceBundle = {
     'mobile.biometric.skip': 'Not now',
     'mobile.biometric.unlockPrompt': 'Unlock to continue',
     'mobile.biometric.faceId': 'Face ID',
+    'mobile.biometric.faceUnlock': 'face unlock',
     'mobile.biometric.touchId': 'Touch ID',
     'mobile.biometric.fingerprint': 'fingerprint unlock',
 
@@ -165,6 +166,7 @@ export const MOBILE_TRANSLATIONS: ResourceBundle = {
     'mobile.biometric.skip': 'Pas maintenant',
     'mobile.biometric.unlockPrompt': 'Déverrouillez pour continuer',
     'mobile.biometric.faceId': 'Face ID',
+    'mobile.biometric.faceUnlock': 'la reconnaissance faciale',
     'mobile.biometric.touchId': 'Touch ID',
     'mobile.biometric.fingerprint': 'le déverrouillage par empreinte',
 
@@ -282,6 +284,7 @@ export const MOBILE_TRANSLATIONS: ResourceBundle = {
     'mobile.biometric.skip': 'ليس الآن',
     'mobile.biometric.unlockPrompt': 'افتح القفل للمتابعة',
     'mobile.biometric.faceId': 'Face ID',
+    'mobile.biometric.faceUnlock': 'فتح القفل بالوجه',
     'mobile.biometric.touchId': 'Touch ID',
     'mobile.biometric.fingerprint': 'بصمة الإصبع',
 
