@@ -1,5 +1,5 @@
 import { useI18n } from '@carrental/i18n/react';
-import type BottomSheet from '@gorhom/bottom-sheet';
+import type { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useRouter } from 'expo-router';
 import { MapPin, Search } from 'lucide-react-native';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
@@ -32,8 +32,8 @@ export function TripSearchCard() {
   const router = useRouter();
   const draft = useTripDraft();
   const locationsQuery = useLocations();
-  const pickupSheet = useRef<BottomSheet>(null);
-  const returnSheet = useRef<BottomSheet>(null);
+  const pickupSheet = useRef<BottomSheetModal>(null);
+  const returnSheet = useRef<BottomSheetModal>(null);
   const [differentReturn, setDifferentReturn] = useState(!!draft.returnLocationCode);
 
   const pickupAt = useMemo(
@@ -50,11 +50,11 @@ export function TripSearchCard() {
 
   const selectPickup = (loc: RentalLocation) => {
     draft.setDraft({ pickupLocationCode: loc.code });
-    pickupSheet.current?.close();
+    pickupSheet.current?.dismiss();
   };
   const selectReturn = (loc: RentalLocation) => {
     draft.setDraft({ returnLocationCode: loc.code });
-    returnSheet.current?.close();
+    returnSheet.current?.dismiss();
   };
 
   const canSearch = !!draft.pickupLocationCode && returnAt > pickupAt;
@@ -97,7 +97,7 @@ export function TripSearchCard() {
         paddingVertical={space(3)}
       >
         <Pressable
-          onPress={() => pickupSheet.current?.expand()}
+          onPress={() => pickupSheet.current?.present()}
           style={{ flexDirection: 'row', alignItems: 'center', gap: space(2) }}
         >
           <MapPin size={18} color={colors.primary} />
@@ -127,7 +127,7 @@ export function TripSearchCard() {
             paddingVertical={space(3)}
           >
             <Pressable
-              onPress={() => returnSheet.current?.expand()}
+              onPress={() => returnSheet.current?.present()}
               style={{ flexDirection: 'row', alignItems: 'center', gap: space(2) }}
             >
               <MapPin size={18} color={colors.primary} />

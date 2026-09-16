@@ -1,5 +1,5 @@
 import { useI18n } from '@carrental/i18n/react';
-import BottomSheet, { BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
+import { BottomSheetModal, BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import * as Location from 'expo-location';
 import { MapPin, Navigation, Search } from 'lucide-react-native';
 import { forwardRef, useMemo, useState } from 'react';
@@ -16,8 +16,14 @@ export interface LocationPickerSheetProps {
 
 /** A searchable bottom-sheet list of pickup/return locations, sorted by distance once the user
  *  opts into location access (`mobile.location.*`) — falls back to alphabetical (the query's own
- *  `orderBy(asc(location.name))`) when denied or ungeocoded. */
-export const LocationPickerSheet = forwardRef<BottomSheet, LocationPickerSheetProps>(
+ *  `orderBy(asc(location.name))`) when denied or ungeocoded.
+ *
+ *  Uses `BottomSheetModal` (not the plain `BottomSheet`) because this is mounted deep inside
+ *  `TripSearchCard`, itself inside a scrolling `Card` — a plain `BottomSheet` positions itself
+ *  absolutely relative to its nearest parent, so it rendered clipped to the card's bounds instead
+ *  of covering the screen. `BottomSheetModal` portals through the root `BottomSheetModalProvider`
+ *  (see `app/_layout.tsx`) regardless of where it's mounted. */
+export const LocationPickerSheet = forwardRef<BottomSheetModal, LocationPickerSheetProps>(
   function LocationPickerSheet({ onSelect }, ref) {
     const { colors, space } = useTheme();
     const { t, fmt } = useI18n();
@@ -59,10 +65,9 @@ export const LocationPickerSheet = forwardRef<BottomSheet, LocationPickerSheetPr
     }, [locationsQuery.data, query, origin]);
 
     return (
-      <BottomSheet
+      <BottomSheetModal
         ref={ref}
-        index={-1}
-        snapPoints={['70%']}
+        snapPoints={['45%', '80%']}
         enablePanDownToClose
         backgroundStyle={{ backgroundColor: colors.card }}
       >
@@ -138,7 +143,7 @@ export const LocationPickerSheet = forwardRef<BottomSheet, LocationPickerSheetPr
             </BottomSheetScrollView>
           )}
         </View>
-      </BottomSheet>
+      </BottomSheetModal>
     );
   },
 );
