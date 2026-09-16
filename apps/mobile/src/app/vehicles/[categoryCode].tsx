@@ -16,6 +16,7 @@ import {
   useCreateQuote,
   type SearchArgs,
 } from '../../lib/api/hooks/use-discovery';
+import { resolveAssetUrl } from '../../lib/api/config';
 import { guestId } from '../../lib/guest-id';
 import { useTheme } from '../../lib/theme/theme-provider';
 import { withAlpha } from '../../lib/theme/tokens';
@@ -152,7 +153,7 @@ export default function VehicleDetailScreen() {
         </Pressable>
         {category.imageUrl ? (
           <Image
-            source={{ uri: category.imageUrl }}
+            source={{ uri: resolveAssetUrl(category.imageUrl) }}
             style={{ width: '100%', height: '100%' }}
             contentFit="cover"
           />
@@ -365,7 +366,7 @@ function UnitOption({
       >
         {imageUrl ? (
           <Image
-            source={{ uri: imageUrl }}
+            source={{ uri: resolveAssetUrl(imageUrl) }}
             style={{ width: '100%', height: '100%' }}
             contentFit="cover"
           />

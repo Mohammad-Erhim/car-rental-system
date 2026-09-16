@@ -14,6 +14,7 @@ import {
   useLocations,
   type SearchArgs,
 } from '../lib/api/hooks/use-discovery';
+import { resolveAssetUrl } from '../lib/api/config';
 import { useTheme } from '../lib/theme/theme-provider';
 import { useTripDraft } from '../lib/trip/trip-draft-store';
 
@@ -104,7 +105,7 @@ export default function SearchResultsScreen() {
                   >
                     {imageUrl ? (
                       <Image
-                        source={{ uri: imageUrl }}
+                        source={{ uri: resolveAssetUrl(imageUrl) }}
                         style={{ width: '100%', height: '100%' }}
                         contentFit="cover"
                       />

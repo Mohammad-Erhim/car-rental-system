@@ -4,6 +4,7 @@ import { ArrowRight, Briefcase, Cog, Users } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { View, type ViewStyle } from 'react-native';
 
+import { resolveAssetUrl } from '../../lib/api/config';
 import { useTheme } from '../../lib/theme/theme-provider';
 import { withAlpha } from '../../lib/theme/tokens';
 import { Card, Text } from '../ui';
@@ -73,7 +74,7 @@ export function CategoryCard({ vehicle, onPress, style }: CategoryCardProps) {
       >
         {vehicle.imageUrl ? (
           <Image
-            source={{ uri: vehicle.imageUrl }}
+            source={{ uri: resolveAssetUrl(vehicle.imageUrl) }}
             style={{ width: '100%', height: '100%' }}
             contentFit="cover"
           />
