@@ -1,6 +1,6 @@
 import { useI18n } from '@carrental/i18n/react';
-import { Link, useRouter } from 'expo-router';
-import { CheckCircle2 } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { CheckCircle2, LockKeyhole, Mail } from 'lucide-react-native';
 import { useState } from 'react';
 import { View } from 'react-native';
 
@@ -47,10 +47,26 @@ export default function SignInScreen() {
 
       <View style={{ gap: space(4) }}>
         <Field label={t('auth.email')} required error={formErrors.fieldError('email')}>
-          <Input value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" textContentType="username" />
+          <Input
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            textContentType="username"
+            autoComplete="email"
+            placeholder="name@example.com"
+            leftIcon={<Mail size={18} color={colors.mutedForeground} />}
+          />
         </Field>
         <Field label={t('auth.password')} required error={formErrors.fieldError('password')}>
-          <PasswordInput value={password} onChangeText={setPassword} textContentType="password" />
+          <PasswordInput
+            value={password}
+            onChangeText={setPassword}
+            textContentType="password"
+            autoComplete="current-password"
+            placeholder={t('auth.password')}
+            leftIcon={<LockKeyhole size={18} color={colors.mutedForeground} />}
+          />
         </Field>
 
         {formErrors.topLevelMessage ? (
@@ -59,11 +75,9 @@ export default function SignInScreen() {
           </Text>
         ) : null}
 
-        <Link href="/recovery" asChild>
-          <Text variant="small" color="primary">
-            {t('auth.forgotPw')}
-          </Text>
-        </Link>
+        <Text variant="small" color="primary" onPress={() => router.push('/recovery')}>
+          {t('auth.forgotPw')}
+        </Text>
 
         <Button fullWidth size="lg" loading={submitting} onPress={submit} disabled={!email || !password}>
           {t('action.signIn')}
@@ -71,13 +85,11 @@ export default function SignInScreen() {
 
         <View style={{ flexDirection: 'row', gap: space(1), justifyContent: 'center' }}>
           <Text variant="small" color="mutedForeground">
-            {t('auth.register.haveAccount')}
+            {t('auth.signIn.noAccount')}
           </Text>
-          <Link href="/register" asChild>
-            <Text variant="small" color="primary">
-              {t('action.register')}
-            </Text>
-          </Link>
+          <Text variant="small" color="primary" onPress={() => router.push('/register')}>
+            {t('action.register')}
+          </Text>
         </View>
       </View>
 

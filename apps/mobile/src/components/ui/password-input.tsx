@@ -2,7 +2,7 @@ import { useI18n } from '@carrental/i18n/react';
 import { Eye, EyeOff } from 'lucide-react-native';
 import { forwardRef, useState } from 'react';
 import type { TextInput } from 'react-native';
-import { Pressable } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { useTheme } from '../../lib/theme/theme-provider';
 
@@ -27,18 +27,27 @@ export const PasswordInput = forwardRef<TextInput, Omit<InputProps, 'secureTextE
         autoCorrect={false}
         textContentType="password"
         rightIcon={
-          <Pressable
-            onPress={() => setVisible((v) => !v)}
-            hitSlop={8}
-            accessibilityRole="button"
-            accessibilityLabel={visible ? t('auth.hidePw') : t('auth.showPw')}
-          >
-            {visible ? (
-              <EyeOff size={20} color={colors.mutedForeground} />
-            ) : (
-              <Eye size={20} color={colors.mutedForeground} />
-            )}
-          </Pressable>
+          <View style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+            <Pressable
+              onPress={() => setVisible((v) => !v)}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={visible ? t('auth.hidePw') : t('auth.showPw')}
+              style={({ pressed }) => ({
+                width: 44,
+                height: 44,
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: pressed ? 0.7 : 1,
+              })}
+            >
+              {visible ? (
+                <EyeOff size={21} color={colors.mutedForeground} />
+              ) : (
+                <Eye size={21} color={colors.mutedForeground} />
+              )}
+            </Pressable>
+          </View>
         }
         {...props}
       />

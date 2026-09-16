@@ -50,6 +50,7 @@ export const Button = forwardRef<View, ButtonProps>(function Button(
     <Pressable
       ref={ref}
       accessibilityRole="button"
+      accessibilityLabel={typeof children === 'string' ? children : undefined}
       accessibilityState={{ disabled: isDisabled }}
       disabled={isDisabled}
       style={({ pressed }) => [

@@ -65,6 +65,7 @@
   "auth.sendInstructions": "Envoyer les instructions de récupération",
   "auth.showPw": "Afficher",
   "auth.signingIn": "Connexion…",
+  "auth.signIn.noAccount": "Vous n’avez pas de compte ?",
   "auth.staffEmail": "E-mail du personnel",
   "auth.staffSubtitle": "Connectez-vous à la console d'exploitation",
   "auth.staffTitle": "Connexion du personnel",

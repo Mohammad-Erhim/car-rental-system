@@ -94,6 +94,11 @@ function RootNavigator() {
       <Stack
         screenOptions={{
           headerShown: false,
+          headerShadowVisible: false,
+          headerStyle: { backgroundColor: colors.background },
+          headerTintColor: colors.foreground,
+          headerTitleStyle: { color: colors.foreground },
+          headerBackTitle: '',
           contentStyle: { backgroundColor: colors.background },
           animation: 'slide_from_right',
         }}
@@ -103,7 +108,7 @@ function RootNavigator() {
         <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
         <Stack.Screen
           name="vehicles/[categoryCode]"
-          options={{ headerShown: true, headerTitle: '', headerTransparent: true, headerTintColor: colors.foreground }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen name="search-results" options={{ headerShown: true, headerBackTitle: '' }} />
         <Stack.Screen name="checkout/index" options={{ headerShown: true, headerBackTitle: '' }} />
