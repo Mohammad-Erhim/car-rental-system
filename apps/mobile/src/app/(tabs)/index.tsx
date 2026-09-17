@@ -1,6 +1,6 @@
 import { useI18n } from '@carrental/i18n/react';
 import { useRouter } from 'expo-router';
-import { BadgeCheck, Headset, MapPinned, ShieldCheck, Star } from 'lucide-react-native';
+import { BadgeCheck, Headset, MapPinned, ShieldCheck } from 'lucide-react-native';
 import { ScrollView, View } from 'react-native';
 
 import { TripSearchCard } from '../../components/booking/trip-search-card';
@@ -48,9 +48,12 @@ export default function HomeScreen() {
     <Screen scroll contentContainerStyle={{ gap: space(8), paddingBottom: FLOATING_TAB_BAR.contentClearance }}>
       {/* Deliberately compact: the website's hero (title + paragraph + illustration + a full star
           row) took the entire first screen on a short device, pushing the actual search form below
-          the fold — a rental app's primary action needs to be reachable without scrolling. The
-          rating stays as one inline line rather than a 5-icon row; it's shown again in full in the
-          stats section further down the page. */}
+          the fold — a rental app's primary action needs to be reachable without scrolling. No
+          rating line here (unlike the site's hero): `site.home.heroRating` is fixed marketing copy
+          ("4.9/5 from 12,000+ trips") with no real reviews/ratings system behind it anywhere in the
+          backend — same fabricated-data issue as the stats band and customer quote removed
+          elsewhere on this screen, just missed here originally since this hero was compacted
+          rather than rebuilt from scratch. */}
       <View
         style={{
           borderRadius: 24,
@@ -59,26 +62,16 @@ export default function HomeScreen() {
           gap: space(1.5),
         }}
       >
-        <View
-          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+        <Text
+          variant="caption"
+          style={{
+            color: colors.primaryForeground,
+            textTransform: 'uppercase',
+            letterSpacing: 2,
+          }}
         >
-          <Text
-            variant="caption"
-            style={{
-              color: colors.primaryForeground,
-              textTransform: 'uppercase',
-              letterSpacing: 2,
-            }}
-          >
-            {t('site.home.heroEyebrow')}
-          </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space(1) }}>
-            <Star size={13} color={colors.primaryForeground} fill={colors.primaryForeground} />
-            <Text variant="caption" style={{ color: withAlpha(colors.primaryForeground, 0.9) }}>
-              {t('site.home.heroRating')}
-            </Text>
-          </View>
-        </View>
+          {t('site.home.heroEyebrow')}
+        </Text>
         <Text variant="h1" style={{ color: colors.primaryForeground }}>
           {firstName ? t('mobile.home.greeting', { name: firstName }) : t('site.home.heroTitle')}
         </Text>
@@ -114,7 +107,14 @@ export default function HomeScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: space(3) }}
+            // CategoryCard's shadow extends past its own bounds — a horizontal ScrollView with no
+            // padding clips that shadow flush against its own viewport (most visibly top/bottom,
+            // since that's clipped at every scroll position, not just the ends). The vertical
+            // padding gives it room; the horizontal padding does the same for the first/last card,
+            // offset by a matching negative margin so the row still lines up with the section
+            // title above it instead of shifting the whole strip inward.
+            contentContainerStyle={{ gap: space(3), paddingVertical: space(3), paddingHorizontal: space(2) }}
+            style={{ marginHorizontal: -space(2) }}
           >
             {categoriesQuery.data.map((c) => (
               <CategoryCard
