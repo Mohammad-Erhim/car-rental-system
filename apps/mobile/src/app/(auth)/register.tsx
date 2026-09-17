@@ -133,13 +133,31 @@ export default function RegisterScreen() {
 
       <View style={{ gap: space(4) }}>
         <Field label={t('auth.fullName')} required error={formErrors.fieldError('fullName')}>
-          <Input value={fullName} onChangeText={setFullName} autoCapitalize="words" textContentType="name" />
+          <Input
+            value={fullName}
+            onChangeText={setFullName}
+            autoCapitalize="words"
+            textContentType="name"
+            placeholder="Jane Doe"
+          />
         </Field>
         <Field label={t('auth.email')} required error={formErrors.fieldError('email')}>
-          <Input value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" textContentType="emailAddress" />
+          <Input
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            textContentType="emailAddress"
+            placeholder="name@example.com"
+          />
         </Field>
         <Field label={t('auth.password')} required hint={t('auth.register.passwordHint')} error={formErrors.fieldError('password')}>
-          <PasswordInput value={password} onChangeText={setPassword} textContentType="newPassword" />
+          <PasswordInput
+            value={password}
+            onChangeText={setPassword}
+            textContentType="newPassword"
+            placeholder="••••••••••"
+          />
         </Field>
 
         <ToggleRow label={t('auth.register.marketingOptIn')} value={marketingOptIn} onToggle={setMarketingOptIn} />
