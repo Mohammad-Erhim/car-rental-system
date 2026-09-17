@@ -1,12 +1,11 @@
 import { useI18n } from '@carrental/i18n/react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Modal, View } from 'react-native';
+import { View } from 'react-native';
 
-import { Button, Field, PasswordInput, Text } from '../../components/ui';
+import { AppModal, Button, Field, PasswordInput, Text } from '../../components/ui';
 import { apiFetch } from '../api/api-fetch';
 import { registerStepUpHandler } from '../api/token-store';
 import { useTheme } from '../theme/theme-provider';
-import { MODAL_SCRIM } from '../theme/tokens';
 
 
 /**
@@ -16,7 +15,7 @@ import { MODAL_SCRIM } from '../theme/tokens';
  * request once confirmed — mirrors the ops dashboard's step-up prompt (`stepUp.*` catalogue).
  */
 export function StepUpProvider({ children }: { children: ReactNode }) {
-  const { colors, radius, space } = useTheme();
+  const { space } = useTheme();
   const { t } = useI18n();
   const [visible, setVisible] = useState(false);
   const [password, setPassword] = useState('');
@@ -60,29 +59,25 @@ export function StepUpProvider({ children }: { children: ReactNode }) {
   return (
     <>
       {children}
-      <Modal visible={visible} transparent animationType="fade" onRequestClose={() => finish(false)}>
-        <View style={{ flex: 1, backgroundColor: MODAL_SCRIM, justifyContent: 'center', padding: space(6) }}>
-          <View style={{ backgroundColor: colors.card, borderRadius: radius, padding: space(5), gap: space(4) }}>
-            <View style={{ gap: space(1) }}>
-              <Text variant="h3">{t('stepUp.title')}</Text>
-              <Text variant="small" color="mutedForeground">
-                {t('stepUp.body')}
-              </Text>
-            </View>
-            <Field label={t('stepUp.password')} required error={error}>
-              <PasswordInput value={password} onChangeText={setPassword} autoFocus />
-            </Field>
-            <View style={{ flexDirection: 'row', gap: space(2), justifyContent: 'flex-end' }}>
-              <Button variant="ghost" onPress={() => finish(false)}>
-                {t('action.cancel')}
-              </Button>
-              <Button onPress={confirm} loading={busy} disabled={!password}>
-                {t('stepUp.confirm')}
-              </Button>
-            </View>
-          </View>
+      <AppModal visible={visible} onRequestClose={() => finish(false)} dismissOnBackdropPress={false}>
+        <View style={{ gap: space(1) }}>
+          <Text variant="h3">{t('stepUp.title')}</Text>
+          <Text variant="small" color="mutedForeground">
+            {t('stepUp.body')}
+          </Text>
         </View>
-      </Modal>
+        <Field label={t('stepUp.password')} required error={error}>
+          <PasswordInput value={password} onChangeText={setPassword} autoFocus />
+        </Field>
+        <View style={{ flexDirection: 'row', gap: space(2), justifyContent: 'flex-end' }}>
+          <Button variant="ghost" onPress={() => finish(false)}>
+            {t('action.cancel')}
+          </Button>
+          <Button onPress={confirm} loading={busy} disabled={!password}>
+            {t('stepUp.confirm')}
+          </Button>
+        </View>
+      </AppModal>
     </>
   );
 }

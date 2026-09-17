@@ -2,11 +2,10 @@ import { useI18n } from '@carrental/i18n/react';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { Calendar } from 'lucide-react-native';
 import { useState } from 'react';
-import { Modal, Platform, Pressable, View } from 'react-native';
+import { Platform } from 'react-native';
 
 import { useTheme } from '../../lib/theme/theme-provider';
-import { MODAL_SCRIM } from '../../lib/theme/tokens';
-import { Button, Field, PickerControl } from '../ui';
+import { AppBottomSheetModal, Button, Field, PickerControl } from '../ui';
 
 export interface DateTimeFieldProps {
   label: string;
@@ -23,7 +22,7 @@ export interface DateTimeFieldProps {
  * modal since `datetime` mode isn't split there.
  */
 export function DateTimeField({ label, value, onChange, minimumDate, error }: DateTimeFieldProps) {
-  const { colors, radius, space } = useTheme();
+  const { colors } = useTheme();
   const { fmt, t } = useI18n();
   const [iosVisible, setIosVisible] = useState(false);
   const [iosDraft, setIosDraft] = useState(value);
@@ -64,27 +63,24 @@ export function DateTimeField({ label, value, onChange, minimumDate, error }: Da
       />
 
       {Platform.OS === 'ios' && (
-        <Modal visible={iosVisible} transparent animationType="slide" onRequestClose={() => setIosVisible(false)}>
-          <Pressable style={{ flex: 1, backgroundColor: MODAL_SCRIM }} onPress={() => setIosVisible(false)} />
-          <View style={{ backgroundColor: colors.card, borderTopLeftRadius: radius * 2, borderTopRightRadius: radius * 2, padding: space(4) }}>
-            <DateTimePicker
-              value={iosDraft}
-              mode="datetime"
-              display="spinner"
-              minimumDate={minimumDate}
-              onChange={(_, d) => d && setIosDraft(d)}
-            />
-            <Button
-              fullWidth
-              onPress={() => {
-                onChange(iosDraft);
-                setIosVisible(false);
-              }}
-            >
-              {t('mobile.picker.done')}
-            </Button>
-          </View>
-        </Modal>
+        <AppBottomSheetModal visible={iosVisible} onRequestClose={() => setIosVisible(false)}>
+          <DateTimePicker
+            value={iosDraft}
+            mode="datetime"
+            display="spinner"
+            minimumDate={minimumDate}
+            onChange={(_, d) => d && setIosDraft(d)}
+          />
+          <Button
+            fullWidth
+            onPress={() => {
+              onChange(iosDraft);
+              setIosVisible(false);
+            }}
+          >
+            {t('mobile.picker.done')}
+          </Button>
+        </AppBottomSheetModal>
       )}
     </Field>
   );

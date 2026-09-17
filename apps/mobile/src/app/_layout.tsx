@@ -11,6 +11,7 @@ import { I18nManager } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { ConfirmProvider } from '../components/ui/confirm-dialog';
 import { ToastProvider } from '../components/ui/toast';
 import { AppLockGate } from '../lib/auth/app-lock-gate';
 import { AuthProvider } from '../lib/auth/auth-provider';
@@ -43,15 +44,17 @@ export default function RootLayout() {
           <I18nProvider>
             <ThemeProvider>
               <ToastProvider>
-                <BottomSheetModalProvider>
-                  <AuthProvider defaultAudience="customer">
-                    <StepUpProvider>
-                      <AppLockGate>
-                        <RootNavigator />
-                      </AppLockGate>
-                    </StepUpProvider>
-                  </AuthProvider>
-                </BottomSheetModalProvider>
+                <ConfirmProvider>
+                  <BottomSheetModalProvider>
+                    <AuthProvider defaultAudience="customer">
+                      <StepUpProvider>
+                        <AppLockGate>
+                          <RootNavigator />
+                        </AppLockGate>
+                      </StepUpProvider>
+                    </AuthProvider>
+                  </BottomSheetModalProvider>
+                </ConfirmProvider>
               </ToastProvider>
             </ThemeProvider>
           </I18nProvider>
