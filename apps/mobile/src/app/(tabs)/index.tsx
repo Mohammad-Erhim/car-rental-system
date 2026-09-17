@@ -5,7 +5,6 @@ import { ScrollView, View } from 'react-native';
 
 import { TripSearchCard } from '../../components/booking/trip-search-card';
 import { AppStateView, Screen, Text } from '../../components/ui';
-import { CarArt } from '../../components/vehicle/car-art';
 import { CategoryCard } from '../../components/vehicle/category-card';
 import { useCategories, useLocations } from '../../lib/api/hooks/use-discovery';
 import { useAuth } from '../../lib/auth/auth-provider';
@@ -37,7 +36,7 @@ const TRUST_ITEMS = [
 
 export default function HomeScreen() {
   const { t, locale } = useI18n();
-  const { colors, radius, space } = useTheme();
+  const { colors, space } = useTheme();
   const router = useRouter();
   const { actor } = useAuth();
   const categoriesQuery = useCategories(locale);
@@ -47,16 +46,22 @@ export default function HomeScreen() {
 
   return (
     <Screen scroll contentContainerStyle={{ gap: space(5), paddingBottom: space(10) }}>
+      {/* Deliberately compact: the website's hero (title + paragraph + illustration + a full star
+          row) took the entire first screen on a short device, pushing the actual search form below
+          the fold — a rental app's primary action needs to be reachable without scrolling. The
+          rating stays as one inline line rather than a 5-icon row; it's shown again in full in the
+          stats section further down the page. */}
       <View
         style={{
-          borderRadius: 28,
+          borderRadius: 24,
           backgroundColor: colors.primary,
-          padding: space(4.5),
-          overflow: 'hidden',
-          gap: space(3),
+          padding: space(4),
+          gap: space(1.5),
         }}
       >
-        <View style={{ gap: space(2) }}>
+        <View
+          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}
+        >
           <Text
             variant="caption"
             style={{
@@ -67,31 +72,23 @@ export default function HomeScreen() {
           >
             {t('site.home.heroEyebrow')}
           </Text>
-          <Text variant="display" style={{ color: colors.primaryForeground }}>
-            {firstName ? t('mobile.home.greeting', { name: firstName }) : t('site.home.heroTitle')}
-          </Text>
-          <Text variant="body" style={{ color: withAlpha(colors.primaryForeground, 0.8) }}>
-            {t('site.home.heroSubtitle')}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space(1) }}>
+            <Star size={13} color={colors.primaryForeground} fill={colors.primaryForeground} />
+            <Text variant="caption" style={{ color: withAlpha(colors.primaryForeground, 0.9) }}>
+              {t('site.home.heroRating')}
+            </Text>
+          </View>
         </View>
-        <View style={{ alignItems: 'center', marginTop: -space(1) }}>
-          <CarArt code="premium" width="96%" height={128} />
-        </View>
-        <View
-          style={{ flexDirection: 'row', alignItems: 'center', gap: space(1.5), flexWrap: 'wrap' }}
+        <Text variant="h1" style={{ color: colors.primaryForeground }}>
+          {firstName ? t('mobile.home.greeting', { name: firstName }) : t('site.home.heroTitle')}
+        </Text>
+        <Text
+          variant="small"
+          numberOfLines={2}
+          style={{ color: withAlpha(colors.primaryForeground, 0.85) }}
         >
-          {[0, 1, 2, 3, 4].map((i) => (
-            <Star
-              key={i}
-              size={15}
-              color={colors.primaryForeground}
-              fill={colors.primaryForeground}
-            />
-          ))}
-          <Text variant="small" style={{ color: withAlpha(colors.primaryForeground, 0.87) }}>
-            {t('site.home.heroRating')}
-          </Text>
-        </View>
+          {t('site.home.heroSubtitle')}
+        </Text>
       </View>
 
       <TripSearchCard />
@@ -163,36 +160,14 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <View style={{ gap: space(3) }}>
-        <Text variant="h2">{t('site.home.stats.title')}</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space(3) }}>
-          <StatCard value="120+" label={t('site.home.stats.vehicles')} />
-          <StatCard value="8" label={t('site.home.stats.locations')} />
-          <StatCard value="4.9/5" label={t('site.home.stats.rating')} />
-          <StatCard value="30+" label={t('site.home.stats.countries')} />
+      {!!locationsQuery.data?.length && (
+        <View style={{ gap: space(3) }}>
+          <Text variant="h2">{t('site.home.stats.title')}</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space(3) }}>
+            <StatCard value={String(locationsQuery.data.length)} label={t('site.home.stats.locations')} />
+          </View>
         </View>
-      </View>
-
-      <View
-        style={{
-          borderRadius: radius * 2,
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.card,
-          padding: space(4),
-          gap: space(2),
-        }}
-      >
-        <View style={{ flexDirection: 'row', gap: 2 }}>
-          {[0, 1, 2, 3, 4].map((i) => (
-            <Star key={i} size={14} color={colors.primary} fill={colors.primary} />
-          ))}
-        </View>
-        <Text variant="bodyStrong">“{t('site.home.reviews.r1.quote')}”</Text>
-        <Text variant="small" color="mutedForeground">
-          {t('site.home.reviews.r1.name')} · {t('site.home.reviews.r1.role')}
-        </Text>
-      </View>
+      )}
     </Screen>
   );
 }
