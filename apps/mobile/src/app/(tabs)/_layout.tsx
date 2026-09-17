@@ -26,10 +26,11 @@ const ICONS: Record<string, LucideIcon> = {
 const PILL_WIDTH = 54;
 const PILL_HEIGHT = 34;
 
-// The sliding indicator still has open bugs under some conditions (RTL + locale-switch edge
-// cases). Kept in place rather than ripped out — flip this back on once those are tracked down —
-// but off by default so nobody sees it mid-fix. The floating bar shape itself is unaffected.
-const ENABLE_LIQUID_INDICATOR = false;
+// Re-enabled: the RTL positioning bug that motivated disabling this was root-caused (RN's
+// left/right auto-swap under RTL double-mirroring the indicator's already-direction-aware
+// math — see index.js) and fixed by disabling that swap repo-wide. Verified live in both LTR
+// and this app's Arabic/RTL mode before flipping this back on.
+const ENABLE_LIQUID_INDICATOR = true;
 
 /** A single blob that slides between tabs instead of each icon independently toggling a pill —
  *  the "liquid" look is the blob briefly stretching wider along the direction of travel before
