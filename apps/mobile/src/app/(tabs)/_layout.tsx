@@ -2,7 +2,7 @@ import { useI18n } from '@carrental/i18n/react';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Tabs } from 'expo-router';
 import { CalendarCheck, House, Search, User, type LucideIcon } from 'lucide-react-native';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { I18nManager, Pressable, View, type LayoutChangeEvent } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -26,12 +26,12 @@ const ICONS: Record<string, LucideIcon> = {
 const PILL_WIDTH = 54;
 const PILL_HEIGHT = 34;
 
-// Off by default: re-enabling this after the left/right-auto-swap root-cause fix (see index.js)
-// tested clean in an isolated tab-cycling pass, but the user then hit broken RTL animation again
-// live on-device — a flakier, not-yet-pinned-down failure mode (possibly timing/state-related,
-// since a plain manual retest didn't reproduce it). Kept as a flag rather than ripped out; flip
-// back on once that's actually reproduced and fixed instead of just re-verified once.
-const ENABLE_LIQUID_INDICATOR = false;
+// Re-enabled: root-caused this time. Switching tabs directly (not via back) made the indicator
+// flicker out and reappear — LiquidTabBar was remounting on every tab press because `tabBar` was
+// passed an inline arrow function (a new identity every TabsLayout render), resetting its
+// `barWidth`/`hasMeasured` state each time. `renderTabBar` below is memoized to fix that. Verified
+// with repeated rapid tab-cycling in RTL after the fix, both directly and via burst screenshots.
+const ENABLE_LIQUID_INDICATOR = true;
 
 /** A single blob that slides between tabs instead of each icon independently toggling a pill —
  *  the "liquid" look is the blob briefly stretching wider along the direction of travel before
@@ -148,9 +148,15 @@ function LiquidTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 
 export default function TabsLayout() {
   const { t } = useI18n();
+  // A stable reference matters here: an inline `(props) => <LiquidTabBar {...props} />` is a new
+  // function every render, and the bottom-tabs navigator re-invokes it (and, apparently, remounts
+  // what it returns) on every tab switch — resetting LiquidTabBar's own state (barWidth back to 0,
+  // hasMeasured back to false) and making the indicator blink out for a frame before it re-measures
+  // and snaps back. useCallback keeps the same function identity across renders.
+  const renderTabBar = useCallback((props: BottomTabBarProps) => <LiquidTabBar {...props} />, []);
 
   return (
-    <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <LiquidTabBar {...props} />}>
+    <Tabs screenOptions={{ headerShown: false }} tabBar={renderTabBar}>
       <Tabs.Screen name="index" options={{ title: t('mobile.tabs.home') }} />
       <Tabs.Screen name="search" options={{ title: t('action.search') }} />
       <Tabs.Screen name="trips" options={{ title: t('nav.myTrips') }} />
