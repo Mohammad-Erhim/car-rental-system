@@ -45,7 +45,7 @@ export default function HomeScreen() {
   const firstName = actor?.displayName?.split(' ')[0];
 
   return (
-    <Screen scroll contentContainerStyle={{ gap: space(5), paddingBottom: space(10) }}>
+    <Screen scroll contentContainerStyle={{ gap: space(8), paddingBottom: space(10) }}>
       {/* Deliberately compact: the website's hero (title + paragraph + illustration + a full star
           row) took the entire first screen on a short device, pushing the actual search form below
           the fold — a rental app's primary action needs to be reachable without scrolling. The
@@ -159,15 +159,6 @@ export default function HomeScreen() {
           ))}
         </View>
       </View>
-
-      {!!locationsQuery.data?.length && (
-        <View style={{ gap: space(3) }}>
-          <Text variant="h2">{t('site.home.stats.title')}</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space(3) }}>
-            <StatCard value={String(locationsQuery.data.length)} label={t('site.home.stats.locations')} />
-          </View>
-        </View>
-      )}
     </Screen>
   );
 }
@@ -253,26 +244,3 @@ function TrustRow({
   );
 }
 
-function StatCard({ value, label }: { value: string; label: string }) {
-  const { colors, radius, space } = useTheme();
-  return (
-    <View
-      style={{
-        width: '47%',
-        borderRadius: radius * 2,
-        borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: colors.card,
-        padding: space(4),
-        gap: space(1),
-      }}
-    >
-      <Text variant="h2" color="primary">
-        {value}
-      </Text>
-      <Text variant="caption" color="mutedForeground">
-        {label}
-      </Text>
-    </View>
-  );
-}
