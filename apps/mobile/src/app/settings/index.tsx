@@ -19,7 +19,8 @@ export default function SettingsScreen() {
   const { space } = useTheme();
   const router = useRouter();
   const toast = useToast();
-  const { signOut } = useAuth();
+  const { status, signOut } = useAuth();
+  const authenticated = status === 'authenticated';
   const appLock = useAppLock();
 
   const [biometricAvailable, setBiometricAvailable] = useState(false);
@@ -27,8 +28,11 @@ export default function SettingsScreen() {
   const pushPreference = usePushPreference();
   // Falls back to the live OS permission grant only when the user has never explicitly chosen —
   // once they have, that choice (including "off") is what the switch reflects, not the OS grant,
-  // which an app can request but never revoke.
-  const [pushEnabled, setPushEnabled] = useState<boolean | null>(null);
+  // which an app can request but never revoke. `osPushEnabled` only exists for that fallback
+  // case; when a preference is already known there's nothing async to wait on, so it's read
+  // directly rather than mirrored into state.
+  const [osPushEnabled, setOsPushEnabled] = useState<boolean | null>(null);
+  const pushEnabled = pushPreference.enabled ?? osPushEnabled;
 
   useEffect(() => {
     (async () => {
@@ -46,10 +50,8 @@ export default function SettingsScreen() {
         setBiometricLabel(Platform.OS === 'ios' ? t('mobile.biometric.touchId') : t('mobile.biometric.fingerprint'));
       }
     })();
-    if (pushPreference.enabled !== null) {
-      setPushEnabled(pushPreference.enabled);
-    } else {
-      Notifications.getPermissionsAsync().then(({ status }) => setPushEnabled(status === 'granted'));
+    if (pushPreference.enabled === null) {
+      Notifications.getPermissionsAsync().then(({ status }) => setOsPushEnabled(status === 'granted'));
     }
   }, [t, pushPreference.enabled]);
 
@@ -64,7 +66,6 @@ export default function SettingsScreen() {
   const togglePush = async (next: boolean) => {
     if (next) {
       const { result } = await registerForPushNotificationsAsync();
-      setPushEnabled(result === 'granted');
       pushPreference.setEnabled(result === 'granted');
       if (result === 'denied') toast.show(t('mobile.push.deniedHint'));
       // 'unsupported' (a simulator, or a device with no push capability) previously showed
@@ -75,7 +76,6 @@ export default function SettingsScreen() {
       // granted (only request it) — turning this off is therefore an in-app preference, not an
       // OS-level change, persisted so it survives navigating away and app restarts instead of
       // reverting to the (still-granted) OS permission next time this screen reads it.
-      setPushEnabled(false);
       pushPreference.setEnabled(false);
     }
   };
@@ -118,8 +118,12 @@ export default function SettingsScreen() {
       <ListRow label={t('site.cookie.cookiePolicy')} onPress={() => router.push('/legal/cookies')} />
       <ListRow label={t('mobile.settings.version', { version: Application.nativeApplicationVersion ?? '1.0.0' })} showChevron={false} />
 
-      <Divider />
-      <ListRow label={t('mobile.settings.signOutEverywhere')} destructive onPress={() => void signOut(true)} showChevron={false} />
+      {authenticated && (
+        <>
+          <Divider />
+          <ListRow label={t('mobile.settings.signOutEverywhere')} destructive onPress={() => void signOut(true)} showChevron={false} />
+        </>
+      )}
     </Screen>
   );
 }
