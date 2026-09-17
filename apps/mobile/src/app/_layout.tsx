@@ -7,6 +7,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
+import { I18nManager } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
@@ -100,7 +101,12 @@ function RootNavigator() {
           headerTitleStyle: { color: colors.foreground },
           headerBackTitle: '',
           contentStyle: { backgroundColor: colors.background },
-          animation: 'slide_from_right',
+          // Hardcoded to always slide from the right regardless of locale, so a forward push in
+          // Arabic looked backwards — it should slide in from the reading-start side, which is the
+          // left in RTL. native-stack's own 'default' animation is RTL-aware automatically, but
+          // that's a platform-native transition rather than this explicit slide, so mirror the
+          // direction by hand instead of switching styles.
+          animation: I18nManager.isRTL ? 'slide_from_left' : 'slide_from_right',
         }}
       >
         <Stack.Screen name="(tabs)" />
