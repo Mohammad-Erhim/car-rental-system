@@ -5,8 +5,9 @@ import { ArrowRight, CheckCircle2, XCircle } from 'lucide-react-native';
 import { useMemo } from 'react';
 import { FlatList, View } from 'react-native';
 
-import { AppStateView, Badge, Card, Screen, Text } from '../components/ui';
+import { AppStateView, Badge, Card, DirectionalIcon, Screen, Text } from '../components/ui';
 import { CarArt } from '../components/vehicle/car-art';
+import { resolveAssetUrl } from '../lib/api/config';
 import {
   formatMinor,
   useAvailabilitySearch,
@@ -48,17 +49,13 @@ export default function SearchResultsScreen() {
       {!args ? (
         <AppStateView kind="empty" title={t('site.search.noQuery')} />
       ) : searchQuery.isLoading ? (
-        <View style={{ padding: space(4) }}>
-          <AppStateView kind="loading" />
-        </View>
+        <AppStateView kind="loading" />
       ) : searchQuery.isError ? (
-        <View style={{ padding: space(4) }}>
-          <AppStateView kind="failure" onRetry={() => searchQuery.refetch()} />
-        </View>
+        <AppStateView kind="failure" onRetry={() => searchQuery.refetch()} />
       ) : (
         <FlatList
           style={{ flex: 1 }}
-          contentContainerStyle={{ padding: space(4), gap: space(3) }}
+          contentContainerStyle={{ flexGrow: 1, padding: space(4), gap: space(3) }}
           data={searchQuery.data?.options ?? []}
           keyExtractor={(item) => item.categoryCode}
           ListHeaderComponent={
@@ -104,7 +101,7 @@ export default function SearchResultsScreen() {
                   >
                     {imageUrl ? (
                       <Image
-                        source={{ uri: imageUrl }}
+                        source={{ uri: resolveAssetUrl(imageUrl) }}
                         style={{ width: '100%', height: '100%' }}
                         contentFit="cover"
                       />
@@ -154,7 +151,9 @@ export default function SearchResultsScreen() {
                           {t('site.vehicle.noPrice')}
                         </Text>
                       )}
-                      <ArrowRight size={18} color={colors.primary} />
+                      <DirectionalIcon>
+                        <ArrowRight size={18} color={colors.primary} />
+                      </DirectionalIcon>
                     </View>
                   </View>
                 </View>

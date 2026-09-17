@@ -23,3 +23,13 @@ export function getApiOrigin(): string {
 }
 
 export const CORRELATION_PREFIX = 'mobile';
+
+/** Vehicle/category photos come back from the API as a signed but *relative* path
+ *  (`/api/v1/assets/<key>?exp=...&sig=...` — see `object-storage.service.ts#signRef`), because on
+ *  the web that resolves fine against the page's own origin. React Native's `Image` has no such
+ *  origin to resolve against — a relative `uri` just fails to load, silently, with the image slot
+ *  left blank instead of falling back to the app's own placeholder art. Absolutize it against the
+ *  configured API origin before handing it to `<Image>`. */
+export function resolveAssetUrl(url: string): string {
+  return /^https?:\/\//i.test(url) ? url : `${getApiOrigin()}${url}`;
+}

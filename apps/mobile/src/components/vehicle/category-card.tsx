@@ -4,8 +4,10 @@ import { ArrowRight, Briefcase, Cog, Users } from 'lucide-react-native';
 import type { ReactNode } from 'react';
 import { View, type ViewStyle } from 'react-native';
 
+import { resolveAssetUrl } from '../../lib/api/config';
 import { useTheme } from '../../lib/theme/theme-provider';
-import { Card, Text } from '../ui';
+import { withAlpha } from '../../lib/theme/tokens';
+import { Card, DirectionalIcon, Text } from '../ui';
 
 import { CarArt } from './car-art';
 
@@ -50,15 +52,8 @@ export function CategoryCard({ vehicle, onPress, style }: CategoryCardProps) {
     <Card
       onPress={onPress}
       padded={false}
-      style={{
-        overflow: 'hidden',
-        width: 260,
-        shadowColor: colors.foreground,
-        shadowOpacity: 0.08,
-        shadowRadius: 14,
-        shadowOffset: { width: 0, height: 8 },
-        ...style,
-      }}
+      elevated="raised"
+      style={{ overflow: 'hidden', width: 260, ...style }}
     >
       <View
         style={{
@@ -72,7 +67,7 @@ export function CategoryCard({ vehicle, onPress, style }: CategoryCardProps) {
       >
         {vehicle.imageUrl ? (
           <Image
-            source={{ uri: vehicle.imageUrl }}
+            source={{ uri: resolveAssetUrl(vehicle.imageUrl) }}
             style={{ width: '100%', height: '100%' }}
             contentFit="cover"
           />
@@ -85,7 +80,7 @@ export function CategoryCard({ vehicle, onPress, style }: CategoryCardProps) {
             right: space(3),
             top: space(3),
             borderRadius: Math.min(radius * 2, 999),
-            backgroundColor: `${colors.primaryForeground}33`,
+            backgroundColor: withAlpha(colors.primaryForeground, 0.2),
             paddingHorizontal: space(2.5),
             paddingVertical: space(1),
           }}
@@ -120,7 +115,9 @@ export function CategoryCard({ vehicle, onPress, style }: CategoryCardProps) {
           <Text variant="small" color="primary">
             {t('site.home.fleet.cta')}
           </Text>
-          <ArrowRight size={14} color={colors.primary} />
+          <DirectionalIcon>
+            <ArrowRight size={14} color={colors.primary} />
+          </DirectionalIcon>
         </View>
       </View>
     </Card>

@@ -18,6 +18,8 @@ export const MOBILE_TRANSLATIONS: ResourceBundle = {
     'mobile.restartForLanguage': 'Restart the app to finish switching this language.',
     'mobile.later': 'Later',
     'mobile.restartNow': 'Restart now',
+    'mobile.restartFailedManual': "Couldn't restart automatically — please close and reopen the app to finish switching the language.",
+    'mobile.gotIt': 'Got it',
 
     'mobile.onboarding.skip': 'Skip',
     'mobile.onboarding.next': 'Next',
@@ -38,6 +40,7 @@ export const MOBILE_TRANSLATIONS: ResourceBundle = {
     'mobile.push.allow': 'Enable notifications',
     'mobile.push.notNow': 'Not now',
     'mobile.push.deniedHint': 'You can turn these on any time from your phone Settings.',
+    'mobile.push.unsupportedHint': "Push notifications aren't available on this device.",
 
     'mobile.biometric.enableTitle': 'Unlock faster next time',
     'mobile.biometric.enableBody': 'Use {method} instead of your password to sign back in.',
@@ -45,6 +48,7 @@ export const MOBILE_TRANSLATIONS: ResourceBundle = {
     'mobile.biometric.skip': 'Not now',
     'mobile.biometric.unlockPrompt': 'Unlock to continue',
     'mobile.biometric.faceId': 'Face ID',
+    'mobile.biometric.faceUnlock': 'face unlock',
     'mobile.biometric.touchId': 'Touch ID',
     'mobile.biometric.fingerprint': 'fingerprint unlock',
 
@@ -136,6 +140,9 @@ export const MOBILE_TRANSLATIONS: ResourceBundle = {
     'mobile.restartForLanguage': "Redémarrez l'application pour terminer le changement de langue.",
     'mobile.later': 'Plus tard',
     'mobile.restartNow': 'Redémarrer maintenant',
+    'mobile.restartFailedManual':
+      "Le redémarrage automatique a échoué — fermez et rouvrez l'application pour terminer le changement de langue.",
+    'mobile.gotIt': 'Compris',
 
     'mobile.onboarding.skip': 'Passer',
     'mobile.onboarding.next': 'Suivant',
@@ -157,6 +164,7 @@ export const MOBILE_TRANSLATIONS: ResourceBundle = {
     'mobile.push.notNow': 'Pas maintenant',
     'mobile.push.deniedHint':
       'Vous pouvez les activer à tout moment dans les réglages de votre téléphone.',
+    'mobile.push.unsupportedHint': "Les notifications ne sont pas disponibles sur cet appareil.",
 
     'mobile.biometric.enableTitle': 'Déverrouillez plus vite la prochaine fois',
     'mobile.biometric.enableBody':
@@ -165,6 +173,7 @@ export const MOBILE_TRANSLATIONS: ResourceBundle = {
     'mobile.biometric.skip': 'Pas maintenant',
     'mobile.biometric.unlockPrompt': 'Déverrouillez pour continuer',
     'mobile.biometric.faceId': 'Face ID',
+    'mobile.biometric.faceUnlock': 'la reconnaissance faciale',
     'mobile.biometric.touchId': 'Touch ID',
     'mobile.biometric.fingerprint': 'le déverrouillage par empreinte',
 
@@ -258,6 +267,8 @@ export const MOBILE_TRANSLATIONS: ResourceBundle = {
     'mobile.restartForLanguage': 'أعد تشغيل التطبيق لإتمام تغيير اللغة.',
     'mobile.later': 'لاحقًا',
     'mobile.restartNow': 'إعادة التشغيل الآن',
+    'mobile.restartFailedManual': 'تعذّر إعادة التشغيل تلقائيًا — أغلق التطبيق وأعد فتحه لإتمام تغيير اللغة.',
+    'mobile.gotIt': 'حسنًا',
 
     'mobile.onboarding.skip': 'تخطي',
     'mobile.onboarding.next': 'التالي',
@@ -275,6 +286,7 @@ export const MOBILE_TRANSLATIONS: ResourceBundle = {
     'mobile.push.allow': 'تفعيل الإشعارات',
     'mobile.push.notNow': 'ليس الآن',
     'mobile.push.deniedHint': 'يمكنك تفعيلها لاحقًا من إعدادات هاتفك.',
+    'mobile.push.unsupportedHint': 'الإشعارات غير متاحة على هذا الجهاز.',
 
     'mobile.biometric.enableTitle': 'فتح أسرع في المرة القادمة',
     'mobile.biometric.enableBody': 'استخدم {method} بدلاً من كلمة المرور لتسجيل الدخول.',
@@ -282,6 +294,7 @@ export const MOBILE_TRANSLATIONS: ResourceBundle = {
     'mobile.biometric.skip': 'ليس الآن',
     'mobile.biometric.unlockPrompt': 'افتح القفل للمتابعة',
     'mobile.biometric.faceId': 'Face ID',
+    'mobile.biometric.faceUnlock': 'فتح القفل بالوجه',
     'mobile.biometric.touchId': 'Touch ID',
     'mobile.biometric.fingerprint': 'بصمة الإصبع',
 

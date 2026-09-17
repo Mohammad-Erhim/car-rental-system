@@ -9,6 +9,17 @@ export function hslTripleToRNColor(triple: string): string {
   return `hsl(${h}, ${s}, ${l})`;
 }
 
+/** Applies alpha to a resolved `"hsl(h, s%, l%)"` token color. Appending a hex alpha suffix (the
+ *  web apps' Tailwind-style `${hexColor}33` trick) doesn't work here — these are `hsl()` strings,
+ *  not hex, and RN's color parser silently ignores the trailing characters rather than erroring,
+ *  so the color renders fully opaque instead of translucent (e.g. a white badge pill loses its
+ *  tint entirely and swallows same-color text). Use this wherever a token needs partial opacity. */
+export function withAlpha(rnColor: string, alpha: number): string {
+  const match = /^hsl\(([^)]+)\)$/.exec(rnColor);
+  if (!match) return rnColor;
+  return `hsla(${match[1]}, ${alpha})`;
+}
+
 export type RNColorScale = Record<ColorToken, string>;
 
 export function resolveRNColors(scale: ColorScale): RNColorScale {
@@ -49,3 +60,19 @@ export const typography = {
   button: { fontSize: 15, lineHeight: 20, fontWeight: '600' as const },
 };
 export type TypographyKey = keyof typeof typography;
+
+/** Shape of the floating pill bottom-tab-bar (see `(tabs)/_layout.tsx`). Exported as one source
+ *  of truth because every tab screen with scrolling/list content needs to reserve clearance
+ *  (`FLOATING_TAB_BAR.height + bottomMargin + buffer`) so its last item doesn't render underneath
+ *  the bar — an absolutely-positioned tab bar takes no space in the navigator's own layout, unlike
+ *  a docked one. */
+export const FLOATING_TAB_BAR = {
+  height: 64,
+  bottomMargin: 16,
+  horizontalMargin: 16,
+  radius: 28,
+  /** Total space a screen should clear above its own safe-area inset. */
+  get contentClearance() {
+    return this.height + this.bottomMargin + 16;
+  },
+};

@@ -174,6 +174,13 @@ export function AppStateView({
       accessibilityRole={kind === 'failure' || kind === 'validation' ? 'alert' : 'text'}
       style={{
         alignItems: 'center',
+        // Non-inline states are meant to fill whatever space their parent gives them (a screen,
+        // a FlatList's grown content area) and center within it, rather than sit flush at the
+        // top the way a plain block of content would — a near-empty screen reads as broken
+        // otherwise. `inline` states render alongside other content (e.g. a list of driver rows)
+        // and must stay their natural size instead of claiming the remaining screen height.
+        flex: inline ? undefined : 1,
+        justifyContent: inline ? undefined : 'center',
         gap: inline ? space(2) : space(3),
         paddingVertical: inline ? space(4) : space(10),
         paddingHorizontal: space(4),

@@ -23,8 +23,7 @@ export function CheckoutConfirmation({ result, authed }: { result: ReservationRe
   return (
     <View style={{ gap: space(5) }}>
       <Card style={{ gap: space(3) }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space(2), flexWrap: 'wrap' }}>
-          <Text variant="h2">{t('checkout.confirmedTitle')}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Badge tone="success">{t(`reservation.state.${result.state}` as 'reservation.state.confirmed')}</Badge>
         </View>
 

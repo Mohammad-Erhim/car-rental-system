@@ -2,10 +2,10 @@ import { useI18n } from '@carrental/i18n/react';
 import { Stack } from 'expo-router';
 import { Trash2 } from 'lucide-react-native';
 import { useState } from 'react';
-import { Alert, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { DateField } from '../../components/booking/date-field';
-import { AppStateView, Button, Card, Field, Input, Screen, Text } from '../../components/ui';
+import { AppStateView, Button, Card, Field, Input, Screen, Text, useConfirm } from '../../components/ui';
 import { useToast } from '../../components/ui/toast';
 import { useAddDriver, useDrivers, useRemoveDriver } from '../../lib/api/hooks/use-account';
 import { useAuth } from '../../lib/auth/auth-provider';
@@ -16,6 +16,7 @@ export default function DriversScreen() {
   const { colors, space } = useTheme();
   const { actor } = useAuth();
   const toast = useToast();
+  const confirm = useConfirm();
   const driversQuery = useDrivers(!!actor);
   const addDriver = useAddDriver();
   const removeDriver = useRemoveDriver();
@@ -44,11 +45,15 @@ export default function DriversScreen() {
     }
   };
 
-  const confirmRemove = (id: string) => {
-    Alert.alert(t('driver.removeConfirmTitle'), t('driver.removeConfirmBody'), [
-      { text: t('action.cancel'), style: 'cancel' },
-      { text: t('driver.remove'), style: 'destructive', onPress: () => void removeDriver.mutateAsync(id) },
-    ]);
+  const confirmRemove = async (id: string) => {
+    const ok = await confirm({
+      title: t('driver.removeConfirmTitle'),
+      body: t('driver.removeConfirmBody'),
+      confirmLabel: t('driver.remove'),
+      cancelLabel: t('action.cancel'),
+      destructive: true,
+    });
+    if (ok) void removeDriver.mutateAsync(id);
   };
 
   return (

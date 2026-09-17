@@ -1,15 +1,15 @@
 import { useI18n } from '@carrental/i18n/react';
 import { useRouter } from 'expo-router';
-import { BadgeCheck, Headset, MapPinned, ShieldCheck, Star } from 'lucide-react-native';
+import { BadgeCheck, Headset, MapPinned, ShieldCheck } from 'lucide-react-native';
 import { ScrollView, View } from 'react-native';
 
 import { TripSearchCard } from '../../components/booking/trip-search-card';
 import { AppStateView, Screen, Text } from '../../components/ui';
-import { CarArt } from '../../components/vehicle/car-art';
 import { CategoryCard } from '../../components/vehicle/category-card';
 import { useCategories, useLocations } from '../../lib/api/hooks/use-discovery';
 import { useAuth } from '../../lib/auth/auth-provider';
 import { useTheme } from '../../lib/theme/theme-provider';
+import { FLOATING_TAB_BAR, withAlpha } from '../../lib/theme/tokens';
 
 const TRUST_ITEMS = [
   {
@@ -36,7 +36,7 @@ const TRUST_ITEMS = [
 
 export default function HomeScreen() {
   const { t, locale } = useI18n();
-  const { colors, radius, space } = useTheme();
+  const { colors, space } = useTheme();
   const router = useRouter();
   const { actor } = useAuth();
   const categoriesQuery = useCategories(locale);
@@ -45,52 +45,43 @@ export default function HomeScreen() {
   const firstName = actor?.displayName?.split(' ')[0];
 
   return (
-    <Screen scroll contentContainerStyle={{ gap: space(5), paddingBottom: space(10) }}>
+    <Screen scroll contentContainerStyle={{ gap: space(8), paddingBottom: FLOATING_TAB_BAR.contentClearance }}>
+      {/* Deliberately compact: the website's hero (title + paragraph + illustration + a full star
+          row) took the entire first screen on a short device, pushing the actual search form below
+          the fold — a rental app's primary action needs to be reachable without scrolling. No
+          rating line here (unlike the site's hero): `site.home.heroRating` is fixed marketing copy
+          ("4.9/5 from 12,000+ trips") with no real reviews/ratings system behind it anywhere in the
+          backend — same fabricated-data issue as the stats band and customer quote removed
+          elsewhere on this screen, just missed here originally since this hero was compacted
+          rather than rebuilt from scratch. */}
       <View
         style={{
-          borderRadius: 28,
+          borderRadius: 24,
           backgroundColor: colors.primary,
-          padding: space(4.5),
-          overflow: 'hidden',
-          gap: space(3),
+          padding: space(4),
+          gap: space(1.5),
         }}
       >
-        <View style={{ gap: space(2) }}>
-          <Text
-            variant="caption"
-            style={{
-              color: colors.primaryForeground,
-              textTransform: 'uppercase',
-              letterSpacing: 2,
-            }}
-          >
-            {t('site.home.heroEyebrow')}
-          </Text>
-          <Text variant="display" style={{ color: colors.primaryForeground }}>
-            {firstName ? t('mobile.home.greeting', { name: firstName }) : t('site.home.heroTitle')}
-          </Text>
-          <Text variant="body" style={{ color: `${colors.primaryForeground}CC` }}>
-            {t('site.home.heroSubtitle')}
-          </Text>
-        </View>
-        <View style={{ alignItems: 'center', marginTop: -space(1) }}>
-          <CarArt code="premium" width="96%" height={128} />
-        </View>
-        <View
-          style={{ flexDirection: 'row', alignItems: 'center', gap: space(1.5), flexWrap: 'wrap' }}
+        <Text
+          variant="caption"
+          style={{
+            color: colors.primaryForeground,
+            textTransform: 'uppercase',
+            letterSpacing: 2,
+          }}
         >
-          {[0, 1, 2, 3, 4].map((i) => (
-            <Star
-              key={i}
-              size={15}
-              color={colors.primaryForeground}
-              fill={colors.primaryForeground}
-            />
-          ))}
-          <Text variant="small" style={{ color: `${colors.primaryForeground}DD` }}>
-            {t('site.home.heroRating')}
-          </Text>
-        </View>
+          {t('site.home.heroEyebrow')}
+        </Text>
+        <Text variant="h1" style={{ color: colors.primaryForeground }}>
+          {firstName ? t('mobile.home.greeting', { name: firstName }) : t('site.home.heroTitle')}
+        </Text>
+        <Text
+          variant="small"
+          numberOfLines={2}
+          style={{ color: withAlpha(colors.primaryForeground, 0.85) }}
+        >
+          {t('site.home.heroSubtitle')}
+        </Text>
       </View>
 
       <TripSearchCard />
@@ -116,7 +107,14 @@ export default function HomeScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: space(3) }}
+            // CategoryCard's shadow extends past its own bounds — a horizontal ScrollView with no
+            // padding clips that shadow flush against its own viewport (most visibly top/bottom,
+            // since that's clipped at every scroll position, not just the ends). The vertical
+            // padding gives it room; the horizontal padding does the same for the first/last card,
+            // offset by a matching negative margin so the row still lines up with the section
+            // title above it instead of shifting the whole strip inward.
+            contentContainerStyle={{ gap: space(3), paddingVertical: space(3), paddingHorizontal: space(2) }}
+            style={{ marginHorizontal: -space(2) }}
           >
             {categoriesQuery.data.map((c) => (
               <CategoryCard
@@ -160,37 +158,6 @@ export default function HomeScreen() {
             />
           ))}
         </View>
-      </View>
-
-      <View style={{ gap: space(3) }}>
-        <Text variant="h2">{t('site.home.stats.title')}</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space(3) }}>
-          <StatCard value="120+" label={t('site.home.stats.vehicles')} />
-          <StatCard value="8" label={t('site.home.stats.locations')} />
-          <StatCard value="4.9/5" label={t('site.home.stats.rating')} />
-          <StatCard value="30+" label={t('site.home.stats.countries')} />
-        </View>
-      </View>
-
-      <View
-        style={{
-          borderRadius: radius * 2,
-          borderWidth: 1,
-          borderColor: colors.border,
-          backgroundColor: colors.card,
-          padding: space(4),
-          gap: space(2),
-        }}
-      >
-        <View style={{ flexDirection: 'row', gap: 2 }}>
-          {[0, 1, 2, 3, 4].map((i) => (
-            <Star key={i} size={14} color={colors.primary} fill={colors.primary} />
-          ))}
-        </View>
-        <Text variant="bodyStrong">“{t('site.home.reviews.r1.quote')}”</Text>
-        <Text variant="small" color="mutedForeground">
-          {t('site.home.reviews.r1.name')} · {t('site.home.reviews.r1.role')}
-        </Text>
       </View>
     </Screen>
   );
@@ -277,26 +244,3 @@ function TrustRow({
   );
 }
 
-function StatCard({ value, label }: { value: string; label: string }) {
-  const { colors, radius, space } = useTheme();
-  return (
-    <View
-      style={{
-        width: '47%',
-        borderRadius: radius * 2,
-        borderWidth: 1,
-        borderColor: colors.border,
-        backgroundColor: colors.card,
-        padding: space(4),
-        gap: space(1),
-      }}
-    >
-      <Text variant="h2" color="primary">
-        {value}
-      </Text>
-      <Text variant="caption" color="mutedForeground">
-        {label}
-      </Text>
-    </View>
-  );
-}

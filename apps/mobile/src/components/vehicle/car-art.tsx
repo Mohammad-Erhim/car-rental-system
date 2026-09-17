@@ -1,4 +1,5 @@
-import Svg, { Circle, Path } from 'react-native-svg';
+import { useId } from 'react';
+import Svg, { Circle, Defs, Ellipse, LinearGradient, Path, Stop } from 'react-native-svg';
 
 import { useTheme } from '../../lib/theme/theme-provider';
 
@@ -29,6 +30,11 @@ export function CarArt({
   const spec = CARS[carVariantFor(code)];
   const [frontX, rearX, wheelR] = spec.wheels;
   const bodyColor = color ?? colors.primaryForeground;
+  // SVG gradient/mask ids are looked up in a single document-wide namespace on Android — with
+  // several CarArt instances on one screen (the "choose your fleet" strip, a search-results list)
+  // a shared literal id would make every instance paint whichever gradient happened to be defined
+  // last. `useId()` gives each instance its own id, once, without re-generating on every render.
+  const gradientId = `carArtBody-${useId()}`;
 
   return (
     <Svg
@@ -38,13 +44,20 @@ export function CarArt({
       fill="none"
       accessibilityElementsHidden
     >
-      <Path d={spec.body} fill={bodyColor} fillOpacity={0.94} />
+      <Defs>
+        <LinearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0" stopColor={bodyColor} stopOpacity={1} />
+          <Stop offset="1" stopColor={bodyColor} stopOpacity={0.8} />
+        </LinearGradient>
+      </Defs>
+      <Ellipse cx={(frontX + rearX) / 2} cy={196} rx={(rearX - frontX) / 2 + 36} ry={10} fill="#000000" opacity={0.12} />
+      <Path d={spec.body} fill={`url(#${gradientId})`} />
       {spec.glass.map((d, index) => (
-        <Path key={index} d={d} fill={colors.primary} fillOpacity={0.35} />
+        <Path key={index} d={d} fill={colors.primary} fillOpacity={0.4} />
       ))}
-      <Circle cx={frontX} cy={178} r={wheelR} fill={bodyColor} />
+      <Circle cx={frontX} cy={178} r={wheelR} fill={bodyColor} fillOpacity={0.85} />
       <Circle cx={frontX} cy={178} r={wheelR * 0.44} fill={colors.card} />
-      <Circle cx={rearX} cy={178} r={wheelR} fill={bodyColor} />
+      <Circle cx={rearX} cy={178} r={wheelR} fill={bodyColor} fillOpacity={0.85} />
       <Circle cx={rearX} cy={178} r={wheelR * 0.44} fill={colors.card} />
     </Svg>
   );

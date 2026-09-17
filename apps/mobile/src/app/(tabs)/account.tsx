@@ -1,49 +1,98 @@
 import { useI18n } from '@carrental/i18n/react';
 import { useRouter } from 'expo-router';
 import { CreditCard, Database, FileQuestion, IdCard, LogOut, MapPin, Settings, User } from 'lucide-react-native';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 
-import { Avatar, Button, Divider, ListRow, Screen, Text } from '../../components/ui';
+import { Avatar, Button, Divider, ListRow, Screen, Text, useConfirm } from '../../components/ui';
 import { useAuth } from '../../lib/auth/auth-provider';
 import { useTheme } from '../../lib/theme/theme-provider';
+import { FLOATING_TAB_BAR } from '../../lib/theme/tokens';
 
 export default function AccountScreen() {
   const { t } = useI18n();
   const { colors, space } = useTheme();
   const router = useRouter();
   const { status, actor, signOut } = useAuth();
+  const confirm = useConfirm();
+  const authenticated = status === 'authenticated' && !!actor;
 
-  if (status !== 'authenticated' || !actor) {
+  const confirmSignOut = async () => {
+    const ok = await confirm({
+      title: t('action.signOut'),
+      confirmLabel: t('action.signOut'),
+      cancelLabel: t('action.cancel'),
+      destructive: true,
+    });
+    if (ok) void signOut();
+  };
+
+  // Settings, locations, and help need no account at all — previously this whole section only
+  // rendered inside the authenticated branch below, so a signed-out visitor lost access to
+  // switching theme/language or reading legal pages until they signed in for no functional
+  // reason. Shared between both branches instead of only appearing once someone's logged in.
+  const generalRows = (
+    <>
+      <ListRow
+        icon={<Settings size={20} color={colors.mutedForeground} />}
+        label={t('mobile.settings.title')}
+        onPress={() => router.push('/settings')}
+      />
+      <ListRow
+        icon={<MapPin size={20} color={colors.mutedForeground} />}
+        label={t('nav.locations')}
+        onPress={() => router.push('/locations')}
+      />
+      <ListRow
+        icon={<FileQuestion size={20} color={colors.mutedForeground} />}
+        label={t('nav.help')}
+        onPress={() => router.push('/help')}
+      />
+    </>
+  );
+
+  if (!authenticated) {
     return (
-      <Screen contentContainerStyle={{ gap: space(5), justifyContent: 'center', flex: 1 }}>
-        <View style={{ gap: space(1), alignItems: 'center' }}>
-          <User size={40} color={colors.mutedForeground} />
-          <Text variant="h2" style={{ textAlign: 'center' }}>
-            {t('nav.account')}
-          </Text>
-          <Text variant="body" color="mutedForeground" style={{ textAlign: 'center' }}>
-            {t('site.auth.signInSub')}
-          </Text>
+      <Screen scroll padded={false} contentContainerStyle={{ paddingBottom: FLOATING_TAB_BAR.contentClearance }}>
+        <View style={{ gap: space(6), padding: space(4), paddingTop: space(12), alignItems: 'center' }}>
+          <View style={{ gap: space(2), alignItems: 'center' }}>
+            <View
+              style={{
+                width: 88,
+                height: 88,
+                borderRadius: 44,
+                backgroundColor: colors.accent,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: space(2),
+              }}
+            >
+              <User size={36} color={colors.primary} strokeWidth={1.75} />
+            </View>
+            <Text variant="h2" style={{ textAlign: 'center' }}>
+              {t('nav.account')}
+            </Text>
+            <Text variant="body" color="mutedForeground" style={{ textAlign: 'center' }}>
+              {t('site.auth.signInSub')}
+            </Text>
+          </View>
+          <View style={{ gap: space(2), width: '100%' }}>
+            <Button fullWidth size="lg" onPress={() => router.push('/sign-in')}>
+              {t('action.signIn')}
+            </Button>
+            <Button fullWidth variant="outline" onPress={() => router.push('/register')}>
+              {t('action.register')}
+            </Button>
+          </View>
         </View>
-        <Button fullWidth size="lg" onPress={() => router.push('/sign-in')}>
-          {t('action.signIn')}
-        </Button>
-        <Button fullWidth variant="outline" onPress={() => router.push('/register')}>
-          {t('action.register')}
-        </Button>
+
+        <Divider />
+        {generalRows}
       </Screen>
     );
   }
 
-  const confirmSignOut = () => {
-    Alert.alert(t('action.signOut'), undefined, [
-      { text: t('action.cancel'), style: 'cancel' },
-      { text: t('action.signOut'), style: 'destructive', onPress: () => void signOut() },
-    ]);
-  };
-
   return (
-    <Screen scroll padded={false} contentContainerStyle={{ paddingBottom: space(10) }}>
+    <Screen scroll padded={false} contentContainerStyle={{ paddingBottom: FLOATING_TAB_BAR.contentClearance }}>
       <View style={{ padding: space(4), flexDirection: 'row', alignItems: 'center', gap: space(3) }}>
         <Avatar name={actor.displayName} size={56} />
         <View style={{ flex: 1 }}>
@@ -86,9 +135,7 @@ export default function AccountScreen() {
       />
 
       <Divider />
-      <ListRow icon={<Settings size={20} color={colors.mutedForeground} />} label={t('mobile.settings.title')} onPress={() => router.push('/settings')} />
-      <ListRow icon={<MapPin size={20} color={colors.mutedForeground} />} label={t('nav.locations')} onPress={() => router.push('/locations')} />
-      <ListRow icon={<FileQuestion size={20} color={colors.mutedForeground} />} label={t('nav.help')} onPress={() => router.push('/help')} />
+      {generalRows}
 
       <Divider />
       <ListRow icon={<LogOut size={20} color={colors.destructive} />} label={t('action.signOut')} destructive onPress={confirmSignOut} showChevron={false} />

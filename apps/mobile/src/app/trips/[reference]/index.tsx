@@ -1,10 +1,10 @@
 import { useI18n } from '@carrental/i18n/react';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 
 import { DateTimeField } from '../../../components/booking/date-time-field';
-import { AppStateView, Badge, Button, Card, Screen, Text, toneForReservationState } from '../../../components/ui';
+import { AppStateView, Badge, Button, Card, Screen, Text, toneForReservationState, useConfirm } from '../../../components/ui';
 import { useToast } from '../../../components/ui/toast';
 import {
   formatMinor,
@@ -22,6 +22,7 @@ export default function TripDetailScreen() {
   const { colors, space } = useTheme();
   const router = useRouter();
   const toast = useToast();
+  const confirm = useConfirm();
 
   const detail = useReservationDetail(reference ?? null);
   const history = useReservationHistory(reference ?? null);
@@ -49,22 +50,21 @@ export default function TripDetailScreen() {
 
   const r = detail.data;
 
-  const confirmCancel = () => {
-    Alert.alert(t('reservation.cancelConfirmTitle'), t('reservation.cancelConfirmBody'), [
-      { text: t('action.cancel'), style: 'cancel' },
-      {
-        text: t('reservation.cancelReservation'),
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await cancel.mutateAsync({});
-            toast.show(t('state.success.title'), 'success');
-          } catch {
-            toast.show(t('reservation.modifyErr'), 'error');
-          }
-        },
-      },
-    ]);
+  const confirmCancel = async () => {
+    const ok = await confirm({
+      title: t('reservation.cancelConfirmTitle'),
+      body: t('reservation.cancelConfirmBody'),
+      confirmLabel: t('reservation.cancelReservation'),
+      cancelLabel: t('action.cancel'),
+      destructive: true,
+    });
+    if (!ok) return;
+    try {
+      await cancel.mutateAsync({});
+      toast.show(t('state.success.title'), 'success');
+    } catch {
+      toast.show(t('reservation.modifyErr'), 'error');
+    }
   };
 
   const submitExtend = async () => {
