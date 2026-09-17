@@ -67,16 +67,7 @@ export function TripSearchCard() {
   };
 
   return (
-    <Card
-      style={{
-        gap: space(4),
-        borderRadius: 22,
-        shadowColor: colors.foreground,
-        shadowOpacity: 0.08,
-        shadowRadius: 16,
-        shadowOffset: { width: 0, height: 10 },
-      }}
-    >
+    <Card elevated="raised" style={{ gap: space(4), borderRadius: 22 }}>
       <View style={{ gap: space(1) }}>
         <Text
           variant="caption"

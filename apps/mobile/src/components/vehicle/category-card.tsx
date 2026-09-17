@@ -52,15 +52,8 @@ export function CategoryCard({ vehicle, onPress, style }: CategoryCardProps) {
     <Card
       onPress={onPress}
       padded={false}
-      style={{
-        overflow: 'hidden',
-        width: 260,
-        shadowColor: colors.foreground,
-        shadowOpacity: 0.08,
-        shadowRadius: 14,
-        shadowOffset: { width: 0, height: 8 },
-        ...style,
-      }}
+      elevated="raised"
+      style={{ overflow: 'hidden', width: 260, ...style }}
     >
       <View
         style={{
