@@ -26,6 +26,11 @@ const ICONS: Record<string, LucideIcon> = {
 const PILL_WIDTH = 54;
 const PILL_HEIGHT = 34;
 
+// The sliding indicator still has open bugs under some conditions (RTL + locale-switch edge
+// cases). Kept in place rather than ripped out — flip this back on once those are tracked down —
+// but off by default so nobody sees it mid-fix. The floating bar shape itself is unaffected.
+const ENABLE_LIQUID_INDICATOR = false;
+
 /** A single blob that slides between tabs instead of each icon independently toggling a pill —
  *  the "liquid" look is the blob briefly stretching wider along the direction of travel before
  *  snapping back to its destination width, like a drop of liquid dragged sideways.
@@ -54,7 +59,7 @@ function LiquidTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   };
 
   useEffect(() => {
-    if (!columnWidth) return;
+    if (!ENABLE_LIQUID_INDICATOR || !columnWidth) return;
     const x = targetX(state.index);
     if (!hasMeasured.current) {
       // First measurement (app open / tab bar mount): snap in place, no slide-in from x:0.
@@ -94,7 +99,7 @@ function LiquidTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         elevation: 12,
       }}
     >
-      {barWidth > 0 ? (
+      {ENABLE_LIQUID_INDICATOR && barWidth > 0 ? (
         <Animated.View
           pointerEvents="none"
           style={[
