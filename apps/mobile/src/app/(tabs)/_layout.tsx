@@ -3,7 +3,7 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Tabs } from 'expo-router';
 import { CalendarCheck, House, Search, User, type LucideIcon } from 'lucide-react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { I18nManager, Pressable, View, type LayoutChangeEvent } from 'react-native';
+import { Pressable, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -26,57 +26,45 @@ const ICONS: Record<string, LucideIcon> = {
 const PILL_WIDTH = 54;
 const PILL_HEIGHT = 34;
 
-// The indicator itself (a highlighted pill behind the active tab) always renders — only whether
-// it *slides* there is conditional. Two bugs were found here, only one actually fixed:
-//   1. FIXED: the tab bar was remounting on every tab press because `tabBar` was an inline arrow
-//      function (new identity every TabsLayout render). Memoized as `renderTabBar` below.
-//   2. NOT FIXED, RTL-only: arriving at a tab via the animated (withSpring) path — not the
-//      initial snap-in-place on mount, which is unaffected — can land the blob off the right
-//      edge of the screen instead of under the icon. Confirmed via logging that the *computed*
-//      target x is correct every time (matches the value that renders fine on mount), so this is
-//      downstream of that: something in the withSequence/withSpring chain on blobX/stretch, not
-//      the RTL index math. Not reliably reproducible on demand (worked for many cycles, then
-//      didn't, across fresh reloads), so it wasn't safely fixable in this pass. Since only the
-//      *animated* path misbehaves, RTL keeps the pill but always snaps it straight to place
-//      (the same code path already used for the very first one on mount) instead of animating.
-const ANIMATE_LIQUID_INDICATOR = !I18nManager.isRTL;
-
 /** A single blob that slides between tabs instead of each icon independently toggling a pill —
  *  the "liquid" look is the blob briefly stretching wider along the direction of travel before
  *  snapping back to its destination width, like a drop of liquid dragged sideways.
  *
- *  Deliberately computes each tab's target x arithmetically (equal-width columns) rather than
- *  from a per-tab `onLayout` measurement: `onLayout` reports the *physical* post-RTL-mirror
- *  position, but positioning a sibling view with a raw `left`/`transform` value re-enters RN's
- *  own `left`/`right` auto-swap-under-RTL logic (`I18nManager.doLeftAndRightSwapInRTL`, on by
- *  default) — mixing an already-physical measurement with a property that gets logically
- *  re-mirrored a second time lands the blob on the wrong side (or off-screen entirely). Working
- *  purely from `state.index` and a single measured bar width, mirrored by hand via
- *  `I18nManager.isRTL`, sidesteps that entirely. */
+ *  No RTL logic reaches this component's *positioning* math at all — the bar's own row forces
+ *  `direction: 'ltr'`, so it never participates in native automatic RTL mirroring, and this
+ *  component decides the *visual order* of the tabs itself from `useI18n()`'s `direction` (a
+ *  plain JS value that's always in sync with what's on screen). Two earlier approaches both broke
+ *  because they mixed a JS computation with the *native* RTL layout direction, which can lag
+ *  behind: switching language flips `I18nManager.isRTL` immediately, but the native view tree
+ *  only re-lays-out after a full process restart, so a "soft" reload can leave the icons
+ *  physically rendered in one order while `I18nManager.isRTL`-based math (or a position cached
+ *  from the same stale layout pass) assumes the other. Forcing this row to a fixed literal
+ *  direction and choosing tab order ourselves removes the native side from the equation
+ *  entirely — there's nothing left for it to disagree with. */
 function LiquidTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const { colors } = useTheme();
+  const { direction } = useI18n();
   const insets = useSafeAreaInsets();
   const [barWidth, setBarWidth] = useState(0);
   const columnWidth = barWidth / state.routes.length;
+
+  // The bar's row is forced to `direction: 'ltr'` below, so this reversal is the *only* thing
+  // that decides visual order — plain array order, nothing native to disagree with it.
+  const displayRoutes = direction === 'rtl' ? [...state.routes].reverse() : state.routes;
+  // `state.index` is always a valid index into `state.routes` per the navigator's own contract.
+  const activeRoute = state.routes[state.index]!;
+  const activeVisualIndex = displayRoutes.findIndex((r) => r.key === activeRoute.key);
 
   const blobX = useSharedValue(0);
   const stretch = useSharedValue(1);
   const hasMeasured = useRef(false);
 
-  const targetX = (index: number) => {
-    const logicalIndex = I18nManager.isRTL ? state.routes.length - 1 - index : index;
-    return logicalIndex * columnWidth + (columnWidth - PILL_WIDTH) / 2;
-  };
-
   useEffect(() => {
     if (!columnWidth) return;
-    const x = targetX(state.index);
-    if (!hasMeasured.current || !ANIMATE_LIQUID_INDICATOR) {
-      // First measurement (app open / tab bar mount) always snaps rather than sliding in from
-      // x:0 — and RTL snaps on every subsequent switch too, since that's the one code path here
-      // that isn't affected by the bug above.
+    const x = activeVisualIndex * columnWidth + (columnWidth - PILL_WIDTH) / 2;
+    if (!hasMeasured.current) {
+      // First measurement (app open / tab bar mount): snap in place, no slide-in from x:0.
       blobX.value = x;
-      stretch.value = 1;
       hasMeasured.current = true;
       return;
     }
@@ -85,8 +73,7 @@ function LiquidTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
       withSpring(1, { damping: 11, stiffness: 170 }),
     );
     blobX.value = withSpring(x, { damping: 16, stiffness: 180 });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- targetX is stable per render, only state.index/columnWidth should retrigger
-  }, [state.index, columnWidth]);
+  }, [activeVisualIndex, columnWidth, blobX, stretch]);
 
   const blobStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: blobX.value }, { scaleX: stretch.value }],
@@ -94,7 +81,7 @@ function LiquidTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 
   return (
     <View
-      onLayout={(e: LayoutChangeEvent) => setBarWidth(e.nativeEvent.layout.width)}
+      onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
       style={{
         position: 'absolute',
         left: FLOATING_TAB_BAR.horizontalMargin,
@@ -104,6 +91,7 @@ function LiquidTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         borderRadius: FLOATING_TAB_BAR.radius,
         backgroundColor: colors.card,
         flexDirection: 'row',
+        direction: 'ltr',
         alignItems: 'center',
         shadowColor: colors.foreground,
         shadowOpacity: 0.14,
@@ -130,8 +118,8 @@ function LiquidTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         />
       ) : null}
 
-      {state.routes.map((route, index) => {
-        const focused = state.index === index;
+      {displayRoutes.map((route) => {
+        const focused = route.key === activeRoute.key;
         const Icon = ICONS[route.name] ?? House;
         const color = focused ? colors.primary : colors.mutedForeground;
 
