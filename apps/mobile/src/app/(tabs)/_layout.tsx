@@ -26,7 +26,8 @@ const ICONS: Record<string, LucideIcon> = {
 const PILL_WIDTH = 54;
 const PILL_HEIGHT = 34;
 
-// LTR only — two bugs found here, only one actually fixed:
+// The indicator itself (a highlighted pill behind the active tab) always renders — only whether
+// it *slides* there is conditional. Two bugs were found here, only one actually fixed:
 //   1. FIXED: the tab bar was remounting on every tab press because `tabBar` was an inline arrow
 //      function (new identity every TabsLayout render). Memoized as `renderTabBar` below.
 //   2. NOT FIXED, RTL-only: arriving at a tab via the animated (withSpring) path — not the
@@ -35,10 +36,10 @@ const PILL_HEIGHT = 34;
 //      target x is correct every time (matches the value that renders fine on mount), so this is
 //      downstream of that: something in the withSequence/withSpring chain on blobX/stretch, not
 //      the RTL index math. Not reliably reproducible on demand (worked for many cycles, then
-//      didn't, across fresh reloads), so it wasn't safely fixable in this pass. LTR never showed
-//      this, so the indicator stays on there and off only under RTL until someone can attach a
-//      profiler to the shared-value updates directly.
-const ENABLE_LIQUID_INDICATOR = !I18nManager.isRTL;
+//      didn't, across fresh reloads), so it wasn't safely fixable in this pass. Since only the
+//      *animated* path misbehaves, RTL keeps the pill but always snaps it straight to place
+//      (the same code path already used for the very first one on mount) instead of animating.
+const ANIMATE_LIQUID_INDICATOR = !I18nManager.isRTL;
 
 /** A single blob that slides between tabs instead of each icon independently toggling a pill —
  *  the "liquid" look is the blob briefly stretching wider along the direction of travel before
@@ -68,11 +69,14 @@ function LiquidTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   };
 
   useEffect(() => {
-    if (!ENABLE_LIQUID_INDICATOR || !columnWidth) return;
+    if (!columnWidth) return;
     const x = targetX(state.index);
-    if (!hasMeasured.current) {
-      // First measurement (app open / tab bar mount): snap in place, no slide-in from x:0.
+    if (!hasMeasured.current || !ANIMATE_LIQUID_INDICATOR) {
+      // First measurement (app open / tab bar mount) always snaps rather than sliding in from
+      // x:0 — and RTL snaps on every subsequent switch too, since that's the one code path here
+      // that isn't affected by the bug above.
       blobX.value = x;
+      stretch.value = 1;
       hasMeasured.current = true;
       return;
     }
@@ -108,7 +112,7 @@ function LiquidTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         elevation: 12,
       }}
     >
-      {ENABLE_LIQUID_INDICATOR && barWidth > 0 ? (
+      {barWidth > 0 ? (
         <Animated.View
           pointerEvents="none"
           style={[
