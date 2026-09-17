@@ -279,7 +279,12 @@ export default function VehicleDetailScreen() {
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ gap: space(2) }}
+                  // Same fix as the home screen's fleet strip: no padding here clips each card's
+                  // shadow flush against the ScrollView's own viewport (worst on top/bottom, since
+                  // that's clipped at every scroll position). Negative margin keeps the row
+                  // aligned with "Choose your car" above it instead of shifting inward.
+                  contentContainerStyle={{ gap: space(2), paddingVertical: space(2), paddingHorizontal: space(2) }}
+                  style={{ marginHorizontal: -space(2) }}
                 >
                   <UnitOption
                     label={t('site.vehicle.anyAvailableCar')}
