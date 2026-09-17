@@ -2,7 +2,7 @@ import { useI18n } from '@carrental/i18n/react';
 import type { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useRouter } from 'expo-router';
 import { MapPin, Search } from 'lucide-react-native';
-import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { useMemo, useRef, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { useLocations, type Location as RentalLocation } from '../../lib/api/hooks/use-discovery';
@@ -33,8 +33,6 @@ export function TripSearchCard() {
   const draft = useTripDraft();
   const locationsQuery = useLocations();
   const pickupSheet = useRef<BottomSheetModal>(null);
-  const returnSheet = useRef<BottomSheetModal>(null);
-  const [differentReturn, setDifferentReturn] = useState(!!draft.returnLocationCode);
 
   const pickupAt = useMemo(
     () => (draft.pickupAt ? new Date(draft.pickupAt) : defaultPickup()),
@@ -46,24 +44,24 @@ export function TripSearchCard() {
   );
 
   const pickupLocation = locationsQuery.data?.find((l) => l.code === draft.pickupLocationCode);
-  const returnLocation = locationsQuery.data?.find((l) => l.code === draft.returnLocationCode);
 
   const selectPickup = (loc: RentalLocation) => {
     draft.setDraft({ pickupLocationCode: loc.code });
     pickupSheet.current?.dismiss();
   };
-  const selectReturn = (loc: RentalLocation) => {
-    draft.setDraft({ returnLocationCode: loc.code });
-    returnSheet.current?.dismiss();
-  };
 
   const canSearch = !!draft.pickupLocationCode && returnAt > pickupAt;
 
+  // Return-to-a-different-location is hidden from the UI for now: the backend has no one-way-fee
+  // calculation wired up (see `one_way_route`/`one_way_fee` in the pricing schema — defined but
+  // never read by `quote.calculator.ts`), so letting a guest pick a different drop-off today would
+  // silently charge the same price as a same-location return. `returnLocationCode` stays null,
+  // which `discovery.controller.ts` already treats as "same as pickup".
   const submit = () => {
     draft.setDraft({
       pickupAt: pickupAt.toISOString(),
       returnAt: returnAt.toISOString(),
-      returnLocationCode: differentReturn ? draft.returnLocationCode : null,
+      returnLocationCode: null,
     });
     router.push('/search-results');
   };
@@ -112,47 +110,6 @@ export function TripSearchCard() {
         </Pressable>
       </FieldShell>
 
-      {!differentReturn ? (
-        <Pressable onPress={() => setDifferentReturn(true)}>
-          <Text variant="small" color="primary">
-            {t('mobile.picker.differentLocation')}
-          </Text>
-        </Pressable>
-      ) : (
-        <View style={{ gap: space(2) }}>
-          <FieldShell
-            borderColor={colors.border}
-            backgroundColor={colors.background}
-            paddingHorizontal={space(3.5)}
-            paddingVertical={space(3)}
-          >
-            <Pressable
-              onPress={() => returnSheet.current?.present()}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: space(2) }}
-            >
-              <MapPin size={18} color={colors.primary} />
-              <View style={{ flex: 1 }}>
-                <Text
-                  variant="caption"
-                  color="mutedForeground"
-                  style={{ textTransform: 'uppercase' }}
-                >
-                  {t('mobile.picker.returnLocation')}
-                </Text>
-                <Text variant="bodyStrong">
-                  {returnLocation?.name ?? t('search.locationPlaceholder')}
-                </Text>
-              </View>
-            </Pressable>
-          </FieldShell>
-          <Pressable onPress={() => setDifferentReturn(false)}>
-            <Text variant="small" color="primary">
-              {t('mobile.picker.sameLocation')}
-            </Text>
-          </Pressable>
-        </View>
-      )}
-
       <DateTimeField
         label={t('search.pickupAt')}
         value={pickupAt}
@@ -177,7 +134,6 @@ export function TripSearchCard() {
       </Button>
 
       <LocationPickerSheet ref={pickupSheet} onSelect={selectPickup} />
-      <LocationPickerSheet ref={returnSheet} onSelect={selectReturn} />
     </Card>
   );
 }
