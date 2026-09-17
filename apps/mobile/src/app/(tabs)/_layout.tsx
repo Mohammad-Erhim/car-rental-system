@@ -87,7 +87,7 @@ function LiquidTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         backgroundColor: colors.card,
         flexDirection: 'row',
         alignItems: 'center',
-        shadowColor: '#000',
+        shadowColor: colors.foreground,
         shadowOpacity: 0.14,
         shadowRadius: 18,
         shadowOffset: { width: 0, height: 8 },
