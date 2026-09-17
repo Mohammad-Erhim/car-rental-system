@@ -6,7 +6,7 @@ import { Modal, Platform, Pressable, View } from 'react-native';
 
 import { useTheme } from '../../lib/theme/theme-provider';
 import { MODAL_SCRIM } from '../../lib/theme/tokens';
-import { Button, Field, Text } from '../ui';
+import { Button, Field, PickerControl } from '../ui';
 
 export interface DateTimeFieldProps {
   label: string;
@@ -56,23 +56,12 @@ export function DateTimeField({ label, value, onChange, minimumDate, error }: Da
 
   return (
     <Field label={label} required error={error}>
-      <Pressable
+      <PickerControl
         onPress={openPicker}
-        accessibilityRole="button"
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: space(2),
-          borderWidth: 1,
-          borderColor: error ? colors.destructive : colors.input,
-          borderRadius: radius,
-          paddingHorizontal: space(3),
-          minHeight: 48,
-        }}
-      >
-        <Calendar size={18} color={colors.mutedForeground} />
-        <Text variant="body">{fmt.dateTime(value)}</Text>
-      </Pressable>
+        invalid={!!error}
+        icon={<Calendar size={18} color={colors.mutedForeground} />}
+        label={fmt.dateTime(value)}
+      />
 
       {Platform.OS === 'ios' && (
         <Modal visible={iosVisible} transparent animationType="slide" onRequestClose={() => setIosVisible(false)}>

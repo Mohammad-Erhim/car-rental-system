@@ -3,12 +3,12 @@ import type { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useRouter } from 'expo-router';
 import { MapPin, Search } from 'lucide-react-native';
 import { useMemo, useRef } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
 import { useLocations, type Location as RentalLocation } from '../../lib/api/hooks/use-discovery';
 import { useTheme } from '../../lib/theme/theme-provider';
 import { useTripDraft } from '../../lib/trip/trip-draft-store';
-import { Button, Card, Field, Text } from '../ui';
+import { Button, Card, Field, PickerControl, Text } from '../ui';
 
 import { DateTimeField } from './date-time-field';
 import { LocationPickerSheet } from './location-picker-sheet';
@@ -27,7 +27,7 @@ function defaultPickup(): Date {
  *  Search tab). Reads/writes the persisted trip draft so a search started on Home survives
  *  navigation, sign-in detours, and app restarts (mirrors `apps/site`'s trip-context memory). */
 export function TripSearchCard() {
-  const { space, colors, radius } = useTheme();
+  const { space, colors } = useTheme();
   const { t } = useI18n();
   const router = useRouter();
   const draft = useTripDraft();
@@ -67,7 +67,7 @@ export function TripSearchCard() {
   };
 
   return (
-    <Card elevated="raised" style={{ gap: space(4), borderRadius: 22 }}>
+    <Card elevated="raised" style={{ gap: space(5), borderRadius: 22 }}>
       <View style={{ gap: space(1) }}>
         <Text
           variant="caption"
@@ -80,25 +80,12 @@ export function TripSearchCard() {
       </View>
 
       <Field label={t('mobile.picker.pickupLocation')} required>
-        <Pressable
+        <PickerControl
           onPress={() => pickupSheet.current?.present()}
-          accessibilityRole="button"
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: space(2),
-            borderWidth: 1,
-            borderColor: colors.input,
-            borderRadius: radius,
-            paddingHorizontal: space(3),
-            minHeight: 48,
-          }}
-        >
-          <MapPin size={18} color={colors.mutedForeground} />
-          <Text variant="body" numberOfLines={1} style={{ flex: 1 }}>
-            {pickupLocation?.name ?? t('search.locationPlaceholder')}
-          </Text>
-        </Pressable>
+          icon={<MapPin size={18} color={colors.mutedForeground} />}
+          label={pickupLocation?.name ?? t('search.locationPlaceholder')}
+          numberOfLines={1}
+        />
       </Field>
 
       <DateTimeField

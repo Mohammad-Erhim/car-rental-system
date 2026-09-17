@@ -6,7 +6,7 @@ import { Modal, Platform, Pressable, View } from 'react-native';
 
 import { useTheme } from '../../lib/theme/theme-provider';
 import { MODAL_SCRIM } from '../../lib/theme/tokens';
-import { Button, Field, Text } from '../ui';
+import { Button, Field, PickerControl } from '../ui';
 
 export interface DateFieldProps {
   label: string;
@@ -43,23 +43,12 @@ export function DateField({ label, value, onChange, minimumDate, required, error
 
   return (
     <Field label={label} required={required} error={error}>
-      <Pressable
+      <PickerControl
         onPress={openPicker}
-        accessibilityRole="button"
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: space(2),
-          borderWidth: 1,
-          borderColor: error ? colors.destructive : colors.input,
-          borderRadius: radius,
-          paddingHorizontal: space(3),
-          minHeight: 48,
-        }}
-      >
-        <Calendar size={18} color={colors.mutedForeground} />
-        <Text variant="body">{value ? fmt.date(value) : '—'}</Text>
-      </Pressable>
+        invalid={!!error}
+        icon={<Calendar size={18} color={colors.mutedForeground} />}
+        label={value ? fmt.date(value) : '—'}
+      />
 
       {Platform.OS === 'ios' && (
         <Modal visible={iosVisible} transparent animationType="slide" onRequestClose={() => setIosVisible(false)}>

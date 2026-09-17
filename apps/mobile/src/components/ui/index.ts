@@ -11,6 +11,7 @@ export * from './field';
 export * from './input';
 export * from './list-row';
 export * from './password-input';
+export * from './picker-control';
 export * from './screen';
 export * from './segmented-control';
 export * from './skeleton';
