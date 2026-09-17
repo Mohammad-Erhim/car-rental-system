@@ -7,6 +7,7 @@ import { TripCard } from '../../components/trips/trip-card';
 import { AppStateView, Screen, SegmentedControl, Text } from '../../components/ui';
 import { useMyReservations } from '../../lib/api/hooks/use-discovery';
 import { useAuth } from '../../lib/auth/auth-provider';
+import { FLOATING_TAB_BAR } from '../../lib/theme/tokens';
 
 type Segment = 'upcoming' | 'active' | 'past';
 
@@ -71,7 +72,7 @@ export default function TripsScreen() {
           style={{ flex: 1 }}
           data={rows}
           keyExtractor={(r) => r.reference}
-          contentContainerStyle={{ gap: 12 }}
+          contentContainerStyle={{ gap: 12, paddingBottom: FLOATING_TAB_BAR.contentClearance }}
           refreshing={reservationsQuery.isFetching}
           onRefresh={() => reservationsQuery.refetch()}
           ListEmptyComponent={

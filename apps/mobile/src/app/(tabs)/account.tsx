@@ -6,6 +6,7 @@ import { Alert, View } from 'react-native';
 import { Avatar, Button, Divider, ListRow, Screen, Text } from '../../components/ui';
 import { useAuth } from '../../lib/auth/auth-provider';
 import { useTheme } from '../../lib/theme/theme-provider';
+import { FLOATING_TAB_BAR } from '../../lib/theme/tokens';
 
 export default function AccountScreen() {
   const { t } = useI18n();
@@ -55,7 +56,7 @@ export default function AccountScreen() {
   };
 
   return (
-    <Screen scroll padded={false} contentContainerStyle={{ paddingBottom: space(10) }}>
+    <Screen scroll padded={false} contentContainerStyle={{ paddingBottom: FLOATING_TAB_BAR.contentClearance }}>
       <View style={{ padding: space(4), flexDirection: 'row', alignItems: 'center', gap: space(3) }}>
         <Avatar name={actor.displayName} size={56} />
         <View style={{ flex: 1 }}>

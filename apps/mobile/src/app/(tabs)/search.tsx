@@ -7,6 +7,7 @@ import { AppStateView, Screen, Text } from '../../components/ui';
 import { CategoryCard } from '../../components/vehicle/category-card';
 import { useCategories } from '../../lib/api/hooks/use-discovery';
 import { useTheme } from '../../lib/theme/theme-provider';
+import { FLOATING_TAB_BAR } from '../../lib/theme/tokens';
 
 export default function SearchScreen() {
   const { t, locale } = useI18n();
@@ -37,7 +38,7 @@ export default function SearchScreen() {
             <AppStateView kind="empty" title={t('site.home.fleet.emptyTitle')} description={t('site.home.fleet.emptyText')} />
           )
         }
-        contentContainerStyle={{ gap: space(3) }}
+        contentContainerStyle={{ gap: space(3), paddingBottom: FLOATING_TAB_BAR.contentClearance }}
         renderItem={({ item }) => (
           <CategoryCard vehicle={item} onPress={() => router.push(`/vehicles/${item.code}`)} style={{ width: '100%' }} />
         )}

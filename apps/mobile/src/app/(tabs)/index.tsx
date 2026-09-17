@@ -9,7 +9,7 @@ import { CategoryCard } from '../../components/vehicle/category-card';
 import { useCategories, useLocations } from '../../lib/api/hooks/use-discovery';
 import { useAuth } from '../../lib/auth/auth-provider';
 import { useTheme } from '../../lib/theme/theme-provider';
-import { withAlpha } from '../../lib/theme/tokens';
+import { FLOATING_TAB_BAR, withAlpha } from '../../lib/theme/tokens';
 
 const TRUST_ITEMS = [
   {
@@ -45,7 +45,7 @@ export default function HomeScreen() {
   const firstName = actor?.displayName?.split(' ')[0];
 
   return (
-    <Screen scroll contentContainerStyle={{ gap: space(8), paddingBottom: space(10) }}>
+    <Screen scroll contentContainerStyle={{ gap: space(8), paddingBottom: FLOATING_TAB_BAR.contentClearance }}>
       {/* Deliberately compact: the website's hero (title + paragraph + illustration + a full star
           row) took the entire first screen on a short device, pushing the actual search form below
           the fold — a rental app's primary action needs to be reachable without scrolling. The
