@@ -2,13 +2,13 @@ import { useI18n } from '@carrental/i18n/react';
 import type { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useRouter } from 'expo-router';
 import { MapPin, Search } from 'lucide-react-native';
-import { useMemo, useRef, type ReactNode } from 'react';
+import { useMemo, useRef } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { useLocations, type Location as RentalLocation } from '../../lib/api/hooks/use-discovery';
 import { useTheme } from '../../lib/theme/theme-provider';
 import { useTripDraft } from '../../lib/trip/trip-draft-store';
-import { Button, Card, Text } from '../ui';
+import { Button, Card, Field, Text } from '../ui';
 
 import { DateTimeField } from './date-time-field';
 import { LocationPickerSheet } from './location-picker-sheet';
@@ -27,7 +27,7 @@ function defaultPickup(): Date {
  *  Search tab). Reads/writes the persisted trip draft so a search started on Home survives
  *  navigation, sign-in detours, and app restarts (mirrors `apps/site`'s trip-context memory). */
 export function TripSearchCard() {
-  const { space, colors } = useTheme();
+  const { space, colors, radius } = useTheme();
   const { t } = useI18n();
   const router = useRouter();
   const draft = useTripDraft();
@@ -88,27 +88,27 @@ export function TripSearchCard() {
         <Text variant="h2">{t('site.home.searchCardTitle')}</Text>
       </View>
 
-      <FieldShell
-        borderColor={colors.border}
-        backgroundColor={colors.background}
-        paddingHorizontal={space(3.5)}
-        paddingVertical={space(3)}
-      >
+      <Field label={t('mobile.picker.pickupLocation')} required>
         <Pressable
           onPress={() => pickupSheet.current?.present()}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: space(2) }}
+          accessibilityRole="button"
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: space(2),
+            borderWidth: 1,
+            borderColor: colors.input,
+            borderRadius: radius,
+            paddingHorizontal: space(3),
+            minHeight: 48,
+          }}
         >
-          <MapPin size={18} color={colors.primary} />
-          <View style={{ flex: 1 }}>
-            <Text variant="caption" color="mutedForeground" style={{ textTransform: 'uppercase' }}>
-              {t('mobile.picker.pickupLocation')}
-            </Text>
-            <Text variant="bodyStrong">
-              {pickupLocation?.name ?? t('search.locationPlaceholder')}
-            </Text>
-          </View>
+          <MapPin size={18} color={colors.mutedForeground} />
+          <Text variant="body" numberOfLines={1} style={{ flex: 1 }}>
+            {pickupLocation?.name ?? t('search.locationPlaceholder')}
+          </Text>
         </Pressable>
-      </FieldShell>
+      </Field>
 
       <DateTimeField
         label={t('search.pickupAt')}
@@ -135,34 +135,5 @@ export function TripSearchCard() {
 
       <LocationPickerSheet ref={pickupSheet} onSelect={selectPickup} />
     </Card>
-  );
-}
-
-function FieldShell({
-  children,
-  borderColor,
-  backgroundColor,
-  paddingHorizontal,
-  paddingVertical,
-}: {
-  children: ReactNode;
-  borderColor: string;
-  backgroundColor: string;
-  paddingHorizontal: number;
-  paddingVertical: number;
-}) {
-  return (
-    <View
-      style={{
-        borderWidth: 1,
-        borderColor,
-        borderRadius: 14,
-        backgroundColor,
-        paddingHorizontal,
-        paddingVertical,
-      }}
-    >
-      {children}
-    </View>
   );
 }
