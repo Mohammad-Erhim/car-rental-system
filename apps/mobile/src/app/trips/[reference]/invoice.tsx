@@ -16,13 +16,9 @@ export default function InvoiceScreen() {
     <Screen padded={false}>
       <Stack.Screen options={{ title: t('invoice.title') }} />
       {invoicesQuery.isLoading ? (
-        <View style={{ padding: space(4) }}>
-          <AppStateView kind="loading" />
-        </View>
+        <AppStateView kind="loading" />
       ) : !invoicesQuery.data?.length ? (
-        <View style={{ padding: space(4) }}>
-          <AppStateView kind="empty" title={t('invoice.notYetIssued')} description={t('invoice.notYetIssuedHint')} />
-        </View>
+        <AppStateView kind="empty" title={t('invoice.notYetIssued')} description={t('invoice.notYetIssuedHint')} />
       ) : (
         <FlatList
           contentContainerStyle={{ padding: space(4), gap: space(4) }}

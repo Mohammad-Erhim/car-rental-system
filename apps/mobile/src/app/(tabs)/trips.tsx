@@ -1,7 +1,7 @@
 import { useI18n } from '@carrental/i18n/react';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, View } from 'react-native';
+import { FlatList } from 'react-native';
 
 import { TripCard } from '../../components/trips/trip-card';
 import { AppStateView, Screen, SegmentedControl, Text } from '../../components/ui';
@@ -72,18 +72,16 @@ export default function TripsScreen() {
           style={{ flex: 1 }}
           data={rows}
           keyExtractor={(r) => r.reference}
-          contentContainerStyle={{ gap: 12, paddingBottom: FLOATING_TAB_BAR.contentClearance }}
+          contentContainerStyle={{ flexGrow: 1, gap: 12, paddingBottom: FLOATING_TAB_BAR.contentClearance }}
           refreshing={reservationsQuery.isFetching}
           onRefresh={() => reservationsQuery.refetch()}
           ListEmptyComponent={
-            <View style={{ paddingTop: 24 }}>
-              <AppStateView
-                kind="empty"
-                title={t('trips.none')}
-                description={t('trips.noneHint')}
-                primaryAction={{ label: t('trips.findACar'), onPress: () => router.push('/search') }}
-              />
-            </View>
+            <AppStateView
+              kind="empty"
+              title={t('trips.none')}
+              description={t('trips.noneHint')}
+              primaryAction={{ label: t('trips.findACar'), onPress: () => router.push('/search') }}
+            />
           }
           renderItem={({ item }) => <TripCard reservation={item} onPress={() => router.push(`/trips/${item.reference}`)} />}
         />

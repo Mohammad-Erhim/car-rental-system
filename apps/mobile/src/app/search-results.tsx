@@ -49,17 +49,13 @@ export default function SearchResultsScreen() {
       {!args ? (
         <AppStateView kind="empty" title={t('site.search.noQuery')} />
       ) : searchQuery.isLoading ? (
-        <View style={{ padding: space(4) }}>
-          <AppStateView kind="loading" />
-        </View>
+        <AppStateView kind="loading" />
       ) : searchQuery.isError ? (
-        <View style={{ padding: space(4) }}>
-          <AppStateView kind="failure" onRetry={() => searchQuery.refetch()} />
-        </View>
+        <AppStateView kind="failure" onRetry={() => searchQuery.refetch()} />
       ) : (
         <FlatList
           style={{ flex: 1 }}
-          contentContainerStyle={{ padding: space(4), gap: space(3) }}
+          contentContainerStyle={{ flexGrow: 1, padding: space(4), gap: space(3) }}
           data={searchQuery.data?.options ?? []}
           keyExtractor={(item) => item.categoryCode}
           ListHeaderComponent={

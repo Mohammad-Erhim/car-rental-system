@@ -38,7 +38,7 @@ export default function SearchScreen() {
             <AppStateView kind="empty" title={t('site.home.fleet.emptyTitle')} description={t('site.home.fleet.emptyText')} />
           )
         }
-        contentContainerStyle={{ gap: space(3), paddingBottom: FLOATING_TAB_BAR.contentClearance }}
+        contentContainerStyle={{ flexGrow: 1, gap: space(3), paddingBottom: FLOATING_TAB_BAR.contentClearance }}
         renderItem={({ item }) => (
           <CategoryCard vehicle={item} onPress={() => router.push(`/vehicles/${item.code}`)} style={{ width: '100%' }} />
         )}

@@ -138,7 +138,7 @@ export default function CheckoutScreen() {
   }
 
   return (
-    <Screen scroll keyboardAvoiding contentContainerStyle={{ gap: space(5) }}>
+    <Screen scroll keyboardAvoiding contentContainerStyle={{ flexGrow: 1, gap: space(5) }}>
       <Stack.Screen options={{ title: t('checkout.title') }} />
 
       {!reference || quote.isError ? (
