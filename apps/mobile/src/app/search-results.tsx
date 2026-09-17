@@ -5,8 +5,9 @@ import { ArrowRight, CheckCircle2, XCircle } from 'lucide-react-native';
 import { useMemo } from 'react';
 import { FlatList, View } from 'react-native';
 
-import { AppStateView, Badge, Card, Screen, Text } from '../components/ui';
+import { AppStateView, Badge, Card, DirectionalIcon, Screen, Text } from '../components/ui';
 import { CarArt } from '../components/vehicle/car-art';
+import { resolveAssetUrl } from '../lib/api/config';
 import {
   formatMinor,
   useAvailabilitySearch,
@@ -14,7 +15,6 @@ import {
   useLocations,
   type SearchArgs,
 } from '../lib/api/hooks/use-discovery';
-import { resolveAssetUrl } from '../lib/api/config';
 import { useTheme } from '../lib/theme/theme-provider';
 import { useTripDraft } from '../lib/trip/trip-draft-store';
 
@@ -155,7 +155,9 @@ export default function SearchResultsScreen() {
                           {t('site.vehicle.noPrice')}
                         </Text>
                       )}
-                      <ArrowRight size={18} color={colors.primary} />
+                      <DirectionalIcon>
+                        <ArrowRight size={18} color={colors.primary} />
+                      </DirectionalIcon>
                     </View>
                   </View>
                 </View>

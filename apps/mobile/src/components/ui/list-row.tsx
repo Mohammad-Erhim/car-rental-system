@@ -4,6 +4,7 @@ import { Pressable, View } from 'react-native';
 
 import { useTheme } from '../../lib/theme/theme-provider';
 
+import { DirectionalIcon } from './directional-icon';
 import { Text } from './text';
 
 export interface ListRowProps {
@@ -63,7 +64,11 @@ export function ListRow({
         </Text>
       ) : null}
       {trailing}
-      {showChevron ? <ChevronRight size={18} color={colors.mutedForeground} /> : null}
+      {showChevron ? (
+        <DirectionalIcon>
+          <ChevronRight size={18} color={colors.mutedForeground} />
+        </DirectionalIcon>
+      ) : null}
     </Pressable>
   );
 }

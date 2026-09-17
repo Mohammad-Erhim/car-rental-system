@@ -4,7 +4,7 @@ import { View } from 'react-native';
 
 import { formatMinor } from '../../lib/api/hooks/use-discovery';
 import { useTheme } from '../../lib/theme/theme-provider';
-import { Badge, Card, Text, toneForReservationState } from '../ui';
+import { Badge, Card, DirectionalIcon, Text, toneForReservationState } from '../ui';
 
 export interface TripCardReservation {
   reference: string;
@@ -39,7 +39,9 @@ export function TripCard({ reservation, onPress }: { reservation: TripCardReserv
         </Text>
         {reservation.returnLocationCode ? (
           <>
-            <ArrowRight size={12} color={colors.mutedForeground} />
+            <DirectionalIcon>
+              <ArrowRight size={12} color={colors.mutedForeground} />
+            </DirectionalIcon>
             <Text variant="small" color="mutedForeground">
               {reservation.returnLocationCode}
             </Text>

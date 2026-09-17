@@ -4,6 +4,7 @@ export * from './badge';
 export * from './button';
 export * from './card';
 export * from './chip';
+export * from './directional-icon';
 export * from './divider';
 export * from './error-summary';
 export * from './field';

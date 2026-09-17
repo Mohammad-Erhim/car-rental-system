@@ -3,11 +3,12 @@ import { Image } from 'expo-image';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowRight, Briefcase, Car, ChevronLeft, Cog, DoorOpen, Users } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { I18nManager, Pressable, ScrollView, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 
-import { AppStateView, Badge, Button, Card, Screen, Text } from '../../components/ui';
+import { AppStateView, Badge, Button, Card, DirectionalIcon, Screen, Text } from '../../components/ui';
 import { useToast } from '../../components/ui/toast';
 import { CarArt } from '../../components/vehicle/car-art';
+import { resolveAssetUrl } from '../../lib/api/config';
 import {
   formatMinor,
   useAvailabilitySearch,
@@ -16,7 +17,6 @@ import {
   useCreateQuote,
   type SearchArgs,
 } from '../../lib/api/hooks/use-discovery';
-import { resolveAssetUrl } from '../../lib/api/config';
 import { guestId } from '../../lib/guest-id';
 import { useTheme } from '../../lib/theme/theme-provider';
 import { withAlpha } from '../../lib/theme/tokens';
@@ -145,11 +145,9 @@ export default function VehicleDetailScreen() {
             },
           ]}
         >
-          <ChevronLeft
-            size={25}
-            color={colors.primary}
-            style={{ transform: [{ scaleX: I18nManager.isRTL ? -1 : 1 }] }}
-          />
+          <DirectionalIcon>
+            <ChevronLeft size={25} color={colors.primary} />
+          </DirectionalIcon>
         </Pressable>
         {category.imageUrl ? (
           <Image
@@ -306,7 +304,11 @@ export default function VehicleDetailScreen() {
               size="lg"
               loading={reserving}
               disabled={priceQuery.isLoading || !priceOption || priceOption.bookableCount < 1}
-              trailingIcon={<ArrowRight size={18} color={colors.primaryForeground} />}
+              trailingIcon={
+                <DirectionalIcon>
+                  <ArrowRight size={18} color={colors.primaryForeground} />
+                </DirectionalIcon>
+              }
               onPress={reserve}
             >
               {t('site.vehicle.reserveContinue')}

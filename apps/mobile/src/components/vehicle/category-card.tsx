@@ -7,7 +7,7 @@ import { View, type ViewStyle } from 'react-native';
 import { resolveAssetUrl } from '../../lib/api/config';
 import { useTheme } from '../../lib/theme/theme-provider';
 import { withAlpha } from '../../lib/theme/tokens';
-import { Card, Text } from '../ui';
+import { Card, DirectionalIcon, Text } from '../ui';
 
 import { CarArt } from './car-art';
 
@@ -122,7 +122,9 @@ export function CategoryCard({ vehicle, onPress, style }: CategoryCardProps) {
           <Text variant="small" color="primary">
             {t('site.home.fleet.cta')}
           </Text>
-          <ArrowRight size={14} color={colors.primary} />
+          <DirectionalIcon>
+            <ArrowRight size={14} color={colors.primary} />
+          </DirectionalIcon>
         </View>
       </View>
     </Card>
