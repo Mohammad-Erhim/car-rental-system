@@ -26,12 +26,18 @@ const ICONS: Record<string, LucideIcon> = {
 const PILL_WIDTH = 54;
 const PILL_HEIGHT = 34;
 
-// Re-enabled: root-caused this time. Switching tabs directly (not via back) made the indicator
-// flicker out and reappear — LiquidTabBar was remounting on every tab press because `tabBar` was
-// passed an inline arrow function (a new identity every TabsLayout render), resetting its
-// `barWidth`/`hasMeasured` state each time. `renderTabBar` below is memoized to fix that. Verified
-// with repeated rapid tab-cycling in RTL after the fix, both directly and via burst screenshots.
-const ENABLE_LIQUID_INDICATOR = true;
+// Off by default — two bugs found here, only one actually fixed:
+//   1. FIXED: the tab bar was remounting on every tab press because `tabBar` was an inline arrow
+//      function (new identity every TabsLayout render). Memoized as `renderTabBar` below.
+//   2. NOT FIXED: in RTL, arriving at a tab via the animated (withSpring) path — not the initial
+//      snap-in-place on mount, which is unaffected — can land the blob off the right edge of the
+//      screen instead of under the icon. Confirmed via logging that the *computed* target x is
+//      correct every time (matches the value that renders fine on mount), so this is downstream
+//      of that: something in the withSequence/withSpring chain on blobX/stretch, not the RTL
+//      index math. Not reliably reproducible on demand (worked for many cycles, then didn't,
+//      across fresh reloads), so it wasn't safely fixable in this pass. Leave off until someone
+//      can attach a profiler to the shared-value updates directly.
+const ENABLE_LIQUID_INDICATOR = false;
 
 /** A single blob that slides between tabs instead of each icon independently toggling a pill —
  *  the "liquid" look is the blob briefly stretching wider along the direction of travel before
