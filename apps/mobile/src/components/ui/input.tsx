@@ -1,3 +1,4 @@
+import { useI18n } from '@carrental/i18n/react';
 import { forwardRef, type ReactNode } from 'react';
 import { TextInput, View, type TextInputProps } from 'react-native';
 
@@ -14,6 +15,7 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
   ref,
 ) {
   const { colors, radius, space } = useTheme();
+  const { direction } = useI18n();
   return (
     <View
       style={{
@@ -31,7 +33,19 @@ export const Input = forwardRef<TextInput, InputProps>(function Input(
       {leftIcon}
       <TextInput
         ref={ref}
-        style={[{ flex: 1, color: colors.foreground, fontSize: 15, paddingVertical: 10 }, style]}
+        style={[
+          {
+            flex: 1,
+            color: colors.foreground,
+            fontSize: 15,
+            paddingVertical: 10,
+            // RN 0.74 swaps explicit left/right values in an RTL native hierarchy, making
+            // `left` the logical reading-start alignment on both platforms.
+            textAlign: 'left',
+            writingDirection: direction,
+          },
+          style,
+        ]}
         placeholderTextColor={colors.mutedForeground}
         {...props}
       />

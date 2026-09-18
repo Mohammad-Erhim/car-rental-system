@@ -23,7 +23,7 @@ export interface DateTimeFieldProps {
  */
 export function DateTimeField({ label, value, onChange, minimumDate, error }: DateTimeFieldProps) {
   const { colors } = useTheme();
-  const { fmt, t } = useI18n();
+  const { fmt, locale, t } = useI18n();
   const [iosVisible, setIosVisible] = useState(false);
   const [iosDraft, setIosDraft] = useState(value);
 
@@ -68,6 +68,7 @@ export function DateTimeField({ label, value, onChange, minimumDate, error }: Da
             value={iosDraft}
             mode="datetime"
             display="spinner"
+            locale={locale}
             minimumDate={minimumDate}
             onChange={(_, d) => d && setIosDraft(d)}
           />

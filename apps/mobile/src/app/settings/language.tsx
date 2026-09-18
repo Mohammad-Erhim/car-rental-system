@@ -30,7 +30,12 @@ export default function LanguageScreen() {
           // textAlign defaults to whatever the ambient RTL/LTR context is. A language picker is
           // the one place that ambient direction shouldn't apply: each row names a language in
           // its own script, not the currently-selected one.
-          const textAlign = l.direction === 'rtl' ? 'right' : 'left';
+          const textStyle = {
+            direction: l.direction,
+            writingDirection: l.direction,
+            // RN 0.74 treats explicit left/right as logical when this text node is RTL.
+            textAlign: 'left' as const,
+          };
           return (
             <View key={l.code}>
               {i > 0 && <Divider />}
@@ -51,10 +56,10 @@ export default function LanguageScreen() {
                 })}
               >
                 <View style={{ flex: 1 }}>
-                  <Text variant="bodyStrong" style={{ textAlign }}>
+                  <Text variant="bodyStrong" style={textStyle}>
                     {l.nativeName}
                   </Text>
-                  <Text variant="small" color="mutedForeground" style={{ textAlign }}>
+                  <Text variant="small" color="mutedForeground" style={textStyle}>
                     {l.englishName}
                   </Text>
                 </View>

@@ -54,6 +54,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       bundleIdentifier: id,
       supportsTablet: true,
       infoPlist: {
+        // iOS only considers an application language for native RTL/locale behavior when the
+        // bundle declares it. The in-app catalogue is runtime-driven, but these are the three
+        // locales shipped with this binary and used by UIKit controls such as UIDatePicker.
+        CFBundleLocalizations: ['en', 'ar', 'fr'],
         NSCameraUsageDescription:
           'Used to photograph your driving licence and take vehicle condition photos at pickup/return.',
         NSPhotoLibraryUsageDescription: 'Used to attach a photo of your driving licence.',

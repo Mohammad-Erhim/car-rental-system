@@ -9,7 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import * as Localization from 'expo-localization';
 import * as Updates from 'expo-updates';
 import { useEffect, useState, type ReactNode } from 'react';
-import { I18nManager, Pressable, StyleSheet, Text, View } from 'react-native';
+import { DevSettings, I18nManager, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { apiFetch } from '../api/api-fetch';
@@ -35,7 +35,8 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const localesQuery = useQuery({
     queryKey: ['meta', 'locales'],
-    queryFn: ({ signal }) => apiFetch<LocalesResponse>('/meta/locales', { signal, anonymous: true }),
+    queryFn: ({ signal }) =>
+      apiFetch<LocalesResponse>('/meta/locales', { signal, anonymous: true }),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -87,7 +88,10 @@ export function I18nProvider({ children }: { children: ReactNode }) {
     AsyncStorage.getItem(MOBILE_NS_CACHE_PREFIX + activeLocale).then((raw) => {
       if (cancelled || !raw) return;
       try {
-        setCachedMobileNs({ locale: activeLocale, data: JSON.parse(raw) as Record<string, string> });
+        setCachedMobileNs({
+          locale: activeLocale,
+          data: JSON.parse(raw) as Record<string, string>,
+        });
       } catch {
         /* ignore corrupt cache */
       }
@@ -178,11 +182,15 @@ function RtlSync({ children }: { children: ReactNode }) {
     try {
       await Updates.reloadAsync();
     } catch {
-      // No update runtime available (e.g. a dev client with no EAS Update channel configured) —
-      // the forceRTL flag above is still set for the next natural relaunch, but silently
-      // dismissing here as if the restart succeeded would leave the UI stuck in a half-mirrored
-      // state (RTL native layout, LTR content or vice versa) with no indication why. Tell the
-      // user to close and reopen manually instead of pretending it's handled.
+      // A local development client has no EAS Update runtime, so expo-updates cannot reload it.
+      // DevSettings rebuilds the React root and re-reads the persisted I18nManager flags, which
+      // is the development equivalent of the update reload above. It is stripped from release
+      // builds; a production build without an update runtime still gets the manual-restart
+      // message instead of being left silently half-mirrored.
+      if (__DEV__) {
+        DevSettings.reload();
+        return;
+      }
       setRestartFailed(true);
     }
   };
