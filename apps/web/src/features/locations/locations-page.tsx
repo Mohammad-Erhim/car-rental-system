@@ -174,7 +174,7 @@ export function LocationsPage() {
         cell: ({ row: { original: l } }) => menu(l),
       },
     ],
-     
+
     [t, canPublish],
   );
 

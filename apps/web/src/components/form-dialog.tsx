@@ -87,7 +87,7 @@ export function FormDialog<T extends FieldValues>({
                 {message ? (
                   <Alert variant="destructive" data-testid="form-dialog-error">
                     <AlertCircle aria-hidden="true" />
-                    <AlertDescription>{message}</AlertDescription>
+                    <AlertDescription className="whitespace-pre-line">{message}</AlertDescription>
                   </Alert>
                 ) : null}
                 {children}

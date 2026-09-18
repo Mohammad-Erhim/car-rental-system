@@ -12,6 +12,7 @@ import { CheckField, TextareaField, TextField } from '@/components/form-fields';
 import { FormSection } from '@/components/form-section';
 import { FormSheet } from '@/components/form-sheet';
 import { useDraftSeo } from '@/lib/seo-hooks';
+import { FormMessageError } from '@/lib/use-form-submit';
 
 /**
  * Edit the site's SEO settings and save them as a draft revision (a different reviewer publishes
@@ -74,7 +75,7 @@ export function SeoSheet({
       submitLabel={t('ops.cfg.saveDraft')}
       onSubmit={async (v) => {
         const parsed = toSeoConfig(v);
-        if (!parsed.success) throw new Error(t('ops.seo.draftFail'));
+        if (!parsed.success) throw new FormMessageError(t('ops.seo.draftFail'));
         await draft.mutateAsync({ payload: parsed.data, note: v.note.trim() || undefined });
         toast.success(t('ops.seo.draftSaved2'));
         onSaved();
