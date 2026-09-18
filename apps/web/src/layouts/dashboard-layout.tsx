@@ -5,6 +5,7 @@ import { Outlet } from 'react-router-dom';
 
 import { AppHeader } from './app-header';
 import { AppSidebar } from './app-sidebar';
+import { BreadcrumbLabelProvider } from './breadcrumb-label';
 import { visibleNavGroups } from './nav-config';
 
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
@@ -24,20 +25,22 @@ export function DashboardLayout() {
 
   return (
     <TooltipProvider delayDuration={150}>
-      <SidebarProvider>
-        <a href="#ops-main" className="skip-link">
-          {t('common.skipToContent')}
-        </a>
-        <div className="flex min-h-dvh w-full bg-muted/30">
-          <AppSidebar groups={groups} />
-          <SidebarInset>
-            <AppHeader groups={groups} />
-            <main id="ops-main" className="flex-1 p-4 sm:p-6 lg:p-8">
-              <Outlet />
-            </main>
-          </SidebarInset>
-        </div>
-      </SidebarProvider>
+      <BreadcrumbLabelProvider>
+        <SidebarProvider>
+          <a href="#ops-main" className="skip-link">
+            {t('common.skipToContent')}
+          </a>
+          <div className="flex min-h-dvh w-full bg-muted/30">
+            <AppSidebar groups={groups} />
+            <SidebarInset>
+              <AppHeader groups={groups} />
+              <main id="ops-main" className="flex-1 p-4 sm:p-6 lg:p-8">
+                <Outlet />
+              </main>
+            </SidebarInset>
+          </div>
+        </SidebarProvider>
+      </BreadcrumbLabelProvider>
     </TooltipProvider>
   );
 }

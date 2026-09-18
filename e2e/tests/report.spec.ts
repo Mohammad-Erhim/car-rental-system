@@ -261,31 +261,34 @@ test('SCREEN-OPS-022 / FR-ADM-002: create → a second manager approves → lift
 }, testInfo) => {
   const guards = attachConsoleGuards(page);
 
-  // a manager raises the restriction
-  await signInStaff(page, MANAGER);
-  await page.goto('/ops/customers');
-  await page.getByTestId('cust-search').fill('Demo');
-  await page.getByTestId('cust-results').getByRole('button').first().click();
-  await expect(page.getByTestId('cust-record')).toBeVisible();
+  const openDemoCustomer = async () => {
+    await page.goto('/ops/customers');
+    await page.getByTestId('cust-search').fill('Demo');
+    await page.getByRole('row').filter({ hasText: /Demo/ }).first().click();
+    await expect(page.getByTestId('cust-record')).toBeVisible();
+  };
 
+  // a manager raises the restriction (defaults: block, all bookings — a reason is required)
+  await signInStaff(page, MANAGER);
+  await openDemoCustomer();
+  await page.getByTestId('rstr-add').click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Add restriction' }).click();
+  await expect(dialog.getByRole('alert')).toBeVisible(); // reason missing
+  await dialog.getByRole('combobox').last().click();
+  await page.getByRole('option', { name: 'Suspected fraud' }).click();
+  await dialog.getByRole('button', { name: 'Add restriction' }).click();
   const card = page.getByTestId('cust-restrictions');
-  await card.getByTestId('rstr-category').selectOption('block');
-  await card.getByTestId('rstr-scope-kind').selectOption('all');
-  await expect(card.getByTestId('rstr-create')).toBeDisabled(); // a reason is required
-  await card.getByLabel(/reason/i).selectOption({ label: 'Suspected fraud' });
-  await card.getByTestId('rstr-create').click();
   await expect(card).toContainText('pending review');
   // the author cannot approve their own
   await expect(card.getByRole('button', { name: 'Approve' })).toHaveCount(0);
   await shot(page, testInfo, 'ops-customer-restriction');
 
-  // a different admin approves (through the confirm), then lifts
+  // a different admin approves (through the dialog), then lifts
   await page.getByRole('button', { name: /Sign out/ }).click();
   await page.waitForURL(/\/ops\/sign-in/);
   await signInStaff(page, ADMIN);
-  await page.goto('/ops/customers');
-  await page.getByTestId('cust-search').fill('Demo');
-  await page.getByTestId('cust-results').getByRole('button').first().click();
+  await openDemoCustomer();
   const card2 = page.getByTestId('cust-restrictions');
   await card2.getByRole('button', { name: 'Approve' }).first().click();
   await page.getByRole('dialog').getByRole('button', { name: 'Approve' }).click();
@@ -294,11 +297,13 @@ test('SCREEN-OPS-022 / FR-ADM-002: create → a second manager approves → lift
   await page.getByRole('dialog').getByRole('button', { name: 'Lift' }).click();
   await expect(card2).toContainText('lifted');
 
-  // FR-ADM-001 — the duplicate-handling card offers a reversible merge to a manager
-  const mergeCard = page.getByTestId('cust-merge');
-  await expect(mergeCard).toBeVisible();
-  await expect(mergeCard.getByTestId('cust-merge-into')).toBeVisible();
-  await expect(mergeCard.getByTestId('cust-merge-go')).toBeDisabled(); // no target id yet
+  // FR-ADM-001 — the reversible duplicate merge is offered to a manager, and needs a survivor
+  await page.getByTestId('cust-more').click();
+  await page.getByTestId('cust-merge-open').click();
+  const mergeDialog = page.getByRole('dialog');
+  await expect(mergeDialog.getByTestId('cust-merge-into')).toBeVisible();
+  await mergeDialog.getByRole('button', { name: 'Merge into this record' }).click();
+  await expect(mergeDialog.getByRole('alert')).toContainText('Choose the record to keep');
 
   guards.assertClean();
 });

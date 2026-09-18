@@ -11,6 +11,8 @@ import {
 import { RequireAuth, RequirePermission } from '../components/route-guards.js';
 import { RecoveryPage } from '../features/auth/recovery-page.js';
 import { SignInPage } from '../features/auth/sign-in-page.js';
+import { CustomerDetailPage } from '../features/customers/customer-detail-page.js';
+import { CustomersPage } from '../features/customers/customers-page.js';
 import { DashboardPage } from '../features/dashboard/dashboard-page.js';
 import { FinancePage } from '../features/finance/finance-page.js';
 import { FleetPage } from '../features/fleet/fleet-page.js';
@@ -27,7 +29,6 @@ import { CategoriesPage } from '../surfaces/ops/categories-page.js';
 import { ConfigVersionsPage } from '../surfaces/ops/config-versions-page.js';
 import { ConsentLogPage } from '../surfaces/ops/consent/consent-log-page.js';
 import { ConsentPage } from '../surfaces/ops/consent/consent-page.js';
-import { CustomersPage } from '../surfaces/ops/customers-page.js';
 import { DataQualityPage } from '../surfaces/ops/data-quality-page.js';
 import { EmailPage } from '../surfaces/ops/email-page.js';
 import { LanguagesPage } from '../surfaces/ops/languages-page.js';
@@ -133,6 +134,10 @@ function dashboardRoutes(): RouteObject[] {
     {
       path: 'customers',
       element: perm(['customer.read'], <CustomersPage />),
+    },
+    {
+      path: 'customers/:id',
+      element: perm(['customer.read'], <CustomerDetailPage />),
     },
     {
       path: 'config/translations',

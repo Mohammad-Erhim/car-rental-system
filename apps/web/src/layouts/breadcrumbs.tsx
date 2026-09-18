@@ -1,6 +1,7 @@
 import { useI18n } from '@carrental/i18n/react';
 import { Link, useLocation } from 'react-router-dom';
 
+import { useCurrentBreadcrumbLabel } from './breadcrumb-label';
 import type { NavGroup } from './nav-config';
 
 import {
@@ -54,7 +55,10 @@ export function Breadcrumbs({ groups }: { groups: NavGroup[] }) {
   const labelByPath = new Map(
     groups.flatMap((g) => g.items.map((it) => [it.to, it.label] as const)),
   );
+  const override = useCurrentBreadcrumbLabel();
   const trail = buildCrumbs(pathname, labelByPath, t);
+  const last = trail[trail.length - 1];
+  if (override && last && last.to === pathname && !labelByPath.has(pathname)) last.label = override;
   if (trail.length === 0) return null;
 
   return (

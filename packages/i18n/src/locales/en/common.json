@@ -485,10 +485,6 @@
   "ops.cust.mergeAbsorbed": "Absorbed {id}… — {drivers} driver(s), {restrictions} restriction(s)",
   "ops.cust.mergeDone": "Records merged.",
   "ops.cust.mergeFail": "Couldn’t merge the records",
-  "ops.cust.mergeGo": "Merge this record into it",
-  "ops.cust.mergeInto": "Survivor record id",
-  "ops.cust.mergeIntoHint": "paste the id of the record to keep",
-  "ops.cust.mergeIntoInvalid": "Enter the survivor record's full ID.",
   "ops.cust.mergeReason": "Reason",
   "ops.cust.mergeReversed": "reversed",
   "ops.cust.mergeTitle": "Duplicate handling",
@@ -2172,5 +2168,16 @@
   "ops.fin.sev.critical": "Critical",
   "ops.fin.sev.high": "High",
   "ops.fin.sev.medium": "Medium",
-  "ops.fin.sev.low": "Low"
+  "ops.fin.sev.low": "Low",
+  "ops.cust.profile": "Profile",
+  "ops.cust.rstrAddBody": "The restriction stays pending until a different manager approves it.",
+  "ops.cust.rejectTitle": "Reject this restriction?",
+  "ops.cust.rejectBody": "The restriction is discarded and never applied to bookings.",
+  "ops.cust.decisionNotes": "Notes (optional)",
+  "ops.cust.mergeBody": "Fold {name} into another customer record. Drivers and restrictions move to it, and you can undo this later.",
+  "ops.cust.mergePickRequired": "Choose the record to keep.",
+  "ops.cust.mergeKeeping": "Keeping: {name}",
+  "ops.cust.mergeHistory": "Merge history",
+  "ops.cust.mergeSubmit": "Merge into this record",
+  "ops.cust.mergePick": "Record to keep"
 }

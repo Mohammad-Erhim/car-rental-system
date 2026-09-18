@@ -485,10 +485,6 @@
   "ops.cust.mergeAbsorbed": "A absorbé {id}… — {drivers} conducteur(s), {restrictions} restriction(s)",
   "ops.cust.mergeDone": "Fiches fusionnées.",
   "ops.cust.mergeFail": "Impossible de fusionner les dossiers",
-  "ops.cust.mergeGo": "Fusionner ce dossier dedans",
-  "ops.cust.mergeInto": "Id du dossier conservé",
-  "ops.cust.mergeIntoHint": "collez l’id du dossier à conserver",
-  "ops.cust.mergeIntoInvalid": "Saisissez l’identifiant complet du dossier conservé.",
   "ops.cust.mergeReason": "Motif",
   "ops.cust.mergeReversed": "annulée",
   "ops.cust.mergeTitle": "Gestion des doublons",
@@ -2172,5 +2168,16 @@
   "ops.fin.sev.critical": "Critique",
   "ops.fin.sev.high": "Élevée",
   "ops.fin.sev.medium": "Moyenne",
-  "ops.fin.sev.low": "Faible"
+  "ops.fin.sev.low": "Faible",
+  "ops.cust.profile": "Profil",
+  "ops.cust.rstrAddBody": "La restriction reste en attente jusqu’à son approbation par un autre responsable.",
+  "ops.cust.rejectTitle": "Rejeter cette restriction ?",
+  "ops.cust.rejectBody": "La restriction est écartée et n’est jamais appliquée aux réservations.",
+  "ops.cust.decisionNotes": "Notes (facultatif)",
+  "ops.cust.mergeBody": "Fusionner {name} dans un autre dossier client. Les conducteurs et restrictions y sont déplacés, et vous pourrez annuler.",
+  "ops.cust.mergePickRequired": "Choisissez le dossier à conserver.",
+  "ops.cust.mergeKeeping": "Conservé : {name}",
+  "ops.cust.mergeHistory": "Historique des fusions",
+  "ops.cust.mergeSubmit": "Fusionner dans ce dossier",
+  "ops.cust.mergePick": "Dossier à conserver"
 }
