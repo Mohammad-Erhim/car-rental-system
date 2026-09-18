@@ -125,18 +125,27 @@ export function AuthProvider({
     qc.clear();
   }, [qc]);
 
-  const doRefresh = useCallback(async (): Promise<boolean> => {
-    try {
-      const session = await apiFetch<SessionResponse>('/auth/refresh', {
-        method: 'POST',
-        anonymous: true,
-      });
-      applySession(session);
-      return true;
-    } catch {
-      clearSession();
-      return false;
-    }
+  // Refresh tokens rotate: a second request racing the first (React StrictMode's double mount in
+  // dev, or the cross-tab `storage` handler firing alongside the mount restore) would present an
+  // already-rotated token, trip reuse detection and sign the user out. Share the in-flight call.
+  const refreshInFlight = useRef<Promise<boolean> | null>(null);
+  const doRefresh = useCallback((): Promise<boolean> => {
+    refreshInFlight.current ??= (async () => {
+      try {
+        const session = await apiFetch<SessionResponse>('/auth/refresh', {
+          method: 'POST',
+          anonymous: true,
+        });
+        applySession(session);
+        return true;
+      } catch {
+        clearSession();
+        return false;
+      } finally {
+        refreshInFlight.current = null;
+      }
+    })();
+    return refreshInFlight.current;
   }, [applySession, clearSession]);
 
   doRefreshRef.current = doRefresh;
