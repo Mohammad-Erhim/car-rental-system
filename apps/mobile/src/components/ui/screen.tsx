@@ -1,13 +1,6 @@
 import type { ReactNode } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  View,
-  type ViewStyle,
-} from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View, type ViewStyle } from 'react-native';
+import { KeyboardAvoidingView, KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 
 import { useTheme } from '../../lib/theme/theme-provider';
@@ -39,19 +32,27 @@ export function Screen({
 }: ScreenProps) {
   const { colors, space } = useTheme();
 
+  const scrollProps = {
+    style: { flex: 1 },
+    contentContainerStyle: [padded && { padding: space(4) }, contentContainerStyle],
+    keyboardShouldPersistTaps: 'always' as const,
+    refreshControl: onRefresh ? (
+      <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
+    ) : undefined,
+  };
+
+  // `KeyboardAwareScrollView` (unlike RN's own `ScrollView` + `KeyboardAvoidingView` combo, whose
+  // 'padding' behavior is a no-op on Android) tracks the native keyboard height on both platforms
+  // and scrolls the focused input above it — this is the thing that makes every form usable with
+  // the keyboard open, not just visually shifted.
   const body = scroll ? (
-    <ScrollView
-      style={{ flex: 1 }}
-      contentContainerStyle={[padded && { padding: space(4) }, contentContainerStyle]}
-      keyboardShouldPersistTaps="always"
-      refreshControl={
-        onRefresh ? (
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} />
-        ) : undefined
-      }
-    >
-      {children}
-    </ScrollView>
+    keyboardAvoiding ? (
+      <KeyboardAwareScrollView bottomOffset={space(4)} {...scrollProps}>
+        {children}
+      </KeyboardAwareScrollView>
+    ) : (
+      <ScrollView {...scrollProps}>{children}</ScrollView>
+    )
   ) : (
     <View style={[{ flex: 1 }, padded && { padding: space(4) }, contentContainerStyle]}>
       {children}
@@ -63,13 +64,8 @@ export function Screen({
       edges={edges}
       style={[styles.root, { backgroundColor: colors.background }, style]}
     >
-      {keyboardAvoiding ? (
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          {body}
-        </KeyboardAvoidingView>
+      {!scroll && keyboardAvoiding ? (
+        <KeyboardAvoidingView style={{ flex: 1 }}>{body}</KeyboardAvoidingView>
       ) : (
         body
       )}

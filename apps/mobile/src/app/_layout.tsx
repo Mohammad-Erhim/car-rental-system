@@ -9,6 +9,7 @@ import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
 import { I18nManager } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ConfirmProvider } from '../components/ui/confirm-dialog';
@@ -39,27 +40,29 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <QueryClientProvider client={queryClient}>
-          <I18nProvider>
-            <ThemeProvider>
-              <ToastProvider>
-                <ConfirmProvider>
-                  <BottomSheetModalProvider>
-                    <AuthProvider defaultAudience="customer">
-                      <StepUpProvider>
-                        <AppLockGate>
-                          <RootNavigator />
-                        </AppLockGate>
-                      </StepUpProvider>
-                    </AuthProvider>
-                  </BottomSheetModalProvider>
-                </ConfirmProvider>
-              </ToastProvider>
-            </ThemeProvider>
-          </I18nProvider>
-        </QueryClientProvider>
-      </SafeAreaProvider>
+      <KeyboardProvider>
+        <SafeAreaProvider>
+          <QueryClientProvider client={queryClient}>
+            <I18nProvider>
+              <ThemeProvider>
+                <ToastProvider>
+                  <ConfirmProvider>
+                    <BottomSheetModalProvider>
+                      <AuthProvider defaultAudience="customer">
+                        <StepUpProvider>
+                          <AppLockGate>
+                            <RootNavigator />
+                          </AppLockGate>
+                        </StepUpProvider>
+                      </AuthProvider>
+                    </BottomSheetModalProvider>
+                  </ConfirmProvider>
+                </ToastProvider>
+              </ThemeProvider>
+            </I18nProvider>
+          </QueryClientProvider>
+        </SafeAreaProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }
@@ -102,7 +105,12 @@ function RootNavigator() {
           headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.foreground,
           headerTitleStyle: { color: colors.foreground },
-          headerBackTitle: '',
+          // iOS only: without this, a screen with no explicit back-title config (the "(tabs)"
+          // group entry below, most visibly) falls back to showing its raw route name next to
+          // the back chevron — e.g. literally "(tabs)". Android's back button is icon-only
+          // regardless, so this never surfaced there. Forcing it off globally beats blanking
+          // `headerBackTitle` per screen, which is exactly the approach that missed this case.
+          headerBackTitleVisible: false,
           contentStyle: { backgroundColor: colors.background },
           // Hardcoded to always slide from the right regardless of locale, so a forward push in
           // Arabic looked backwards — it should slide in from the reading-start side, which is the
@@ -119,21 +127,21 @@ function RootNavigator() {
           name="vehicles/[categoryCode]"
           options={{ headerShown: false }}
         />
-        <Stack.Screen name="search-results" options={{ headerShown: true, headerBackTitle: '' }} />
-        <Stack.Screen name="checkout/index" options={{ headerShown: true, headerBackTitle: '' }} />
-        <Stack.Screen name="trips/[reference]/index" options={{ headerShown: true, headerBackTitle: '' }} />
-        <Stack.Screen name="trips/[reference]/invoice" options={{ headerShown: true, headerBackTitle: '' }} />
-        <Stack.Screen name="trips/[reference]/receipt" options={{ headerShown: true, headerBackTitle: '' }} />
-        <Stack.Screen name="account/profile" options={{ headerShown: true, headerBackTitle: '' }} />
-        <Stack.Screen name="account/drivers" options={{ headerShown: true, headerBackTitle: '' }} />
-        <Stack.Screen name="account/data" options={{ headerShown: true, headerBackTitle: '' }} />
-        <Stack.Screen name="account/payments" options={{ headerShown: true, headerBackTitle: '' }} />
-        <Stack.Screen name="settings/index" options={{ headerShown: true, headerBackTitle: '' }} />
-        <Stack.Screen name="settings/language" options={{ headerShown: true, headerBackTitle: '' }} />
-        <Stack.Screen name="settings/appearance" options={{ headerShown: true, headerBackTitle: '' }} />
-        <Stack.Screen name="legal/[slug]" options={{ headerShown: true, headerBackTitle: '' }} />
-        <Stack.Screen name="help" options={{ headerShown: true, headerBackTitle: '' }} />
-        <Stack.Screen name="locations" options={{ headerShown: true, headerBackTitle: '' }} />
+        <Stack.Screen name="search-results" options={{ headerShown: true }} />
+        <Stack.Screen name="checkout/index" options={{ headerShown: true }} />
+        <Stack.Screen name="trips/[reference]/index" options={{ headerShown: true }} />
+        <Stack.Screen name="trips/[reference]/invoice" options={{ headerShown: true }} />
+        <Stack.Screen name="trips/[reference]/receipt" options={{ headerShown: true }} />
+        <Stack.Screen name="account/profile" options={{ headerShown: true }} />
+        <Stack.Screen name="account/drivers" options={{ headerShown: true }} />
+        <Stack.Screen name="account/data" options={{ headerShown: true }} />
+        <Stack.Screen name="account/payments" options={{ headerShown: true }} />
+        <Stack.Screen name="settings/index" options={{ headerShown: true }} />
+        <Stack.Screen name="settings/language" options={{ headerShown: true }} />
+        <Stack.Screen name="settings/appearance" options={{ headerShown: true }} />
+        <Stack.Screen name="legal/[slug]" options={{ headerShown: true }} />
+        <Stack.Screen name="help" options={{ headerShown: true }} />
+        <Stack.Screen name="locations" options={{ headerShown: true }} />
         <Stack.Screen name="+not-found" />
       </Stack>
     </>

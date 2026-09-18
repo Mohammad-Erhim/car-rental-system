@@ -22,6 +22,7 @@ import { ApiError } from '../../lib/api/query-client';
 import { useAuth } from '../../lib/auth/auth-provider';
 import { StripeGate } from '../../lib/payments/stripe-gate';
 import { useTheme } from '../../lib/theme/theme-provider';
+import { toHexColor } from '../../lib/theme/tokens';
 import { useTripDraft } from '../../lib/trip/trip-draft-store';
 
 
@@ -437,8 +438,15 @@ function StripePaymentSection({
       <Field label={t('checkout.cardDetails')}>
         <CardField
           postalCodeEnabled={false}
-          style={{ height: 48 }}
-          cardStyle={{ borderRadius: radius, borderWidth: 1, borderColor: colors.input, backgroundColor: colors.background, textColor: colors.foreground }}
+          style={{ height: 48, backgroundColor: colors.background }}
+          cardStyle={{
+            borderRadius: radius,
+            borderWidth: 1,
+            borderColor: toHexColor(colors.input),
+            backgroundColor: toHexColor(colors.background),
+            textColor: toHexColor(colors.foreground),
+            placeholderColor: toHexColor(colors.mutedForeground),
+          }}
           onCardChange={(details) => setCardComplete(details.complete)}
         />
       </Field>

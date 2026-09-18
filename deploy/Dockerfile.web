@@ -24,6 +24,7 @@ COPY packages/i18n/package.json      packages/i18n/package.json
 COPY packages/ui/package.json        packages/ui/package.json
 COPY packages/theme/package.json     packages/theme/package.json
 COPY packages/config/package.json    packages/config/package.json
+COPY scripts/patch-expo-localization.mjs scripts/patch-expo-localization.mjs
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile
 
@@ -32,7 +33,7 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 # build step is needed. Source is bind-mounted by compose.
 FROM deps AS dev
 ENV NODE_ENV=development
-EXPOSE 3000
+EXPOSE 3100
 CMD ["pnpm", "--filter", "@carrental/web", "dev", "--", "--host", "0.0.0.0"]
 
 ########################  build  ########################

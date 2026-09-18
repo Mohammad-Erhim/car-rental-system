@@ -172,7 +172,7 @@ services:
       VITE_PROXY_TARGET: http://api:3001
       VITE_USE_POLLING: ${VITE_USE_POLLING:-0}
     command: pnpm --filter @carrental/web dev -- --host 0.0.0.0
-    ports: ['3100:3000']
+    ports: ['3100:3100']
     volumes: *workspace-volumes
     depends_on:
       deps: { condition: service_completed_successfully }
@@ -190,7 +190,7 @@ services:
     environment:
       NODE_ENV: development
       API_UPSTREAM: http://api:3001
-      WEB_UPSTREAM: http://web:3000
+      WEB_UPSTREAM: http://web:3100
       SITE_URL: http://localhost:3000
     command: pnpm --filter @carrental/site dev
     ports: ['3000:3000']

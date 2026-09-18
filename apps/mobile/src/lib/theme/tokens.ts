@@ -20,6 +20,39 @@ export function withAlpha(rnColor: string, alpha: number): string {
   return `hsla(${match[1]}, ${alpha})`;
 }
 
+/** Converts a resolved `"hsl(h, s%, l%)"` token color to `"#rrggbb"`. Needed for native props that
+ *  bypass RN's own color pipeline and parse the string themselves — e.g. `@stripe/stripe-react-native`'s
+ *  `CardField` `cardStyle` (unlike `style`, RN never runs this one through `processColor`/
+ *  `normalize-colors`; Stripe's own iOS/Android color parsers accept hex only, not `hsl()`, and fail
+ *  silently to a native default rather than erroring — on iOS that default renders solid black). */
+export function toHexColor(rnColor: string): string {
+  const match = /^hsl\(([\d.]+),\s*([\d.]+)%,\s*([\d.]+)%\)$/.exec(rnColor);
+  if (!match) return rnColor;
+  const h = Number(match[1]);
+  const s = Number(match[2]) / 100;
+  const l = Number(match[3]) / 100;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  const [r, g, b] =
+    h < 60
+      ? [c, x, 0]
+      : h < 120
+        ? [x, c, 0]
+        : h < 180
+          ? [0, c, x]
+          : h < 240
+            ? [0, x, c]
+            : h < 300
+              ? [x, 0, c]
+              : [c, 0, x];
+  const toByte = (v: number) =>
+    Math.round((v + m) * 255)
+      .toString(16)
+      .padStart(2, '0');
+  return `#${toByte(r)}${toByte(g)}${toByte(b)}`;
+}
+
 export type RNColorScale = Record<ColorToken, string>;
 
 export function resolveRNColors(scale: ColorScale): RNColorScale {
