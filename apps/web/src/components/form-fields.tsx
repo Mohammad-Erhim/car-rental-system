@@ -1,6 +1,9 @@
+import { useI18n } from '@carrental/i18n/react';
 import type { ReactNode } from 'react';
 import type { Control, FieldPath, FieldValues } from 'react-hook-form';
 
+import { LookupSelect } from '@/components/lookup-select';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   FormControl,
   FormDescription,
@@ -17,7 +20,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/lib/utils';
 
 /**
  * Labelled react-hook-form fields with the label / description / error wiring already done, so a
@@ -140,6 +145,138 @@ export function SelectField<T extends FieldValues>({
               ))}
             </SelectContent>
           </Select>
+          {description ? <FormDescription>{description}</FormDescription> : null}
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+}
+
+/** A single yes/no in a bordered row: the label and its explanation on the start, the box on the end. */
+export function CheckField<T extends FieldValues>({
+  control,
+  name,
+  label,
+  description,
+  className,
+  variant = 'checkbox',
+  testId,
+}: BaseProps<T> & { variant?: 'checkbox' | 'switch'; testId?: string }) {
+  return (
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <FormItem
+          className={cn(
+            'flex items-center justify-between gap-4 space-y-0 rounded-lg border p-4',
+            className,
+          )}
+        >
+          <div className="min-w-0 space-y-1 leading-none">
+            <FormLabel className="cursor-pointer">{label}</FormLabel>
+            {description ? <FormDescription>{description}</FormDescription> : null}
+          </div>
+          <FormControl>
+            {variant === 'switch' ? (
+              <Switch
+                checked={!!field.value}
+                onCheckedChange={field.onChange}
+                data-testid={testId}
+              />
+            ) : (
+              <Checkbox
+                checked={!!field.value}
+                onCheckedChange={(v) => field.onChange(v === true)}
+                data-testid={testId}
+              />
+            )}
+          </FormControl>
+        </FormItem>
+      )}
+    />
+  );
+}
+
+/**
+ * Pick any number of codes from a list (a scope, a set of supported items). `emptyLabel` says what
+ * an empty selection means, since "none" often stands for "all".
+ */
+export function CheckboxGroupField<T extends FieldValues>({
+  control,
+  name,
+  label,
+  description,
+  className,
+  options,
+  emptyLabel,
+  testId,
+}: BaseProps<T> & {
+  options: Array<{ value: string; label: string }>;
+  emptyLabel?: string;
+  testId?: string;
+}) {
+  const { t } = useI18n();
+  return (
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => {
+        const value: string[] = field.value ?? [];
+        return (
+          <FormItem className={className} data-testid={testId}>
+            <FormLabel>{label}</FormLabel>
+            <FormDescription>
+              {value.length ? t('ops.prod.scopeSome', { n: value.length }) : (emptyLabel ?? '')}
+              {description ? ` ${description}` : ''}
+            </FormDescription>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {options.map((o) => {
+                const checked = value.includes(o.value);
+                return (
+                  <label
+                    key={o.value}
+                    className="flex cursor-pointer items-center gap-2.5 rounded-md border p-2.5 text-sm font-normal"
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={(v) =>
+                        field.onChange(
+                          v === true ? [...value, o.value] : value.filter((c) => c !== o.value),
+                        )
+                      }
+                    />
+                    <span className="min-w-0 flex-1 truncate">{o.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <FormMessage />
+          </FormItem>
+        );
+      }}
+    />
+  );
+}
+
+/** A reference-data select (currency, reason …) wired to the form. */
+export function LookupField<T extends FieldValues>({
+  control,
+  name,
+  label,
+  description,
+  className,
+  typeCode,
+}: BaseProps<T> & { typeCode: string }) {
+  return (
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <FormItem className={className}>
+          <FormLabel>{label}</FormLabel>
+          <LookupSelect typeCode={typeCode} value={field.value ?? ''} onChange={field.onChange} />
           {description ? <FormDescription>{description}</FormDescription> : null}
           <FormMessage />
         </FormItem>
