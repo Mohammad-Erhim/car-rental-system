@@ -50,6 +50,70 @@ describe('fleet operations', () => {
     }>;
   }
 
+  it('paginates on request, and returns every unit when pagination is not requested', async () => {
+    const everything = await request(server)
+      .get('/api/v1/ops/fleet/units')
+      .set(auth(adminToken))
+      .expect(200);
+    expect(everything.body.count).toBe(everything.body.total); // the pickers rely on this
+    expect(everything.body.pageCount).toBe(1);
+
+    const first = await request(server)
+      .get('/api/v1/ops/fleet/units?pageSize=2&page=1')
+      .set(auth(adminToken))
+      .expect(200);
+    expect(first.body.count).toBeLessThanOrEqual(2);
+    expect(first.body.total).toBe(everything.body.total);
+    expect(first.body.pageCount).toBe(Math.max(1, Math.ceil(first.body.total / 2)));
+
+    const collected: string[] = [];
+    for (let page = 1; page <= first.body.pageCount; page += 1) {
+      const res = await request(server)
+        .get(`/api/v1/ops/fleet/units?pageSize=2&page=${page}`)
+        .set(auth(adminToken))
+        .expect(200);
+      collected.push(...(res.body.results as Array<{ id: string }>).map((u) => u.id));
+    }
+    expect(collected).toEqual((everything.body.results as Array<{ id: string }>).map((u) => u.id));
+  });
+
+  it('searches plate / VIN / make / model and counts states ignoring the state filter', async () => {
+    const all = await request(server)
+      .get('/api/v1/ops/fleet/units')
+      .set(auth(adminToken))
+      .expect(200);
+    const sample = (all.body.results as Array<{ plate: string }>)[0]!;
+    const hit = await request(server)
+      .get('/api/v1/ops/fleet/units')
+      .query({ q: sample.plate.toLowerCase() })
+      .set(auth(adminToken))
+      .expect(200);
+    expect(hit.body.total).toBeGreaterThanOrEqual(1);
+    expect(
+      (hit.body.results as Array<{ plate: string }>).some((u) => u.plate === sample.plate),
+    ).toBe(true);
+    const none = await request(server)
+      .get('/api/v1/ops/fleet/units')
+      .query({ q: 'no-such-vehicle-zzz' })
+      .set(auth(adminToken))
+      .expect(200);
+    expect(none.body.total).toBe(0);
+
+    const maint = await request(server)
+      .get('/api/v1/ops/fleet/units')
+      .query({ state: 'maintenance' })
+      .set(auth(adminToken))
+      .expect(200);
+    expect(maint.body.stateCounts.all).toBe(all.body.total);
+    expect(maint.body.total).toBe(maint.body.stateCounts.maintenance ?? 0);
+  });
+
+  it('rejects out-of-range paging with a 422', async () => {
+    for (const qs of ['page=0', 'page=abc', 'pageSize=0', 'pageSize=101']) {
+      await request(server).get(`/api/v1/ops/fleet/units?${qs}`).set(auth(adminToken)).expect(422);
+    }
+  });
+
   it('the unit list carries count + total and filters by state server-side', async () => {
     const all = await request(server)
       .get('/api/v1/ops/fleet/units')

@@ -1022,7 +1022,12 @@ describe('rental lifecycle', () => {
         .get('/api/v1/ops/rentals?state=closed')
         .set('Authorization', `Bearer ${agentToken}`)
         .expect(200);
-      const c = all.body.stateCounts as Record<string, number>;
+      const c = all.body.stateCounts as {
+        all: number;
+        awaiting_pickup: number;
+        active: number;
+        closed: number;
+      };
       expect(closedOnly.body.stateCounts).toEqual(c);
       expect(closedOnly.body.total).toBe(c.closed);
       expect(c.all).toBe(all.body.total);

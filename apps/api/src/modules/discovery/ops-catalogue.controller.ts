@@ -225,8 +225,18 @@ export class OpsCatalogueController {
     @Query('locationCode') locationCode?: string,
     @Query('categoryCode') categoryCode?: string,
     @Query('state') state?: string,
+    @Query('q') q?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
-    return this.fleet.listUnits(actor, { locationCode, categoryCode, state });
+    return this.fleet.listUnits(actor, {
+      locationCode,
+      categoryCode,
+      state,
+      q,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
   }
 
   @Get('fleet/blocks')

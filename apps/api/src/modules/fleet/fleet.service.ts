@@ -113,6 +113,22 @@ export interface UpsertUnitInput {
  *  readiness), `on_rent`, `maintenance`, etc. are excluded (FR-RNT-013). */
 export const BOOKABLE_STATES = ['available'] as const;
 
+const DEFAULT_PAGE_SIZE = 25;
+const MAX_PAGE_SIZE = 100;
+
+export interface UnitList {
+  page: number;
+  pageSize: number;
+  /** units on this page (every match when pagination wasn't requested) */
+  count: number;
+  /** units matching the current filters */
+  total: number;
+  pageCount: number;
+  /** units per state under the location / category / q filters, ignoring the state filter */
+  stateCounts: Record<string, number>;
+  results: UnitRow[];
+}
+
 export interface BlockRow {
   id: string;
   unitId: string;
@@ -150,14 +166,35 @@ export class FleetService {
     private readonly storage: ObjectStorageService,
   ) {}
 
+  /**
+   * Fleet inventory. Filters: location / category / state / free text `q` (plate, VIN, make or
+   * model). Pagination is opt-in: pass `page` and/or `pageSize` (default 25, max 100) for a page
+   * — the inventory screen does — and omit both to get every matching unit, which is what the
+   * assign / reassign / incident-replacement pickers need (they must see the full candidate set).
+   * `stateCounts` counts units per state under the location / category / `q` filters, ignoring
+   * the state filter, so the UI can show the whole fleet's shape while one state is selected.
+   */
   async listUnits(
     actor: Actor,
     filter: {
       locationCode?: string;
       categoryCode?: string;
       state?: string;
+      q?: string;
+      page?: number;
+      pageSize?: number;
     },
-  ): Promise<{ count: number; total: number; results: UnitRow[] }> {
+  ): Promise<UnitList> {
+    const paged = filter.page !== undefined || filter.pageSize !== undefined;
+    const page = filter.page === undefined ? 1 : filter.page;
+    const pageSize = filter.pageSize === undefined ? DEFAULT_PAGE_SIZE : filter.pageSize;
+    if (!Number.isInteger(page) || page < 1) {
+      throw AppError.validation([{ path: 'page', code: 'too_small', params: { min: 1 } }]);
+    }
+    if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > MAX_PAGE_SIZE) {
+      throw AppError.validation([{ path: 'pageSize', code: 'out_of_range' }]);
+    }
+    const needle = (filter.q ?? '').trim().toLowerCase();
     // a location outside the actor's own scope is a 403, not a silently-empty result (SRS-SEC-007)
     assertLocationAccess(actor, filter.locationCode);
     const scope = actor.locationScope?.length ? actor.locationScope : null;
@@ -192,7 +229,6 @@ export class FleetService {
 
     // FR-RPT-004 — a location-scoped staffer only sees units currently at their locations.
     const inScope = rows.filter((r) => !scope || scope.includes(r.currentLocationCode));
-    const total = inScope.length;
     // `vehicleUnit.state` only flips to `on_rent` at actual pickup — a unit already assigned to
     // an `awaiting_pickup` rental still reads `available` here. A caller asking for genuinely
     // pickable units (the assign/reassign/incident-replacement dropdowns all do) would otherwise
@@ -207,32 +243,48 @@ export class FleetService {
         openRentals.map((r) => r.unitId).filter((id): id is string => !!id),
       );
     }
-    const results = inScope
-      .filter(
-        (r) =>
-          (!filter.locationCode || r.currentLocationCode === filter.locationCode) &&
-          (!filter.categoryCode || r.categoryCode === filter.categoryCode) &&
-          (!filter.state || r.state === filter.state) &&
-          !openRentalUnitIds?.has(r.id),
-      )
-      .map((r) => ({
-        id: r.id,
-        categoryCode: r.categoryCode,
-        categoryName: r.categoryName,
-        currentLocationCode: r.currentLocationCode,
-        homeLocationCode: homeById.get(r.homeLocationId) ?? r.currentLocationCode,
-        vin: r.vin,
-        plate: r.plate,
-        make: r.make,
-        model: r.model,
-        year: r.year,
-        colour: r.colour,
-        state: r.state,
-        imageRef: r.imageRef,
-        imageUrl: r.imageRef ? this.storage.signRef(r.imageRef, 7 * 24 * 3600) : null,
-        version: r.version,
-      }));
-    return { count: results.length, total, results };
+    // everything except the state filter — the per-state counts share it
+    const matching = inScope.filter(
+      (r) =>
+        (!filter.locationCode || r.currentLocationCode === filter.locationCode) &&
+        (!filter.categoryCode || r.categoryCode === filter.categoryCode) &&
+        (!needle ||
+          [r.plate, r.vin, r.make, r.model].some((v) => (v ?? '').toLowerCase().includes(needle))),
+    );
+    const stateCounts: Record<string, number> = { all: matching.length };
+    for (const r of matching) stateCounts[r.state] = (stateCounts[r.state] ?? 0) + 1;
+
+    const filtered = matching.filter(
+      (r) => (!filter.state || r.state === filter.state) && !openRentalUnitIds?.has(r.id),
+    );
+    const total = filtered.length;
+    const slice = paged ? filtered.slice((page - 1) * pageSize, page * pageSize) : filtered;
+    const results = slice.map((r) => ({
+      id: r.id,
+      categoryCode: r.categoryCode,
+      categoryName: r.categoryName,
+      currentLocationCode: r.currentLocationCode,
+      homeLocationCode: homeById.get(r.homeLocationId) ?? r.currentLocationCode,
+      vin: r.vin,
+      plate: r.plate,
+      make: r.make,
+      model: r.model,
+      year: r.year,
+      colour: r.colour,
+      state: r.state,
+      imageRef: r.imageRef,
+      imageUrl: r.imageRef ? this.storage.signRef(r.imageRef, 7 * 24 * 3600) : null,
+      version: r.version,
+    }));
+    return {
+      page,
+      pageSize: paged ? pageSize : Math.max(total, 1),
+      count: results.length,
+      total,
+      pageCount: paged ? Math.max(1, Math.ceil(total / pageSize)) : 1,
+      stateCounts,
+      results,
+    };
   }
 
   private async unitToRow(id: string): Promise<UnitRow> {
