@@ -2179,5 +2179,10 @@
   "ops.cust.mergeKeeping": "سيتم الإبقاء على: {name}",
   "ops.cust.mergeHistory": "سجل الدمج",
   "ops.cust.mergeSubmit": "دمج في هذا السجل",
-  "ops.cust.mergePick": "السجل المُبقى"
+  "ops.cust.mergePick": "السجل المُبقى",
+  "ops.rp.tabAll": "الكل",
+  "ops.rp.perDay": "/ يوم",
+  "ops.rp.secBasics": "الخطة",
+  "ops.rp.secPricing": "التسعير",
+  "ops.rp.secValidity": "الصلاحية ومدة الإيجار"
 }

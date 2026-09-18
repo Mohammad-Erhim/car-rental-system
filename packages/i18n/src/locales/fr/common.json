@@ -2179,5 +2179,10 @@
   "ops.cust.mergeKeeping": "Conservé : {name}",
   "ops.cust.mergeHistory": "Historique des fusions",
   "ops.cust.mergeSubmit": "Fusionner dans ce dossier",
-  "ops.cust.mergePick": "Dossier à conserver"
+  "ops.cust.mergePick": "Dossier à conserver",
+  "ops.rp.tabAll": "Tous",
+  "ops.rp.perDay": "/ jour",
+  "ops.rp.secBasics": "Formule",
+  "ops.rp.secPricing": "Tarification",
+  "ops.rp.secValidity": "Validité et durée de location"
 }

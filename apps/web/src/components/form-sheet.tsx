@@ -30,6 +30,7 @@ export function FormSheet<T extends FieldValues>({
   defaultValues,
   onSubmit,
   submitLabel,
+  size = 'md',
   children,
 }: {
   open: boolean;
@@ -40,6 +41,8 @@ export function FormSheet<T extends FieldValues>({
   defaultValues: T;
   onSubmit: (values: T) => Promise<unknown>;
   submitLabel: string;
+  /** `lg` for long forms (sections, repeating rows) */
+  size?: 'md' | 'lg';
   children: ReactNode;
 }) {
   const { t } = useI18n();
@@ -53,7 +56,10 @@ export function FormSheet<T extends FieldValues>({
 
   return (
     <Sheet open={open} onOpenChange={(next) => (isSubmitting ? undefined : onOpenChange(next))}>
-      <SheetContent closeLabel={t('action.close')} className="p-0 sm:max-w-lg">
+      <SheetContent
+        closeLabel={t('action.close')}
+        className={size === 'lg' ? 'p-0 sm:max-w-2xl' : 'p-0 sm:max-w-lg'}
+      >
         <Form {...form}>
           <form onSubmit={submit} noValidate className="flex h-full min-h-0 flex-col">
             <SheetHeader className="border-b p-6 pe-12">

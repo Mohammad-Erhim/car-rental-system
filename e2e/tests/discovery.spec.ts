@@ -129,16 +129,21 @@ test.describe('operations pricing & fleet (APP-OPS)', () => {
     await page.goto('/ops/config/rate-plans');
     await expect(page.getByRole('heading', { name: 'Rate plans' })).toBeVisible();
     const planName = `Compact E2E ${Date.now()}`;
-    await page.getByLabel('Category', { exact: false }).selectOption('compact');
-    await page.getByLabel('Plan name', { exact: false }).fill(planName);
-    await page.getByLabel('Base price / day', { exact: false }).fill(`${baseDollars}.00`);
-    await page.getByLabel('Tax %', { exact: false }).fill('20');
-    await page.getByTestId('rate-plan-create').click();
-    const row = page.locator(`[data-testid="rate-plan-rows"] tr[data-plan="${planName}"]`);
+    await page.getByTestId('rp-new').click();
+    const sheet = page.getByRole('dialog');
+    await sheet.getByTestId('rp-category').click();
+    await page.getByRole('option', { name: /Compact/ }).click();
+    await sheet.getByTestId('rp-name').fill(planName);
+    await sheet.getByTestId('rp-base').fill(`${baseDollars}.00`);
+    await sheet.getByRole('button', { name: 'Create draft' }).click();
+    await page.getByTestId('rp-tab-drafts').click();
+    const row = page.getByRole('row').filter({ hasText: planName });
     await expect(row).toBeVisible();
-    await row.getByRole('button', { name: 'Publish' }).click();
+    await row.click(); // opens the plan's details; Publish opens the confirm showing its effect
     await page.getByRole('dialog').getByRole('button', { name: 'Publish' }).click();
-    await expect(row).toHaveAttribute('data-status', 'published');
+    await page.getByRole('dialog').getByRole('button', { name: 'Publish' }).click();
+    await page.getByTestId('rp-tab-published').click();
+    await expect(page.getByRole('row').filter({ hasText: planName })).toContainText('Published');
     await shot(page, testInfo, 'ops-rate-plans');
 
     // customer price now reflects the just-published plan, with no redeploy

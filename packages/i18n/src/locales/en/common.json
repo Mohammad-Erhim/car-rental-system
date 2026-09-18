@@ -2179,5 +2179,10 @@
   "ops.cust.mergeKeeping": "Keeping: {name}",
   "ops.cust.mergeHistory": "Merge history",
   "ops.cust.mergeSubmit": "Merge into this record",
-  "ops.cust.mergePick": "Record to keep"
+  "ops.cust.mergePick": "Record to keep",
+  "ops.rp.tabAll": "All",
+  "ops.rp.perDay": "/ day",
+  "ops.rp.secBasics": "Plan",
+  "ops.rp.secPricing": "Pricing",
+  "ops.rp.secValidity": "Validity & rental length"
 }
