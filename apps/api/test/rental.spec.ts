@@ -978,6 +978,66 @@ describe('rental lifecycle', () => {
       ).toBe(true);
     });
 
+    it('paginates the board: pages are disjoint, ordered and cover every rental once', async () => {
+      const all = await request(server)
+        .get('/api/v1/ops/rentals?pageSize=100')
+        .set('Authorization', `Bearer ${agentToken}`)
+        .expect(200);
+      const expected = (all.body.results as Array<{ reference: string }>).map((r) => r.reference);
+      expect(all.body.page).toBe(1);
+      expect(all.body.count).toBe(expected.length);
+      expect(all.body.total).toBeGreaterThanOrEqual(2);
+
+      const collected: string[] = [];
+      for (let page = 1; page <= all.body.total; page += 1) {
+        const res = await request(server)
+          .get(`/api/v1/ops/rentals?pageSize=1&page=${page}`)
+          .set('Authorization', `Bearer ${agentToken}`)
+          .expect(200);
+        expect(res.body.pageCount).toBe(res.body.total);
+        collected.push(
+          ...(res.body.results as Array<{ reference: string }>).map((r) => r.reference),
+        );
+      }
+      expect(collected).toEqual(expected);
+    });
+
+    it('open work sorts before closed rentals', async () => {
+      const res = await request(server)
+        .get('/api/v1/ops/rentals?pageSize=100')
+        .set('Authorization', `Bearer ${agentToken}`)
+        .expect(200);
+      const states = (res.body.results as Array<{ state: string }>).map((r) => r.state);
+      const firstClosed = states.indexOf('closed');
+      if (firstClosed >= 0)
+        expect(states.slice(firstClosed).every((s) => s === 'closed')).toBe(true);
+    });
+
+    it('stateCounts describe every state whatever the state filter is', async () => {
+      const all = await request(server)
+        .get('/api/v1/ops/rentals')
+        .set('Authorization', `Bearer ${agentToken}`)
+        .expect(200);
+      const closedOnly = await request(server)
+        .get('/api/v1/ops/rentals?state=closed')
+        .set('Authorization', `Bearer ${agentToken}`)
+        .expect(200);
+      const c = all.body.stateCounts as Record<string, number>;
+      expect(closedOnly.body.stateCounts).toEqual(c);
+      expect(closedOnly.body.total).toBe(c.closed);
+      expect(c.all).toBe(all.body.total);
+      expect(c.awaiting_pickup + c.active + c.closed).toBeLessThanOrEqual(c.all);
+    });
+
+    it('rejects out-of-range paging with a 422', async () => {
+      for (const qs of ['page=0', 'page=abc', 'pageSize=0', 'pageSize=101']) {
+        await request(server)
+          .get(`/api/v1/ops/rentals?${qs}`)
+          .set('Authorization', `Bearer ${agentToken}`)
+          .expect(422);
+      }
+    });
+
     it('a bad date filter is a 422', async () => {
       await request(server)
         .get('/api/v1/ops/rentals?from=nope')

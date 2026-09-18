@@ -23,6 +23,8 @@ import { PaymentService } from '../payment/payment.service';
 import { PricingService } from '../pricing/pricing.service';
 
 const AGREEMENT_VERSION = '1.0';
+const DEFAULT_PAGE_SIZE = 25;
+const MAX_PAGE_SIZE = 100;
 
 @Injectable()
 export class RentalService {
@@ -963,8 +965,12 @@ export class RentalService {
    * The rental board (SCREEN-OPS-009/012/016). Confined to the actor's pickup locations
    * (FR-RPT-004). Each row carries the vehicle (plate + description), the driver and customer
    * names, and a *live* `overdue` flag — an `active` rental past its scheduled return reads as
-   * overdue immediately, without waiting for the sweep job. The true `total` is returned so the
-   * board never silently hides rows.
+   * overdue immediately, without waiting for the sweep job.
+   *
+   * Paginated (`page` / `pageSize`). Open work sorts first — soonest scheduled pickup, closed
+   * rentals last — with `reference` as the tie-break so page boundaries are stable. The response
+   * carries the true `total` and `stateCounts` (per lifecycle state under the location / date
+   * filters, ignoring the `state` filter) so the UI can badge its state tabs.
    */
   async list(
     actor: Actor,
@@ -974,9 +980,18 @@ export class RentalService {
       flow?: 'pickup' | 'return';
       from?: string;
       to?: string;
-      limit?: number;
+      page?: number;
+      pageSize?: number;
     },
   ) {
+    const page = filter.page === undefined ? 1 : filter.page;
+    const pageSize = filter.pageSize === undefined ? DEFAULT_PAGE_SIZE : filter.pageSize;
+    if (!Number.isInteger(page) || page < 1) {
+      throw AppError.validation([{ path: 'page', code: 'too_small', params: { min: 1 } }]);
+    }
+    if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > MAX_PAGE_SIZE) {
+      throw AppError.validation([{ path: 'pageSize', code: 'out_of_range' }]);
+    }
     // a location outside the actor's own scope is a 403, not a silently-empty result (SRS-SEC-007)
     assertLocationAccess(actor, filter.locationCode);
     const scope = actor.locationScope?.length ? actor.locationScope : null;
@@ -985,11 +1000,7 @@ export class RentalService {
     const where: SQL[] = [];
     if (filter.locationCode) where.push(eq(rental.pickupLocationCode, filter.locationCode));
     else if (scope) where.push(inArray(rental.pickupLocationCode, scope));
-    if (filter.state === 'overdue') {
-      where.push(sql`(${rental.state} = 'overdue' or ${liveOverdue})`);
-    } else if (filter.state) {
-      where.push(eq(rental.state, filter.state));
-    }
+    // everything except the state filter — the per-state counts share it
     const from = this.parseDate(filter.from, 'from');
     const to = this.parseDate(filter.to, 'to');
     const dateCol =
@@ -1012,15 +1023,32 @@ export class RentalService {
           : sql`(${rental.scheduledPickupAt} <= ${to.toISOString()} or ${rental.scheduledReturnAt} <= ${to.toISOString()})`,
       );
     }
-    const whereSql = where.length ? and(...where) : sql`true`;
+    const baseWhere = where.length ? and(...where) : sql`true`;
 
-    const rawLimit = Number(filter.limit);
-    const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 100, 1), 200);
+    const stateWhere: SQL[] = [...where];
+    if (filter.state === 'overdue') {
+      stateWhere.push(sql`(${rental.state} = 'overdue' or ${liveOverdue})`);
+    } else if (filter.state) {
+      stateWhere.push(eq(rental.state, filter.state));
+    }
+    const whereSql = stateWhere.length ? and(...stateWhere) : sql`true`;
 
-    const [countRow] = await this.db
-      .select({ total: sql<number>`count(*)::int` })
-      .from(rental)
-      .where(whereSql);
+    const [[countRow], [stateRow]] = await Promise.all([
+      this.db
+        .select({ total: sql<number>`count(*)::int` })
+        .from(rental)
+        .where(whereSql),
+      this.db
+        .select({
+          awaiting_pickup: sql<number>`(count(*) filter (where ${rental.state} = 'awaiting_pickup'))::int`,
+          active: sql<number>`(count(*) filter (where ${rental.state} = 'active'))::int`,
+          overdue: sql<number>`(count(*) filter (where ${rental.state} = 'overdue' or ${liveOverdue}))::int`,
+          closed: sql<number>`(count(*) filter (where ${rental.state} = 'closed'))::int`,
+          all: sql<number>`count(*)::int`,
+        })
+        .from(rental)
+        .where(baseWhere),
+    ]);
 
     // the readiness check (FR-RNT-013) has no state of its own on `rental` — a checked rental
     // stays `closed` forever, same as an unchecked one — so without this the "mark ready" button
@@ -1057,8 +1085,13 @@ export class RentalService {
       )
       .leftJoin(account, eq(account.id, reservation.accountId))
       .where(whereSql)
-      .orderBy(asc(rental.scheduledPickupAt))
-      .limit(limit);
+      .orderBy(
+        sql`(${rental.state} = 'closed')`,
+        asc(rental.scheduledPickupAt),
+        sql`${rental.reference} COLLATE "C"`,
+      )
+      .limit(pageSize)
+      .offset((page - 1) * pageSize);
 
     const now = Date.now();
     const results = rows.map((row) => {
@@ -1076,8 +1109,22 @@ export class RentalService {
         readinessOutcome: row.readinessOutcome as 'passed' | 'failed' | null,
       };
     });
-    const total = countRow?.total ?? results.length;
-    return { count: results.length, total, truncated: total > results.length, results };
+    const total = countRow?.total ?? 0;
+    return {
+      page,
+      pageSize,
+      count: results.length,
+      total,
+      pageCount: Math.max(1, Math.ceil(total / pageSize)),
+      stateCounts: {
+        all: stateRow?.all ?? 0,
+        awaiting_pickup: stateRow?.awaiting_pickup ?? 0,
+        active: stateRow?.active ?? 0,
+        overdue: stateRow?.overdue ?? 0,
+        closed: stateRow?.closed ?? 0,
+      },
+      results,
+    };
   }
 
   async detail(reference: string) {

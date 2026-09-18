@@ -83,7 +83,8 @@ export class RentalController {
     @Query('flow') flow?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
-    @Query('limit') limit?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
     return this.rentals.list(actor, {
       state,
@@ -91,7 +92,8 @@ export class RentalController {
       flow: flow === 'pickup' || flow === 'return' ? flow : undefined,
       from,
       to,
-      limit: limit ? Number(limit) : undefined,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
     });
   }
 
