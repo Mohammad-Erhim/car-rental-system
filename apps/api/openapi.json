@@ -3759,6 +3759,45 @@
         ]
       }
     },
+    "/api/v1/ops/media/browse": {
+      "get": {
+        "operationId": "MediaController_browse",
+        "parameters": [
+          {
+            "name": "purpose",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-media"
+        ]
+      }
+    },
     "/api/v1/ops/media/{id}": {
       "delete": {
         "operationId": "MediaController_remove",

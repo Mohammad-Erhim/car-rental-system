@@ -162,6 +162,52 @@ describe('media library', () => {
     expect(listAfter.body.some((m: { id: string }) => m.id === uploaded.body.id)).toBe(false);
   });
 
+  it('browse: pages the library and counts each purpose', async () => {
+    const png = makePng(32, 32);
+    const upload = () =>
+      request(server)
+        .post('/api/v1/ops/media')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          purpose: 'browse_test',
+          dataBase64: png.toString('base64'),
+          mediaType: 'image/png',
+        })
+        .expect(201);
+    const [a, b, c] = [await upload(), await upload(), await upload()];
+
+    const first = await request(server)
+      .get('/api/v1/ops/media/browse?purpose=browse_test&page=1&pageSize=2')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    expect(first.body).toMatchObject({ page: 1, pageSize: 2, count: 2, total: 3, pageCount: 2 });
+    expect(
+      first.body.purposeCounts.find((p: { purpose: string }) => p.purpose === 'browse_test'),
+    ).toMatchObject({ count: 3 });
+    const second = await request(server)
+      .get('/api/v1/ops/media/browse?purpose=browse_test&page=2&pageSize=2')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+    const ids = [...first.body.items, ...second.body.items].map((m: { id: string }) => m.id);
+    expect(new Set(ids).size).toBe(3);
+    expect(ids).toEqual(expect.arrayContaining([a.body.id, b.body.id, c.body.id]));
+
+    await request(server)
+      .get('/api/v1/ops/media/browse?page=0')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(422);
+    await request(server)
+      .get('/api/v1/ops/media/browse?pageSize=101')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(422);
+
+    for (const m of [a, b, c])
+      await request(server)
+        .delete(`/api/v1/ops/media/${m.body.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+  });
+
   it('refuses to delete an image pinned inside a branding config draft, not just a category/vehicle FK', async () => {
     // Branding (logo/favicon/OG image) and page-builder images go through this exact same
     // `stored_object` catalogue via `BrandAssetService`, but the ref just sits inside a

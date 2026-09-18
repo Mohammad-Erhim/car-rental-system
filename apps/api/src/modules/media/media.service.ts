@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, count, desc, eq, inArray } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
@@ -17,6 +17,8 @@ import { vehicleCategory } from '../../database/schema/catalogue';
 import { vehicleUnit } from '../../database/schema/fleet';
 import { storedObject } from '../../database/schema/platform';
 
+const DEFAULT_PAGE_SIZE = 24;
+const MAX_PAGE_SIZE = 100;
 const MAX_BYTES = 5 * 1024 * 1024;
 const MIN_PX = 16;
 const MAX_PX = 4000;
@@ -88,6 +90,51 @@ export class MediaService {
       .orderBy(desc(storedObject.createdAt))
       .limit(500);
     return rows.map((r) => this.toItem(r));
+  }
+
+  /**
+   * The library page's view: one page of items (newest first) plus how many items each purpose
+   * holds, so the page can offer a purpose filter without a second request. `list` stays the
+   * unpaged read pickers use. Page size defaults to 24 (max 100).
+   */
+  async browse(filter: { purpose?: string; page?: number; pageSize?: number }) {
+    const page = filter.page ?? 1;
+    const pageSize = filter.pageSize ?? DEFAULT_PAGE_SIZE;
+    if (!Number.isInteger(page) || page < 1) {
+      throw AppError.validation([{ path: 'page', code: 'too_small', params: { min: 1 } }]);
+    }
+    if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > MAX_PAGE_SIZE) {
+      throw AppError.validation([{ path: 'pageSize', code: 'out_of_range' }]);
+    }
+    const where = filter.purpose ? eq(storedObject.purpose, filter.purpose) : undefined;
+    const [rows, purposes] = await Promise.all([
+      this.db
+        .select()
+        .from(storedObject)
+        .where(where)
+        .orderBy(desc(storedObject.createdAt), desc(storedObject.id))
+        .limit(pageSize)
+        .offset((page - 1) * pageSize),
+      this.db
+        .select({ purpose: storedObject.purpose, n: count() })
+        .from(storedObject)
+        .groupBy(storedObject.purpose),
+    ]);
+    const purposeCounts = purposes
+      .map((p) => ({ purpose: p.purpose, count: Number(p.n) }))
+      .sort((a, b) => a.purpose.localeCompare(b.purpose));
+    const total = filter.purpose
+      ? (purposeCounts.find((p) => p.purpose === filter.purpose)?.count ?? 0)
+      : purposeCounts.reduce((sum, p) => sum + p.count, 0);
+    return {
+      items: rows.map((r) => this.toItem(r)),
+      page,
+      pageSize,
+      count: rows.length,
+      total,
+      pageCount: Math.max(1, Math.ceil(total / pageSize)),
+      purposeCounts,
+    };
   }
 
   async upload(

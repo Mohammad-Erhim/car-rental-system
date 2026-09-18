@@ -38,6 +38,21 @@ export class MediaController {
     return this.media.list({ purpose, ownerType, ownerId });
   }
 
+  /** One page of the library plus per-purpose counts (the library page's view). */
+  @Get('browse')
+  @Permissions('catalogue.read', 'fleet.read', 'config.read')
+  browse(
+    @Query('purpose') purpose?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.media.browse({
+      purpose: purpose || undefined,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
+    });
+  }
+
   @Post()
   @Permissions('catalogue.manage', 'fleet.manage')
   upload(
