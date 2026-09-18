@@ -130,6 +130,8 @@ export function ConfigHistory({
   limit = 8,
   onAction,
   onDelete,
+  describe,
+  onRevise,
 }: {
   versions: ConfigVersion[] | undefined;
   isLoading?: boolean;
@@ -139,6 +141,10 @@ export function ConfigHistory({
   onAction: (input: { id: string; action: WorkflowAction; note?: string }) => Promise<unknown>;
   /** discard an unsubmitted draft; omit to hide the control */
   onDelete?: (id: string) => Promise<unknown>;
+  /** a one-line reading of a revision's values, shown under its date */
+  describe?: (v: ConfigVersion) => string;
+  /** start a new draft from a rejected or superseded revision */
+  onRevise?: (v: ConfigVersion) => void;
 }) {
   const { t, fmt } = useI18n();
   const [dialog, setDialog] = useState<Dialog>(null);
@@ -192,10 +198,21 @@ export function ConfigHistory({
                 {fmt.dateTime(v.createdAt)}
                 {v.note ? ` · ${v.note}` : ''}
               </p>
+              {describe ? <p className="text-sm">{describe(v)}</p> : null}
             </div>
-            {canPublish ? (
+            {canPublish || (onRevise && (v.state === 'rejected' || v.state === 'superseded')) ? (
               <div className="flex flex-wrap gap-2">
-                {v.state === 'draft' ? (
+                {onRevise && (v.state === 'rejected' || v.state === 'superseded') ? (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => onRevise(v)}
+                    data-testid={`revise-${v.revision}`}
+                  >
+                    {t('ops.cfg.revise')}
+                  </Button>
+                ) : null}
+                {canPublish && v.state === 'draft' ? (
                   <Button
                     size="sm"
                     variant="outline"
@@ -206,7 +223,7 @@ export function ConfigHistory({
                     {t('ops.cfg.submit')}
                   </Button>
                 ) : null}
-                {v.state === 'draft' && onDelete ? (
+                {canPublish && v.state === 'draft' && onDelete ? (
                   <Button
                     size="sm"
                     variant="ghost"
@@ -217,7 +234,7 @@ export function ConfigHistory({
                     {t('ops.cfg.delete')}
                   </Button>
                 ) : null}
-                {v.state === 'in_review' ? (
+                {canPublish && v.state === 'in_review' ? (
                   <>
                     <Button
                       size="sm"

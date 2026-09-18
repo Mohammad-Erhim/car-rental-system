@@ -27,6 +27,7 @@ import { LocationsPage } from '../features/locations/locations-page.js';
 import { MediaLibraryPage } from '../features/media/media-page.js';
 import { OrganizationPage } from '../features/organization/organization-page.js';
 import { PaymentsPage } from '../features/payments/payments-page.js';
+import { PolicyPage } from '../features/policy/policy-page.js';
 import { ProductsPage } from '../features/products/products-page.js';
 import { RatePlansPage } from '../features/rate-plans/rate-plans-page.js';
 import { ReferenceDataPage } from '../features/reference-data/reference-data-page.js';
@@ -43,7 +44,6 @@ import { TranslationsPage } from '../features/translations/translations-page.js'
 import { AuthLayout } from '../layouts/auth-layout.js';
 import { DashboardLayout } from '../layouts/dashboard-layout.js';
 import { AuditLogPage } from '../surfaces/ops/audit-log-page.js';
-import { ConfigVersionsPage } from '../surfaces/ops/config-versions-page.js';
 import { ConsentLogPage } from '../surfaces/ops/consent/consent-log-page.js';
 import { DataQualityPage } from '../surfaces/ops/data-quality-page.js';
 import { PagesPage } from '../surfaces/ops/pages-builder/pages-page.js';
@@ -246,7 +246,7 @@ function dashboardRoutes(): RouteObject[] {
     },
     {
       path: 'config',
-      element: perm(['config.read', 'config.publish'], <ConfigVersionsPage />),
+      element: perm(['config.read', 'config.publish'], <PolicyPage />),
     },
     { path: 'insights', element: perm(['report.read'], <ReportsPage />) },
     { path: 'audit', element: perm(['audit.read'], <AuditLogPage />) },
