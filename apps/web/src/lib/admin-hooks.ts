@@ -1,4 +1,10 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query';
 
 import { apiFetch, getAccessToken, getRefreshHandler } from './api.js';
 import { useWorkflowError } from './use-workflow-error.js';
@@ -839,6 +845,13 @@ export interface CategoryInput {
 
 const CATEGORY_KEY = ['ops', 'catalogue-categories-full'];
 
+/** the full list and the light code/name list every category picker reads */
+const invalidateCategories = (qc: QueryClient) =>
+  Promise.all([
+    qc.invalidateQueries({ queryKey: CATEGORY_KEY }),
+    qc.invalidateQueries({ queryKey: ['ops', 'catalogue-categories'] }),
+  ]);
+
 export function useCatalogueCategories() {
   return useQuery({
     queryKey: CATEGORY_KEY,
@@ -881,7 +894,7 @@ export function useUpsertCategory() {
   return useMutation({
     mutationFn: ({ ifMatch, ...body }: CategoryInput & { ifMatch?: number }) =>
       apiFetch<CategoryView>('/ops/catalogue/categories', { method: 'POST', body, ifMatch }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: CATEGORY_KEY }),
+    onSuccess: () => invalidateCategories(qc),
   });
 }
 
@@ -893,7 +906,7 @@ export function useSetCategoryActive() {
         `/ops/catalogue/categories/${code}/${active ? 'restore' : 'deactivate'}`,
         { method: 'POST' },
       ),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: CATEGORY_KEY }),
+    onSuccess: () => invalidateCategories(qc),
   });
 }
 

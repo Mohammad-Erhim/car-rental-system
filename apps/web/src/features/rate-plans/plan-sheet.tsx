@@ -15,6 +15,7 @@ import {
 } from './plan-model';
 
 import { SelectField, TextField } from '@/components/form-fields';
+import { FormSection } from '@/components/form-section';
 import { FormSheet } from '@/components/form-sheet';
 import { LookupSelect } from '@/components/lookup-select';
 import { Button } from '@/components/ui/button';
@@ -25,27 +26,6 @@ import { useOpsCategories, useSaveRatePlan, type RatePlan } from '@/lib/ops-disc
 
 const decimal = /^\d+(\.\d{1,2})?$/;
 const whole = /^\d+$/;
-
-/** A titled group of fields inside the sheet. */
-function Section({
-  title,
-  hint,
-  children,
-}: {
-  title: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="space-y-4">
-      <div>
-        <h3 className="text-sm font-semibold">{title}</h3>
-        {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
-      </div>
-      {children}
-    </section>
-  );
-}
 
 /**
  * Create a draft, edit one (`plan` set, sent with its version as `If-Match`), or start a new
@@ -190,7 +170,7 @@ export function PlanSheet({
         toast.success(editing ? t('ops.rp.updated') : t('ops.rp.created'));
       }}
     >
-      <Section title={t('ops.rp.secBasics')}>
+      <FormSection title={t('ops.rp.secBasics')}>
         <div className="grid gap-4 sm:grid-cols-2">
           <SelectField
             control={form.control}
@@ -233,9 +213,9 @@ export function PlanSheet({
             )}
           />
         </div>
-      </Section>
+      </FormSection>
 
-      <Section title={t('ops.rp.secPricing')}>
+      <FormSection title={t('ops.rp.secPricing')}>
         <div className="grid gap-4 sm:grid-cols-3">
           <TextField
             control={form.control}
@@ -259,9 +239,9 @@ export function PlanSheet({
             inputMode="decimal"
           />
         </div>
-      </Section>
+      </FormSection>
 
-      <Section title={t('ops.rp.secValidity')}>
+      <FormSection title={t('ops.rp.secValidity')}>
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField
             control={form.control}
@@ -293,9 +273,9 @@ export function PlanSheet({
             inputMode="numeric"
           />
         </div>
-      </Section>
+      </FormSection>
 
-      <Section title={t('ops.rp.fees')}>
+      <FormSection title={t('ops.rp.fees')}>
         {fees.fields.map((f, i) => (
           <div key={f.id} className="space-y-3 rounded-lg border bg-muted/20 p-4">
             <div className="grid gap-3 sm:grid-cols-[8rem_1fr_7rem]">
@@ -357,9 +337,9 @@ export function PlanSheet({
           <Plus aria-hidden="true" />
           {t('ops.rp.addFee')}
         </Button>
-      </Section>
+      </FormSection>
 
-      <Section title={t('ops.rp.tiers')} hint={t('ops.rp.tiersHint')}>
+      <FormSection title={t('ops.rp.tiers')} hint={t('ops.rp.tiersHint')}>
         {tiers.fields.map((f, i) => (
           <div key={f.id} className="flex items-start gap-3 rounded-lg border bg-muted/20 p-4">
             <div className="grid flex-1 gap-3 sm:grid-cols-2">
@@ -397,7 +377,7 @@ export function PlanSheet({
           <Plus aria-hidden="true" />
           {t('ops.rp.addTier')}
         </Button>
-      </Section>
+      </FormSection>
     </FormSheet>
   );
 }

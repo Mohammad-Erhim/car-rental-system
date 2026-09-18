@@ -55,7 +55,7 @@ export function CommandMenu({ groups }: { groups: NavGroup[] }) {
         data-testid="cmdk-open"
         aria-keyshortcuts="Meta+K Control+K"
         aria-label={t('ops.cmdk.open')}
-        className="h-9 w-9 justify-center px-0 text-muted-foreground lg:w-56 lg:justify-start lg:px-3 xl:w-64"
+        className="h-9 w-9 justify-center px-0 text-muted-foreground lg:w-56 lg:justify-start lg:px-3 2xl:w-64"
       >
         <Search aria-hidden="true" />
         <span className="hidden flex-1 text-start font-normal lg:inline">{t('ops.cmdk.open')}</span>

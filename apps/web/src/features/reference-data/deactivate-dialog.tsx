@@ -57,8 +57,6 @@ export function DeactivateDialog({
         });
         toast.success(t('ops.ref.deactivated'));
       }}
-    >
-      {null}
-    </FormDialog>
+    ></FormDialog>
   );
 }

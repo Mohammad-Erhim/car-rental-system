@@ -49,7 +49,8 @@ export function FormDialog<T extends FieldValues>({
   submitDisabled?: boolean;
   /** `lg` for forms with a repeating section or a summary */
   size?: 'md' | 'lg';
-  children: ReactNode;
+  /** omit for a plain confirmation — the body strip is then left out, not rendered empty */
+  children?: ReactNode;
 }) {
   const { t } = useI18n();
   const { submit, isSubmitting, message } = useFormSubmit({
@@ -77,15 +78,17 @@ export function FormDialog<T extends FieldValues>({
               {description ? <DialogDescription>{description}</DialogDescription> : null}
             </DialogHeader>
 
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
-              {message ? (
-                <Alert variant="destructive" data-testid="form-dialog-error">
-                  <AlertCircle aria-hidden="true" />
-                  <AlertDescription>{message}</AlertDescription>
-                </Alert>
-              ) : null}
-              {children}
-            </div>
+            {message || children ? (
+              <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
+                {message ? (
+                  <Alert variant="destructive" data-testid="form-dialog-error">
+                    <AlertCircle aria-hidden="true" />
+                    <AlertDescription>{message}</AlertDescription>
+                  </Alert>
+                ) : null}
+                {children}
+              </div>
+            ) : null}
 
             <DialogFooter className="shrink-0 gap-2 border-t bg-muted/20 px-6 py-4">
               <Button

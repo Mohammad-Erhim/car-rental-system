@@ -338,9 +338,7 @@ export function UnmergeDialog({
         await unmerge.mutateAsync();
         toast.success(t('ops.cust.unmergeDone'));
       }}
-    >
-      {null}
-    </FormDialog>
+    ></FormDialog>
   );
 }
 

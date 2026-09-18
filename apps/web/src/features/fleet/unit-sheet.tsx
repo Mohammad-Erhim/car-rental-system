@@ -1,5 +1,4 @@
 import { useI18n } from '@carrental/i18n/react';
-import { MediaPicker } from '@carrental/ui';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo } from 'react';
 import { useForm } from 'react-hook-form';
@@ -8,8 +7,8 @@ import { z } from 'zod';
 
 import { SelectField, TextField } from '@/components/form-fields';
 import { FormSheet } from '@/components/form-sheet';
+import { MediaPickerField } from '@/components/media-picker';
 import { FormItem, FormLabel } from '@/components/ui/form';
-import { useMediaLibrary, useUploadMedia } from '@/lib/media-hooks';
 import {
   useCreateUnit,
   useOpsCategories,
@@ -38,8 +37,6 @@ export function UnitSheet({
   const categories = useOpsCategories();
   const createUnit = useCreateUnit();
   const updateUnit = useUpdateUnit();
-  const media = useMediaLibrary({ purpose: 'vehicle_unit' });
-  const upload = useUploadMedia();
 
   const schema = useMemo(
     () =>
@@ -173,30 +170,20 @@ export function UnitSheet({
 
       <FormItem>
         <FormLabel>{t('ops.fleet.image')}</FormLabel>
-        <MediaPicker
+        <MediaPickerField
           value={image[0]}
           previewUrl={image[1]}
-          items={media.data ?? []}
-          isLoading={media.isLoading}
-          isError={media.isError}
-          onUpload={(input) =>
-            upload.mutateAsync({
-              ...input,
-              purpose: 'vehicle_unit',
-              ownerType: 'vehicle_unit',
-              ownerId: form.getValues('plate') || undefined,
-            })
-          }
-          onSelect={(item) => {
-            form.setValue('imageRef', item?.ref ?? null, { shouldDirty: true });
-            form.setValue('imageUrl', item?.url ?? null, { shouldDirty: true });
+          purpose="vehicle_unit"
+          ownerType="vehicle_unit"
+          ownerId={form.getValues('plate')}
+          onChange={(img) => {
+            form.setValue('imageRef', img?.ref ?? null, { shouldDirty: true });
+            form.setValue('imageUrl', img?.url ?? null, { shouldDirty: true });
           }}
-          labels={{
-            change: t('ops.fleet.imageChange'),
-            remove: t('ops.fleet.imageRemove'),
-            title: t('ops.fleet.imagePickerTitle'),
-          }}
-          data-testid="unit-image"
+          changeLabel={t('ops.fleet.imageChange')}
+          removeLabel={t('ops.fleet.imageRemove')}
+          title={t('ops.fleet.imagePickerTitle')}
+          testId="unit-image"
         />
       </FormItem>
     </FormSheet>

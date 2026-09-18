@@ -184,9 +184,7 @@ export function RetireDialog({ unit, open, onOpenChange }: DialogProps & { unit:
           }),
         );
       }}
-    >
-      {null}
-    </FormDialog>
+    ></FormDialog>
   );
 }
 
@@ -209,8 +207,6 @@ export function ReleaseDialog({ block, open, onOpenChange }: DialogProps & { blo
         await release.mutateAsync(block.id);
         toast.success(t('ops.fleet.releasedMsg', { plate: block.plate }));
       }}
-    >
-      {null}
-    </FormDialog>
+    ></FormDialog>
   );
 }

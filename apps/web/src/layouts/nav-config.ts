@@ -9,6 +9,7 @@ import {
   Database,
   Image,
   KeyRound,
+  ListChecks,
   Languages,
   LayoutDashboard,
   LayoutTemplate,
@@ -102,7 +103,14 @@ export const NAV_GROUPS: NavGroup[] = [
         to: '/catalogue/categories',
         label: 'ops.nav.categories',
         icon: Car,
+        end: true,
         anyOf: ['catalogue.read', 'catalogue.manage'],
+      },
+      {
+        to: '/catalogue/categories/features',
+        label: 'ops.nav.vehicleFeatures',
+        icon: ListChecks,
+        anyOf: ['catalogue.read', 'catalogue.manage', 'config.read'],
       },
       {
         to: '/catalogue/products',

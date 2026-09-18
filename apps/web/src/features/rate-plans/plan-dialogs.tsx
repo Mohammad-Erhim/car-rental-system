@@ -87,8 +87,6 @@ export function DeletePlanDialog({ plan, open, onOpenChange }: DialogProps & { p
         await del.mutateAsync(plan.id);
         toast.success(t('ops.rp.deleted'));
       }}
-    >
-      {null}
-    </FormDialog>
+    ></FormDialog>
   );
 }

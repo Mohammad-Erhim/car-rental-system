@@ -13,12 +13,16 @@ export interface MediaItem extends MediaPickerItem {
 
 const MEDIA_KEY = ['ops', 'media'];
 
-export function useMediaLibrary(filter: { purpose?: string; ownerType?: string } = {}) {
+export function useMediaLibrary(
+  filter: { purpose?: string; ownerType?: string } = {},
+  enabled = true,
+) {
   const qs = new URLSearchParams();
   if (filter.purpose) qs.set('purpose', filter.purpose);
   if (filter.ownerType) qs.set('ownerType', filter.ownerType);
   return useQuery({
     queryKey: [...MEDIA_KEY, filter],
+    enabled,
     queryFn: ({ signal }) =>
       apiFetch<MediaItem[]>(`/ops/media${qs.toString() ? `?${qs}` : ''}`, { signal }),
   });

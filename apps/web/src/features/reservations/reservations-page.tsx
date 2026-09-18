@@ -1,5 +1,5 @@
 import { useI18n } from '@carrental/i18n/react';
-import { CheckCircle2, SearchX, SlidersHorizontal, X } from 'lucide-react';
+import { CheckCircle2, SearchX, SlidersHorizontal } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
@@ -7,6 +7,7 @@ import { AssignVehicleDialog } from './assign-vehicle-dialog';
 import { ReservationCard, useReservationColumns } from './reservation-columns';
 
 import { DataTable } from '@/components/data-table/data-table';
+import { FilterChips } from '@/components/filter-chips';
 import { FiltersSheet, useFilterFields } from '@/components/filters-sheet';
 import { Page, PageHeader } from '@/components/page-header';
 import { StateSwitcher } from '@/components/state-switcher';
@@ -118,28 +119,7 @@ export function ReservationsPage() {
           </Button>
         </div>
 
-        {chips.length ? (
-          <ul
-            className="flex flex-wrap items-center gap-2 border-t bg-muted/20 px-4 py-3 sm:px-5"
-            aria-label={t('ops.search.filters')}
-          >
-            {chips.map((c) => (
-              <li key={c.key}>
-                <Badge variant="secondary" className="gap-1 py-1 ps-2.5 pe-1 text-xs font-medium">
-                  {c.label}
-                  <button
-                    type="button"
-                    onClick={() => update({ [c.key]: '' })}
-                    aria-label={t('ops.search.removeFilter', { name: c.label })}
-                    className="grid size-4 place-items-center rounded-full hover:bg-foreground/10"
-                  >
-                    <X className="size-3" aria-hidden="true" />
-                  </button>
-                </Badge>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+        <FilterChips chips={chips} onRemove={(key) => update({ [key]: '' })} />
       </Card>
 
       <section aria-label={t('ops.queue.title')} data-testid="ops-res-table">
