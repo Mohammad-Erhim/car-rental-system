@@ -2166,5 +2166,11 @@
   "ops.fleet.tabHolds": "Active holds",
   "ops.fleet.tabAllStates": "All vehicles",
   "ops.fleet.searchPlaceholder": "Search plate, VIN or model",
-  "ops.fleet.searchLabel": "Search vehicles"
+  "ops.fleet.searchLabel": "Search vehicles",
+  "ops.fin.allSeverities": "All severities",
+  "ops.fin.capped": "Showing the latest {n} open items. Resolve some to see older ones.",
+  "ops.fin.sev.critical": "Critical",
+  "ops.fin.sev.high": "High",
+  "ops.fin.sev.medium": "Medium",
+  "ops.fin.sev.low": "Low"
 }

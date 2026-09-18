@@ -65,7 +65,9 @@ export function TextareaField<T extends FieldValues>({
   description,
   className,
   rows = 3,
-}: BaseProps<T> & { rows?: number }) {
+  ...textarea
+}: BaseProps<T> &
+  Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, 'name' | 'defaultValue' | 'value'>) {
   return (
     <FormField
       control={control}
@@ -74,7 +76,7 @@ export function TextareaField<T extends FieldValues>({
         <FormItem className={className}>
           <FormLabel>{label}</FormLabel>
           <FormControl>
-            <Textarea rows={rows} {...field} value={field.value ?? ''} />
+            <Textarea rows={rows} {...textarea} {...field} value={field.value ?? ''} />
           </FormControl>
           {description ? <FormDescription>{description}</FormDescription> : null}
           <FormMessage />

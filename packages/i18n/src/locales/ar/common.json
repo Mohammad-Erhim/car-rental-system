@@ -2166,5 +2166,11 @@
   "ops.fleet.tabHolds": "التجميدات النشطة",
   "ops.fleet.tabAllStates": "كل المركبات",
   "ops.fleet.searchPlaceholder": "ابحث بالوحة أو الهيكل أو الطراز",
-  "ops.fleet.searchLabel": "بحث في المركبات"
+  "ops.fleet.searchLabel": "بحث في المركبات",
+  "ops.fin.allSeverities": "كل درجات الخطورة",
+  "ops.fin.capped": "يتم عرض أحدث {n} من العناصر المفتوحة. عالج بعضها لرؤية الأقدم.",
+  "ops.fin.sev.critical": "حرجة",
+  "ops.fin.sev.high": "عالية",
+  "ops.fin.sev.medium": "متوسطة",
+  "ops.fin.sev.low": "منخفضة"
 }

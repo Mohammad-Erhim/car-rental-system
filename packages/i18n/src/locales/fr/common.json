@@ -2166,5 +2166,11 @@
   "ops.fleet.tabHolds": "Blocages actifs",
   "ops.fleet.tabAllStates": "Tous les véhicules",
   "ops.fleet.searchPlaceholder": "Rechercher plaque, VIN ou modèle",
-  "ops.fleet.searchLabel": "Rechercher des véhicules"
+  "ops.fleet.searchLabel": "Rechercher des véhicules",
+  "ops.fin.allSeverities": "Toutes les gravités",
+  "ops.fin.capped": "Affichage des {n} éléments ouverts les plus récents. Traitez-en pour voir les plus anciens.",
+  "ops.fin.sev.critical": "Critique",
+  "ops.fin.sev.high": "Élevée",
+  "ops.fin.sev.medium": "Moyenne",
+  "ops.fin.sev.low": "Faible"
 }

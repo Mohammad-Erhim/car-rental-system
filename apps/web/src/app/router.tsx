@@ -12,6 +12,7 @@ import { RequireAuth, RequirePermission } from '../components/route-guards.js';
 import { RecoveryPage } from '../features/auth/recovery-page.js';
 import { SignInPage } from '../features/auth/sign-in-page.js';
 import { DashboardPage } from '../features/dashboard/dashboard-page.js';
+import { FinancePage } from '../features/finance/finance-page.js';
 import { FleetPage } from '../features/fleet/fleet-page.js';
 import { RentalDetailPage } from '../features/rentals/rental-detail-page.js';
 import { RentalsPage } from '../features/rentals/rentals-page.js';
@@ -29,7 +30,6 @@ import { ConsentPage } from '../surfaces/ops/consent/consent-page.js';
 import { CustomersPage } from '../surfaces/ops/customers-page.js';
 import { DataQualityPage } from '../surfaces/ops/data-quality-page.js';
 import { EmailPage } from '../surfaces/ops/email-page.js';
-import { FinanceCasesPage } from '../surfaces/ops/finance-cases-page.js';
 import { LanguagesPage } from '../surfaces/ops/languages-page.js';
 import { LocationsPage } from '../surfaces/ops/locations-page.js';
 import { MediaLibraryPage } from '../surfaces/ops/media-library-page.js';
@@ -217,7 +217,7 @@ function dashboardRoutes(): RouteObject[] {
     },
     {
       path: 'finance',
-      element: perm(['payment.read', 'payment.reconcile'], <FinanceCasesPage />),
+      element: perm(['payment.read', 'payment.reconcile'], <FinancePage />),
     },
     {
       path: 'config',
