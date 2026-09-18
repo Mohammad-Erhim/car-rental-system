@@ -32,6 +32,7 @@ import { RentalsPage } from '../features/rentals/rentals-page.js';
 import { ReservationDetailPage } from '../features/reservations/reservation-detail-page.js';
 import { ReservationsPage } from '../features/reservations/reservations-page.js';
 import { SearchPage } from '../features/search/search-page.js';
+import { SeoPage } from '../features/seo/seo-page.js';
 import { TemplatePage } from '../features/templates/template-page.js';
 import { TemplatesPage } from '../features/templates/templates-page.js';
 import { TranslationEditorPage } from '../features/translations/translation-editor-page.js';
@@ -47,7 +48,6 @@ import { EmailPage } from '../surfaces/ops/email-page.js';
 import { PagesPage } from '../surfaces/ops/pages-builder/pages-page.js';
 import { PaymentsPage } from '../surfaces/ops/payments-page.js';
 import { ReportsPage } from '../surfaces/ops/reports-page.js';
-import { SeoPage } from '../surfaces/ops/seo-page.js';
 import { StaffRolesPage } from '../surfaces/ops/staff-roles-page.js';
 
 /**
