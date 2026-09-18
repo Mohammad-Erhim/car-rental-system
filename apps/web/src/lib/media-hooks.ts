@@ -1,5 +1,5 @@
 import type { MediaPickerItem } from '@carrental/ui';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiFetch } from './api.js';
 
@@ -47,5 +47,27 @@ export function useDeleteMedia() {
   return useMutation({
     mutationFn: (id: string) => apiFetch(`/ops/media/${id}`, { method: 'DELETE' }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: MEDIA_KEY }),
+  });
+}
+
+export interface MediaPage {
+  items: MediaItem[];
+  page: number;
+  pageSize: number;
+  count: number;
+  total: number;
+  pageCount: number;
+  /** how many items each purpose holds, across the whole library */
+  purposeCounts: Array<{ purpose: string; count: number }>;
+}
+
+/** One page of the library for the media page; the previous page stays while the next loads. */
+export function useMediaBrowse(params: { purpose?: string; page: number; pageSize: number }) {
+  const qs = new URLSearchParams({ page: String(params.page), pageSize: String(params.pageSize) });
+  if (params.purpose) qs.set('purpose', params.purpose);
+  return useQuery({
+    queryKey: [...MEDIA_KEY, 'browse', params],
+    queryFn: ({ signal }) => apiFetch<MediaPage>(`/ops/media/browse?${qs}`, { signal }),
+    placeholderData: keepPreviousData,
   });
 }
