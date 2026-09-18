@@ -75,7 +75,11 @@ export function FormDialog<T extends FieldValues>({
           <form onSubmit={submit} noValidate className="flex min-h-0 flex-1 flex-col">
             <DialogHeader className="shrink-0 border-b px-6 py-4 pe-12">
               <DialogTitle>{title}</DialogTitle>
-              {description ? <DialogDescription>{description}</DialogDescription> : null}
+              {description ? (
+                <DialogDescription asChild>
+                  <div>{description}</div>
+                </DialogDescription>
+              ) : null}
             </DialogHeader>
 
             {message || children ? (

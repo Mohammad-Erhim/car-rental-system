@@ -64,7 +64,11 @@ export function FormSheet<T extends FieldValues>({
           <form onSubmit={submit} noValidate className="flex h-full min-h-0 flex-col">
             <SheetHeader className="border-b p-6 pe-12">
               <SheetTitle>{title}</SheetTitle>
-              {description ? <SheetDescription>{description}</SheetDescription> : null}
+              {description ? (
+                <SheetDescription asChild>
+                  <div>{description}</div>
+                </SheetDescription>
+              ) : null}
             </SheetHeader>
 
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-6">
