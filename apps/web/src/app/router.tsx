@@ -25,6 +25,7 @@ import { LocationDetailPage } from '../features/locations/location-detail-page.j
 import { LocationsPage } from '../features/locations/locations-page.js';
 import { MediaLibraryPage } from '../features/media/media-page.js';
 import { OrganizationPage } from '../features/organization/organization-page.js';
+import { PaymentsPage } from '../features/payments/payments-page.js';
 import { ProductsPage } from '../features/products/products-page.js';
 import { RatePlansPage } from '../features/rate-plans/rate-plans-page.js';
 import { ReferenceDataPage } from '../features/reference-data/reference-data-page.js';
@@ -46,7 +47,6 @@ import { ConsentLogPage } from '../surfaces/ops/consent/consent-log-page.js';
 import { DataQualityPage } from '../surfaces/ops/data-quality-page.js';
 import { EmailPage } from '../surfaces/ops/email-page.js';
 import { PagesPage } from '../surfaces/ops/pages-builder/pages-page.js';
-import { PaymentsPage } from '../surfaces/ops/payments-page.js';
 import { ReportsPage } from '../surfaces/ops/reports-page.js';
 import { StaffRolesPage } from '../surfaces/ops/staff-roles-page.js';
 
