@@ -18,6 +18,8 @@ import { CustomersPage } from '../features/customers/customers-page.js';
 import { DashboardPage } from '../features/dashboard/dashboard-page.js';
 import { FinancePage } from '../features/finance/finance-page.js';
 import { FleetPage } from '../features/fleet/fleet-page.js';
+import { LocationDetailPage } from '../features/locations/location-detail-page.js';
+import { LocationsPage } from '../features/locations/locations-page.js';
 import { MediaLibraryPage } from '../features/media/media-page.js';
 import { OrganizationPage } from '../features/organization/organization-page.js';
 import { ProductsPage } from '../features/products/products-page.js';
@@ -38,7 +40,6 @@ import { ConsentPage } from '../surfaces/ops/consent/consent-page.js';
 import { DataQualityPage } from '../surfaces/ops/data-quality-page.js';
 import { EmailPage } from '../surfaces/ops/email-page.js';
 import { LanguagesPage } from '../surfaces/ops/languages-page.js';
-import { LocationsPage } from '../surfaces/ops/locations-page.js';
 import { PagesPage } from '../surfaces/ops/pages-builder/pages-page.js';
 import { PaymentsPage } from '../surfaces/ops/payments-page.js';
 import { ReportsPage } from '../surfaces/ops/reports-page.js';
@@ -204,6 +205,10 @@ function dashboardRoutes(): RouteObject[] {
     {
       path: 'config/locations',
       element: perm(['config.read', 'config.publish'], <LocationsPage />),
+    },
+    {
+      path: 'config/locations/:code',
+      element: perm(['config.read', 'config.publish'], <LocationDetailPage />),
     },
     {
       path: 'config/organization',
