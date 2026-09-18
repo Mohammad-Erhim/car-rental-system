@@ -517,6 +517,60 @@ describe('reservation operations', () => {
       expect(rows.some((x) => x.reference === r.reference)).toBe(true);
     });
 
+    it('paginates the list: page, pageSize, total, pageCount and a stable order', async () => {
+      await bookEconomyAt(server, customerToken, 140);
+      await bookEconomyAt(server, customerToken, 141);
+      const all = await request(server)
+        .get('/api/v1/ops/reservations?view=all&pageSize=100')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      const expected = (all.body.results as Array<{ reference: string }>).map((r) => r.reference);
+      expect(all.body.page).toBe(1);
+      expect(all.body.total).toBeGreaterThanOrEqual(2);
+      expect(all.body.count).toBe(expected.length);
+
+      const collected: string[] = [];
+      for (let page = 1; page <= all.body.total; page += 1) {
+        const res = await request(server)
+          .get(`/api/v1/ops/reservations?view=all&pageSize=1&page=${page}`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .expect(200);
+        expect(res.body.pageCount).toBe(res.body.total);
+        collected.push(
+          ...(res.body.results as Array<{ reference: string }>).map((r) => r.reference),
+        );
+      }
+      expect(collected).toEqual(expected);
+
+      const past = await request(server)
+        .get('/api/v1/ops/reservations?view=all&pageSize=10&page=999')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(past.body.results).toEqual([]);
+    });
+
+    it('queueCount is the needs-action count whatever view / filters are active', async () => {
+      const queue = await request(server)
+        .get('/api/v1/ops/reservations?view=queue')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      const filtered = await request(server)
+        .get('/api/v1/ops/reservations?view=all&state=cancelled')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(queue.body.queueCount).toBe(queue.body.total);
+      expect(filtered.body.queueCount).toBe(queue.body.total);
+    });
+
+    it('rejects out-of-range paging with a 422', async () => {
+      for (const qs of ['page=0', 'page=abc', 'pageSize=0', 'pageSize=101']) {
+        await request(server)
+          .get(`/api/v1/ops/reservations?view=all&${qs}`)
+          .set('Authorization', `Bearer ${adminToken}`)
+          .expect(422);
+      }
+    });
+
     it('a bad date filter is a 422, not a 500', async () => {
       await request(server)
         .get('/api/v1/ops/reservations?view=all&from=not-a-date')

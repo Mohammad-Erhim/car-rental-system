@@ -21,8 +21,10 @@ import { reservation, reservationDriver } from '../../database/schema/reservatio
  * the same boundary the reports apply. Every query is recorded to the audit trail — a driver /
  * licence lookup is a PII access (SRS-SEC-016).
  *
- * Results are capped, not deep-paginated: entity search is a "refine, don't page" interaction —
- * the response carries the true `total` so the UI can say "showing N of M, narrow to see more".
+ * Results are paginated (`page` / `pageSize`, newest pickup first, `reference` as the tie-break so
+ * page boundaries are stable). The two sides are merged in memory, so each page reads the top
+ * `page × pageSize` rows of each table; the window is capped at {@link MAX_WINDOW} — past that the
+ * operator is meant to narrow the search, not page deeper.
  */
 export interface SearchParams {
   q?: string;
@@ -31,7 +33,8 @@ export interface SearchParams {
   locationCode?: string;
   from?: string; // ISO date/datetime — pickup window start
   to?: string; // pickup window end
-  limit?: number;
+  page?: number; // 1-based, default 1
+  pageSize?: number; // default 25, max 100
 }
 
 export interface SearchHit {
@@ -55,17 +58,22 @@ export interface SearchHit {
 
 export interface SearchResponse {
   query: string;
-  /** rows returned (<= limit) */
+  page: number;
+  pageSize: number;
+  /** rows on this page (<= pageSize) */
   count: number;
-  /** true number of matches across both kinds, before the display cap */
+  /** true number of matches for the current filters (both kinds unless `kind` is set) */
   total: number;
-  /** true when `total > count` — the UI prompts the operator to narrow */
-  truncated: boolean;
+  pageCount: number;
+  /** matches per kind under the current filters *ignoring* `kind` — drives the kind tabs */
+  kindCounts: { reservation: number; rental: number };
   results: SearchHit[];
 }
 
-/** How many rows to pull from each side before merge-sorting to the display cap. */
-const SCAN_PER_SIDE = 100;
+const DEFAULT_PAGE_SIZE = 25;
+const MAX_PAGE_SIZE = 100;
+/** Deepest row (page × pageSize) a caller can reach — beyond it, narrow the search instead. */
+const MAX_WINDOW = 1000;
 
 @Injectable()
 export class SearchService {
@@ -90,8 +98,8 @@ export class SearchService {
       throw AppError.validation([{ path: 'q', code: 'too_small', params: { min: 2 } }]);
     }
     const like = `%${q.replace(/[%_\\]/g, (m) => `\\${m}`)}%`;
-    const rawLimit = Number(params.limit);
-    const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 50, 1), 100);
+    const { page, pageSize } = this.parsePaging(params);
+    const window = page * pageSize;
     const from = this.parseDate(params.from, 'from');
     const to = this.parseDate(params.to, 'to');
     // a location outside the actor's own scope is a 403, not a silently-empty result (SRS-SEC-007)
@@ -101,21 +109,24 @@ export class SearchService {
     const wantReservations = canReservations && params.kind !== 'rental';
     const wantRentals = canRentals && params.kind !== 'reservation';
 
-    let results: SearchHit[] = [];
-    let total = 0;
-    if (wantReservations) {
-      const r = await this.reservations(q, like, params, from, to, scope);
-      results.push(...r.hits);
-      total += r.total;
-    }
-    if (wantRentals) {
-      const r = await this.rentals(q, like, params, from, to, scope);
-      results.push(...r.hits);
-      total += r.total;
-    }
+    // counts for every permitted kind (they feed the kind tabs); rows only for the wanted ones
+    const [res, ren] = await Promise.all([
+      canReservations
+        ? this.reservations(q, like, params, from, to, scope, wantReservations ? window : 0)
+        : null,
+      canRentals ? this.rentals(q, like, params, from, to, scope, wantRentals ? window : 0) : null,
+    ]);
+    const kindCounts = { reservation: res?.total ?? 0, rental: ren?.total ?? 0 };
+    const total =
+      (wantReservations ? kindCounts.reservation : 0) + (wantRentals ? kindCounts.rental : 0);
 
-    results.sort((a, b) => (a.pickupAt < b.pickupAt ? 1 : a.pickupAt > b.pickupAt ? -1 : 0));
-    results = results.slice(0, limit);
+    const merged = [...(res?.hits ?? []), ...(ren?.hits ?? [])].sort(
+      (a, b) =>
+        (a.pickupAt < b.pickupAt ? 1 : a.pickupAt > b.pickupAt ? -1 : 0) ||
+        // byte order, to match the SQL side's `COLLATE "C"` tie-break exactly
+        (a.reference < b.reference ? -1 : a.reference > b.reference ? 1 : 0),
+    );
+    const results = merged.slice(window - pageSize, window);
 
     await this.audit.record({
       action: 'ops.search',
@@ -129,12 +140,38 @@ export class SearchService {
         locationCode: params.locationCode ?? null,
         from: params.from ?? null,
         to: params.to ?? null,
+        page,
         total,
         locationScoped: !!scope,
       },
     });
 
-    return { query: q, count: results.length, total, truncated: total > results.length, results };
+    return {
+      query: q,
+      page,
+      pageSize,
+      count: results.length,
+      total,
+      pageCount: Math.max(1, Math.ceil(total / pageSize)),
+      kindCounts,
+      results,
+    };
+  }
+
+  private parsePaging(params: SearchParams): { page: number; pageSize: number } {
+    const page = params.page === undefined ? 1 : params.page;
+    const pageSize = params.pageSize === undefined ? DEFAULT_PAGE_SIZE : params.pageSize;
+    if (!Number.isInteger(page) || page < 1) {
+      throw AppError.validation([{ path: 'page', code: 'too_small', params: { min: 1 } }]);
+    }
+    if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > MAX_PAGE_SIZE) {
+      throw AppError.validation([{ path: 'pageSize', code: 'out_of_range' }]);
+    }
+    if (page * pageSize > MAX_WINDOW) {
+      // too deep to page to — the operator should narrow the search instead
+      throw AppError.validation([{ path: 'page', code: 'out_of_range' }]);
+    }
+    return { page, pageSize };
   }
 
   private parseDate(v: string | undefined, field: string): Date | null {
@@ -153,6 +190,7 @@ export class SearchService {
     from: Date | null,
     to: Date | null,
     scope: string[] | null,
+    rowLimit: number,
   ): Promise<{ hits: SearchHit[]; total: number }> {
     const where: SQL[] = [];
     if (params.status) where.push(eq(reservation.state, params.status));
@@ -182,6 +220,8 @@ export class SearchService {
       .leftJoin(reservationDriver, driverJoin)
       .where(whereSql);
 
+    if (rowLimit === 0) return { hits: [], total: countRow?.total ?? 0 };
+
     const rows = await this.db
       .select({
         reference: reservation.reference,
@@ -199,8 +239,8 @@ export class SearchService {
       .from(reservation)
       .leftJoin(reservationDriver, driverJoin)
       .where(whereSql)
-      .orderBy(desc(reservation.pickupAt))
-      .limit(SCAN_PER_SIDE);
+      .orderBy(desc(reservation.pickupAt), sql`${reservation.reference} COLLATE "C"`)
+      .limit(rowLimit);
 
     const hits = rows.map((r) => ({
       kind: 'reservation' as const,
@@ -230,6 +270,7 @@ export class SearchService {
     from: Date | null,
     to: Date | null,
     scope: string[] | null,
+    rowLimit: number,
   ): Promise<{ hits: SearchHit[]; total: number }> {
     const where: SQL[] = [];
     if (params.status) where.push(eq(rental.state, params.status));
@@ -262,6 +303,8 @@ export class SearchService {
       .leftJoin(vehicleUnit, eq(vehicleUnit.id, rental.unitId))
       .where(whereSql);
 
+    if (rowLimit === 0) return { hits: [], total: countRow?.total ?? 0 };
+
     const rows = await this.db
       .select({
         reference: rental.reference,
@@ -285,8 +328,8 @@ export class SearchService {
       .leftJoin(reservationDriver, driverJoin)
       .leftJoin(vehicleUnit, eq(vehicleUnit.id, rental.unitId))
       .where(whereSql)
-      .orderBy(desc(rental.scheduledPickupAt))
-      .limit(SCAN_PER_SIDE);
+      .orderBy(desc(rental.scheduledPickupAt), sql`${rental.reference} COLLATE "C"`)
+      .limit(rowLimit);
 
     const now = Date.now();
     const hits = rows.map((r) => ({

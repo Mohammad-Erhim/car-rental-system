@@ -103,7 +103,8 @@ export class ReservationController {
     @Query('locationCode') locationCode?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
-    @Query('limit') limit?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
     return this.ops.list(actor, {
       view: view === 'all' ? 'all' : 'queue',
@@ -111,7 +112,8 @@ export class ReservationController {
       locationCode,
       from,
       to,
-      limit: limit ? Number(limit) : undefined,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
     });
   }
 

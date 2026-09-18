@@ -2449,7 +2449,15 @@
             }
           },
           {
-            "name": "limit",
+            "name": "page",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
             "required": true,
             "in": "query",
             "schema": {
@@ -3413,7 +3421,15 @@
             }
           },
           {
-            "name": "limit",
+            "name": "page",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "pageSize",
             "required": true,
             "in": "query",
             "schema": {
@@ -4409,7 +4425,8 @@
                                       },
                                       "href": {
                                         "type": "string",
-                                        "maxLength": 300
+                                        "maxLength": 300,
+                                        "pattern": "^(#\\S*|\\/(?!\\/)\\S*|https:\\/\\/\\S+)$"
                                       }
                                     },
                                     "required": [
@@ -4434,7 +4451,8 @@
                                       },
                                       "href": {
                                         "type": "string",
-                                        "maxLength": 300
+                                        "maxLength": 300,
+                                        "pattern": "^(#\\S*|\\/(?!\\/)\\S*|https:\\/\\/\\S+)$"
                                       }
                                     },
                                     "required": [
@@ -5319,7 +5337,8 @@
                                   },
                                   "ctaHref": {
                                     "type": "string",
-                                    "maxLength": 300
+                                    "maxLength": 300,
+                                    "pattern": "^(#\\S*|\\/(?!\\/)\\S*|https:\\/\\/\\S+)$"
                                   },
                                   "items": {
                                     "type": "array",
@@ -5439,7 +5458,8 @@
                                       },
                                       "href": {
                                         "type": "string",
-                                        "maxLength": 300
+                                        "maxLength": 300,
+                                        "pattern": "^(#\\S*|\\/(?!\\/)\\S*|https:\\/\\/\\S+)$"
                                       }
                                     },
                                     "required": [
@@ -5464,7 +5484,8 @@
                                       },
                                       "href": {
                                         "type": "string",
-                                        "maxLength": 300
+                                        "maxLength": 300,
+                                        "pattern": "^(#\\S*|\\/(?!\\/)\\S*|https:\\/\\/\\S+)$"
                                       }
                                     },
                                     "required": [
@@ -5859,7 +5880,8 @@
                       },
                       "href": {
                         "type": "string",
-                        "maxLength": 300
+                        "maxLength": 300,
+                        "pattern": "^(#\\S*|\\/(?!\\/)\\S*|https:\\/\\/\\S+)$"
                       }
                     },
                     "required": [

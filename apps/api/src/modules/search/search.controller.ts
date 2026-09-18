@@ -26,7 +26,8 @@ export class SearchController {
     @Query('locationCode') locationCode?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
-    @Query('limit') limit?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
     return this.search.search(actor, {
       q,
@@ -35,7 +36,8 @@ export class SearchController {
       locationCode,
       from,
       to,
-      limit: limit ? Number(limit) : undefined,
+      page: page ? Number(page) : undefined,
+      pageSize: pageSize ? Number(pageSize) : undefined,
     });
   }
 }

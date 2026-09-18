@@ -161,15 +161,71 @@ describe('unified reservation + rental search (FR-ADM-003)', () => {
     expect(miss.body.results.length).toBe(0);
   });
 
-  it('reports the true total and flags truncation', async () => {
-    const res = await request(server)
-      .get('/api/v1/ops/search?q=Sydney%20Searcher&limit=1')
+  it('paginates: reports the true total, page count and per-kind counts', async () => {
+    const first = await request(server)
+      .get('/api/v1/ops/search?q=Sydney%20Searcher&pageSize=1&page=1')
       .set('Authorization', `Bearer ${agent}`)
       .expect(200);
-    expect(res.body.results.length).toBe(1);
-    expect(res.body.total).toBeGreaterThanOrEqual(3); // 2 reservations (TST1+TST2) + 1 rental
-    expect(res.body.count).toBe(1);
-    expect(res.body.truncated).toBe(true);
+    expect(first.body.results.length).toBe(1);
+    expect(first.body.count).toBe(1);
+    expect(first.body.page).toBe(1);
+    expect(first.body.pageSize).toBe(1);
+    expect(first.body.total).toBeGreaterThanOrEqual(3); // 2 reservations (TST1+TST2) + 1 rental
+    expect(first.body.pageCount).toBe(first.body.total);
+    expect(first.body.kindCounts.reservation).toBeGreaterThanOrEqual(2);
+    expect(first.body.kindCounts.rental).toBeGreaterThanOrEqual(1);
+    expect(first.body.kindCounts.reservation + first.body.kindCounts.rental).toBe(first.body.total);
+  });
+
+  it('pages are disjoint, ordered and cover every match exactly once', async () => {
+    const all = await request(server)
+      .get('/api/v1/ops/search?q=Sydney%20Searcher&pageSize=100')
+      .set('Authorization', `Bearer ${agent}`)
+      .expect(200);
+    const expected = (all.body.results as Array<{ kind: string; reference: string }>).map(
+      (h) => `${h.kind}:${h.reference}`,
+    );
+    const collected: string[] = [];
+    for (let page = 1; page <= all.body.total; page += 1) {
+      const res = await request(server)
+        .get(`/api/v1/ops/search?q=Sydney%20Searcher&pageSize=1&page=${page}`)
+        .set('Authorization', `Bearer ${agent}`)
+        .expect(200);
+      collected.push(
+        ...(res.body.results as Array<{ kind: string; reference: string }>).map(
+          (h) => `${h.kind}:${h.reference}`,
+        ),
+      );
+    }
+    expect(collected).toEqual(expected);
+    expect(new Set(collected).size).toBe(collected.length);
+  });
+
+  it('a page past the last one is empty, not an error', async () => {
+    const res = await request(server)
+      .get('/api/v1/ops/search?q=Sydney%20Searcher&pageSize=10&page=50')
+      .set('Authorization', `Bearer ${agent}`)
+      .expect(200);
+    expect(res.body.results).toEqual([]);
+    expect(res.body.total).toBeGreaterThanOrEqual(3);
+  });
+
+  it('rejects out-of-range paging parameters with a 422', async () => {
+    for (const qs of ['page=0', 'page=abc', 'pageSize=0', 'pageSize=101', 'page=11&pageSize=100']) {
+      await request(server)
+        .get(`/api/v1/ops/search?q=Sydney%20Searcher&${qs}`)
+        .set('Authorization', `Bearer ${agent}`)
+        .expect(422);
+    }
+  });
+
+  it('kind narrows the rows but kindCounts still describe both kinds', async () => {
+    const res = await request(server)
+      .get('/api/v1/ops/search?q=Sydney%20Searcher&kind=rental')
+      .set('Authorization', `Bearer ${agent}`)
+      .expect(200);
+    expect(res.body.total).toBe(res.body.kindCounts.rental);
+    expect(res.body.kindCounts.reservation).toBeGreaterThanOrEqual(2);
   });
 
   it('a location-scoped actor only sees rows for their own locations (FR-RPT-004)', async () => {

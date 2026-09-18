@@ -29,6 +29,9 @@ import { NotifyService } from '../notify/notify.service';
 import { PaymentService } from '../payment/payment.service';
 import { PricingService } from '../pricing/pricing.service';
 
+const DEFAULT_PAGE_SIZE = 25;
+const MAX_PAGE_SIZE = 100;
+
 @Injectable()
 export class ReservationOpsService {
   private readonly logger = new Logger(ReservationOpsService.name);
@@ -95,8 +98,12 @@ export class ReservationOpsService {
    * The staff reservation queue (SCREEN-OPS-004). `view: 'queue'` is the actionable set —
    * confirmed reservations that don't yet have a rental, soonest pickup first (an overdue,
    * still-unassigned booking floats to the top). `view: 'all'` is the browsable list with the
-   * state / date filters. Confined to the actor's pickup locations (FR-RPT-004). The response
-   * carries the true `total` so the UI never silently hides rows.
+   * state / date filters. Confined to the actor's pickup locations (FR-RPT-004).
+   *
+   * Paginated (`page` / `pageSize`, soonest pickup first, `reference` as the tie-break so page
+   * boundaries are stable). The response carries the true `total`, and `queueCount` — how many
+   * bookings need action in the actor's scope (and chosen location) regardless of the view or
+   * the other filters — so the UI can badge the "needs action" tab from the "all" view too.
    */
   async list(
     actor: Actor,
@@ -106,20 +113,34 @@ export class ReservationOpsService {
       locationCode?: string;
       from?: string;
       to?: string;
-      limit?: number;
+      page?: number;
+      pageSize?: number;
     },
   ) {
+    const page = filter.page === undefined ? 1 : filter.page;
+    const pageSize = filter.pageSize === undefined ? DEFAULT_PAGE_SIZE : filter.pageSize;
+    if (!Number.isInteger(page) || page < 1) {
+      throw AppError.validation([{ path: 'page', code: 'too_small', params: { min: 1 } }]);
+    }
+    if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > MAX_PAGE_SIZE) {
+      throw AppError.validation([{ path: 'pageSize', code: 'out_of_range' }]);
+    }
+
     // a location outside the actor's own scope is a 403, not a silently-empty result (SRS-SEC-007)
     assertLocationAccess(actor, filter.locationCode);
     const scope = actor.locationScope?.length ? actor.locationScope : null;
     const noRental = sql`not exists (select 1 from rental r where r.reservation_reference = ${reservation.reference})`;
 
-    const where: Array<ReturnType<typeof eq> | typeof noRental> = [];
+    // location boundary shared by the list and the queue badge
+    const scopeWhere: Array<ReturnType<typeof eq>> = [];
     if (filter.locationCode) {
-      where.push(eq(reservation.pickupLocationCode, filter.locationCode));
+      scopeWhere.push(eq(reservation.pickupLocationCode, filter.locationCode));
     } else if (scope) {
-      where.push(inArray(reservation.pickupLocationCode, scope));
+      scopeWhere.push(inArray(reservation.pickupLocationCode, scope));
     }
+    const queueWhere = and(...scopeWhere, eq(reservation.state, 'confirmed'), noRental);
+
+    const where: Array<ReturnType<typeof eq> | typeof noRental> = [...scopeWhere];
     if (filter.view === 'queue') {
       where.push(eq(reservation.state, 'confirmed'));
       where.push(noRental);
@@ -132,13 +153,16 @@ export class ReservationOpsService {
     if (to) where.push(lte(reservation.pickupAt, to.toISOString()));
     const whereSql = where.length ? and(...where) : sql`true`;
 
-    const rawLimit = Number(filter.limit);
-    const limit = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 100, 1), 200);
-
-    const [countRow] = await this.db
-      .select({ total: sql<number>`count(*)::int` })
-      .from(reservation)
-      .where(whereSql);
+    const [[countRow], [queueRow]] = await Promise.all([
+      this.db
+        .select({ total: sql<number>`count(*)::int` })
+        .from(reservation)
+        .where(whereSql),
+      this.db
+        .select({ total: sql<number>`count(*)::int` })
+        .from(reservation)
+        .where(queueWhere),
+    ]);
 
     const rows = await this.db
       .select({
@@ -172,15 +196,19 @@ export class ReservationOpsService {
       )
       .leftJoin(vehicleUnit, eq(vehicleUnit.id, reservation.unitId))
       .where(whereSql)
-      .orderBy(asc(reservation.pickupAt))
-      .limit(limit);
+      .orderBy(asc(reservation.pickupAt), sql`${reservation.reference} COLLATE "C"`)
+      .limit(pageSize)
+      .offset((page - 1) * pageSize);
 
-    const total = countRow?.total ?? rows.length;
+    const total = countRow?.total ?? 0;
     return {
       view: filter.view,
+      page,
+      pageSize,
       count: rows.length,
       total,
-      truncated: total > rows.length,
+      pageCount: Math.max(1, Math.ceil(total / pageSize)),
+      queueCount: queueRow?.total ?? 0,
       results: rows.map((r) => ({
         reference: r.reference,
         state: r.state,
