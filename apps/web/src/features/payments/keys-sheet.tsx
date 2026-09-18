@@ -2,10 +2,10 @@ import { useI18n } from '@carrental/i18n/react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 
-import { SecretField } from './secret-field';
 
 import { TextField } from '@/components/form-fields';
 import { FormSheet } from '@/components/form-sheet';
+import { SecretField } from '@/components/secret-field';
 import { useUpdatePaymentConfig, type PaymentConfigSummary } from '@/lib/admin-hooks';
 import { FormMessageError } from '@/lib/use-form-submit';
 
