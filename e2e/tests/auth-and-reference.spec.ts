@@ -161,10 +161,12 @@ test.describe('operations foundation (APP-OPS)', () => {
     await expect(page).toHaveURL(/reference-data$/);
     await page.getByTestId('lookup-type-cancel_reason').click();
 
-    const row = page.locator('[data-testid="lookup-value-rows"] tr[data-code="other"]');
+    const rowsLocator = page.locator('[data-testid="lookup-value-rows"] tr');
+    const row = rowsLocator.filter({ has: page.getByText('other', { exact: true }) });
     await expect(row).toBeVisible();
     const newLabel = `Other reason ${Date.now() % 100000}`;
-    // edit opens a dialog with a label field per active locale
+    // edit opens a side panel with a label field per active locale
+    await page.getByTestId('menu-other').click();
     await page.getByTestId('edit-other').click();
     const editor = page.getByRole('dialog');
     await editor.getByTestId('label-en').fill(newLabel);
@@ -184,24 +186,17 @@ test.describe('operations foundation (APP-OPS)', () => {
     expect(other.label).toBe(newLabel);
 
     // reorder: move the first value down, the list order changes and persists
-    const rowsBefore = await page
-      .locator('[data-testid="lookup-value-rows"] tr')
-      .evaluateAll((trs) => trs.map((el) => el.getAttribute('data-code')));
-    await page
-      .locator('[data-testid="lookup-value-rows"] tr')
-      .first()
-      .getByLabel('Move down')
-      .click();
-    await expect
-      .poll(() =>
-        page
-          .locator('[data-testid="lookup-value-rows"] tr')
-          .evaluateAll((trs) => trs.map((el) => el.getAttribute('data-code'))),
-      )
-      .not.toEqual(rowsBefore);
+    const codes = () =>
+      rowsLocator.evaluateAll((trs) =>
+        trs.map((el) => el.querySelector('td:nth-child(2)')?.textContent),
+      );
+    const rowsBefore = await codes();
+    await rowsLocator.first().getByLabel('Move down').click();
+    await expect.poll(codes).not.toEqual(rowsBefore);
 
     // FR-ADM-008 usage check: deactivating a value opens a confirm that reports "where used"
     // (this configurable value has no references in the seed → the plain body shows, no crash)
+    await page.getByTestId('menu-other').click();
     await page.getByTestId('deactivate-other').click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toContainText(/new selections|used by/i);

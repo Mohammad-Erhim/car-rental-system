@@ -32,6 +32,7 @@ export function FormDialog<T extends FieldValues>({
   onSubmit,
   submitLabel,
   destructive,
+  submitDisabled,
   size = 'md',
   children,
 }: {
@@ -44,6 +45,8 @@ export function FormDialog<T extends FieldValues>({
   onSubmit: (values: T) => Promise<unknown>;
   submitLabel: string;
   destructive?: boolean;
+  /** keeps the submit button disabled (e.g. while a prerequisite is still loading) */
+  submitDisabled?: boolean;
   /** `lg` for forms with a repeating section or a summary */
   size?: 'md' | 'lg';
   children: ReactNode;
@@ -97,6 +100,7 @@ export function FormDialog<T extends FieldValues>({
                 type="submit"
                 variant={destructive ? 'destructive' : 'default'}
                 loading={isSubmitting}
+                disabled={submitDisabled}
               >
                 {submitLabel}
               </Button>

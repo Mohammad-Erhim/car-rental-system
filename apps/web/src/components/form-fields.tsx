@@ -37,9 +37,13 @@ export function TextField<T extends FieldValues>({
   label,
   description,
   className,
+  normalize,
   ...input
 }: BaseProps<T> &
-  Omit<React.InputHTMLAttributes<HTMLInputElement>, 'name' | 'defaultValue' | 'value'>) {
+  Omit<React.InputHTMLAttributes<HTMLInputElement>, 'name' | 'defaultValue' | 'value'> & {
+    /** rewrites what the user types before it is stored (e.g. lower-casing a code) */
+    normalize?: (value: string) => string;
+  }) {
   return (
     <FormField
       control={control}
@@ -48,7 +52,14 @@ export function TextField<T extends FieldValues>({
         <FormItem className={className}>
           <FormLabel>{label}</FormLabel>
           <FormControl>
-            <Input {...input} {...field} value={field.value ?? ''} />
+            <Input
+              {...input}
+              {...field}
+              value={field.value ?? ''}
+              onChange={(e) =>
+                field.onChange(normalize ? normalize(e.target.value) : e.target.value)
+              }
+            />
           </FormControl>
           {description ? <FormDescription>{description}</FormDescription> : null}
           <FormMessage />
