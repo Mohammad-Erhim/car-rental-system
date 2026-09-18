@@ -2161,5 +2161,10 @@
   "ops.rent.findingAreaHint": "مثال: الصدّام الأمامي",
   "ops.rent.findingDescHint": "مثال: خدش عميق بطول 20 سم تقريبًا",
   "ops.rent.findingAreaLabel": "المنطقة",
-  "ops.rent.odoPlaceholder": "القراءة بالكم"
+  "ops.rent.odoPlaceholder": "القراءة بالكم",
+  "ops.fleet.tabVehicles": "المركبات",
+  "ops.fleet.tabHolds": "التجميدات النشطة",
+  "ops.fleet.tabAllStates": "كل المركبات",
+  "ops.fleet.searchPlaceholder": "ابحث بالوحة أو الهيكل أو الطراز",
+  "ops.fleet.searchLabel": "بحث في المركبات"
 }

@@ -16,6 +16,13 @@ import type { FieldValues, Path, UseFormReturn } from 'react-hook-form';
 export function useServerFormErrors<T extends FieldValues>(form: UseFormReturn<T>) {
   const errs = useFormErrors();
   const { error, fieldError, topLevelMessage, summary, fromError, clear: clearErrs } = errs;
+  // A 409 without a `currentVersion` is a business conflict ("that plate already exists"), not an
+  // optimistic-concurrency clash — the API's own message is the useful one, not the generic
+  // "this changed since you loaded it".
+  const businessConflict =
+    error?.problem.category === 'conflict' &&
+    error.problem.currentVersion === undefined &&
+    !error.fieldErrors.length;
 
   useEffect(() => {
     if (!error?.fieldErrors.length) return;
@@ -47,6 +54,8 @@ export function useServerFormErrors<T extends FieldValues>(form: UseFormReturn<T
     clear,
     /** a message for an `<Alert>`, or `null` when every problem is shown on its field */
     formError:
-      topLevelMessage ?? (orphaned ? summary.map((s) => s.message).join(' · ') || null : null),
+      (businessConflict ? error?.message : null) ??
+      topLevelMessage ??
+      (orphaned ? summary.map((s) => s.message).join(' · ') || null : null),
   };
 }

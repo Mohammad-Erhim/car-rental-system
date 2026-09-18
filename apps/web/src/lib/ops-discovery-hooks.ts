@@ -33,23 +33,35 @@ export interface UnitInput {
 }
 
 export interface OpsUnitList {
+  page: number;
+  pageSize: number;
+  /** units on this page (every match when pagination wasn't requested) */
   count: number;
+  /** units matching the current filters */
   total: number;
+  pageCount: number;
+  /** units per state under the location/category/search filters, ignoring the state filter */
+  stateCounts: Record<string, number>;
   results: OpsUnit[];
 }
 
+export interface OpsUnitFilter {
+  locationCode?: string;
+  categoryCode?: string;
+  state?: string;
+  /** free text over plate, VIN, make and model */
+  q?: string;
+  /** pagination is opt-in: omit both to get every match (what the vehicle pickers need) */
+  page?: number;
+  pageSize?: number;
+}
+
 export function useOpsUnits(
-  filter: {
-    locationCode?: string;
-    categoryCode?: string;
-    state?: string;
-  },
+  filter: OpsUnitFilter,
   opts: { enabled?: boolean; keepPrevious?: boolean } = {},
 ) {
   const qs = new URLSearchParams();
-  if (filter.locationCode) qs.set('locationCode', filter.locationCode);
-  if (filter.categoryCode) qs.set('categoryCode', filter.categoryCode);
-  if (filter.state) qs.set('state', filter.state);
+  for (const [k, v] of Object.entries(filter)) if (v) qs.set(k, String(v));
   return useQuery({
     queryKey: ['ops', 'fleet-units', filter],
     // `keepPrevious` smooths a filter change on the fleet inventory list. It defaults OFF: every

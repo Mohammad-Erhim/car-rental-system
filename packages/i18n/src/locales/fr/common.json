@@ -2161,5 +2161,10 @@
   "ops.rent.findingAreaHint": "p. ex. pare-chocs avant",
   "ops.rent.findingDescHint": "p. ex. rayure profonde d’environ 20 cm",
   "ops.rent.findingAreaLabel": "Zone",
-  "ops.rent.odoPlaceholder": "Relevé en km"
+  "ops.rent.odoPlaceholder": "Relevé en km",
+  "ops.fleet.tabVehicles": "Véhicules",
+  "ops.fleet.tabHolds": "Blocages actifs",
+  "ops.fleet.tabAllStates": "Tous les véhicules",
+  "ops.fleet.searchPlaceholder": "Rechercher plaque, VIN ou modèle",
+  "ops.fleet.searchLabel": "Rechercher des véhicules"
 }

@@ -33,69 +33,75 @@ import {
 /** Radix Select can't hold an empty value — this stands for "no filter". */
 const ANY = '__any__';
 
-export interface FilterValues {
-  status: string;
-  location: string;
-  from: string;
-  to: string;
-  /** an extra single-choice filter (e.g. pickups vs returns); only used when `flows` is given */
-  flow?: string;
+export interface SelectOption {
+  value: string;
+  label: string;
 }
-type Values = FilterValues;
+
+/** One control in the panel. Values are plain strings keyed by `name` ('' = not filtering). */
+export type FilterField =
+  | {
+      type: 'select';
+      name: string;
+      label: string;
+      /** the entry shown for "no filter" (maps to '') */
+      anyLabel: string;
+      options: SelectOption[];
+    }
+  /** two date inputs bound to the values `from` and `to`; the end may not precede the start */
+  | { type: 'dateRange'; fromLabel: string; toLabel: string };
+
+export type FilterValues = Record<string, string>;
 
 /**
- * The secondary filters of a list — status, location, date window — kept out of the page so the
- * page stays about one thing. Values are edited locally and committed together with "Apply", so
- * the list doesn't refetch on every change inside the panel. `statuses` are lifecycle codes
- * (labels come from `ops.status.*`); pass none to hide the status field.
+ * The secondary filters of a list, kept out of the page so the page stays about one thing. The
+ * page describes its filters as `fields`; values are edited locally and committed together with
+ * "Apply", so the list doesn't refetch on every change inside the panel.
  */
 export function FiltersSheet({
   open,
   onOpenChange,
+  fields,
   values,
-  statuses,
-  locations,
   onApply,
-  dateLabels,
-  flows,
-  flowLabel,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  values: Values;
-  statuses: string[];
-  locations: Array<{ code: string; name: string }>;
-  onApply: (values: Values) => void;
-  /** override the date-range labels (defaults to "Pickup from" / "Pickup until") */
-  dateLabels?: { from: string; to: string };
-  /** options for an extra "flow" select (first entry is the unfiltered/"any" choice) */
-  flows?: Array<{ value: string; label: string }>;
-  flowLabel?: string;
+  fields: FilterField[];
+  /** current values, one entry per field name (plus `from` / `to` for a date range) */
+  values: FilterValues;
+  onApply: (values: FilterValues) => void;
 }) {
   const { t } = useI18n();
+  const hasDates = fields.some((f) => f.type === 'dateRange');
 
   const schema = useMemo(
     () =>
-      z
-        .object({
-          status: z.string(),
-          location: z.string(),
-          from: z.string(),
-          to: z.string(),
-        })
-        .refine((v) => !v.from || !v.to || v.to >= v.from, {
-          path: ['to'],
-          message: t('ops.search.dateOrder'),
-        }),
-    [t],
+      z.record(z.string()).refine((v) => !hasDates || !v.from || !v.to || v.to >= v.from, {
+        path: ['to'],
+        message: t('ops.search.dateOrder'),
+      }),
+    [t, hasDates],
   );
 
-  const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: values });
+  const form = useForm<FilterValues>({ resolver: zodResolver(schema), defaultValues: values });
 
   // re-seed from the URL each time the panel opens (it may have changed via the chips)
   useEffect(() => {
     if (open) form.reset(values);
   }, [open, values, form]);
+
+  const cleared = useMemo(() => {
+    const out: FilterValues = {};
+    for (const f of fields) {
+      if (f.type === 'select') out[f.name] = '';
+      else {
+        out.from = '';
+        out.to = '';
+      }
+    }
+    return out;
+  }, [fields]);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -115,132 +121,54 @@ export function FiltersSheet({
             </SheetHeader>
 
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-6">
-              {statuses.length ? (
-                <FormField
-                  control={form.control}
-                  name="status"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t('ops.tbl.status')}</FormLabel>
-                      <Select
-                        value={field.value || ANY}
-                        onValueChange={(v) => field.onChange(v === ANY ? '' : v)}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value={ANY}>{t('ops.search.anyStatus')}</SelectItem>
-                          {statuses.map((s) => (
-                            <SelectItem key={s} value={s}>
-                              {t(`ops.status.${s}`)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              ) : null}
-
-              {flows?.length ? (
-                <FormField
-                  control={form.control}
-                  name="flow"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{flowLabel}</FormLabel>
-                      <Select
-                        value={field.value || ANY}
-                        onValueChange={(v) => field.onChange(v === ANY ? '' : v)}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value={ANY}>{flows[0]?.label}</SelectItem>
-                          {flows.slice(1).map((f) => (
-                            <SelectItem key={f.value} value={f.value}>
-                              {f.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </FormItem>
-                  )}
-                />
-              ) : null}
-
-              <FormField
-                control={form.control}
-                name="location"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t('ops.search.location')}</FormLabel>
-                    <Select
-                      value={field.value || ANY}
-                      onValueChange={(v) => field.onChange(v === ANY ? '' : v)}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value={ANY}>{t('ops.search.anyLocation')}</SelectItem>
-                        {locations.map((l) => (
-                          <SelectItem key={l.code} value={l.code}>
-                            {l.name} ({l.code})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="grid gap-5 sm:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="from"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{dateLabels?.from ?? t('ops.search.from')}</FormLabel>
-                      <FormControl>
-                        <Input type="date" max={form.watch('to') || undefined} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="to"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{dateLabels?.to ?? t('ops.search.to')}</FormLabel>
-                      <FormControl>
-                        <Input type="date" min={form.watch('from') || undefined} {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              {fields.map((f) =>
+                f.type === 'select' ? (
+                  <SelectFilter key={f.name} form={form} field={f} />
+                ) : (
+                  <div key="dates" className="grid gap-5 sm:grid-cols-2">
+                    <FormField
+                      control={form.control}
+                      name="from"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{f.fromLabel}</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="date"
+                              max={form.watch('to') || undefined}
+                              {...field}
+                              value={field.value ?? ''}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="to"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{f.toLabel}</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="date"
+                              min={form.watch('from') || undefined}
+                              {...field}
+                              value={field.value ?? ''}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                ),
+              )}
             </div>
 
             <SheetFooter className="border-t p-6">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => form.reset({ status: '', flow: '', location: '', from: '', to: '' })}
-              >
+              <Button type="button" variant="outline" onClick={() => form.reset(cleared)}>
                 {t('ops.search.reset')}
               </Button>
               <Button type="submit">{t('ops.search.apply')}</Button>
@@ -249,5 +177,72 @@ export function FiltersSheet({
         </Form>
       </SheetContent>
     </Sheet>
+  );
+}
+
+function SelectFilter({
+  form,
+  field: f,
+}: {
+  form: ReturnType<typeof useForm<FilterValues>>;
+  field: Extract<FilterField, { type: 'select' }>;
+}) {
+  return (
+    <FormField
+      control={form.control}
+      name={f.name}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{f.label}</FormLabel>
+          <Select
+            value={field.value || ANY}
+            onValueChange={(v) => field.onChange(v === ANY ? '' : v)}
+          >
+            <FormControl>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+            </FormControl>
+            <SelectContent>
+              <SelectItem value={ANY}>{f.anyLabel}</SelectItem>
+              {f.options.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </FormItem>
+      )}
+    />
+  );
+}
+
+/** The recurring fields, built once so every list labels them identically. */
+export function useFilterFields() {
+  const { t } = useI18n();
+  return useMemo(
+    () => ({
+      status: (codes: string[], label?: (code: string) => string): FilterField => ({
+        type: 'select',
+        name: 'status',
+        label: t('ops.tbl.status'),
+        anyLabel: t('ops.search.anyStatus'),
+        options: codes.map((c) => ({ value: c, label: label ? label(c) : t(`ops.status.${c}`) })),
+      }),
+      location: (locations: Array<{ code: string; name: string }>): FilterField => ({
+        type: 'select',
+        name: 'location',
+        label: t('ops.search.location'),
+        anyLabel: t('ops.search.anyLocation'),
+        options: locations.map((l) => ({ value: l.code, label: `${l.name} (${l.code})` })),
+      }),
+      dates: (labels?: { from: string; to: string }): FilterField => ({
+        type: 'dateRange',
+        fromLabel: labels?.from ?? t('ops.search.from'),
+        toLabel: labels?.to ?? t('ops.search.to'),
+      }),
+    }),
+    [t],
   );
 }

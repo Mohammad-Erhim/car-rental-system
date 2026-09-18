@@ -7,7 +7,7 @@ import { AssignVehicleDialog } from './assign-vehicle-dialog';
 import { ReservationCard, useReservationColumns } from './reservation-columns';
 
 import { DataTable } from '@/components/data-table/data-table';
-import { FiltersSheet } from '@/components/filters-sheet';
+import { FiltersSheet, useFilterFields } from '@/components/filters-sheet';
 import { Page, PageHeader } from '@/components/page-header';
 import { StateSwitcher } from '@/components/state-switcher';
 import { StateView } from '@/components/state-view';
@@ -35,6 +35,7 @@ export function ReservationsPage() {
   const { state, update, reset } = useListParams(FILTERS);
   const view: 'queue' | 'all' = state.view === 'all' ? 'all' : 'queue';
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const fieldOf = useFilterFields();
   const [assignTarget, setAssignTarget] = useState<OpsReservationRow | null>(null);
 
   // seed the location filter from the global switcher on first load only — never fights a value
@@ -206,10 +207,15 @@ export function ReservationsPage() {
       <FiltersSheet
         open={filtersOpen}
         onOpenChange={setFiltersOpen}
+        fields={[
+          ...(view === 'all' ? [fieldOf.status(RESERVATION_STATES)] : []),
+          fieldOf.location(locations),
+          fieldOf.dates(),
+        ]}
         values={{ status: stateFilter, location: state.location, from: state.from, to: state.to }}
-        statuses={view === 'all' ? RESERVATION_STATES : []}
-        locations={locations}
-        onApply={(v) => update({ state: v.status, location: v.location, from: v.from, to: v.to })}
+        onApply={(v) =>
+          update({ state: v.status ?? '', location: v.location, from: v.from, to: v.to })
+        }
       />
 
       {assignTarget ? (

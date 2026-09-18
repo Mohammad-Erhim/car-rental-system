@@ -2161,5 +2161,10 @@
   "ops.rent.findingAreaHint": "e.g. front bumper",
   "ops.rent.findingDescHint": "e.g. deep scratch, about 20 cm",
   "ops.rent.findingAreaLabel": "Area",
-  "ops.rent.odoPlaceholder": "Reading in km"
+  "ops.rent.odoPlaceholder": "Reading in km",
+  "ops.fleet.tabVehicles": "Vehicles",
+  "ops.fleet.tabHolds": "Active holds",
+  "ops.fleet.tabAllStates": "All vehicles",
+  "ops.fleet.searchPlaceholder": "Search plate, VIN or model",
+  "ops.fleet.searchLabel": "Search vehicles"
 }

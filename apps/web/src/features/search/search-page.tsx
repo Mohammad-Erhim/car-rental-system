@@ -1,4 +1,3 @@
-import { useDebounced } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import { Loader2, Search, SearchX, SlidersHorizontal, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -8,7 +7,7 @@ import { SearchResultCard, useSearchColumns } from './search-columns';
 import { PAGE_SIZES, activeFilterCount, useSearchState, type SearchKind } from './use-search-state';
 
 import { DataTable } from '@/components/data-table/data-table';
-import { FiltersSheet } from '@/components/filters-sheet';
+import { FiltersSheet, useFilterFields } from '@/components/filters-sheet';
 import { Page, PageHeader } from '@/components/page-header';
 import { StateSwitcher } from '@/components/state-switcher';
 import { StateView } from '@/components/state-view';
@@ -19,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { opsSearchReady, useOpsSearch, type SearchHit } from '@/lib/admin-hooks';
 import { useLocationScope } from '@/lib/location-scope';
 import { RENTAL_STATES, RESERVATION_STATES } from '@/lib/statuses';
+import { useSearchBox } from '@/lib/use-search-box';
 
 /** Statuses that can exist for the selected kind (all of them when no kind is selected). */
 function statusOptions(kind: SearchKind): string[] {
@@ -42,6 +42,7 @@ export function SearchPage() {
   const { state, update, reset } = useSearchState();
   const [filtersOpen, setFiltersOpen] = useState(false);
   const columns = useSearchColumns();
+  const fieldOf = useFilterFields();
 
   // seed the location filter from the global switcher on first load only — never fights a value
   // the operator has since set (or cleared) here. `options` is already narrowed to what this
@@ -55,13 +56,7 @@ export function SearchPage() {
   }, []);
 
   // The text box is debounced into the URL; every other control writes immediately.
-  const [draft, setDraft] = useState(state.q);
-  const debounced = useDebounced(draft.trim(), 350);
-  // URL → box (back/forward, "clear all"); box → URL happens below once typing settles
-  useEffect(() => setDraft(state.q), [state.q]);
-  useEffect(() => {
-    if (debounced !== state.q) update({ q: debounced });
-  }, [debounced]);
+  const { draft, setDraft, clear: clearBox } = useSearchBox(state.q, (q) => update({ q }));
 
   const params = {
     q: state.q || undefined,
@@ -134,10 +129,7 @@ export function SearchPage() {
               ) : draft ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    setDraft('');
-                    update({ q: '' });
-                  }}
+                  onClick={clearBox}
                   aria-label={t('action.clear')}
                   className="absolute end-2 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
                 >
@@ -274,10 +266,13 @@ export function SearchPage() {
       <FiltersSheet
         open={filtersOpen}
         onOpenChange={setFiltersOpen}
+        fields={[
+          fieldOf.status(statusOptions(state.kind)),
+          fieldOf.location(locations),
+          fieldOf.dates(),
+        ]}
         values={{ status: state.status, location: state.location, from: state.from, to: state.to }}
-        statuses={statusOptions(state.kind)}
-        locations={locations}
-        onApply={(v) => update(v)}
+        onApply={(v) => update({ status: v.status, location: v.location, from: v.from, to: v.to })}
       />
     </Page>
   );

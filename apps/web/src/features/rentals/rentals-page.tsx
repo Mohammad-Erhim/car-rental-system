@@ -7,7 +7,7 @@ import { RentalCard, useRentalColumns, type RentalAction } from './rental-column
 import { IncidentDialog, PickupDialog, ReadinessDialog, ReturnDialog } from './rental-dialogs';
 
 import { DataTable } from '@/components/data-table/data-table';
-import { FiltersSheet } from '@/components/filters-sheet';
+import { FiltersSheet, useFilterFields } from '@/components/filters-sheet';
 import { Page, PageHeader } from '@/components/page-header';
 import { StateSwitcher } from '@/components/state-switcher';
 import { StateView } from '@/components/state-view';
@@ -34,6 +34,7 @@ export function RentalsPage() {
   const navigate = useNavigate();
   const { state, update, reset } = useListParams(FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const fieldOf = useFilterFields();
   const [action, setAction] = useState<{ row: RentalBoardRow; kind: RentalAction } | null>(null);
 
   // seed the location filter from the global switcher on first load only
@@ -211,22 +212,21 @@ export function RentalsPage() {
       <FiltersSheet
         open={filtersOpen}
         onOpenChange={setFiltersOpen}
-        values={{
-          status: '',
-          flow: flow ?? '',
-          location: state.location,
-          from: state.from,
-          to: state.to,
-        }}
-        statuses={[]}
-        flows={[
-          { value: '', label: t('ops.rent.anyFlow') },
-          { value: 'pickup', label: t('ops.rent.flowPickup') },
-          { value: 'return', label: t('ops.rent.flowReturn') },
+        fields={[
+          {
+            type: 'select',
+            name: 'flow',
+            label: t('ops.rent.filterFlow'),
+            anyLabel: t('ops.rent.anyFlow'),
+            options: [
+              { value: 'pickup', label: t('ops.rent.flowPickup') },
+              { value: 'return', label: t('ops.rent.flowReturn') },
+            ],
+          },
+          fieldOf.location(locations),
+          fieldOf.dates(),
         ]}
-        flowLabel={t('ops.rent.filterFlow')}
-        locations={locations}
-        dateLabels={{ from: t('ops.search.from'), to: t('ops.search.to') }}
+        values={{ flow: flow ?? '', location: state.location, from: state.from, to: state.to }}
         onApply={(v) =>
           update({ flow: v.flow ?? '', location: v.location, from: v.from, to: v.to })
         }

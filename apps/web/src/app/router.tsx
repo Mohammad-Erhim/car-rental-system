@@ -12,6 +12,7 @@ import { RequireAuth, RequirePermission } from '../components/route-guards.js';
 import { RecoveryPage } from '../features/auth/recovery-page.js';
 import { SignInPage } from '../features/auth/sign-in-page.js';
 import { DashboardPage } from '../features/dashboard/dashboard-page.js';
+import { FleetPage } from '../features/fleet/fleet-page.js';
 import { RentalDetailPage } from '../features/rentals/rental-detail-page.js';
 import { RentalsPage } from '../features/rentals/rentals-page.js';
 import { ReservationDetailPage } from '../features/reservations/reservation-detail-page.js';
@@ -29,7 +30,6 @@ import { CustomersPage } from '../surfaces/ops/customers-page.js';
 import { DataQualityPage } from '../surfaces/ops/data-quality-page.js';
 import { EmailPage } from '../surfaces/ops/email-page.js';
 import { FinanceCasesPage } from '../surfaces/ops/finance-cases-page.js';
-import { FleetInventoryPage } from '../surfaces/ops/fleet-inventory-page.js';
 import { LanguagesPage } from '../surfaces/ops/languages-page.js';
 import { LocationsPage } from '../surfaces/ops/locations-page.js';
 import { MediaLibraryPage } from '../surfaces/ops/media-library-page.js';
@@ -171,7 +171,7 @@ function dashboardRoutes(): RouteObject[] {
       path: 'work/:reference',
       element: perm(['reservation.read', 'reservation.modify'], <ReservationDetailPage />),
     },
-    { path: 'fleet', element: perm(['fleet.read', 'fleet.manage'], <FleetInventoryPage />) },
+    { path: 'fleet', element: perm(['fleet.read', 'fleet.manage'], <FleetPage />) },
     {
       path: 'config/rate-plans',
       element: perm(['config.read', 'config.publish'], <RatePlansPage />),
