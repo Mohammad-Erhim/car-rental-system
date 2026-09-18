@@ -38,10 +38,13 @@ export function AssignVehicleDialog({
   target,
   open,
   onOpenChange,
+  variant = 'assign',
 }: {
   target: AssignTarget;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** `reassign` swaps the car on a rental that hasn't been picked up yet (no new rental is made) */
+  variant?: 'assign' | 'reassign';
 }) {
   const { t } = useI18n();
   const navigate = useNavigate();
@@ -67,14 +70,22 @@ export function AssignVehicleDialog({
       onOpenChange={onOpenChange}
       form={form}
       defaultValues={{ unitId: pick?.id ?? '' }}
-      title={t('ops.resv.assignTitle')}
-      description={t('ops.resv.assignBody', { ref: target.reference })}
-      submitLabel={t('ops.queue.assign')}
+      title={variant === 'reassign' ? t('ops.rentd.reassignTitle') : t('ops.resv.assignTitle')}
+      description={
+        variant === 'reassign'
+          ? t('ops.rentd.reassignBody')
+          : t('ops.resv.assignBody', { ref: target.reference })
+      }
+      submitLabel={variant === 'reassign' ? t('ops.rentd.reassign') : t('ops.queue.assign')}
       onSubmit={async ({ unitId }) => {
         const rental = await assign.mutateAsync({
           reference: target.reference,
           unitId: unitId || undefined,
         });
+        if (variant === 'reassign') {
+          toast.success(t('ops.rentd.reassigned'));
+          return;
+        }
         toast.success(t('ops.queue.assigned', { ref: target.reference }), {
           description: t('ops.queue.assignedTo', { rental: rental.reference }),
           action: {

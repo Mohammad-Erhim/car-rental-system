@@ -1,15 +1,13 @@
 import { useI18n } from '@carrental/i18n/react';
-import { CalendarDays, CreditCard, FileText, History, ReceiptText, Users } from 'lucide-react';
+import { CalendarDays, CreditCard, FileText, ReceiptText, Users } from 'lucide-react';
 
 import { DetailList } from '@/components/detail-list';
 import { SectionCard } from '@/components/section-card';
-import { StateView } from '@/components/state-view';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Skeleton } from '@/components/ui/skeleton';
 import type { InvoiceView } from '@/lib/invoice-hooks';
-import type { ReservationDetail, ReservationEvent } from '@/lib/reservation-hooks';
+import type { ReservationDetail } from '@/lib/reservation-hooks';
 import { cn } from '@/lib/utils';
 
 type Money = (minor: number) => string;
@@ -170,54 +168,6 @@ export function DriversCard({ drivers }: { drivers: ReservationDetail['drivers']
         </ul>
       ) : (
         <p className="text-sm text-muted-foreground">{t('ops.resv.noDrivers')}</p>
-      )}
-    </SectionCard>
-  );
-}
-
-/** Newest-last audit trail of what happened to the booking. */
-export function HistoryCard({
-  events,
-  loading,
-  money,
-}: {
-  events: ReservationEvent[] | undefined;
-  loading: boolean;
-  money: Money;
-}) {
-  const { t, fmt } = useI18n();
-  return (
-    <SectionCard title={t('ops.resv.history')} icon={History}>
-      {loading ? (
-        <div className="space-y-4">
-          {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-10" />
-          ))}
-        </div>
-      ) : !events?.length ? (
-        <StateView title={t('ops.resv.noHistory')} className="py-4" />
-      ) : (
-        <ol className="relative space-y-5 border-s ps-5" data-testid="ops-resv-history">
-          {events.map((e, i) => (
-            <li key={i} className="relative">
-              <span
-                className="absolute -start-[1.6875rem] top-1.5 size-2.5 rounded-full bg-primary ring-4 ring-card"
-                aria-hidden="true"
-              />
-              <p className="text-sm font-medium capitalize">{humanise(e.type)}</p>
-              <p className="text-xs text-muted-foreground">
-                {fmt.dateTime(e.at)} · {e.actor}
-                {e.amountDeltaMinor ? (
-                  <>
-                    {' · '}
-                    <span className="bidi-isolate">{money(e.amountDeltaMinor)}</span>
-                  </>
-                ) : null}
-              </p>
-              {e.note ? <p className="mt-1 text-sm">{e.note}</p> : null}
-            </li>
-          ))}
-        </ol>
       )}
     </SectionCard>
   );

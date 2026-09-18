@@ -1289,7 +1289,6 @@
   "ops.rent.filterFlow": "تصفية حسب النوع",
   "ops.rent.filterState": "تصفية حسب الحالة",
   "ops.rent.filters": "مرشّحات الإيجارات",
-  "ops.rent.findingArea": "المنطقة (مثل: الصادم الأمامي)",
   "ops.rent.findingCharge": "الرسوم",
   "ops.rent.findingDesc": "ما هو التالف",
   "ops.rent.findings": "ملاحظات الأضرار",
@@ -2149,5 +2148,18 @@
   "ops.status.overdue": "متأخر",
   "ops.status.closed": "مغلق",
   "ops.resv.moreActions": "إجراءات أخرى",
-  "ops.resv.refundMax": "أدخل مبلغًا لا يتجاوز {max}."
+  "ops.resv.refundMax": "أدخل مبلغًا لا يتجاوز {max}.",
+  "ops.rent.pickupDesc": "سجّل التسليم: قراءة العداد ومستوى الوقود ورخصة السائق.",
+  "ops.rent.readinessTitle": "فحص الجاهزية",
+  "ops.rent.readinessDesc": "افحص المركبة المُعادة وسجّل النتيجة.",
+  "ops.rentd.extendLater": "اختر تاريخًا ووقتًا بعد موعد الإرجاع الحالي.",
+  "ops.rentd.currentReturn": "موعد الإرجاع الحالي: {at}.",
+  "ops.rent.tabAll": "كل الإيجارات",
+  "ops.rentd.condition": "الحالة",
+  "ops.rent.findingN": "الملاحظة {n}",
+  "ops.rent.noFindingsYet": "لا توجد أضرار مسجلة. أضف ملاحظة فقط إذا عادت المركبة متضررة.",
+  "ops.rent.findingAreaHint": "مثال: الصدّام الأمامي",
+  "ops.rent.findingDescHint": "مثال: خدش عميق بطول 20 سم تقريبًا",
+  "ops.rent.findingAreaLabel": "المنطقة",
+  "ops.rent.odoPlaceholder": "القراءة بالكم"
 }

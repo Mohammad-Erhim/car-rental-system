@@ -12,6 +12,8 @@ import { RequireAuth, RequirePermission } from '../components/route-guards.js';
 import { RecoveryPage } from '../features/auth/recovery-page.js';
 import { SignInPage } from '../features/auth/sign-in-page.js';
 import { DashboardPage } from '../features/dashboard/dashboard-page.js';
+import { RentalDetailPage } from '../features/rentals/rental-detail-page.js';
+import { RentalsPage } from '../features/rentals/rentals-page.js';
 import { ReservationDetailPage } from '../features/reservations/reservation-detail-page.js';
 import { ReservationsPage } from '../features/reservations/reservations-page.js';
 import { SearchPage } from '../features/search/search-page.js';
@@ -37,8 +39,6 @@ import { PaymentsPage } from '../surfaces/ops/payments-page.js';
 import { ProductsPage } from '../surfaces/ops/products-page.js';
 import { RatePlansPage } from '../surfaces/ops/rate-plans-page.js';
 import { ReferenceDataPage } from '../surfaces/ops/reference-data-page.js';
-import { RentalBoardPage } from '../surfaces/ops/rental-board-page.js';
-import { RentalDetailPage } from '../surfaces/ops/rental-detail-page.js';
 import { ReportsPage } from '../surfaces/ops/reports-page.js';
 import { SeoPage } from '../surfaces/ops/seo-page.js';
 import { StaffRolesPage } from '../surfaces/ops/staff-roles-page.js';
@@ -209,7 +209,7 @@ function dashboardRoutes(): RouteObject[] {
     },
     {
       path: 'rentals',
-      element: perm(['rental.read', 'rental.pickup', 'rental.return'], <RentalBoardPage />),
+      element: perm(['rental.read', 'rental.pickup', 'rental.return'], <RentalsPage />),
     },
     {
       path: 'rentals/:reference',

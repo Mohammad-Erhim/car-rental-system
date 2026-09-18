@@ -10,12 +10,12 @@ import { PAGE_SIZES, activeFilterCount, useSearchState, type SearchKind } from '
 import { DataTable } from '@/components/data-table/data-table';
 import { FiltersSheet } from '@/components/filters-sheet';
 import { Page, PageHeader } from '@/components/page-header';
+import { StateSwitcher } from '@/components/state-switcher';
 import { StateView } from '@/components/state-view';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { opsSearchReady, useOpsSearch, type SearchHit } from '@/lib/admin-hooks';
 import { useLocationScope } from '@/lib/location-scope';
 import { RENTAL_STATES, RESERVATION_STATES } from '@/lib/statuses';
@@ -186,37 +186,30 @@ export function SearchPage() {
           ) : null}
         </div>
 
-        <Tabs
-          value={state.kind || 'all'}
-          onValueChange={(v) => update({ kind: (v === 'all' ? '' : v) as SearchKind })}
-          className="border-t bg-muted/20 px-4 sm:px-5"
-        >
-          <TabsList
-            className="h-auto w-full justify-start gap-1 overflow-x-auto bg-transparent p-0"
-            aria-label={t('ops.search.kind')}
-          >
-            {(
-              [
-                [
-                  'all',
+        <div className="border-t bg-muted/20 px-4 sm:px-5">
+          <StateSwitcher
+            variant="underline"
+            className="py-3 sm:py-0"
+            label={t('ops.search.kind')}
+            value={state.kind || 'all'}
+            onChange={(v) => update({ kind: (v === 'all' ? '' : v) as SearchKind })}
+            testIdPrefix="ops-search-kind"
+            options={[
+              {
+                value: 'all',
+                label: tabLabel(
                   t('ops.search.anyKind'),
                   counts ? counts.reservation + counts.rental : undefined,
-                ],
-                ['reservation', t('ops.search.reservation'), counts?.reservation],
-                ['rental', t('ops.search.rental'), counts?.rental],
-              ] as const
-            ).map(([value, label, n]) => (
-              <TabsTrigger
-                key={value}
-                value={value}
-                data-testid={`ops-search-kind-${value}`}
-                className="rounded-none border-b-2 border-transparent px-2 py-3 sm:px-3 text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
-              >
-                {tabLabel(label, n)}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+                ),
+              },
+              {
+                value: 'reservation',
+                label: tabLabel(t('ops.search.reservation'), counts?.reservation),
+              },
+              { value: 'rental', label: tabLabel(t('ops.search.rental'), counts?.rental) },
+            ]}
+          />
+        </div>
       </Card>
 
       <section aria-label={t('ops.search.resultsLabel')} data-testid="ops-search-results">

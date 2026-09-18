@@ -9,12 +9,12 @@ import {
   BookingSummaryCard,
   ChargesCard,
   DriversCard,
-  HistoryCard,
   InvoicesCard,
   LineItemsCard,
 } from './detail-sections';
 import { CancelDialog, NoShowDialog, RefundDialog } from './reservation-action-dialogs';
 
+import { HistoryCard } from '@/components/history-card';
 import { Page, PageHeader } from '@/components/page-header';
 import { StateView } from '@/components/state-view';
 import { StatusBadge } from '@/components/status-badge';

@@ -9,11 +9,11 @@ import { ReservationCard, useReservationColumns } from './reservation-columns';
 import { DataTable } from '@/components/data-table/data-table';
 import { FiltersSheet } from '@/components/filters-sheet';
 import { Page, PageHeader } from '@/components/page-header';
+import { StateSwitcher } from '@/components/state-switcher';
 import { StateView } from '@/components/state-view';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useLocationScope } from '@/lib/location-scope';
 import { useOpsReservations, type OpsReservationRow } from '@/lib/reservation-hooks';
 import { RESERVATION_STATES } from '@/lib/statuses';
@@ -86,23 +86,26 @@ export function ReservationsPage() {
       <PageHeader title={t('ops.queue.title')} description={t('ops.queue.subtitle')} />
 
       <Card className="overflow-hidden">
-        <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-          <Tabs value={view} onValueChange={setView}>
-            <TabsList aria-label={t('ops.queue.title')} className="h-10">
-              <TabsTrigger value="queue" data-testid="ops-queue-tab-queue" className="gap-2">
-                {t('ops.queue.tabQueue')}
-                {queueCount ? (
-                  <Badge className="px-1.5 tabular-nums">{fmt.number(queueCount)}</Badge>
-                ) : null}
-              </TabsTrigger>
-              <TabsTrigger value="all" data-testid="ops-queue-tab-all">
-                {t('ops.queue.tabAll')}
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-
+        <div className="flex items-center gap-3 p-4 sm:justify-between sm:p-5">
+          <StateSwitcher
+            className="flex-1 sm:flex-none"
+            label={t('ops.queue.title')}
+            value={view}
+            onChange={setView}
+            testIdPrefix="ops-queue-tab"
+            options={[
+              {
+                value: 'queue',
+                label: queueCount
+                  ? `${t('ops.queue.tabQueue')} (${fmt.number(queueCount)})`
+                  : t('ops.queue.tabQueue'),
+              },
+              { value: 'all', label: t('ops.queue.tabAll') },
+            ]}
+          />
           <Button
             variant="outline"
+            className="h-11 shrink-0 sm:h-10"
             onClick={() => setFiltersOpen(true)}
             data-testid="ops-queue-filters"
           >

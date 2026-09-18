@@ -22,6 +22,6 @@ describe('PageHeader', () => {
 
   it('omits optional regions when not given', () => {
     const { container } = render(<PageHeader title="Only title" />);
-    expect(container.querySelectorAll('p')).toHaveLength(0);
+    expect(container.querySelectorAll('p, div.max-w-2xl')).toHaveLength(0);
   });
 });

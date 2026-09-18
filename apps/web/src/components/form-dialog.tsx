@@ -16,6 +16,7 @@ import {
 import { Form } from '@/components/ui/form';
 import { ApiError } from '@/lib/api';
 import { useServerFormErrors } from '@/lib/use-server-form-errors';
+import { cn } from '@/lib/utils';
 
 /**
  * A modal form for one action (assign, cancel, refund …). It owns the ceremony every such
@@ -39,6 +40,7 @@ export function FormDialog<T extends FieldValues>({
   onSubmit,
   submitLabel,
   destructive,
+  size = 'md',
   children,
 }: {
   open: boolean;
@@ -50,6 +52,8 @@ export function FormDialog<T extends FieldValues>({
   onSubmit: (values: T) => Promise<unknown>;
   submitLabel: string;
   destructive?: boolean;
+  /** `lg` for forms with a repeating section or a summary */
+  size?: 'md' | 'lg';
   children: ReactNode;
 }) {
   const { t } = useI18n();
@@ -82,24 +86,32 @@ export function FormDialog<T extends FieldValues>({
 
   return (
     <Dialog open={open} onOpenChange={(next) => (isSubmitting ? undefined : onOpenChange(next))}>
-      <DialogContent closeLabel={t('action.close')} className="sm:max-w-md">
+      <DialogContent
+        closeLabel={t('action.close')}
+        className={cn(
+          'flex flex-col gap-0 overflow-hidden p-0',
+          size === 'lg' ? 'sm:max-w-2xl' : 'sm:max-w-md',
+        )}
+      >
         <Form {...form}>
-          <form onSubmit={submit} noValidate className="space-y-5">
-            <DialogHeader>
+          {/* header and footer stay put; only the fields scroll */}
+          <form onSubmit={submit} noValidate className="flex min-h-0 flex-1 flex-col">
+            <DialogHeader className="shrink-0 border-b px-6 py-4 pe-12">
               <DialogTitle>{title}</DialogTitle>
               {description ? <DialogDescription>{description}</DialogDescription> : null}
             </DialogHeader>
 
-            {message ? (
-              <Alert variant="destructive" data-testid="form-dialog-error">
-                <AlertCircle aria-hidden="true" />
-                <AlertDescription>{message}</AlertDescription>
-              </Alert>
-            ) : null}
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-5">
+              {message ? (
+                <Alert variant="destructive" data-testid="form-dialog-error">
+                  <AlertCircle aria-hidden="true" />
+                  <AlertDescription>{message}</AlertDescription>
+                </Alert>
+              ) : null}
+              {children}
+            </div>
 
-            <div className="space-y-4">{children}</div>
-
-            <DialogFooter>
+            <DialogFooter className="shrink-0 gap-2 border-t bg-muted/20 px-6 py-4">
               <Button
                 type="button"
                 variant="outline"

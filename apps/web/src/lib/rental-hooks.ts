@@ -40,21 +40,38 @@ export interface RentalBoardRow extends Rental {
 }
 
 export interface RentalBoardList {
+  page: number;
+  pageSize: number;
+  /** rows on this page */
   count: number;
+  /** rows matching the current filters */
   total: number;
-  truncated: boolean;
+  pageCount: number;
+  /** rentals per lifecycle state under the location/date filters, ignoring the state filter */
+  stateCounts: {
+    all: number;
+    awaiting_pickup: number;
+    active: number;
+    overdue: number;
+    closed: number;
+  };
   results: RentalBoardRow[];
 }
 
-export function useOpsRentals(filter: {
+export interface RentalBoardFilter {
   state?: string;
   locationCode?: string;
   flow?: 'pickup' | 'return';
   from?: string;
   to?: string;
-}) {
+  /** 1-based */
+  page?: number;
+  pageSize?: number;
+}
+
+export function useOpsRentals(filter: RentalBoardFilter) {
   const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(filter)) if (v) qs.set(k, v);
+  for (const [k, v] of Object.entries(filter)) if (v) qs.set(k, String(v));
   return useQuery({
     queryKey: ['ops', 'rentals', filter],
     placeholderData: keepPreviousData,
@@ -96,6 +113,7 @@ export function useAssignVehicle() {
 }
 
 export function usePickup(reference: string) {
+  const qc = useQueryClient();
   const invalidate = useRentalInvalidate();
   return useMutation({
     mutationFn: (body: {
@@ -104,11 +122,13 @@ export function usePickup(reference: string) {
       driverName: string;
       licenceNumber: string;
     }) => apiFetch<Rental>(`/ops/rentals/${reference}/pickup`, { method: 'POST', body }),
-    onSuccess: () => invalidate(),
+    onSuccess: () =>
+      invalidate(() => void qc.invalidateQueries({ queryKey: ['rental', reference] })),
   });
 }
 
 export function useReturnRental(reference: string) {
+  const qc = useQueryClient();
   const invalidate = useRentalInvalidate();
   return useMutation({
     mutationFn: (body: {
@@ -124,7 +144,8 @@ export function useReturnRental(reference: string) {
           settlementCollected: boolean;
         }
       >(`/ops/rentals/${reference}/return`, { method: 'POST', body }),
-    onSuccess: () => invalidate(),
+    onSuccess: () =>
+      invalidate(() => void qc.invalidateQueries({ queryKey: ['rental', reference] })),
   });
 }
 

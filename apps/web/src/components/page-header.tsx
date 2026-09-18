@@ -45,7 +45,8 @@ export function PageHeader({
           {badge}
         </div>
         {description ? (
-          <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">{description}</p>
+          // a div, not a <p>: callers pass rich content (links, badges)
+          <div className="max-w-2xl text-sm text-muted-foreground sm:text-base">{description}</div>
         ) : null}
         {meta ? (
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-xs text-muted-foreground">

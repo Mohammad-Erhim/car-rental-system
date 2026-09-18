@@ -75,18 +75,18 @@ test('FLOW-OPS: assign → pickup → customer extend → return → ready', asy
 
   await page.goto('/ops/rentals');
   // scope to the rental for *this* reservation — the shared dev DB may carry other rentals
-  const card = page.getByTestId('rental-list').locator(`[data-reservation="${resRef}"]`);
-  await expect(card).toBeVisible();
-  const rentalRef = (await card.getByTestId(/rental-state-/).getAttribute('data-testid'))!.replace(
-    'rental-state-',
-    '',
-  );
-  await page.getByTestId(`pickup-open-${rentalRef}`).click();
-  await page.getByTestId(`pickup-odo-${rentalRef}`).fill('15000');
-  await page.getByTestId(`pickup-driver-${rentalRef}`).fill('Rex Renter');
-  await page.getByTestId(`pickup-licence-${rentalRef}`).fill('D-778899');
-  await page.getByTestId(`pickup-submit-${rentalRef}`).click();
-  await expect(page.getByTestId(`rental-state-${rentalRef}`)).toContainText('active');
+  const row = page.getByRole('row').filter({ hasText: resRef });
+  await expect(row).toBeVisible();
+  const rentalRef = (await row.getByRole('link').first().innerText()).trim();
+  await row.getByTestId(`pickup-open-${rentalRef}`).click();
+  const pickupDialog = page.getByRole('dialog');
+  await pickupDialog.getByTestId(`pickup-odo-${rentalRef}`).fill('15000');
+  await pickupDialog.getByTestId(`pickup-driver-${rentalRef}`).fill('Rex Renter');
+  await pickupDialog.getByTestId(`pickup-licence-${rentalRef}`).fill('D-778899');
+  await pickupDialog.getByRole('button', { name: 'Confirm pickup' }).click();
+  await expect(page.getByText(`${rentalRef} picked up`)).toBeVisible();
+  await page.getByTestId('ops-rent-tab-active').click();
+  await expect(page.getByRole('row').filter({ hasText: rentalRef })).toContainText('Active');
   await shot(page, testInfo, 'ops-rental-active');
 
   // customer extends from the reservation detail
@@ -100,25 +100,26 @@ test('FLOW-OPS: assign → pickup → customer extend → return → ready', asy
 
   // agent returns with a fuel deficit, then marks ready
   await signIn(page, 'staff');
-  await page.goto('/ops/rentals');
+  await page.goto('/ops/rentals?state=active');
   await page.getByTestId(`return-open-${rentalRef}`).click();
-  await page.getByTestId(`return-odo-${rentalRef}`).fill('15480');
-  await page.getByTestId(`return-fuel-${rentalRef}`).fill('75');
+  const returnDialog = page.getByRole('dialog');
+  await returnDialog.getByTestId(`return-odo-${rentalRef}`).fill('15480');
+  await returnDialog.getByTestId(`return-fuel-${rentalRef}`).fill('75');
   // record a damage finding on the return inspection
-  await page.getByTestId(`return-add-finding-${rentalRef}`).click();
-  const finding = page.getByTestId(`return-finding-${rentalRef}-0`);
+  await returnDialog.getByTestId(`return-add-finding-${rentalRef}`).click();
+  const finding = returnDialog.getByTestId(`return-finding-${rentalRef}-0`);
   await finding.getByLabel(/Area/i).fill('front bumper');
   await finding.getByLabel(/What is damaged/i).fill('deep scratch');
   await finding.getByLabel(/Charge/i).fill('60.00');
-  await page.getByTestId(`return-submit-${rentalRef}`).click();
-  // the return confirmation spells out the settlement before it is captured
-  const returnDialog = page.getByRole('dialog');
+  // the dialog spells out the settlement before it is captured
   await expect(returnDialog).toContainText(/deficit|damage/i);
   await returnDialog.getByRole('button', { name: 'Confirm return' }).click();
-  await expect(page.getByTestId(`rental-msg-${rentalRef}`)).toContainText(/settlement/i);
-  await expect(page.getByTestId(`rental-state-${rentalRef}`)).toContainText('closed');
-  await page.getByTestId(`readiness-${rentalRef}`).click();
+  await expect(page.getByText(/settlement/i).first()).toBeVisible();
+  await page.getByTestId('ops-rent-tab-closed').click();
+  await expect(page.getByRole('row').filter({ hasText: rentalRef })).toContainText('Closed');
+  await page.getByTestId(`readiness-open-${rentalRef}`).click();
   await shot(page, testInfo, 'ops-rental-returned');
+  await page.getByRole('dialog').getByRole('button', { name: 'Pass — return to fleet' }).click();
 
   guards.assertClean();
 });

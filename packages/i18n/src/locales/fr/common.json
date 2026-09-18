@@ -1289,7 +1289,6 @@
   "ops.rent.filterFlow": "Filtrer par flux",
   "ops.rent.filterState": "Filtrer par état",
   "ops.rent.filters": "Filtres des locations",
-  "ops.rent.findingArea": "Zone (ex. pare-chocs avant)",
   "ops.rent.findingCharge": "Frais",
   "ops.rent.findingDesc": "Ce qui est endommagé",
   "ops.rent.findings": "Constats de dommages",
@@ -2149,5 +2148,18 @@
   "ops.status.overdue": "En retard",
   "ops.status.closed": "Clôturée",
   "ops.resv.moreActions": "Autres actions",
-  "ops.resv.refundMax": "Saisissez un montant inférieur ou égal à {max}."
+  "ops.resv.refundMax": "Saisissez un montant inférieur ou égal à {max}.",
+  "ops.rent.pickupDesc": "Enregistrez la remise : kilométrage, niveau de carburant et permis du conducteur.",
+  "ops.rent.readinessTitle": "Contrôle de disponibilité",
+  "ops.rent.readinessDesc": "Inspectez le véhicule restitué et enregistrez le résultat.",
+  "ops.rentd.extendLater": "Choisissez une date et une heure postérieures au retour actuel.",
+  "ops.rentd.currentReturn": "Retour actuellement prévu : {at}.",
+  "ops.rent.tabAll": "Toutes les locations",
+  "ops.rentd.condition": "État du véhicule",
+  "ops.rent.findingN": "Constat {n}",
+  "ops.rent.noFindingsYet": "Aucun dommage enregistré. Ajoutez un constat seulement si le véhicule est revenu endommagé.",
+  "ops.rent.findingAreaHint": "p. ex. pare-chocs avant",
+  "ops.rent.findingDescHint": "p. ex. rayure profonde d’environ 20 cm",
+  "ops.rent.findingAreaLabel": "Zone",
+  "ops.rent.odoPlaceholder": "Relevé en km"
 }

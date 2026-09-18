@@ -23,6 +23,14 @@ declare module '@tanstack/react-table' {
   }
 }
 
+// full class names (not interpolated) so Tailwind can see them
+const SHOW_TABLE_FROM = {
+  md: 'hidden md:block',
+  lg: 'hidden lg:block',
+  xl: 'hidden xl:block',
+} as const;
+const HIDE_CARDS_FROM = { md: 'md:hidden', lg: 'lg:hidden', xl: 'xl:hidden' } as const;
+
 export interface DataTableProps<T> {
   columns: ColumnDef<T, unknown>[];
   data: T[];
@@ -41,6 +49,8 @@ export interface DataTableProps<T> {
    * phone. When omitted the table stays and scrolls horizontally.
    */
   renderCard?: (row: T) => ReactNode;
+  /** the width at which the table replaces the cards (default `md`); use `xl` for wide tables */
+  cardBreakpoint?: 'md' | 'lg' | 'xl';
   pagination?: PaginationState;
   /** accessible name for the table */
   label: string;
@@ -65,6 +75,7 @@ export function DataTable<T>({
   error,
   onRowClick,
   renderCard,
+  cardBreakpoint = 'md',
   pagination,
   label,
   bodyTestId,
@@ -83,7 +94,7 @@ export function DataTable<T>({
         className={cn('transition-opacity', fetching && !loading && 'opacity-60')}
       >
         {/* table — `md` and up (always, when there is no card layout) */}
-        <div className={cn(renderCard && 'hidden md:block')}>
+        <div className={cn(renderCard && SHOW_TABLE_FROM[cardBreakpoint])}>
           <Table aria-label={label} className="min-w-[40rem]">
             <TableHeader className="bg-muted/40">
               {table.getHeaderGroups().map((hg) => (
@@ -133,7 +144,7 @@ export function DataTable<T>({
 
         {/* cards — below `md` */}
         {renderCard ? (
-          <ul className="divide-y md:hidden">
+          <ul className={cn('divide-y', HIDE_CARDS_FROM[cardBreakpoint])}>
             {loading
               ? Array.from({ length: Math.min(skeletonRows, 5) }, (_, i) => (
                   <li key={i} className="space-y-2 p-4">

@@ -38,6 +38,8 @@ export interface FilterValues {
   location: string;
   from: string;
   to: string;
+  /** an extra single-choice filter (e.g. pickups vs returns); only used when `flows` is given */
+  flow?: string;
 }
 type Values = FilterValues;
 
@@ -55,6 +57,8 @@ export function FiltersSheet({
   locations,
   onApply,
   dateLabels,
+  flows,
+  flowLabel,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -64,6 +68,9 @@ export function FiltersSheet({
   onApply: (values: Values) => void;
   /** override the date-range labels (defaults to "Pickup from" / "Pickup until") */
   dateLabels?: { from: string; to: string };
+  /** options for an extra "flow" select (first entry is the unfiltered/"any" choice) */
+  flows?: Array<{ value: string; label: string }>;
+  flowLabel?: string;
 }) {
   const { t } = useI18n();
 
@@ -139,6 +146,36 @@ export function FiltersSheet({
                 />
               ) : null}
 
+              {flows?.length ? (
+                <FormField
+                  control={form.control}
+                  name="flow"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{flowLabel}</FormLabel>
+                      <Select
+                        value={field.value || ANY}
+                        onValueChange={(v) => field.onChange(v === ANY ? '' : v)}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value={ANY}>{flows[0]?.label}</SelectItem>
+                          {flows.slice(1).map((f) => (
+                            <SelectItem key={f.value} value={f.value}>
+                              {f.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )}
+                />
+              ) : null}
+
               <FormField
                 control={form.control}
                 name="location"
@@ -202,7 +239,7 @@ export function FiltersSheet({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => form.reset({ status: '', location: '', from: '', to: '' })}
+                onClick={() => form.reset({ status: '', flow: '', location: '', from: '', to: '' })}
               >
                 {t('ops.search.reset')}
               </Button>

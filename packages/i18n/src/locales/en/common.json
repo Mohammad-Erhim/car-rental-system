@@ -1289,7 +1289,6 @@
   "ops.rent.filterFlow": "Filter by flow",
   "ops.rent.filterState": "Filter by state",
   "ops.rent.filters": "Rental filters",
-  "ops.rent.findingArea": "Area (e.g. front bumper)",
   "ops.rent.findingCharge": "Charge",
   "ops.rent.findingDesc": "What is damaged",
   "ops.rent.findings": "Damage findings",
@@ -2149,5 +2148,18 @@
   "ops.status.overdue": "Overdue",
   "ops.status.closed": "Closed",
   "ops.resv.moreActions": "More actions",
-  "ops.resv.refundMax": "Enter an amount up to {max}."
+  "ops.resv.refundMax": "Enter an amount up to {max}.",
+  "ops.rent.pickupDesc": "Record the handover: odometer, fuel level and the driver’s licence.",
+  "ops.rent.readinessTitle": "Readiness check",
+  "ops.rent.readinessDesc": "Inspect the returned vehicle and record the outcome.",
+  "ops.rentd.extendLater": "Choose a date and time after the current return.",
+  "ops.rentd.currentReturn": "Currently due back {at}.",
+  "ops.rent.tabAll": "All rentals",
+  "ops.rentd.condition": "Condition",
+  "ops.rent.findingN": "Finding {n}",
+  "ops.rent.noFindingsYet": "No damage recorded. Add a finding only if the vehicle came back damaged.",
+  "ops.rent.findingAreaHint": "e.g. front bumper",
+  "ops.rent.findingDescHint": "e.g. deep scratch, about 20 cm",
+  "ops.rent.findingAreaLabel": "Area",
+  "ops.rent.odoPlaceholder": "Reading in km"
 }
