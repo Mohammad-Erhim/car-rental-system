@@ -925,16 +925,22 @@ export interface OpsSearchParams {
   locationCode?: string;
   from?: string;
   to?: string;
+  /** 1-based */
+  page?: number;
+  pageSize?: number;
 }
 
 export interface OpsSearchResponse {
   query: string;
-  /** rows returned (<= the display cap) */
+  page: number;
+  pageSize: number;
+  /** rows on this page */
   count: number;
-  /** true number of matches before the cap */
+  /** matches for the current filters (both kinds unless `kind` is set) */
   total: number;
-  /** true when `total > count` — prompt the operator to narrow */
-  truncated: boolean;
+  pageCount: number;
+  /** matches per kind ignoring the `kind` filter — drives the kind tabs */
+  kindCounts: { reservation: number; rental: number };
   results: SearchHit[];
 }
 
@@ -952,7 +958,7 @@ export function opsSearchReady(p: OpsSearchParams): boolean {
 
 export function useOpsSearch(params: OpsSearchParams) {
   const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) if (v) qs.set(k, v.trim());
+  for (const [k, v] of Object.entries(params)) if (v) qs.set(k, String(v).trim());
   return useQuery({
     queryKey: ['ops', 'search', params],
     enabled: opsSearchReady(params),

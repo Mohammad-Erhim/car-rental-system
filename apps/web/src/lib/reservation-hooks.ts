@@ -145,25 +145,32 @@ export interface OpsReservationRow {
 
 export interface OpsReservationList {
   view: 'queue' | 'all';
+  page: number;
+  pageSize: number;
+  /** rows on this page */
   count: number;
+  /** rows matching the current view + filters */
   total: number;
-  truncated: boolean;
+  pageCount: number;
+  /** bookings needing action in the actor's scope, whatever the view/filters — for the tab badge */
+  queueCount: number;
   results: OpsReservationRow[];
 }
 
-export function useOpsReservations(filter: {
+export interface OpsReservationFilter {
   view?: 'queue' | 'all';
   state?: string;
   locationCode?: string;
   from?: string;
   to?: string;
-}) {
+  /** 1-based */
+  page?: number;
+  pageSize?: number;
+}
+
+export function useOpsReservations(filter: OpsReservationFilter) {
   const qs = new URLSearchParams();
-  if (filter.view) qs.set('view', filter.view);
-  if (filter.state) qs.set('state', filter.state);
-  if (filter.locationCode) qs.set('locationCode', filter.locationCode);
-  if (filter.from) qs.set('from', filter.from);
-  if (filter.to) qs.set('to', filter.to);
+  for (const [k, v] of Object.entries(filter)) if (v) qs.set(k, String(v));
   return useQuery({
     queryKey: ['ops', 'reservations', filter],
     placeholderData: keepPreviousData,

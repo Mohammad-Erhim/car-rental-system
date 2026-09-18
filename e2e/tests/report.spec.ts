@@ -245,14 +245,13 @@ test('SCREEN-OPS-004 / FR-ADM-003: the unified search runs across reservations +
 
   // a query with no matches renders the empty state cleanly (no console errors)
   await page.getByTestId('ops-search-q').fill('RES-NO-SUCH-REF');
-  await page.getByTestId('ops-search-go').click();
-  await expect(page.getByTestId('ops-search-count')).toContainText('0');
+  await expect(page.getByTestId('ops-search-results')).toContainText('No matches');
   await shot(page, testInfo, 'ops-search');
 
-  // the kind filter is offered
-  await page.getByTestId('ops-search-kind').selectOption('rental');
-  await page.getByTestId('ops-search-go').click();
-  await expect(page.getByTestId('ops-search-count')).toBeVisible();
+  // the kind tabs narrow the search, and the choice is kept in the URL
+  await page.getByTestId('ops-search-kind-rental').click();
+  await expect(page).toHaveURL(/kind=rental/);
+  await expect(page.getByTestId('ops-search-results')).toBeVisible();
 
   guards.assertClean();
 });

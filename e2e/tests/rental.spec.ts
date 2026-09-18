@@ -69,9 +69,9 @@ test('FLOW-OPS: assign → pickup → customer extend → return → ready', asy
   // agent assigns + picks up
   await signIn(page, 'staff');
   await page.goto('/ops/work');
-  await page.getByLabel('Filter by state').selectOption('confirmed');
   await page.getByTestId(`assign-${resRef}`).click();
-  await expect(page.getByTestId('assign-msg')).toContainText(/assigned/i);
+  await page.getByRole('dialog').getByRole('button', { name: 'Assign vehicle' }).click();
+  await expect(page.getByText(`Vehicle assigned for ${resRef}.`)).toBeVisible();
 
   await page.goto('/ops/rentals');
   // scope to the rental for *this* reservation — the shared dev DB may carry other rentals

@@ -122,7 +122,8 @@ test.describe('operations reservation queue (APP-OPS)', () => {
     await page.goto('/ops/work');
     await expect(page.getByRole('heading', { name: 'Reservations' })).toBeVisible();
     await expect(page.getByTestId('ops-res-table')).toBeVisible();
-    await page.getByLabel('Filter by state').selectOption('confirmed');
+    await page.getByTestId('ops-queue-tab-all').click();
+    await expect(page).toHaveURL(/view=all/);
     await expect(page.getByTestId('ops-res-rows')).toBeVisible();
     await shot(page, testInfo, 'ops-reservation-queue');
     guards.assertClean();

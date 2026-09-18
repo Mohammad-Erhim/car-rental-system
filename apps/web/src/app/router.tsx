@@ -1,11 +1,22 @@
 import { useT } from '@carrental/i18n/react';
 import { AppStateView } from '@carrental/ui';
 import type { ReactNode } from 'react';
-import { createBrowserRouter, useNavigate, useRouteError } from 'react-router-dom';
+import {
+  createBrowserRouter,
+  useNavigate,
+  useRouteError,
+  type RouteObject,
+} from 'react-router-dom';
 
 import { RequireAuth, RequirePermission } from '../components/route-guards.js';
-import { RecoveryPage } from '../surfaces/auth/recovery-page.js';
-import { SignInPage } from '../surfaces/auth/sign-in-page.js';
+import { RecoveryPage } from '../features/auth/recovery-page.js';
+import { SignInPage } from '../features/auth/sign-in-page.js';
+import { DashboardPage } from '../features/dashboard/dashboard-page.js';
+import { ReservationDetailPage } from '../features/reservations/reservation-detail-page.js';
+import { ReservationsPage } from '../features/reservations/reservations-page.js';
+import { SearchPage } from '../features/search/search-page.js';
+import { AuthLayout } from '../layouts/auth-layout.js';
+import { DashboardLayout } from '../layouts/dashboard-layout.js';
 import { AuditLogPage } from '../surfaces/ops/audit-log-page.js';
 import { BrandingPage } from '../surfaces/ops/branding-page.js';
 import { CategoriesPage } from '../surfaces/ops/categories-page.js';
@@ -20,8 +31,6 @@ import { FleetInventoryPage } from '../surfaces/ops/fleet-inventory-page.js';
 import { LanguagesPage } from '../surfaces/ops/languages-page.js';
 import { LocationsPage } from '../surfaces/ops/locations-page.js';
 import { MediaLibraryPage } from '../surfaces/ops/media-library-page.js';
-import { OpsDashboard } from '../surfaces/ops/ops-dashboard.js';
-import { OpsLayout } from '../surfaces/ops/ops-layout.js';
 import { OrganizationPage } from '../surfaces/ops/organization-page.js';
 import { PagesPage } from '../surfaces/ops/pages-builder/pages-page.js';
 import { PaymentsPage } from '../surfaces/ops/payments-page.js';
@@ -31,9 +40,6 @@ import { ReferenceDataPage } from '../surfaces/ops/reference-data-page.js';
 import { RentalBoardPage } from '../surfaces/ops/rental-board-page.js';
 import { RentalDetailPage } from '../surfaces/ops/rental-detail-page.js';
 import { ReportsPage } from '../surfaces/ops/reports-page.js';
-import { ReservationDetailPage } from '../surfaces/ops/reservation-detail-page.js';
-import { ReservationQueuePage } from '../surfaces/ops/reservation-queue-page.js';
-import { SearchPage } from '../surfaces/ops/search-page.js';
 import { SeoPage } from '../surfaces/ops/seo-page.js';
 import { StaffRolesPage } from '../surfaces/ops/staff-roles-page.js';
 import { TemplatesPage } from '../surfaces/ops/templates-page.js';
@@ -75,131 +81,35 @@ function NotFound() {
   );
 }
 
-const staffOnly = (el: ReactNode) => <RequireAuth audience="staff">{el}</RequireAuth>;
-const perm = (anyOf: string[], el: ReactNode, fallbackTitle?: string) =>
-  staffOnly(
-    <RequirePermission anyOf={anyOf} fallbackTitle={fallbackTitle}>
-      {el}
-    </RequirePermission>,
-  );
+const perm = (anyOf: string[], el: ReactNode, fallbackTitle?: string) => (
+  <RequirePermission anyOf={anyOf} fallbackTitle={fallbackTitle}>
+    {el}
+  </RequirePermission>
+);
 
 export const router = createBrowserRouter(
   [
     {
       path: '/',
-      element: <OpsLayout />,
       errorElement: <RouteError />,
       children: [
-        { path: 'sign-in', element: <SignInPage audience="staff" /> },
-        { path: 'recovery', element: <RecoveryPage audience="staff" /> },
-        { index: true, element: staffOnly(<OpsDashboard />) },
+        // signed-out screens: branded two-column shell, no sidebar
         {
-          path: 'search',
-          element: perm(['reservation.read', 'rental.read'], <SearchPage />),
+          element: <AuthLayout />,
+          children: [
+            { path: 'sign-in', element: <SignInPage /> },
+            { path: 'recovery', element: <RecoveryPage /> },
+            { path: 'register', element: <RecoveryPage mode="activate" /> },
+          ],
         },
+        // everything else needs a signed-in staff session and gets the dashboard shell
         {
-          path: 'config/reference-data',
-          element: perm(['config.read', 'lookup.manage'], <ReferenceDataPage />),
-        },
-        { path: 'admin/staff', element: perm(['staff.manage'], <StaffRolesPage />) },
-        {
-          path: 'customers',
-          element: perm(['customer.read'], <CustomersPage />),
-        },
-        {
-          path: 'config/translations',
-          element: perm(['config.read', 'config.publish'], <TranslationsPage />),
-        },
-        {
-          path: 'config/templates',
-          element: perm(['config.read', 'config.publish'], <TemplatesPage />),
-        },
-        {
-          path: 'config/branding',
-          element: perm(['config.read', 'config.publish'], <BrandingPage />),
-        },
-        {
-          path: 'config/seo',
-          element: perm(['config.read', 'config.publish'], <SeoPage />),
-        },
-        {
-          path: 'config/pages',
-          element: perm(['config.read', 'config.publish'], <PagesPage />),
-        },
-        {
-          path: 'config/consent',
-          element: perm(['config.read', 'config.publish'], <ConsentPage />),
-        },
-        { path: 'consent-log', element: perm(['audit.read'], <ConsentLogPage />) },
-        {
-          path: 'config/languages',
-          element: perm(['config.read', 'config.publish'], <LanguagesPage />),
-        },
-        {
-          path: 'work',
-          element: perm(['reservation.read', 'reservation.modify'], <ReservationQueuePage />),
-        },
-        {
-          path: 'work/:reference',
-          element: perm(['reservation.read', 'reservation.modify'], <ReservationDetailPage />),
-        },
-        { path: 'fleet', element: perm(['fleet.read', 'fleet.manage'], <FleetInventoryPage />) },
-        {
-          path: 'config/rate-plans',
-          element: perm(['config.read', 'config.publish'], <RatePlansPage />),
-        },
-        {
-          path: 'catalogue/categories',
-          element: perm(['catalogue.read', 'catalogue.manage'], <CategoriesPage />),
-        },
-        {
-          path: 'catalogue/products',
-          element: perm(['catalogue.read', 'catalogue.manage', 'config.read'], <ProductsPage />),
-        },
-        {
-          path: 'catalogue/media',
-          element: perm(
-            ['catalogue.read', 'catalogue.manage', 'fleet.read', 'fleet.manage', 'config.read'],
-            <MediaLibraryPage />,
+          element: (
+            <RequireAuth audience="staff">
+              <DashboardLayout />
+            </RequireAuth>
           ),
-        },
-        {
-          path: 'config/locations',
-          element: perm(['config.read', 'config.publish'], <LocationsPage />),
-        },
-        {
-          path: 'config/organization',
-          element: perm(['config.read', 'config.publish'], <OrganizationPage />),
-        },
-        {
-          path: 'config/payments',
-          element: perm(['payment.manage'], <PaymentsPage />),
-        },
-        {
-          path: 'config/email',
-          element: perm(['email.manage'], <EmailPage />),
-        },
-        {
-          path: 'rentals',
-          element: perm(['rental.read', 'rental.pickup', 'rental.return'], <RentalBoardPage />),
-        },
-        {
-          path: 'rentals/:reference',
-          element: perm(['rental.read', 'rental.pickup', 'rental.return'], <RentalDetailPage />),
-        },
-        {
-          path: 'finance',
-          element: perm(['payment.read', 'payment.reconcile'], <FinanceCasesPage />),
-        },
-        {
-          path: 'config',
-          element: perm(['config.read', 'config.publish'], <ConfigVersionsPage />),
-        },
-        { path: 'insights', element: perm(['report.read'], <ReportsPage />) },
-        { path: 'audit', element: perm(['audit.read'], <AuditLogPage />) },
-        {
-          path: 'data-quality',
-          element: perm(['audit.read', 'config.read'], <DataQualityPage />),
+          children: dashboardRoutes(),
         },
       ],
     },
@@ -207,3 +117,117 @@ export const router = createBrowserRouter(
   ],
   { basename: '/ops' },
 );
+
+function dashboardRoutes(): RouteObject[] {
+  return [
+    { index: true, element: <DashboardPage /> },
+    {
+      path: 'search',
+      element: perm(['reservation.read', 'rental.read'], <SearchPage />),
+    },
+    {
+      path: 'config/reference-data',
+      element: perm(['config.read', 'lookup.manage'], <ReferenceDataPage />),
+    },
+    { path: 'admin/staff', element: perm(['staff.manage'], <StaffRolesPage />) },
+    {
+      path: 'customers',
+      element: perm(['customer.read'], <CustomersPage />),
+    },
+    {
+      path: 'config/translations',
+      element: perm(['config.read', 'config.publish'], <TranslationsPage />),
+    },
+    {
+      path: 'config/templates',
+      element: perm(['config.read', 'config.publish'], <TemplatesPage />),
+    },
+    {
+      path: 'config/branding',
+      element: perm(['config.read', 'config.publish'], <BrandingPage />),
+    },
+    {
+      path: 'config/seo',
+      element: perm(['config.read', 'config.publish'], <SeoPage />),
+    },
+    {
+      path: 'config/pages',
+      element: perm(['config.read', 'config.publish'], <PagesPage />),
+    },
+    {
+      path: 'config/consent',
+      element: perm(['config.read', 'config.publish'], <ConsentPage />),
+    },
+    { path: 'consent-log', element: perm(['audit.read'], <ConsentLogPage />) },
+    {
+      path: 'config/languages',
+      element: perm(['config.read', 'config.publish'], <LanguagesPage />),
+    },
+    {
+      path: 'work',
+      element: perm(['reservation.read', 'reservation.modify'], <ReservationsPage />),
+    },
+    {
+      path: 'work/:reference',
+      element: perm(['reservation.read', 'reservation.modify'], <ReservationDetailPage />),
+    },
+    { path: 'fleet', element: perm(['fleet.read', 'fleet.manage'], <FleetInventoryPage />) },
+    {
+      path: 'config/rate-plans',
+      element: perm(['config.read', 'config.publish'], <RatePlansPage />),
+    },
+    {
+      path: 'catalogue/categories',
+      element: perm(['catalogue.read', 'catalogue.manage'], <CategoriesPage />),
+    },
+    {
+      path: 'catalogue/products',
+      element: perm(['catalogue.read', 'catalogue.manage', 'config.read'], <ProductsPage />),
+    },
+    {
+      path: 'catalogue/media',
+      element: perm(
+        ['catalogue.read', 'catalogue.manage', 'fleet.read', 'fleet.manage', 'config.read'],
+        <MediaLibraryPage />,
+      ),
+    },
+    {
+      path: 'config/locations',
+      element: perm(['config.read', 'config.publish'], <LocationsPage />),
+    },
+    {
+      path: 'config/organization',
+      element: perm(['config.read', 'config.publish'], <OrganizationPage />),
+    },
+    {
+      path: 'config/payments',
+      element: perm(['payment.manage'], <PaymentsPage />),
+    },
+    {
+      path: 'config/email',
+      element: perm(['email.manage'], <EmailPage />),
+    },
+    {
+      path: 'rentals',
+      element: perm(['rental.read', 'rental.pickup', 'rental.return'], <RentalBoardPage />),
+    },
+    {
+      path: 'rentals/:reference',
+      element: perm(['rental.read', 'rental.pickup', 'rental.return'], <RentalDetailPage />),
+    },
+    {
+      path: 'finance',
+      element: perm(['payment.read', 'payment.reconcile'], <FinanceCasesPage />),
+    },
+    {
+      path: 'config',
+      element: perm(['config.read', 'config.publish'], <ConfigVersionsPage />),
+    },
+    { path: 'insights', element: perm(['report.read'], <ReportsPage />) },
+    { path: 'audit', element: perm(['audit.read'], <AuditLogPage />) },
+    {
+      path: 'data-quality',
+      element: perm(['audit.read', 'config.read'], <DataQualityPage />),
+    },
+  ];
+}

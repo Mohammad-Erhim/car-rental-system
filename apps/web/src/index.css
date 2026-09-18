@@ -68,6 +68,15 @@
   }
   /* @carrental/theme:end */
 
+  /* Sidebar surface — derived from the brand tokens so it follows light/dark + brand config. */
+  :root {
+    --sidebar: var(--card);
+    --sidebar-foreground: var(--foreground);
+    --sidebar-border: var(--border);
+    --sidebar-accent: var(--accent);
+    --sidebar-accent-foreground: var(--accent-foreground);
+  }
+
   * {
     border-color: hsl(var(--border));
   }
