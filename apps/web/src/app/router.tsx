@@ -11,6 +11,7 @@ import {
 import { RequireAuth, RequirePermission } from '../components/route-guards.js';
 import { RecoveryPage } from '../features/auth/recovery-page.js';
 import { SignInPage } from '../features/auth/sign-in-page.js';
+import { BrandingPage } from '../features/branding/branding-page.js';
 import { CategoriesPage } from '../features/categories/categories-page.js';
 import { FeaturesPage } from '../features/categories/features-page.js';
 import { CustomerDetailPage } from '../features/customers/customer-detail-page.js';
@@ -38,7 +39,6 @@ import { TranslationsPage } from '../features/translations/translations-page.js'
 import { AuthLayout } from '../layouts/auth-layout.js';
 import { DashboardLayout } from '../layouts/dashboard-layout.js';
 import { AuditLogPage } from '../surfaces/ops/audit-log-page.js';
-import { BrandingPage } from '../surfaces/ops/branding-page.js';
 import { ConfigVersionsPage } from '../surfaces/ops/config-versions-page.js';
 import { ConsentLogPage } from '../surfaces/ops/consent/consent-log-page.js';
 import { ConsentPage } from '../surfaces/ops/consent/consent-page.js';
