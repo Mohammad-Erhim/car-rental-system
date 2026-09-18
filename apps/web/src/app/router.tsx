@@ -31,6 +31,8 @@ import { RentalsPage } from '../features/rentals/rentals-page.js';
 import { ReservationDetailPage } from '../features/reservations/reservation-detail-page.js';
 import { ReservationsPage } from '../features/reservations/reservations-page.js';
 import { SearchPage } from '../features/search/search-page.js';
+import { TemplatePage } from '../features/templates/template-page.js';
+import { TemplatesPage } from '../features/templates/templates-page.js';
 import { TranslationEditorPage } from '../features/translations/translation-editor-page.js';
 import { TranslationsPage } from '../features/translations/translations-page.js';
 import { AuthLayout } from '../layouts/auth-layout.js';
@@ -47,7 +49,6 @@ import { PaymentsPage } from '../surfaces/ops/payments-page.js';
 import { ReportsPage } from '../surfaces/ops/reports-page.js';
 import { SeoPage } from '../surfaces/ops/seo-page.js';
 import { StaffRolesPage } from '../surfaces/ops/staff-roles-page.js';
-import { TemplatesPage } from '../surfaces/ops/templates-page.js';
 
 /**
  * `apps/web` is the Operations & Admin dashboard only (DEC-023 — the customer surface is
@@ -153,6 +154,10 @@ function dashboardRoutes(): RouteObject[] {
     {
       path: 'config/templates',
       element: perm(['config.read', 'config.publish'], <TemplatesPage />),
+    },
+    {
+      path: 'config/templates/:key/:channel',
+      element: perm(['config.read', 'config.publish'], <TemplatePage />),
     },
     {
       path: 'config/branding',
