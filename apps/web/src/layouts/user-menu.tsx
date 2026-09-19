@@ -48,10 +48,12 @@ export function UserMenu({ variant = 'compact' }: { variant?: 'compact' | 'full'
           {variant === 'full' ? (
             <>
               <span className="min-w-0 flex-1 text-start leading-tight">
-                <span className="block truncate text-sm font-medium">{actor.displayName}</span>
+                <span className="block truncate text-sm font-medium">
+                  <bdi>{actor.displayName}</bdi>
+                </span>
                 {org ? (
                   <span className="block truncate text-xs font-normal text-muted-foreground">
-                    {org}
+                    <bdi>{org}</bdi>
                   </span>
                 ) : null}
               </span>
@@ -62,8 +64,14 @@ export function UserMenu({ variant = 'compact' }: { variant?: 'compact' | 'full'
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuLabel className="font-normal">
-          <p className="truncate text-sm font-medium">{actor.displayName}</p>
-          {org ? <p className="truncate text-xs text-muted-foreground">{org}</p> : null}
+          <p className="truncate text-sm font-medium">
+            <bdi>{actor.displayName}</bdi>
+          </p>
+          {org ? (
+            <p className="truncate text-xs text-muted-foreground">
+              <bdi>{org}</bdi>
+            </p>
+          ) : null}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem

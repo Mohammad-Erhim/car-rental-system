@@ -213,7 +213,6 @@ export function AppSidebar({ groups }: { groups: NavGroup[] }) {
       setStored(entry.group.titleKey, true);
     }
     // only a navigation should reopen; the person closing it again must not fight this
-     
   }, [pathname]);
 
   return (

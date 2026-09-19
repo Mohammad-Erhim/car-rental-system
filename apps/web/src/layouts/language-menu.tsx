@@ -43,9 +43,11 @@ export function LanguageMenu({ showName = false }: { showName?: boolean }) {
             onSelect={() => setLocale(def.code)}
             className="justify-between gap-4"
           >
-            <span>
-              {def.nativeName}
-              <span className="ms-2 text-xs text-muted-foreground">{def.englishName}</span>
+            <span className="flex items-baseline gap-2">
+              <bdi lang={def.code}>{def.nativeName}</bdi>
+              {def.englishName !== def.nativeName ? (
+                <bdi className="text-xs text-muted-foreground">{def.englishName}</bdi>
+              ) : null}
             </span>
             {def.code === locale ? <Check className="text-primary" aria-hidden="true" /> : null}
           </DropdownMenuItem>
