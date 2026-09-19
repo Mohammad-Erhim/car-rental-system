@@ -36,12 +36,14 @@ export function StateSwitcher({
   variant?: 'pills' | 'underline';
   className?: string;
 }) {
+  // a few short choices fit as tabs even on a phone — a dropdown would hide them behind a tap
+  const compact = options.length <= 3 && options.reduce((n, o) => n + o.label.length, 0) <= 36;
   return (
     <div className={cn('min-w-0', className)}>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger
           aria-label={label}
-          className="h-11 sm:hidden"
+          className={cn('h-11 sm:hidden', compact && 'hidden')}
           data-testid={testIdPrefix ? `${testIdPrefix}-select` : undefined}
         >
           <SelectValue />
@@ -55,11 +57,21 @@ export function StateSwitcher({
         </SelectContent>
       </Select>
 
-      <Tabs value={value} onValueChange={onChange} className="hidden sm:block">
+      <Tabs
+        value={value}
+        onValueChange={onChange}
+        className={compact ? 'block' : 'hidden sm:block'}
+      >
         <TabsList
           aria-label={label}
+          style={
+            compact
+              ? { gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }
+              : undefined
+          }
           className={cn(
             'h-auto max-w-full justify-start overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+            compact && 'grid w-full sm:inline-flex sm:w-auto',
             variant === 'underline' && 'w-full gap-1 bg-transparent p-0',
           )}
         >
@@ -69,6 +81,7 @@ export function StateSwitcher({
               value={o.value}
               data-testid={testIdPrefix ? `${testIdPrefix}-${o.value}` : undefined}
               className={cn(
+                compact && 'min-h-10 truncate',
                 variant === 'underline' &&
                   'rounded-none border-b-2 border-transparent px-3 py-3 text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none',
               )}
