@@ -1,8 +1,9 @@
 import { createQueryClient } from '@carrental/client';
 import { AuthProvider } from '@carrental/client/react';
 import type { ResourceBundle } from '@carrental/i18n';
-import { I18nProvider } from '@carrental/i18n/react';
+import { I18nProvider, useI18n } from '@carrental/i18n/react';
 import { ThemeProvider } from '@carrental/ui';
+import { DirectionProvider } from '@radix-ui/react-direction';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 
@@ -23,6 +24,12 @@ function BrandedThemeProvider({ children }: { children: ReactNode }) {
       {children}
     </ThemeProvider>
   );
+}
+
+/** Radix components position and key-navigate from their own direction context, not from `<html dir>`. */
+function RadixDirection({ children }: { children: ReactNode }) {
+  const { direction } = useI18n();
+  return <DirectionProvider dir={direction}>{children}</DirectionProvider>;
 }
 
 /**
@@ -88,12 +95,14 @@ export function AppProviders({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <BrandedThemeProvider>
         <I18nBoundary>
-          <AuthProvider>
-            <LocationScopeProvider>
-              <StepUpProvider>{children}</StepUpProvider>
-              <Toaster richColors closeButton position="top-right" />
-            </LocationScopeProvider>
-          </AuthProvider>
+          <RadixDirection>
+            <AuthProvider>
+              <LocationScopeProvider>
+                <StepUpProvider>{children}</StepUpProvider>
+                <Toaster richColors closeButton position="top-right" />
+              </LocationScopeProvider>
+            </AuthProvider>
+          </RadixDirection>
         </I18nBoundary>
       </BrandedThemeProvider>
     </QueryClientProvider>
