@@ -38,6 +38,7 @@ import { ReservationDetailPage } from '../features/reservations/reservation-deta
 import { ReservationsPage } from '../features/reservations/reservations-page.js';
 import { SearchPage } from '../features/search/search-page.js';
 import { SeoPage } from '../features/seo/seo-page.js';
+import { StaffPage } from '../features/staff/staff-page.js';
 import { TemplatePage } from '../features/templates/template-page.js';
 import { TemplatesPage } from '../features/templates/templates-page.js';
 import { TranslationEditorPage } from '../features/translations/translation-editor-page.js';
@@ -48,7 +49,6 @@ import { AuditLogPage } from '../surfaces/ops/audit-log-page.js';
 import { ConsentLogPage } from '../surfaces/ops/consent/consent-log-page.js';
 import { DataQualityPage } from '../surfaces/ops/data-quality-page.js';
 import { ReportsPage } from '../surfaces/ops/reports-page.js';
-import { StaffRolesPage } from '../surfaces/ops/staff-roles-page.js';
 
 /**
  * `apps/web` is the Operations & Admin dashboard only (DEC-023 — the customer surface is
@@ -134,7 +134,7 @@ function dashboardRoutes(): RouteObject[] {
       path: 'config/reference-data',
       element: perm(['config.read', 'lookup.manage'], <ReferenceDataPage />),
     },
-    { path: 'admin/staff', element: perm(['staff.manage'], <StaffRolesPage />) },
+    { path: 'admin/staff', element: perm(['staff.manage'], <StaffPage />) },
     {
       path: 'customers',
       element: perm(['customer.read'], <CustomersPage />),

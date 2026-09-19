@@ -211,10 +211,15 @@ export function CheckboxGroupField<T extends FieldValues>({
   className,
   options,
   emptyLabel,
+  disabledValues,
+  disabledHint,
   testId,
 }: BaseProps<T> & {
   options: Array<{ value: string; label: string }>;
   emptyLabel?: string;
+  /** options that can't be toggled (shown dimmed, with `disabledHint` as a tooltip) */
+  disabledValues?: string[];
+  disabledHint?: string;
   testId?: string;
 }) {
   const { t } = useI18n();
@@ -234,13 +239,19 @@ export function CheckboxGroupField<T extends FieldValues>({
             <div className="grid gap-2 sm:grid-cols-2">
               {options.map((o) => {
                 const checked = value.includes(o.value);
+                const locked = disabledValues?.includes(o.value) ?? false;
                 return (
                   <label
                     key={o.value}
-                    className="flex cursor-pointer items-center gap-2.5 rounded-md border p-2.5 text-sm font-normal"
+                    title={locked ? disabledHint : undefined}
+                    className={cn(
+                      'flex items-center gap-2.5 rounded-md border p-2.5 text-sm font-normal',
+                      locked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
+                    )}
                   >
                     <Checkbox
                       checked={checked}
+                      disabled={locked}
                       onCheckedChange={(v) =>
                         field.onChange(
                           v === true ? [...value, o.value] : value.filter((c) => c !== o.value),
