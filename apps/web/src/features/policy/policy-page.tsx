@@ -56,18 +56,7 @@ export function PolicyPage() {
 
   return (
     <Page>
-      <PageHeader
-        title={t('ops.cfg.title')}
-        description={t('ops.cfg.subtitle')}
-        actions={
-          canPublish ? (
-            <Button onClick={() => setSheet({ from: null })} data-testid="config-new">
-              <Plus aria-hidden="true" />
-              {t('ops.cfg.newDraft')}
-            </Button>
-          ) : null
-        }
-      />
+      <PageHeader title={t('ops.cfg.title')} description={t('ops.cfg.subtitle')} />
 
       <StateSwitcher
         label={t('ops.cfg.setting')}
@@ -84,6 +73,19 @@ export function PolicyPage() {
           live
             ? `${t('ops.cfg.rev', { n: live.revision })}${live.effectiveFrom ? ` · ${fmt.dateTime(live.effectiveFrom)}` : ''}`
             : t('ops.cfg.noPublished')
+        }
+        actions={
+          canPublish ? (
+            <Button
+              size="sm"
+              onClick={() => setSheet({ from: null })}
+              data-testid="config-new"
+              aria-label={t('ops.cfg.newFor', { setting: t(`ops.cfg.key.${setting.key}`) })}
+            >
+              <Plus aria-hidden="true" />
+              {t('ops.cfg.newDraft')}
+            </Button>
+          ) : null
         }
         data-testid="config-current-published"
       >

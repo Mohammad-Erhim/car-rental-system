@@ -412,6 +412,8 @@
   "ops.cfg.kind.policy": "Politique",
   "ops.cfg.loadFail": "Impossible de charger les versions",
   "ops.cfg.newDraft": "Nouvelle révision (brouillon)",
+  "ops.cfg.newFor": "Nouvelle révision — {setting}",
+  "ops.cfg.newForHint": "Enregistré comme brouillon. Un autre relecteur l’approuve avant application.",
   "ops.cfg.noPublished": "Rien de publié pour l’instant — les valeurs par défaut s’appliquent.",
   "ops.cfg.noPublishedHint": "Les valeurs par défaut s’appliquent tant qu’aucune révision n’est publiée.",
   "ops.cfg.note": "Note de changement",

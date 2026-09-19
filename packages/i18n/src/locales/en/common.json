@@ -412,6 +412,8 @@
   "ops.cfg.kind.policy": "Policy",
   "ops.cfg.loadFail": "Couldn’t load versions",
   "ops.cfg.newDraft": "New revision (draft)",
+  "ops.cfg.newFor": "New revision — {setting}",
+  "ops.cfg.newForHint": "Saved as a draft. A different reviewer approves it before it applies.",
   "ops.cfg.noPublished": "Nothing published yet — built-in defaults are in effect.",
   "ops.cfg.noPublishedHint": "The built-in defaults apply until a revision is published.",
   "ops.cfg.note": "Change note",

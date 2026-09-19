@@ -412,6 +412,8 @@
   "ops.cfg.kind.policy": "سياسة",
   "ops.cfg.loadFail": "تعذّر تحميل الإصدارات",
   "ops.cfg.newDraft": "مراجعة جديدة (مسودة)",
+  "ops.cfg.newFor": "إصدار جديد — {setting}",
+  "ops.cfg.newForHint": "يُحفظ كمسودة. يوافق عليها مراجع آخر قبل تطبيقها.",
   "ops.cfg.noPublished": "لا يوجد شيء منشور بعد — القيم الافتراضية المدمجة سارية.",
   "ops.cfg.noPublishedHint": "تُطبَّق القيم الافتراضية حتى يُنشر إصدار.",
   "ops.cfg.note": "ملاحظة التغيير",

@@ -96,8 +96,8 @@ export function PolicySheet({
       onOpenChange={onOpenChange}
       form={form}
       defaultValues={defaults}
-      title={t('ops.cfg.newDraft')}
-      description={t(`ops.cfg.key.${setting.key}`)}
+      title={t('ops.cfg.newFor', { setting: t(`ops.cfg.key.${setting.key}`) })}
+      description={t('ops.cfg.newForHint')}
       submitLabel={t('ops.cfg.saveDraft')}
       onSubmit={async (v) => {
         const created = await draft.mutateAsync({
