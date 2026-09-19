@@ -95,13 +95,13 @@ test.describe('accessibility (axe-core)', () => {
 
     for (const path of [
       '/ops',
-      '/ops/work',
+      '/ops/reservations',
       '/ops/rentals',
       '/ops/fleet',
-      '/ops/config',
-      '/ops/insights',
-      '/ops/audit',
-      '/ops/config/reference-data',
+      '/ops/settings/policies',
+      '/ops/reports',
+      '/ops/admin/audit',
+      '/ops/settings/reference-data',
     ]) {
       await page.goto(path);
       await expect(page.getByRole('heading').first()).toBeVisible();

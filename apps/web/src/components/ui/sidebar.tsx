@@ -159,20 +159,31 @@ function useRail(): boolean {
 export function SidebarGroup({
   label,
   defaultOpen = true,
+  open: controlledOpen,
+  onOpenChange,
   children,
 }: {
   /** heading text; omit for an un-headed group */
   label?: string;
   defaultOpen?: boolean;
+  /** controlled state (the caller remembers it); when given, `defaultOpen` is ignored */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   children: React.ReactNode;
 }) {
   const rail = useRail();
-  const [open, setOpen] = React.useState(defaultOpen);
+  const [localOpen, setLocalOpen] = React.useState(defaultOpen);
+  const controlled = controlledOpen !== undefined;
+  const open = controlled ? controlledOpen : localOpen;
+  const setOpen = (v: boolean) => {
+    if (!controlled) setLocalOpen(v);
+    onOpenChange?.(v);
+  };
 
   // a route change can land inside a group that was collapsed — reveal it
   React.useEffect(() => {
-    if (defaultOpen) setOpen(true);
-  }, [defaultOpen]);
+    if (!controlled && defaultOpen) setLocalOpen(true);
+  }, [controlled, defaultOpen]);
 
   if (!label) return <div className="pb-1">{children}</div>;
 

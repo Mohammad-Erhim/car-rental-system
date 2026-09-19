@@ -17,6 +17,7 @@ import { FleetReadinessCard } from './fleet-readiness-card';
 import { HealthCard } from './health-card';
 import { TrendsCard } from './trends-card';
 
+import { paths } from '@/app/paths';
 import { Page, PageHeader } from '@/components/page-header';
 import { StatCard } from '@/components/stat-card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -126,7 +127,7 @@ export function DashboardPage() {
               ) : null}
               {d.assignQueue > 0 ? (
                 <li>
-                  <Link to="/work" className="font-medium text-primary underline">
+                  <Link to={paths.reservations} className="font-medium text-primary underline">
                     {t('ops.dash.urgent.assign', { n: d.assignQueue })}
                   </Link>
                 </li>
@@ -142,7 +143,7 @@ export function DashboardPage() {
             {...tile}
             label={t('ops.dash.assignQueue')}
             value={d?.assignQueue ?? 0}
-            to="/work"
+            to={paths.reservations}
             tone="alert"
             zeroLabel={t('ops.dash.zero.assignQueue')}
             icon={ClipboardList}
@@ -217,7 +218,7 @@ export function DashboardPage() {
             {...tile}
             label={t('ops.dash.cancellations')}
             value={d?.cancellationsToday ?? 0}
-            to="/work?view=all&state=cancelled"
+            to={`${paths.reservations}?view=all&state=cancelled`}
             tone="alert"
             zeroLabel={t('ops.dash.zero.cancellations')}
             icon={XCircle}

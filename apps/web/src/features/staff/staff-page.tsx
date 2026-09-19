@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 
 import { StaffSheet } from './staff-sheet';
 
+import { paths } from '@/app/paths';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table/data-table';
 import { Page, PageHeader } from '@/components/page-header';
@@ -146,7 +147,9 @@ export function StaffPage() {
             </DropdownMenuItem>
           ) : null}
           <DropdownMenuItem asChild>
-            <Link to={`/audit?targetType=account&targetId=${encodeURIComponent(s.accountId)}`}>
+            <Link
+              to={`${paths.audit}?targetType=account&targetId=${encodeURIComponent(s.accountId)}`}
+            >
               <History aria-hidden="true" />
               {t('ops.staff.history')}
             </Link>

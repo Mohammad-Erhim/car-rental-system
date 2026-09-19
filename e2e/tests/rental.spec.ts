@@ -68,7 +68,7 @@ test('FLOW-OPS: assign → pickup → customer extend → return → ready', asy
 
   // agent assigns + picks up
   await signIn(page, 'staff');
-  await page.goto('/ops/work');
+  await page.goto('/ops/reservations');
   await page.getByTestId(`assign-${resRef}`).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Assign vehicle' }).click();
   await expect(page.getByText(`Vehicle assigned for ${resRef}.`)).toBeVisible();

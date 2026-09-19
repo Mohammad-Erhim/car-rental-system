@@ -23,6 +23,7 @@ import {
   ReturnDialog,
 } from './rental-dialogs';
 
+import { paths } from '@/app/paths';
 import { HistoryCard } from '@/components/history-card';
 import { Page, PageHeader } from '@/components/page-header';
 import { StateView } from '@/components/state-view';
@@ -127,7 +128,7 @@ export function RentalDetailPage() {
         description={
           <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <Link
-              to={`/work/${encodeURIComponent(d.reservationReference)}`}
+              to={paths.reservation(d.reservationReference)}
               className="font-medium text-primary hover:underline"
             >
               {t('ops.rentd.fromReservation', { ref: d.reservationReference })}

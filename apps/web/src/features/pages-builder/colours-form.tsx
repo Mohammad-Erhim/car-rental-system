@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 
 import { clone } from './builder-model';
 
+import { paths } from '@/app/paths';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -159,7 +160,7 @@ export function ColoursForm({
           </Button>
         ) : null}
         <Button asChild variant="ghost" size="sm">
-          <Link to="/config/branding">{t('ops.pages.editColoursLink')}</Link>
+          <Link to={paths.branding}>{t('ops.pages.editColoursLink')}</Link>
         </Button>
       </div>
     </fieldset>

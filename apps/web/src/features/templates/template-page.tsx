@@ -10,6 +10,7 @@ import { localeTabs } from './template-model';
 import { TemplatePreviewDialog } from './template-preview-dialog';
 import { TemplateSheet } from './template-sheet';
 
+import { paths } from '@/app/paths';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DetailList } from '@/components/detail-list';
 import { Page, PageHeader } from '@/components/page-header';
@@ -88,7 +89,7 @@ export function TemplatePage() {
       <BreadcrumbLabelSetter label={key} />
       <div className="-mb-2">
         <Button variant="ghost" size="sm" className="-ms-2.5 text-muted-foreground" asChild>
-          <Link to="/config/templates">
+          <Link to={paths.templates}>
             <ArrowLeft className="rtl:rotate-180" aria-hidden="true" />
             {t('ops.tpl.title')}
           </Link>

@@ -119,7 +119,7 @@ test.describe('operations reservation queue (APP-OPS)', () => {
     await page.getByRole('button', { name: /^Sign in$/ }).click();
     await expect(page).toHaveURL(/\/ops$/);
 
-    await page.goto('/ops/work');
+    await page.goto('/ops/reservations');
     await expect(page.getByRole('heading', { name: 'Reservations' })).toBeVisible();
     await expect(page.getByTestId('ops-res-table')).toBeVisible();
     await page.getByTestId('ops-queue-tab-all').click();

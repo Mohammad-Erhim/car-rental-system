@@ -47,21 +47,21 @@ const CUSTOMER_ROUTES: Array<[string, string]> = [
 const OPS_ROUTES: Array<[string, string]> = [
   ['/ops', 'ops-dashboard'],
   ['/ops/search', 'ops-search'],
-  ['/ops/work', 'ops-reservations'],
+  ['/ops/reservations', 'ops-reservations'],
   ['/ops/rentals', 'ops-rentals'],
   ['/ops/fleet', 'ops-fleet'],
   ['/ops/finance', 'ops-finance'],
   ['/ops/customers', 'ops-customers'],
   ['/ops/catalogue/products', 'ops-products'],
-  ['/ops/config', 'ops-config'],
-  ['/ops/config/rate-plans', 'ops-rate-plans'],
-  ['/ops/config/locations', 'ops-locations'],
-  ['/ops/config/reference-data', 'ops-reference-data'],
-  ['/ops/config/translations', 'ops-translations'],
-  ['/ops/config/templates', 'ops-templates'],
+  ['/ops/settings/policies', 'ops-config'],
+  ['/ops/catalogue/rate-plans', 'ops-rate-plans'],
+  ['/ops/catalogue/locations', 'ops-locations'],
+  ['/ops/settings/reference-data', 'ops-reference-data'],
+  ['/ops/website/translations', 'ops-translations'],
+  ['/ops/website/templates', 'ops-templates'],
   ['/ops/admin/staff', 'ops-staff'],
-  ['/ops/insights', 'ops-reports'],
-  ['/ops/audit', 'ops-audit'],
+  ['/ops/reports', 'ops-reports'],
+  ['/ops/admin/audit', 'ops-audit'],
 ];
 
 test.describe('full sweep — responsive', () => {
@@ -124,9 +124,9 @@ test.describe('full sweep — Arabic / RTL', () => {
     await expect(page).toHaveURL(/\/ops$/);
     for (const [path, name] of [
       ['/ops', 'ops-dashboard'],
-      ['/ops/config', 'ops-config'],
-      ['/ops/insights', 'ops-reports'],
-      ['/ops/audit', 'ops-audit'],
+      ['/ops/settings/policies', 'ops-config'],
+      ['/ops/reports', 'ops-reports'],
+      ['/ops/admin/audit', 'ops-audit'],
     ] as Array<[string, string]>) {
       await page.goto(path);
       await expect(page.getByRole('heading').first()).toBeVisible();

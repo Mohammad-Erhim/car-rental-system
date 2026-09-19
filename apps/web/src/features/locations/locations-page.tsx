@@ -8,6 +8,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArchiveDialog, LocationStatus, useRestoreLocation } from './location-parts';
 import { LocationSheet } from './location-sheet';
 
+import { paths } from '@/app/paths';
 import { DataTable } from '@/components/data-table/data-table';
 import { Page, PageHeader } from '@/components/page-header';
 import { StateSwitcher } from '@/components/state-switcher';
@@ -61,7 +62,7 @@ export function LocationsPage() {
   );
   const { pageRows, pagination } = useClientPage(visible, state, update);
 
-  const view = (l: OpsLocation) => navigate(`/config/locations/${l.code}`);
+  const view = (l: OpsLocation) => navigate(paths.location(l.code));
   const menu = (l: OpsLocation) => (
     <div onClick={(e) => e.stopPropagation()}>
       <DropdownMenu>
@@ -113,7 +114,7 @@ export function LocationsPage() {
         cell: ({ row: { original: l } }) => (
           <span>
             <Link
-              to={`/config/locations/${l.code}`}
+              to={paths.location(l.code)}
               onClick={(e) => e.stopPropagation()}
               className="block font-medium hover:underline"
             >
@@ -227,7 +228,7 @@ export function LocationsPage() {
           onRowClick={view}
           renderCard={(l) => (
             <div className="flex items-start gap-3 p-4">
-              <Link to={`/config/locations/${l.code}`} className="min-w-0 flex-1 space-y-1.5">
+              <Link to={paths.location(l.code)} className="min-w-0 flex-1 space-y-1.5">
                 <span className="block font-medium">{l.name}</span>
                 <span className="block text-xs text-muted-foreground">
                   <span className="bidi-isolate font-mono">{l.code}</span>

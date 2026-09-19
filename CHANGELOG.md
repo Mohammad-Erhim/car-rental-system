@@ -22,6 +22,11 @@ opens as a sheet or dialog. Old `packages/ui` screens under `src/surfaces/` are 
   translations (+ per-namespace editor), notification templates (+ template page), pages builder,
   branding, SEO, cookie consent, payments, email.
 - **Administration:** staff & roles, reports, audit log, consent log, data quality.
+- **Navigation:** the sidebar is task-based and nested — Operations, Money, Catalogue & pricing,
+  Website, Settings, Administration — with collapsible groups and folders whose open/closed state is
+  remembered. Breadcrumbs and the command menu follow the same tree. Routes moved to match
+  (`/website/*`, `/settings/*`, `/catalogue/*`, `/admin/*`, `/reservations`, `/reports`); every old
+  address redirects (`app/paths.ts`).
 - **Shared building blocks** (`components/`, `lib/`): `DataTable` (TanStack, card layout on phones),
   `FormSheet` / `FormDialog` / `ConfirmDialog`, `FiltersSheet`, `StateSwitcher`, `FilterChips`,
   `SectionCard`, `DetailList`, form-field helpers, `MediaPickerField`, `SecretField`,

@@ -1,8 +1,16 @@
 import { useI18n } from '@carrental/i18n/react';
-import { ExternalLink, LayoutDashboard, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
+import {
+  ChevronRight,
+  ExternalLink,
+  LayoutDashboard,
+  PanelLeftClose,
+  PanelLeftOpen,
+  X,
+} from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 
-import type { NavGroup, NavItem } from './nav-config';
+import { findEntry, firstPath, navKey, type NavGroup, type NavItem } from './nav-config';
 import { UserMenu } from './user-menu';
 
 import { Button } from '@/components/ui/button';
@@ -20,19 +28,139 @@ import {
 import { SITE_ORIGIN } from '@/lib/site-origin';
 import { cn } from '@/lib/utils';
 
-function isActive(pathname: string, item: NavItem): boolean {
-  if (item.end || item.to === '/') return pathname === item.to;
-  return pathname === item.to || pathname.startsWith(`${item.to}/`);
+const OPEN_KEY = 'carrental.ops.nav';
+
+/** Which groups and folders the person opened or closed, remembered between visits. */
+function useRememberedOpen() {
+  const [stored, setStored] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(OPEN_KEY) ?? '{}') as Record<string, boolean>;
+    } catch {
+      return {};
+    }
+  });
+  const set = useCallback((key: string, open: boolean) => {
+    setStored((prev) => {
+      const next = { ...prev, [key]: open };
+      try {
+        localStorage.setItem(OPEN_KEY, JSON.stringify(next));
+      } catch {
+        /* private mode: the choice just isn't kept */
+      }
+      return next;
+    });
+  }, []);
+  return [stored, set] as const;
 }
 
-/**
- * The most specific match wins — `/config` (exact) and `/config/branding` are separate entries,
- * and a detail route (`/work/RES-1`) keeps its list entry highlighted.
- */
-function activeTo(pathname: string, groups: NavGroup[]): string | null {
-  const matches = groups.flatMap((g) => g.items).filter((it) => isActive(pathname, it));
-  matches.sort((a, b) => b.to.length - a.to.length);
-  return matches[0]?.to ?? null;
+/** Whether `path` is this entry's page or anywhere below it in the tree. */
+function containsPath(item: NavItem, path: string | null): boolean {
+  if (!path) return false;
+  return item.to === path || (item.children ?? []).some((c) => containsPath(c, path));
+}
+
+function NavNode({
+  item,
+  current,
+  depth,
+  rail,
+  open,
+  onToggle,
+  onNavigate,
+}: {
+  item: NavItem;
+  current: string | null;
+  depth: number;
+  rail: boolean;
+  open: (key: string, fallback: boolean) => boolean;
+  onToggle: (key: string, open: boolean) => void;
+  onNavigate: () => void;
+}) {
+  const { t } = useI18n();
+  const key = navKey(item);
+  const kids = item.children ?? [];
+  const inside = containsPath(item, current);
+  const expanded = open(key, inside);
+  const label = t(item.label);
+  const target = firstPath(item);
+
+  // a collapsed icon rail has no room for a tree: top-level entries lead to their first page
+  if (rail) {
+    return depth === 0 && target ? (
+      <SidebarMenuItem>
+        <SidebarMenuButton asChild isActive={inside} tooltip={label}>
+          <NavLink to={target} end={item.end} onClick={onNavigate}>
+            <item.icon aria-hidden="true" />
+            <span className="truncate">{label}</span>
+          </NavLink>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    ) : null;
+  }
+
+  const row = item.to ? (
+    <SidebarMenuButton asChild isActive={item.to === current} tooltip={label}>
+      <NavLink to={item.to} end={item.end} onClick={onNavigate}>
+        <item.icon aria-hidden="true" />
+        <span className="truncate">{label}</span>
+      </NavLink>
+    </SidebarMenuButton>
+  ) : (
+    <SidebarMenuButton
+      isActive={false}
+      aria-expanded={expanded}
+      onClick={() => onToggle(key, !expanded)}
+      className={inside ? 'text-foreground' : undefined}
+    >
+      <item.icon aria-hidden="true" />
+      <span className="truncate">{label}</span>
+    </SidebarMenuButton>
+  );
+
+  return (
+    <SidebarMenuItem>
+      <div className="flex items-center gap-0.5">
+        <div className="min-w-0 flex-1">{row}</div>
+        {kids.length ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="shrink-0 text-muted-foreground"
+            aria-expanded={expanded}
+            aria-label={t(expanded ? 'ops.nav.collapseItem' : 'ops.nav.expandItem', {
+              name: label,
+            })}
+            onClick={() => onToggle(key, !expanded)}
+          >
+            <ChevronRight
+              className={cn(
+                'transition-transform rtl:-scale-x-100',
+                expanded && 'rotate-90 rtl:rotate-90',
+              )}
+              aria-hidden="true"
+            />
+          </Button>
+        ) : null}
+      </div>
+      {kids.length && expanded ? (
+        <SidebarMenu className="ms-5 mt-0.5 border-s ps-2">
+          {kids.map((c) => (
+            <NavNode
+              key={navKey(c)}
+              item={c}
+              current={current}
+              depth={depth + 1}
+              rail={rail}
+              open={open}
+              onToggle={onToggle}
+              onNavigate={onNavigate}
+            />
+          ))}
+        </SidebarMenu>
+      ) : null}
+    </SidebarMenuItem>
+  );
 }
 
 /** Brand block at the top of the sidebar. */
@@ -69,7 +197,24 @@ export function AppSidebar({ groups }: { groups: NavGroup[] }) {
   const { pathname } = useLocation();
   const { collapsed, isMobile, toggleCollapsed, setOpenMobile } = useSidebar();
   const rail = collapsed && !isMobile;
-  const current = activeTo(pathname, groups);
+  const current = findEntry(groups, pathname)?.item.to ?? null;
+  const [stored, setStored] = useRememberedOpen();
+  const isOpen = (key: string, fallback: boolean) => stored[key] ?? fallback;
+
+  // arriving on a page inside a closed group or folder opens it (and keeps it open)
+  useEffect(() => {
+    if (!current) return;
+    const entry = findEntry(groups, pathname);
+    if (!entry) return;
+    entry.ancestors.forEach((a) => {
+      if (stored[navKey(a)] === false) setStored(navKey(a), true);
+    });
+    if (entry.group.titleKey && stored[entry.group.titleKey] === false) {
+      setStored(entry.group.titleKey, true);
+    }
+    // only a navigation should reopen; the person closing it again must not fight this
+     
+  }, [pathname]);
 
   return (
     <Sidebar label={t('ops.nav.sections')} closeLabel={t('ops.nav.closeMenu')}>
@@ -88,26 +233,33 @@ export function AppSidebar({ groups }: { groups: NavGroup[] }) {
       </SidebarHeader>
 
       <SidebarContent aria-label={t('ops.nav.sections')} role="navigation">
-        {groups.map((g, gi) => (
-          <SidebarGroup
-            key={g.titleKey ?? `g${gi}`}
-            label={g.titleKey ? t(g.titleKey) : undefined}
-            defaultOpen={!g.titleKey || g.items.some((it) => it.to === current) || gi <= 1}
-          >
-            <SidebarMenu>
-              {g.items.map((item) => (
-                <SidebarMenuItem key={item.to}>
-                  <SidebarMenuButton asChild isActive={item.to === current} tooltip={t(item.label)}>
-                    <NavLink to={item.to} end={item.end} onClick={() => setOpenMobile(false)}>
-                      <item.icon aria-hidden="true" />
-                      <span className="truncate">{t(item.label)}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroup>
-        ))}
+        {groups.map((g, gi) => {
+          const groupKey = g.titleKey ?? `g${gi}`;
+          const holdsCurrent = g.items.some((it) => containsPath(it, current));
+          return (
+            <SidebarGroup
+              key={groupKey}
+              label={g.titleKey ? t(g.titleKey) : undefined}
+              open={g.titleKey ? isOpen(groupKey, holdsCurrent || gi <= 1) : true}
+              onOpenChange={(o) => setStored(groupKey, o)}
+            >
+              <SidebarMenu>
+                {g.items.map((item) => (
+                  <NavNode
+                    key={navKey(item)}
+                    item={item}
+                    current={current}
+                    depth={0}
+                    rail={rail}
+                    open={isOpen}
+                    onToggle={setStored}
+                    onNavigate={() => setOpenMobile(false)}
+                  />
+                ))}
+              </SidebarMenu>
+            </SidebarGroup>
+          );
+        })}
       </SidebarContent>
 
       <SidebarFooter className={cn(rail && 'px-2')}>

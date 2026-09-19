@@ -14,6 +14,7 @@ import {
 } from './detail-sections';
 import { CancelDialog, NoShowDialog, RefundDialog } from './reservation-action-dialogs';
 
+import { paths } from '@/app/paths';
 import { HistoryCard } from '@/components/history-card';
 import { Page, PageHeader } from '@/components/page-header';
 import { StateView } from '@/components/state-view';
@@ -83,7 +84,7 @@ export function ReservationDetailPage() {
           title={notFound ? t('ops.resv.notFound') : t('state.failure.title')}
           description={notFound ? t('ops.resv.notFoundBody') : t('ops.resv.loadError')}
           actionLabel={notFound ? t('ops.resv.backToQueue') : t('action.retry')}
-          onAction={notFound ? () => navigate('/work') : () => void detail.refetch()}
+          onAction={notFound ? () => navigate(paths.reservations) : () => void detail.refetch()}
           className="py-24"
         />
       </Page>

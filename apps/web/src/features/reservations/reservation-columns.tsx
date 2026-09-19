@@ -5,6 +5,7 @@ import { ArrowRight } from 'lucide-react';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 
+import { paths } from '@/app/paths';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
 import type { OpsReservationRow } from '@/lib/reservation-hooks';
@@ -94,7 +95,7 @@ export function useReservationColumns(
         cell: ({ row: { original: r } }) => (
           <div className="space-y-0.5">
             <Link
-              to={`/work/${encodeURIComponent(r.reference)}`}
+              to={paths.reservation(r.reference)}
               onClick={(e) => e.stopPropagation()}
               className="bidi-isolate inline-block whitespace-nowrap font-mono text-sm font-semibold text-primary underline-offset-4 hover:underline"
             >
@@ -184,7 +185,7 @@ export function ReservationCard({
     <div className="space-y-2 p-4">
       <div className="flex items-start justify-between gap-3">
         <Link
-          to={`/work/${encodeURIComponent(r.reference)}`}
+          to={paths.reservation(r.reference)}
           className="bidi-isolate font-mono text-sm font-semibold text-primary"
         >
           {r.reference}

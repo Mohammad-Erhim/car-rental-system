@@ -3,7 +3,7 @@ import { Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-import type { NavGroup } from './nav-config';
+import { flattenNav, type NavGroup, type NavItem } from './nav-config';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -36,15 +36,23 @@ export function CommandMenu({ groups }: { groups: NavGroup[] }) {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const sections = useMemo(
-    () =>
-      groups.map((g) => ({
+  // every page (folders have none), grouped like the sidebar; a nested page carries its parents
+  // in its label so "Translations" reads "Languages › Translations"
+  const sections = useMemo(() => {
+    const entries = flattenNav(groups).filter((e) => e.item.to);
+    return groups
+      .map((g) => ({
         heading: g.titleKey ? t(g.titleKey) : undefined,
         key: g.titleKey ?? 'top',
-        items: g.items,
-      })),
-    [groups, t],
-  );
+        items: entries
+          .filter((e) => e.group === g)
+          .map((e) => ({
+            item: e.item as NavItem & { to: string },
+            title: [...e.ancestors, e.item].map((n) => t(n.label)).join(' › '),
+          })),
+      }))
+      .filter((s) => s.items.length);
+  }, [groups, t]);
 
   return (
     <>
@@ -79,18 +87,18 @@ export function CommandMenu({ groups }: { groups: NavGroup[] }) {
           <CommandEmpty>{t('ops.cmdk.empty')}</CommandEmpty>
           {sections.map((s) => (
             <CommandGroup key={s.key} heading={s.heading}>
-              {s.items.map((it) => (
+              {s.items.map(({ item, title }) => (
                 <CommandItem
-                  key={it.to}
-                  value={`${t(it.label)} ${s.heading ?? ''}`.trim()}
-                  data-testid={`cmdk-item-${it.to}`}
+                  key={item.to}
+                  value={`${title} ${s.heading ?? ''}`.trim()}
+                  data-testid={`cmdk-item-${item.to}`}
                   onSelect={() => {
                     setOpen(false);
-                    navigate(it.to);
+                    navigate(item.to);
                   }}
                 >
-                  <it.icon aria-hidden="true" />
-                  <span className="truncate">{t(it.label)}</span>
+                  <item.icon aria-hidden="true" />
+                  <span className="truncate">{title}</span>
                 </CommandItem>
               ))}
             </CommandGroup>

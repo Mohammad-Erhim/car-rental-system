@@ -30,8 +30,8 @@ test('SCREEN-OPS-033/034: draft → preview → submit → a second admin approv
   const guards = attachConsoleGuards(page);
 
   await signInStaff(page, ADMIN);
-  await page.goto('/ops/config');
-  await expect(page.getByRole('heading', { name: 'Configuration versioning' })).toBeVisible();
+  await page.goto('/ops/settings/policies');
+  await expect(page.getByRole('heading', { name: 'Policies' })).toBeVisible();
 
   // draft a cancellation-policy change in the side sheet
   await page.getByTestId('config-key-cancellation').click();
@@ -62,7 +62,7 @@ test('SCREEN-OPS-033/034: draft → preview → submit → a second admin approv
   await page.getByRole('button', { name: /Sign out/ }).click();
   await page.waitForURL(/\/ops\/sign-in/);
   await signInStaff(page, MANAGER);
-  await page.goto('/ops/config');
+  await page.goto('/ops/settings/policies');
 
   const row2 = page
     .getByTestId('config-history')
@@ -85,7 +85,7 @@ test('SCREEN-OPS-035: run a report, see the scope, export CSV', async ({ page },
   const guards = attachConsoleGuards(page);
 
   await signInStaff(page, ADMIN);
-  await page.goto('/ops/insights');
+  await page.goto('/ops/reports');
   await expect(page.getByRole('heading', { name: 'Reports' })).toBeVisible();
 
   await page.getByTestId('report-select').click();
@@ -111,7 +111,7 @@ test('SCREEN-OPS-038: the audit viewer filters to the config workflow', async ({
   const guards = attachConsoleGuards(page);
 
   await signInStaff(page, ADMIN);
-  await page.goto('/ops/audit');
+  await page.goto('/ops/admin/audit');
   await expect(page.getByRole('heading', { name: 'Audit & activity' })).toBeVisible();
 
   await page.getByTestId('audit-filters').click();
@@ -131,11 +131,11 @@ test('SCREEN-OPS-033 / FR-ADM-011: edit → preview → submit → publish a not
   const guards = attachConsoleGuards(page);
 
   await signInStaff(page, ADMIN);
-  await page.goto('/ops/config/templates');
+  await page.goto('/ops/website/templates');
   await expect(page.getByRole('heading', { name: 'Notification templates' })).toBeVisible();
 
   // open reservation_confirmed · en (seeded with declared vars: reference, total)
-  await page.goto('/ops/config/templates/reservation_confirmed/email?locale=en');
+  await page.goto('/ops/website/templates/reservation_confirmed/email?locale=en');
   await page.getByTestId('tpl-edit').click();
   const sheet = page.getByRole('dialog');
   const body = sheet.getByTestId('tpl-body');
@@ -332,7 +332,7 @@ test('SCREEN-OPS-028 / FR-ADM-007: edit a location’s hours + add a closure exc
   const guards = attachConsoleGuards(page);
 
   await signInStaff(page, ADMIN);
-  await page.goto('/ops/config/locations');
+  await page.goto('/ops/catalogue/locations');
   await expect(page.getByRole('heading', { level: 1, name: 'Locations' })).toBeVisible();
 
   // the seeded locations are listed; open JFK on its own page

@@ -126,7 +126,7 @@ test.describe('operations pricing & fleet (APP-OPS)', () => {
     // state between the phone/tablet/laptop projects, so the price must differ every run).
     const baseDollars = 15 + (Date.now() % 137); // unique per run on the shared dev DB
     const expectedTotal = ((baseDollars * 2 * 120) / 100).toFixed(2); // 2 days, no fees, +20% tax
-    await page.goto('/ops/config/rate-plans');
+    await page.goto('/ops/catalogue/rate-plans');
     await expect(page.getByRole('heading', { name: 'Rate plans' })).toBeVisible();
     const planName = `Compact E2E ${Date.now()}`;
     await page.getByTestId('rp-new').click();

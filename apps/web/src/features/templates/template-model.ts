@@ -1,3 +1,4 @@
+import { paths } from '@/app/paths';
 import type { TemplateVar } from '@/lib/admin-hooks';
 
 const PLACEHOLDER = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g;
@@ -16,9 +17,7 @@ export function undeclaredVars(subject: string, body: string, vars: TemplateVar[
 }
 
 export const templatePath = (key: string, channel: string, locale?: string) =>
-  `/config/templates/${encodeURIComponent(key)}/${encodeURIComponent(channel)}${
-    locale ? `?locale=${encodeURIComponent(locale)}` : ''
-  }`;
+  `${paths.template(key, channel)}${locale ? `?locale=${encodeURIComponent(locale)}` : ''}`;
 
 /** Languages to offer: the ones with a row plus every active language that has none yet. */
 export function localeTabs(

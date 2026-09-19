@@ -3,7 +3,10 @@ import { SearchX } from 'lucide-react';
 import type { ReactNode } from 'react';
 import {
   createBrowserRouter,
+  Navigate,
+  useLocation,
   useNavigate,
+  useParams,
   useRouteError,
   type RouteObject,
 } from 'react-router-dom';
@@ -51,6 +54,8 @@ import { TranslationsPage } from '../features/translations/translations-page.js'
 import { AuthLayout } from '../layouts/auth-layout.js';
 import { DashboardLayout } from '../layouts/dashboard-layout.js';
 
+import { fillPattern, LEGACY_REDIRECTS } from './paths.js';
+
 /**
  * `apps/web` is the Operations & Admin dashboard only (DEC-023 — the customer surface is
  * `apps/site`). Served under `/ops` via the Vite `base` + this router `basename`.
@@ -87,6 +92,13 @@ function NotFound() {
       />
     </div>
   );
+}
+
+/** Send an old address to its new home, carrying route params, the query string and the hash. */
+function RedirectTo({ pattern }: { pattern: string }) {
+  const params = useParams();
+  const { search, hash } = useLocation();
+  return <Navigate to={`${fillPattern(pattern, params)}${search}${hash}`} replace />;
 }
 
 const perm = (anyOf: string[], el: ReactNode, fallbackTitle?: string) => (
@@ -134,7 +146,7 @@ function dashboardRoutes(): RouteObject[] {
       element: perm(['reservation.read', 'rental.read'], <SearchPage />),
     },
     {
-      path: 'config/reference-data',
+      path: 'settings/reference-data',
       element: perm(['config.read', 'lookup.manage'], <ReferenceDataPage />),
     },
     { path: 'admin/staff', element: perm(['staff.manage'], <StaffPage />) },
@@ -147,53 +159,53 @@ function dashboardRoutes(): RouteObject[] {
       element: perm(['customer.read'], <CustomerDetailPage />),
     },
     {
-      path: 'config/translations',
+      path: 'website/translations',
       element: perm(['config.read', 'config.publish'], <TranslationsPage />),
     },
     {
-      path: 'config/translations/:namespace/:locale',
+      path: 'website/translations/:namespace/:locale',
       element: perm(['config.read', 'config.publish'], <TranslationEditorPage />),
     },
     {
-      path: 'config/templates',
+      path: 'website/templates',
       element: perm(['config.read', 'config.publish'], <TemplatesPage />),
     },
     {
-      path: 'config/templates/:key/:channel',
+      path: 'website/templates/:key/:channel',
       element: perm(['config.read', 'config.publish'], <TemplatePage />),
     },
     {
-      path: 'config/branding',
+      path: 'website/branding',
       element: perm(['config.read', 'config.publish'], <BrandingPage />),
     },
     {
-      path: 'config/seo',
+      path: 'website/seo',
       element: perm(['config.read', 'config.publish'], <SeoPage />),
     },
     {
-      path: 'config/pages',
+      path: 'website/pages',
       element: perm(['config.read', 'config.publish'], <PagesPage />),
     },
     {
-      path: 'config/consent',
+      path: 'website/consent',
       element: perm(['config.read', 'config.publish'], <ConsentPage />),
     },
-    { path: 'consent-log', element: perm(['audit.read'], <ConsentLogPage />) },
+    { path: 'admin/consent-log', element: perm(['audit.read'], <ConsentLogPage />) },
     {
-      path: 'config/languages',
+      path: 'website/languages',
       element: perm(['config.read', 'config.publish'], <LanguagesPage />),
     },
     {
-      path: 'work',
+      path: 'reservations',
       element: perm(['reservation.read', 'reservation.modify'], <ReservationsPage />),
     },
     {
-      path: 'work/:reference',
+      path: 'reservations/:reference',
       element: perm(['reservation.read', 'reservation.modify'], <ReservationDetailPage />),
     },
     { path: 'fleet', element: perm(['fleet.read', 'fleet.manage'], <FleetPage />) },
     {
-      path: 'config/rate-plans',
+      path: 'catalogue/rate-plans',
       element: perm(['config.read', 'config.publish'], <RatePlansPage />),
     },
     {
@@ -209,30 +221,30 @@ function dashboardRoutes(): RouteObject[] {
       element: perm(['catalogue.read', 'catalogue.manage', 'config.read'], <ProductsPage />),
     },
     {
-      path: 'catalogue/media',
+      path: 'website/media',
       element: perm(
         ['catalogue.read', 'catalogue.manage', 'fleet.read', 'fleet.manage', 'config.read'],
         <MediaLibraryPage />,
       ),
     },
     {
-      path: 'config/locations',
+      path: 'catalogue/locations',
       element: perm(['config.read', 'config.publish'], <LocationsPage />),
     },
     {
-      path: 'config/locations/:code',
+      path: 'catalogue/locations/:code',
       element: perm(['config.read', 'config.publish'], <LocationDetailPage />),
     },
     {
-      path: 'config/organization',
+      path: 'settings/organization',
       element: perm(['config.read', 'config.publish'], <OrganizationPage />),
     },
     {
-      path: 'config/payments',
+      path: 'settings/integrations/payments',
       element: perm(['payment.manage'], <PaymentsPage />),
     },
     {
-      path: 'config/email',
+      path: 'settings/integrations/email',
       element: perm(['email.manage'], <EmailPage />),
     },
     {
@@ -248,14 +260,19 @@ function dashboardRoutes(): RouteObject[] {
       element: perm(['payment.read', 'payment.reconcile'], <FinancePage />),
     },
     {
-      path: 'config',
+      path: 'settings/policies',
       element: perm(['config.read', 'config.publish'], <PolicyPage />),
     },
-    { path: 'insights', element: perm(['report.read'], <ReportsPage />) },
-    { path: 'audit', element: perm(['audit.read'], <AuditLogPage />) },
+    { path: 'reports', element: perm(['report.read'], <ReportsPage />) },
+    { path: 'admin/audit', element: perm(['audit.read'], <AuditLogPage />) },
     {
-      path: 'data-quality',
+      path: 'admin/data-quality',
       element: perm(['audit.read', 'config.read'], <DataQualityPage />),
     },
+    // old addresses (bookmarks, emails, the audit trail) keep working
+    ...LEGACY_REDIRECTS.map(([from, to]) => ({
+      path: from.slice(1),
+      element: <RedirectTo pattern={to} />,
+    })),
   ];
 }

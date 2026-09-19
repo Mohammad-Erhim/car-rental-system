@@ -52,6 +52,6 @@ describe('translation-model', () => {
   });
 
   it('encodes a namespace with a colon into the path', () => {
-    expect(editorPath('lookup:currency', 'fr')).toBe('/config/translations/lookup%3Acurrency/fr');
+    expect(editorPath('lookup:currency', 'fr')).toBe('/website/translations/lookup%3Acurrency/fr');
   });
 });

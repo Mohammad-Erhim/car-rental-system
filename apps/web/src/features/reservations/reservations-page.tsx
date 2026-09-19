@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { AssignVehicleDialog } from './assign-vehicle-dialog';
 import { ReservationCard, useReservationColumns } from './reservation-columns';
 
+import { paths } from '@/app/paths';
 import { DataTable } from '@/components/data-table/data-table';
 import { FilterChips } from '@/components/filter-chips';
 import { FiltersSheet, useFilterFields } from '@/components/filters-sheet';
@@ -130,7 +131,7 @@ export function ReservationsPage() {
           getRowId={getRowId}
           loading={list.isLoading}
           fetching={list.isFetching}
-          onRowClick={(r) => navigate(`/work/${encodeURIComponent(r.reference)}`)}
+          onRowClick={(r) => navigate(paths.reservation(r.reference))}
           renderCard={(r) => <ReservationCard row={r} onAssign={setAssignTarget} />}
           bodyTestId="ops-res-rows"
           skeletonRows={Math.min(state.pageSize, 8)}

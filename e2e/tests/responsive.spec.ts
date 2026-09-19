@@ -76,11 +76,11 @@ test.describe('responsive layout (APP-CWEB / APP-OPS)', () => {
     await expect(page).toHaveURL(/\/ops$/);
 
     for (const path of [
-      '/ops/config',
-      '/ops/insights',
-      '/ops/audit',
+      '/ops/settings/policies',
+      '/ops/reports',
+      '/ops/admin/audit',
       '/ops',
-      '/ops/config/reference-data',
+      '/ops/settings/reference-data',
       '/ops/admin/staff',
     ]) {
       await page.goto(path);

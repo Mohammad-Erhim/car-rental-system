@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 
 import { LanguageDialog } from './language-dialog';
 
+import { paths } from '@/app/paths';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table/data-table';
 import { Page, PageHeader } from '@/components/page-header';
@@ -131,7 +132,7 @@ export function LanguagesPage() {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-[12rem]">
           <DropdownMenuItem asChild>
-            <Link to={`/config/translations?locale=${l.code}`}>
+            <Link to={`${paths.translations}?locale=${l.code}`}>
               <Type aria-hidden="true" />
               {t('ops.languages.edit')}
             </Link>

@@ -56,7 +56,7 @@ export function PolicyPage() {
 
   return (
     <Page>
-      <PageHeader title={t('ops.cfg.title')} description={t('ops.cfg.subtitle')} />
+      <PageHeader title={t('ops.cfg.titlePolicies')} description={t('ops.cfg.subtitle')} />
 
       <StateSwitcher
         label={t('ops.cfg.setting')}

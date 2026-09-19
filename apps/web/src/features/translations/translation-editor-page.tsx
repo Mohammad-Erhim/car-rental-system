@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { TranslateDialog } from './translate-dialog';
 import { editorPath, inBucket, matchesQuery, type Bucket } from './translation-model';
 
+import { paths } from '@/app/paths';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table/data-table';
 import { Page, PageHeader } from '@/components/page-header';
@@ -158,7 +159,7 @@ export function TranslationEditorPage() {
       <BreadcrumbLabelSetter label={`${namespace} · ${locale.toUpperCase()}`} />
       <div className="-mb-2">
         <Button variant="ghost" size="sm" className="-ms-2.5 text-muted-foreground" asChild>
-          <Link to="/config/translations">
+          <Link to={paths.translations}>
             <ArrowLeft className="rtl:rotate-180" aria-hidden="true" />
             {t('ops.trans.title')}
           </Link>

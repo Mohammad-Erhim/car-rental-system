@@ -50,7 +50,7 @@ test('RTL: customer auth + operations reference data render right-to-left', asyn
   await page.locator('button[type="submit"]').click();
   await expect(page).toHaveURL(/\/ops$/);
 
-  await page.goto('/ops/config/reference-data');
+  await page.goto('/ops/settings/reference-data');
   await expect(page.getByTestId('lookup-value-rows')).toBeVisible();
   await openLanguageMenu(page);
   await page.getByRole('menuitem', { name: /العربية/ }).click();
@@ -60,8 +60,8 @@ test('RTL: customer auth + operations reference data render right-to-left', asyn
   await assertNoOverflow('RTL ops reference-data', page);
 
   // STAGE-006: the configuration-versioning editor renders right-to-left with no overflow
-  await page.goto('/ops/config');
-  await expect(page.getByRole('heading', { name: /Configuration versioning|إعداد/ })).toBeVisible();
+  await page.goto('/ops/settings/policies');
+  await expect(page.getByRole('heading', { name: /Policies|السياسات/ })).toBeVisible();
   await expect(page.getByTestId('config-new')).toBeVisible();
   await shot(page, testInfo, 'rtl-ops-config-versioning');
   await assertNoOverflow('RTL ops config-versioning', page);

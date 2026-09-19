@@ -24,7 +24,7 @@ describe('template-model', () => {
 
   it('builds the page path', () => {
     expect(templatePath('booking.confirmed', 'email', 'fr')).toBe(
-      '/config/templates/booking.confirmed/email?locale=fr',
+      '/website/templates/booking.confirmed/email?locale=fr',
     );
   });
 });

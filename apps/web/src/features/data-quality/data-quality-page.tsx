@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { findingActions, inTab, needsAction, SAMPLE_LINK, type Tab } from './dq-model';
 import { NoteDialog } from './note-dialog';
 
+import { paths } from '@/app/paths';
 import { DataTable } from '@/components/data-table/data-table';
 import { Page, PageHeader } from '@/components/page-header';
 import { StateSwitcher } from '@/components/state-switcher';
@@ -283,7 +284,7 @@ export function DataQualityPage() {
 
       <p className="px-1 text-xs text-muted-foreground">
         {t('ops.dq.scheduleHint')}{' '}
-        <Link to="/insights" className="underline decoration-dotted hover:text-foreground">
+        <Link to={paths.reports} className="underline decoration-dotted hover:text-foreground">
           {t('ops.dq.scheduleLinkText')}
         </Link>
       </p>

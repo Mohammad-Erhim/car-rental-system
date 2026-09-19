@@ -1,5 +1,7 @@
 import type { TranslationEntry } from '@carrental/contracts';
 
+import { paths } from '@/app/paths';
+
 export interface CoverageRow {
   namespace: string;
   locale: string;
@@ -55,4 +57,4 @@ export function matchesQuery(e: TranslationEntry, query: string) {
 
 /** the namespace travels in the URL; it can contain a colon (`lookup:currency`) */
 export const editorPath = (namespace: string, locale: string) =>
-  `/config/translations/${encodeURIComponent(namespace)}/${encodeURIComponent(locale)}`;
+  paths.translationEditor(namespace, locale);

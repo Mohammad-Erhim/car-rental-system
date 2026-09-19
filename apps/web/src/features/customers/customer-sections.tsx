@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 
 import { useCanDecide } from './customer-dialogs';
 
+import { paths } from '@/app/paths';
 import { DetailList } from '@/components/detail-list';
 import { SectionCard } from '@/components/section-card';
 import { StateView } from '@/components/state-view';
@@ -81,7 +82,7 @@ export function ReservationsCard({
             >
               <div className="min-w-0 space-y-0.5">
                 <Link
-                  to={`/work/${encodeURIComponent(x.reference)}`}
+                  to={paths.reservation(x.reference)}
                   className="bidi-isolate font-mono text-sm font-semibold text-primary hover:underline"
                 >
                   {x.reference}

@@ -2,7 +2,7 @@ import { useI18n } from '@carrental/i18n/react';
 import { Link, useLocation } from 'react-router-dom';
 
 import { useCurrentBreadcrumbLabel } from './breadcrumb-label';
-import type { NavGroup } from './nav-config';
+import { findEntry, type NavGroup } from './nav-config';
 
 import {
   Breadcrumb,
@@ -14,37 +14,36 @@ import {
 } from '@/components/ui/breadcrumb';
 
 interface Crumb {
-  to: string;
+  /** omitted for a label that is not a page (a group heading, a folder) */
+  to?: string;
   label: string;
 }
 
 /**
- * Builds the trail for a path from the (permission-filtered) nav: `Dashboard › <screen>`, with a
- * middle crumb for a `/config/*` screen (the real `/config` page) and for a detail route
- * (`/work/:ref` → the `/work` list). A crumb never links somewhere the user cannot open.
+ * Builds the trail for a path from the (permission-filtered) nav tree:
+ * `Dashboard › <group> › <parent pages…> › <screen>`. A detail route (`/reservations/RES-1`) links
+ * back to its list and ends on the record's own name. A crumb never links somewhere the user
+ * cannot open (the nav has already dropped those), and group headings are plain text.
  */
 export function buildCrumbs(
   pathname: string,
-  labelByPath: Map<string, string>,
+  groups: NavGroup[],
   t: (key: string) => string,
 ): Crumb[] {
+  const home: Crumb = { to: '/', label: t('ops.nav.dashboard') };
   // the dashboard itself has no trail — just its own title
-  if (pathname === '/' || pathname === '') {
-    return [{ to: '/', label: t('ops.nav.dashboard') }];
-  }
+  if (pathname === '/' || pathname === '') return [home];
 
-  const trail: Crumb[] = [{ to: '/', label: t('ops.nav.dashboard') }];
-  const segments = pathname.split('/').filter(Boolean);
+  const entry = findEntry(groups, pathname);
+  const last = pathname.split('/').filter(Boolean).pop() ?? pathname;
+  if (!entry) return [home, { to: pathname, label: last }];
 
-  if (pathname.startsWith('/config/') && labelByPath.has('/config')) {
-    trail.push({ to: '/config', label: t(labelByPath.get('/config')!) });
-  } else if (segments.length > 1) {
-    const parent = `/${segments.slice(0, -1).join('/')}`;
-    if (labelByPath.has(parent)) trail.push({ to: parent, label: t(labelByPath.get(parent)!) });
-  }
-
-  const here = labelByPath.get(pathname);
-  trail.push({ to: pathname, label: here ? t(here) : (segments[segments.length - 1] ?? pathname) });
+  const trail: Crumb[] = [home];
+  if (entry.group.titleKey) trail.push({ label: t(entry.group.titleKey) });
+  for (const a of entry.ancestors) trail.push({ to: a.to, label: t(a.label) });
+  const isDetail = entry.item.to !== pathname;
+  trail.push({ to: entry.item.to, label: t(entry.item.label) });
+  if (isDetail) trail.push({ to: pathname, label: last });
   return trail;
 }
 
@@ -52,13 +51,14 @@ export function buildCrumbs(
 export function Breadcrumbs({ groups }: { groups: NavGroup[] }) {
   const { t } = useI18n();
   const { pathname } = useLocation();
-  const labelByPath = new Map(
-    groups.flatMap((g) => g.items.map((it) => [it.to, it.label] as const)),
-  );
   const override = useCurrentBreadcrumbLabel();
-  const trail = buildCrumbs(pathname, labelByPath, t);
+  const entry = findEntry(groups, pathname);
+  const trail = buildCrumbs(pathname, groups, t);
   const last = trail[trail.length - 1];
-  if (override && last && last.to === pathname && !labelByPath.has(pathname)) last.label = override;
+  // a record's own name replaces the raw id from the URL
+  if (override && last && last.to === pathname && entry && entry.item.to !== pathname) {
+    last.label = override;
+  }
   if (trail.length === 0) return null;
 
   return (
@@ -68,16 +68,20 @@ export function Breadcrumbs({ groups }: { groups: NavGroup[] }) {
           const current = i === trail.length - 1;
           return (
             <BreadcrumbItem
-              key={c.to}
+              key={`${i}-${c.label}`}
               className={current ? 'min-w-0' : 'hidden shrink-0 md:inline-flex'}
             >
               {current ? (
                 <BreadcrumbPage className="truncate">{c.label}</BreadcrumbPage>
               ) : (
                 <>
-                  <BreadcrumbLink asChild>
-                    <Link to={c.to}>{c.label}</Link>
-                  </BreadcrumbLink>
+                  {c.to ? (
+                    <BreadcrumbLink asChild>
+                      <Link to={c.to}>{c.label}</Link>
+                    </BreadcrumbLink>
+                  ) : (
+                    <span className="text-muted-foreground">{c.label}</span>
+                  )}
                   <BreadcrumbSeparator />
                 </>
               )}

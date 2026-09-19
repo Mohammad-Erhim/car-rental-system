@@ -36,7 +36,7 @@ describe('dq-model', () => {
   });
 
   it('links sample keys to router paths', () => {
-    expect(SAMPLE_LINK.reservation_orphan_account!('RES-1')).toBe('/work/RES-1');
+    expect(SAMPLE_LINK.reservation_orphan_account!('RES-1')).toBe('/reservations/RES-1');
     expect(SAMPLE_LINK.rental_active_without_unit!('RNT-1')).toBe('/rentals/RNT-1');
   });
 });

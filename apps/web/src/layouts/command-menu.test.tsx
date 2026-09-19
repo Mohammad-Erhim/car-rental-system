@@ -14,7 +14,7 @@ const groups: NavGroup[] = [
   },
   {
     titleKey: 'ops.navGroup.catalogue',
-    items: [{ to: '/config/rate-plans', label: 'ops.nav.ratePlans', icon: Tag }],
+    items: [{ to: '/catalogue/rate-plans', label: 'ops.nav.ratePlans', icon: Tag }],
   },
 ];
 
@@ -40,7 +40,7 @@ describe('CommandMenu', () => {
     fireEvent.click(screen.getByTestId('cmdk-open'));
     expect(screen.getByTestId('cmdk-input')).toBeInTheDocument();
     expect(screen.getByTestId('cmdk-item-/fleet')).toBeInTheDocument();
-    expect(screen.getByTestId('cmdk-item-/config/rate-plans')).toBeInTheDocument();
+    expect(screen.getByTestId('cmdk-item-/catalogue/rate-plans')).toBeInTheDocument();
   });
 
   it('opens with Ctrl+K', () => {
@@ -54,7 +54,7 @@ describe('CommandMenu', () => {
     fireEvent.click(screen.getByTestId('cmdk-open'));
     fireEvent.change(screen.getByTestId('cmdk-input'), { target: { value: 'rate' } });
     expect(screen.queryByTestId('cmdk-item-/fleet')).not.toBeInTheDocument();
-    expect(screen.getByTestId('cmdk-item-/config/rate-plans')).toBeInTheDocument();
+    expect(screen.getByTestId('cmdk-item-/catalogue/rate-plans')).toBeInTheDocument();
     fireEvent.change(screen.getByTestId('cmdk-input'), { target: { value: 'zzzz' } });
     expect(screen.getByText('No matching section')).toBeInTheDocument();
   });
@@ -62,8 +62,8 @@ describe('CommandMenu', () => {
   it('selecting a result navigates there and closes', () => {
     setup();
     fireEvent.click(screen.getByTestId('cmdk-open'));
-    fireEvent.click(screen.getByTestId('cmdk-item-/config/rate-plans'));
-    expect(screen.getByTestId('path')).toHaveTextContent('/config/rate-plans');
+    fireEvent.click(screen.getByTestId('cmdk-item-/catalogue/rate-plans'));
+    expect(screen.getByTestId('path')).toHaveTextContent('/catalogue/rate-plans');
     expect(screen.queryByTestId('cmdk-input')).not.toBeInTheDocument();
   });
 });

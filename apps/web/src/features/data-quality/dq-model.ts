@@ -1,3 +1,4 @@
+import { paths } from '@/app/paths';
 import type { DataQualityCheck } from '@/lib/admin-hooks';
 
 /**
@@ -7,8 +8,8 @@ import type { DataQualityCheck } from '@/lib/admin-hooks';
  * mounted under /ops).
  */
 export const SAMPLE_LINK: Partial<Record<string, (key: string) => string>> = {
-  reservation_orphan_account: (key) => `/work/${encodeURIComponent(key)}`,
-  rental_active_without_unit: (key) => `/rentals/${encodeURIComponent(key)}`,
+  reservation_orphan_account: (key) => paths.reservation(key),
+  rental_active_without_unit: (key) => paths.rental(key),
 };
 
 /** A finding still asking for attention (open) versus one someone has already dealt with. */

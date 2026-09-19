@@ -5,6 +5,7 @@ import { CheckCheck, RotateCw } from 'lucide-react';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 
+import { paths } from '@/app/paths';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import type { ReconciliationException, RecoveryCase } from '@/lib/finance-hooks';
@@ -43,7 +44,7 @@ export function useAge() {
 export function SubjectLink({ type, reference }: { type: string; reference: string }) {
   const to =
     type === 'reservation'
-      ? `/work/${encodeURIComponent(reference)}`
+      ? paths.reservation(reference)
       : type === 'rental'
         ? `/rentals/${encodeURIComponent(reference)}`
         : null;

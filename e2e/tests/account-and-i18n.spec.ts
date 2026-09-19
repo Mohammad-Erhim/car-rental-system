@@ -88,7 +88,7 @@ test.describe('operations translations (APP-OPS)', () => {
     await page.getByRole('button', { name: /^Sign in$/ }).click();
     await expect(page).toHaveURL(/\/ops$/);
 
-    await page.goto('/ops/config/translations');
+    await page.goto('/ops/website/translations');
     await expect(page.getByRole('heading', { name: /Translation catalogue/ })).toBeVisible();
 
     const coverage = page.getByTestId('translation-coverage');

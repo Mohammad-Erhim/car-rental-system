@@ -20,6 +20,7 @@ import { DAY_KEYS, mergeHours } from './location-model';
 import { ArchiveDialog, LocationStatus, useRestoreLocation } from './location-parts';
 import { LocationSheet } from './location-sheet';
 
+import { paths } from '@/app/paths';
 import { DetailList } from '@/components/detail-list';
 import { Page, PageHeader } from '@/components/page-header';
 import { SectionCard } from '@/components/section-card';
@@ -91,7 +92,7 @@ export function LocationDetailPage() {
       <BreadcrumbLabelSetter label={l.name} />
       <div className="-mb-2">
         <Button variant="ghost" size="sm" className="-ms-2.5 text-muted-foreground" asChild>
-          <Link to="/config/locations">
+          <Link to={paths.locations}>
             <ArrowLeft className="rtl:rotate-180" aria-hidden="true" />
             {t('ops.loc.title')}
           </Link>
