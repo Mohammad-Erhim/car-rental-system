@@ -9,6 +9,7 @@ import {
 } from 'react-router-dom';
 
 import { RequireAuth, RequirePermission } from '../components/route-guards.js';
+import { AuditLogPage } from '../features/audit/audit-page.js';
 import { RecoveryPage } from '../features/auth/recovery-page.js';
 import { SignInPage } from '../features/auth/sign-in-page.js';
 import { BrandingPage } from '../features/branding/branding-page.js';
@@ -46,7 +47,6 @@ import { TranslationEditorPage } from '../features/translations/translation-edit
 import { TranslationsPage } from '../features/translations/translations-page.js';
 import { AuthLayout } from '../layouts/auth-layout.js';
 import { DashboardLayout } from '../layouts/dashboard-layout.js';
-import { AuditLogPage } from '../surfaces/ops/audit-log-page.js';
 import { ConsentLogPage } from '../surfaces/ops/consent/consent-log-page.js';
 import { DataQualityPage } from '../surfaces/ops/data-quality-page.js';
 

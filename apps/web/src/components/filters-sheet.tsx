@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -47,6 +48,16 @@ export type FilterField =
       /** the entry shown for "no filter" (maps to '') */
       anyLabel: string;
       options: SelectOption[];
+    }
+  /** free text; `suggestions` become the browser's autocomplete list (any value is still accepted) */
+  | {
+      type: 'text';
+      name: string;
+      label: string;
+      hint?: string;
+      placeholder?: string;
+      suggestions?: string[];
+      mono?: boolean;
     }
   /** two date inputs bound to the values `from` and `to`; the end may not precede the start */
   | { type: 'dateRange'; fromLabel: string; toLabel: string };
@@ -94,7 +105,7 @@ export function FiltersSheet({
   const cleared = useMemo(() => {
     const out: FilterValues = {};
     for (const f of fields) {
-      if (f.type === 'select') out[f.name] = '';
+      if (f.type === 'select' || f.type === 'text') out[f.name] = '';
       else {
         out.from = '';
         out.to = '';
@@ -124,6 +135,8 @@ export function FiltersSheet({
               {fields.map((f) =>
                 f.type === 'select' ? (
                   <SelectFilter key={f.name} form={form} field={f} />
+                ) : f.type === 'text' ? (
+                  <TextFilter key={f.name} form={form} field={f} />
                 ) : (
                   <div key="dates" className="grid gap-5 sm:grid-cols-2">
                     <FormField
@@ -177,6 +190,45 @@ export function FiltersSheet({
         </Form>
       </SheetContent>
     </Sheet>
+  );
+}
+
+function TextFilter({
+  form,
+  field: f,
+}: {
+  form: ReturnType<typeof useForm<FilterValues>>;
+  field: Extract<FilterField, { type: 'text' }>;
+}) {
+  const listId = `filter-${f.name}-list`;
+  return (
+    <FormField
+      control={form.control}
+      name={f.name}
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{f.label}</FormLabel>
+          <FormControl>
+            <Input
+              {...field}
+              value={field.value ?? ''}
+              list={f.suggestions ? listId : undefined}
+              placeholder={f.placeholder}
+              autoComplete="off"
+              className={f.mono ? 'font-mono' : undefined}
+            />
+          </FormControl>
+          {f.suggestions ? (
+            <datalist id={listId}>
+              {f.suggestions.map((o) => (
+                <option key={o} value={o} />
+              ))}
+            </datalist>
+          ) : null}
+          {f.hint ? <FormDescription>{f.hint}</FormDescription> : null}
+        </FormItem>
+      )}
+    />
   );
 }
 
