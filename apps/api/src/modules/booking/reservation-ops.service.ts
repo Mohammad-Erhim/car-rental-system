@@ -649,6 +649,14 @@ export class ReservationOpsService {
         'Refund amount must be a positive integer',
       );
     }
+    // a role can cap how much its holders may refund (per-role condition `amountMinorMax`)
+    const cap = actor.permissionConditions?.['payment.refund']?.amountMinorMax;
+    if (cap !== undefined && input.amountMinor > cap) {
+      throw new AppError('forbidden', {
+        title: `Your role can refund up to ${(cap / 100).toFixed(2)} — this needs someone with a higher limit`,
+        params: { reason: 'over_limit', limitMinor: cap },
+      });
+    }
     await this.payments.refund(actor, reference, input.amountMinor, 'booking');
     const newPaidMinor = Math.max(0, row.paidMinor - input.amountMinor);
     await this.db.transaction(async (tx) => {

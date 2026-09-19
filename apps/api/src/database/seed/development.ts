@@ -1,3 +1,4 @@
+import { setStaffRoles } from './staff-roles';
 import { hash } from '@node-rs/argon2';
 import { sql } from 'drizzle-orm';
 
@@ -143,22 +144,21 @@ export async function seedDevelopment(db: Database): Promise<void> {
       .returning();
     if (!acc) continue;
 
-    await db
+    const [profile] = await db
       .insert(staffProfile)
       .values({
         accountId: acc.id,
         organizationId: org.id,
         locationScope: [],
-        roleCodes: s.roles,
-        approvalLimitMinor:
-          s.roles.includes('manager') || s.roles.includes('administrator') ? 500000 : 20000,
         status: 'active',
         activatedAt: sql`now()`,
       })
       .onConflictDoUpdate({
         target: staffProfile.accountId,
-        set: { roleCodes: s.roles, status: 'active', updatedAt: sql`now()` },
-      });
+        set: { status: 'active', updatedAt: sql`now()` },
+      })
+      .returning({ id: staffProfile.id });
+    await setStaffRoles(db, profile!.id, org.id, s.roles);
   }
 
   // --- demo customer ---

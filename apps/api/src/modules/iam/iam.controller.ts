@@ -237,6 +237,15 @@ export class IamController {
     return { ok: true, message: 'Password changed. Sign in again.' };
   }
 
+  @Get('me/access')
+  @ApiOperation({
+    operationId: 'auth_myAccess',
+    summary: 'My permissions, limits and scope right now (the session copy can be stale)',
+  })
+  myAccess(@CurrentActor() actor: Actor) {
+    return this.iam.myAccess(actor);
+  }
+
   @Get('me')
   @ApiOperation({ operationId: 'auth_me', summary: 'Current session actor + profile' })
   async me(@CurrentActor() actor: Actor) {

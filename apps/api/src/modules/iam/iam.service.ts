@@ -5,7 +5,7 @@ import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
 import { ActorService } from '../../common/auth/actor.service';
 import { PasswordService } from '../../common/auth/password.service';
-import { RbacService } from '../../common/auth/rbac.service';
+import { AccessService } from '../../common/auth/access.service';
 import { SessionService } from '../../common/auth/session.service';
 import { TokenService } from '../../common/auth/token.service';
 import { DB } from '../../database/database.module';
@@ -41,7 +41,7 @@ export class IamService {
     private readonly tokens: TokenService,
     private readonly sessions: SessionService,
     private readonly actors: ActorService,
-    private readonly rbac: RbacService,
+    private readonly access: AccessService,
     private readonly verification: VerificationService,
     private readonly audit: AuditService,
     private readonly config: ConfigPublic,
@@ -505,6 +505,35 @@ export class IamService {
     return { ...session, refreshToken: issued.refreshToken, expiresAt: issued.expiresAt };
   }
 
+  /** The person's own access, fresh from the database (the session copy can be stale). */
+  async myAccess(actor: {
+    staffProfileId?: string;
+    permissions: string[];
+    roleCodes: string[];
+    locationScope: string[];
+  }) {
+    if (!actor.staffProfileId) {
+      return {
+        permissions: actor.permissions,
+        roleCodes: actor.roleCodes,
+        conditions: {},
+        locationScope: actor.locationScope,
+      };
+    }
+    const eff = await this.access.resolveForProfile(actor.staffProfileId);
+    const [p] = await this.db
+      .select({ scope: staffProfile.locationScope })
+      .from(staffProfile)
+      .where(eq(staffProfile.id, actor.staffProfileId))
+      .limit(1);
+    return {
+      permissions: eff.permissions,
+      roleCodes: eff.roleCodes,
+      conditions: eff.conditions,
+      locationScope: p?.scope ?? [],
+    };
+  }
+
   private async buildSessionResponse(accountId: string, _issued: { refreshToken: string }) {
     const acc = await this.accounts.findById(accountId);
     if (!acc) throw new AppError('resource_not_found');
@@ -527,10 +556,11 @@ export class IamService {
         .where(eq(staffProfile.accountId, acc.id))
         .limit(1);
       if (profile) {
-        roleCodes = profile.roleCodes;
+        const eff = await this.access.resolveForProfile(profile.id);
+        roleCodes = eff.roleCodes;
         organizationId = profile.organizationId;
         locationScope = profile.locationScope;
-        permissions = await this.rbac.resolvePermissions(profile.roleCodes);
+        permissions = eff.permissions;
         const { organization } = await import('../../database/schema/org');
         const [org] = await this.db
           .select({ name: organization.name })

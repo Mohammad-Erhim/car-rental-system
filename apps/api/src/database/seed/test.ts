@@ -1,3 +1,4 @@
+import { setStaffRoles } from './staff-roles';
 import { hash } from '@node-rs/argon2';
 import { and, eq, sql } from 'drizzle-orm';
 
@@ -204,26 +205,25 @@ export async function seedTest(db: Database): Promise<void> {
       })
       .returning();
     if (acc && a.kind === 'staff') {
-      await db
+      const [profile] = await db
         .insert(staffProfile)
         .values({
           accountId: acc.id,
           organizationId: org.id,
-          roleCodes: a.roles,
           locationScope: a.locationScope ?? [],
-          approvalLimitMinor: a.roles.includes('administrator') ? 1_000_000 : 50_000,
           status: 'active',
           activatedAt: sql`now()`,
         })
         .onConflictDoUpdate({
           target: staffProfile.accountId,
           set: {
-            roleCodes: a.roles,
             locationScope: a.locationScope ?? [],
             status: 'active',
             updatedAt: sql`now()`,
           },
-        });
+        })
+        .returning({ id: staffProfile.id });
+      await setStaffRoles(db, profile!.id, org.id, a.roles);
     }
     // domain profile for the customer account (register/verify creates this in real use) so the
     // ops customer-record screen (SCREEN-OPS-021/022, FR-ADM-001) has a record to find.

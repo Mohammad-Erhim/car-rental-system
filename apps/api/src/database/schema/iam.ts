@@ -109,10 +109,20 @@ export const role = pgTable(
     name: text('name').notNull(),
     description: text('description'),
     isSystem: boolean('is_system').notNull().default(false),
+    /** system roles are read-only (clone them to customise); custom roles are fully editable */
+    locked: boolean('locked').notNull().default(false),
+    /** granted actions; the wildcard `*` means "every action in the catalogue" (resolved per request) */
     permissionActions: jsonb('permission_actions')
       .$type<string[]>()
       .notNull()
       .default(sql`'[]'::jsonb`),
+    /** per-action limits on a grant, e.g. `{ "payment.refund": { "amountMinorMax": 50000 } }` */
+    conditions: jsonb('conditions')
+      .$type<Record<string, { amountMinorMax?: number }>>()
+      .notNull()
+      .default(sql`'{}'::jsonb`),
+    /** an archived role grants nothing new and cannot be assigned; existing history is kept */
+    archivedAt: timestamp('archived_at', { withTimezone: true, mode: 'string' }),
   },
   (t) => ({
     // `NULLS NOT DISTINCT`, not a plain unique index — every system role has organizationId
@@ -152,11 +162,6 @@ export const staffProfile = pgTable(
       .$type<string[]>()
       .notNull()
       .default(sql`'[]'::jsonb`),
-    roleCodes: jsonb('role_codes')
-      .$type<string[]>()
-      .notNull()
-      .default(sql`'[]'::jsonb`),
-    approvalLimitMinor: integer('approval_limit_minor').notNull().default(0),
     status: text('status').notNull().default('invited'), // invited|active|suspended|deactivated
     invitedAt: timestamp('invited_at', { withTimezone: true, mode: 'string' }),
     activatedAt: timestamp('activated_at', { withTimezone: true, mode: 'string' }),
@@ -165,4 +170,75 @@ export const staffProfile = pgTable(
     accountUnq: uniqueIndex('staff_profile_account_unq').on(t.accountId),
     orgIdx: index('staff_profile_org_idx').on(t.organizationId, t.status),
   }),
+);
+
+/**
+ * A role held by a staff member — the source of truth for "who has which role" (replaces the old
+ * free-text `staff_profile.role_codes`). Optionally time-bound; an expired assignment grants
+ * nothing and is evaluated by time at request, never by a sweeper.
+ */
+export const staffRoleAssignment = pgTable(
+  'staff_role_assignment',
+  {
+    ...auditColumns,
+    staffProfileId: uuid('staff_profile_id').notNull(),
+    roleId: uuid('role_id').notNull(),
+    validFrom: timestamp('valid_from', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .default(sql`now()`),
+    /** null = until removed */
+    validUntil: timestamp('valid_until', { withTimezone: true, mode: 'string' }),
+    grantedBy: uuid('granted_by'),
+    reason: text('reason'),
+  },
+  (t) => ({
+    staffIdx: index('staff_role_assignment_staff_idx').on(t.staffProfileId),
+    roleIdx: index('staff_role_assignment_role_idx').on(t.roleId),
+  }),
+);
+
+/**
+ * A per-person exception to their roles: `allow` adds an action, `deny` removes it (deny beats any
+ * allow, from a role or another override). Optionally expires.
+ */
+export const staffPermissionOverride = pgTable(
+  'staff_permission_override',
+  {
+    ...auditColumns,
+    staffProfileId: uuid('staff_profile_id').notNull(),
+    action: text('action').notNull(),
+    effect: text('effect').notNull(), // allow | deny
+    validUntil: timestamp('valid_until', { withTimezone: true, mode: 'string' }),
+    reason: text('reason'),
+    grantedBy: uuid('granted_by'),
+  },
+  (t) => ({
+    staffActionUnq: uniqueIndex('staff_permission_override_unq').on(t.staffProfileId, t.action),
+  }),
+);
+
+/** A team of staff ("Fleet desk") — addressable by workflow steps and reports. */
+export const staffGroup = pgTable(
+  'staff_group',
+  {
+    ...auditColumns,
+    organizationId: uuid('organization_id').notNull(),
+    code: text('code').notNull(),
+    name: text('name').notNull(),
+    description: text('description'),
+    archivedAt: timestamp('archived_at', { withTimezone: true, mode: 'string' }),
+  },
+  (t) => ({ codeUnq: unique('staff_group_org_code_unq').on(t.organizationId, t.code) }),
+);
+
+export const staffGroupMember = pgTable(
+  'staff_group_member',
+  {
+    groupId: uuid('group_id').notNull(),
+    staffProfileId: uuid('staff_profile_id').notNull(),
+    addedAt: timestamp('added_at', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .default(sql`now()`),
+  },
+  (t) => ({ pk: uniqueIndex('staff_group_member_pk').on(t.groupId, t.staffProfileId) }),
 );

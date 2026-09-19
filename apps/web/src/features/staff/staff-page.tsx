@@ -4,6 +4,7 @@ import {
   History,
   MailPlus,
   MoreHorizontal,
+  LockKeyhole,
   Pencil,
   Plus,
   Power,
@@ -15,6 +16,8 @@ import {
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+
+import { UserAccessSheet } from '../access/user-access-sheet';
 
 import { StaffSheet } from './staff-sheet';
 
@@ -60,7 +63,8 @@ const getRowId = (s: StaffRow) => s.accountId;
 
 type Modal =
   | { kind: 'sheet'; staff: StaffRow | null }
-  | { kind: 'suspend' | 'deactivate'; staff: StaffRow };
+  | { kind: 'suspend' | 'deactivate'; staff: StaffRow }
+  | { kind: 'access'; staff: StaffRow };
 
 /** SCREEN-OPS-032 — Staff & roles (FR-ADM-009, FLOW-OPS-015). Invite, change access, suspend or close an account. */
 export function StaffPage() {
@@ -135,6 +139,10 @@ export function StaffPage() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-[12rem]">
+          <DropdownMenuItem onSelect={() => setModal({ kind: 'access', staff: s })}>
+            <LockKeyhole aria-hidden="true" />
+            {t('ops.access.manageAccess')}
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setModal({ kind: 'sheet', staff: s })}>
             <Pencil aria-hidden="true" />
             {t('ops.staff.change')}
@@ -324,6 +332,13 @@ export function StaffPage() {
         />
       </section>
 
+      {modal?.kind === 'access' ? (
+        <UserAccessSheet
+          accountId={modal.staff.accountId}
+          open
+          onOpenChange={(o) => !o && setModal(null)}
+        />
+      ) : null}
       {modal?.kind === 'sheet' ? (
         <StaffSheet staff={modal.staff} open onOpenChange={close} />
       ) : null}

@@ -436,3 +436,40 @@ routing-payment.adapter,payment-config.controller,stripe-webhook.controller}.ts`
   earlier seed are not overwritten; tests `direct-publish.spec.ts` and updated specs.
   Not yet: a restriction is still created `pending_review` and needs one explicit approve click
   (it can be the author); the workflow engine (phase 3) makes "Direct" a real per-action choice.
+
+### DEC-031 — Authorization v2: roles, assignments, overrides, teams, the matrix
+
+- Context: roles were seed data; `staff_profile.role_codes` and `role.permission_actions` were
+  unvalidated free text; `approvalLimitMinor` was stored and never enforced; two permissions were
+  never checked; the UI's copy of a person's permissions went stale; no per-person exceptions, teams,
+  time-bound access or "who can do X".
+- Decision (phase 2 of `plan-workflows-roles-permissions.md`):
+  - **Model.** `staff_role_assignment` (real FK to `role`, optional start/end) replaces the free-text
+    role list; `staff_permission_override` (allow / deny, optional expiry, reason); `staff_group` +
+    members; `role` gains `locked`, `conditions`, `archived_at`. Migration 0030 backfills assignments,
+    locks system roles, drops `role_codes` and `approval_limit_minor`, and removes the dead
+    `rental.extend.approve` / `reservation.override`.
+  - **Evaluation** is one pure module (`common/auth/access-graph.ts`): union of active assignments,
+    minus DENY overrides (deny always wins), plus ALLOW overrides; the wildcard `*` (administrator)
+    expands to the catalogue at request time; when several roles grant an action the most permissive
+    limit wins. `AccessService` loads it per request (no cache yet: a change applies to the next call).
+  - **Conditions.** A role's grant may carry `amountMinorMax` (today: `payment.refund`); the manual
+    refund endpoint refuses above it (`over_limit`).
+  - **Administration** (`AccessAdminService`, `admin/*`): roles CRUD/clone/archive (system roles
+    read-only, cloneable), bulk matrix change with a dry-run preview, assignments and overrides per
+    person, teams, users×permissions matrix, who-can, explain, access history, `GET /auth/me/access`.
+    Every write is validated against the live catalogue, audited, step-up protected, and guarded: no
+    granting what you don't hold, no changing your own access, roles in use can't be archived, and at
+    least one active person must always be able to manage access. The new endpoints are `@OrgWide()`.
+  - **Catalogue** is kept honest at boot (`PermissionCatalogueService` adds any action a decorator
+    names and the catalogue lacks) and by a test.
+  - **UI** `Administration → Access`: roles × permissions grid (edits staged, reviewed via dry-run,
+    then saved), people × permissions grid with sources, per-person sheet (roles incl. time-bound,
+    allow/deny exceptions, effective permissions), teams, history. The auth provider re-reads the
+    person's access on focus so the UI stops trusting the sign-in snapshot.
+- Not yet (later phases): granular split of `config.publish`, a Redis cache with invalidation,
+  workflow steps addressing roles/teams/people, per-assignment location scope.
+- Consequences: `apps/api/src/common/auth/{access-graph,access.service,permission-catalogue.service}.ts`,
+  `modules/admin/{access-admin,staff}.service.ts`, migration `0030_*`, seeds (`staff-roles.ts`),
+  web `features/access/*`, `lib/access-hooks.ts`, `packages/client` auth provider; tests
+  `access-graph.test.ts`, `access-admin.spec.ts`, web matrix/roles/user-sheet tests.

@@ -5,7 +5,7 @@ import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { account, staffProfile } from '../../database/schema/iam';
 
-import { RbacService } from './rbac.service';
+import { AccessService } from './access.service';
 import type { AccessClaims } from './token.service';
 import type { Actor } from './types';
 
@@ -14,7 +14,7 @@ import type { Actor } from './types';
 export class ActorService {
   constructor(
     @Inject(DB) private readonly db: Database,
-    private readonly rbac: RbacService,
+    private readonly access: AccessService,
   ) {}
 
   async fromClaims(claims: AccessClaims): Promise<Actor | null> {
@@ -30,7 +30,7 @@ export class ActorService {
       permissions: [],
       roleCodes: [],
       locationScope: [],
-      approvalLimitMinor: 0,
+      permissionConditions: {},
       lastFullAuthAt: acc.lastFullAuthAt ?? undefined,
       tokenId: claims.jti,
     };
@@ -54,15 +54,15 @@ export class ActorService {
       return { ...base, kind: 'staff' };
     }
 
-    const permissions = await this.rbac.resolvePermissions(profile.roleCodes);
+    const access = await this.access.resolveForProfile(profile.id);
     return {
       ...base,
       staffProfileId: profile.id,
       organizationId: profile.organizationId,
-      permissions,
-      roleCodes: profile.roleCodes,
+      permissions: access.permissions,
+      roleCodes: access.roleCodes,
       locationScope: profile.locationScope,
-      approvalLimitMinor: profile.approvalLimitMinor,
+      permissionConditions: access.conditions,
     };
   }
 }

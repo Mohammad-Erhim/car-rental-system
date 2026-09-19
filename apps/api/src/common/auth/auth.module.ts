@@ -1,11 +1,13 @@
 import { Global, Module } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, DiscoveryModule } from '@nestjs/core';
 
 import { RateLimitGuard } from '../security/rate-limit.guard';
 
+import { AccessService } from './access.service';
 import { ActorService } from './actor.service';
 import { AuthGuard } from './auth.guard';
 import { PasswordService } from './password.service';
+import { PermissionCatalogueService } from './permission-catalogue.service';
 import { PermissionsGuard } from './permissions.guard';
 import { RbacService } from './rbac.service';
 import { SessionService } from './session.service';
@@ -19,17 +21,28 @@ import { TokenService } from './token.service';
  */
 @Global()
 @Module({
+  imports: [DiscoveryModule],
   providers: [
+    PermissionCatalogueService,
     PasswordService,
     TokenService,
     SessionService,
     RbacService,
+    AccessService,
     ActorService,
     { provide: APP_GUARD, useClass: RateLimitGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
     { provide: APP_GUARD, useClass: StepUpGuard },
   ],
-  exports: [PasswordService, TokenService, SessionService, RbacService, ActorService],
+  exports: [
+    PasswordService,
+    TokenService,
+    SessionService,
+    RbacService,
+    AccessService,
+    ActorService,
+    PermissionCatalogueService,
+  ],
 })
 export class AuthModule {}

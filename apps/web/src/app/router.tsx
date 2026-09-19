@@ -13,6 +13,7 @@ import {
 
 import { RequireAuth, RequirePermission } from '../components/route-guards.js';
 import { StateView } from '../components/state-view.js';
+import { AccessPage } from '../features/access/access-page.js';
 import { AuditLogPage } from '../features/audit/audit-page.js';
 import { RecoveryPage } from '../features/auth/recovery-page.js';
 import { SignInPage } from '../features/auth/sign-in-page.js';
@@ -150,6 +151,7 @@ function dashboardRoutes(): RouteObject[] {
       element: perm(['config.read', 'lookup.manage'], <ReferenceDataPage />),
     },
     { path: 'admin/staff', element: perm(['staff.manage'], <StaffPage />) },
+    { path: 'admin/access', element: perm(['staff.manage'], <AccessPage />) },
     {
       path: 'customers',
       element: perm(['customer.read'], <CustomersPage />),

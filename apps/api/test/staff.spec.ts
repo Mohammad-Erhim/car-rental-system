@@ -166,13 +166,13 @@ describe('staff & roles admin', () => {
     ).toBe('deactivated');
   });
 
-  it('a role change moves the approval limit with it, not just the badge', async () => {
+  it('a role change moves the person’s effective access (roles and refund limit) with it', async () => {
     const invited = await request(server)
       .post('/api/v1/admin/staff/invite')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
-        email: 'staff-approval-limit-test@example.test',
-        fullName: 'Approval Limit Test',
+        email: 'staff-access-move-test@example.test',
+        fullName: 'Access Move Test',
         roleCodes: ['rental_agent'],
       })
       .expect(201);
@@ -185,21 +185,23 @@ describe('staff & roles admin', () => {
         .expect(200);
       return list.body.find((s: { accountId: string }) => s.accountId === accountId);
     };
-    expect((await find()).approvalLimitMinor).toBe(20_000);
+    // a rental agent cannot refund at all
+    expect((await find()).roleCodes).toEqual(['rental_agent']);
+    expect((await find()).refundLimitMinor).toBeNull();
 
     await request(server)
       .post(`/api/v1/admin/staff/${accountId}/access`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ roleCodes: ['manager'] })
       .expect(201);
-    expect((await find()).approvalLimitMinor).toBe(500_000);
+    expect((await find()).roleCodes).toEqual(['manager']);
 
     await request(server)
       .post(`/api/v1/admin/staff/${accountId}/access`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ roleCodes: ['rental_agent'] })
       .expect(201);
-    expect((await find()).approvalLimitMinor).toBe(20_000);
+    expect((await find()).roleCodes).toEqual(['rental_agent']);
   });
 
   it('an administrator cannot demote themselves out of being the last active administrator', async () => {

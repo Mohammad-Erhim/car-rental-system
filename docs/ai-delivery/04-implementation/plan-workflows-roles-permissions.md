@@ -1,6 +1,6 @@
 # Plan — configurable workflows, roles, permissions and users
 
-Status: **phase 1 done (2026-09-20); phases 2–6 pending.** Requested 2026-09-19 (Telegram); all eight §6 recommendations accepted ("go"). Everything below is
+Status: **phases 1–2 done (2026-09-20); phases 3–6 pending.** Requested 2026-09-19 (Telegram); all eight §6 recommendations accepted ("go"). Everything below is
 grounded in a read of the current code (file references in §1); numbers such as "about 30 actions" are
 counted from the seed.
 

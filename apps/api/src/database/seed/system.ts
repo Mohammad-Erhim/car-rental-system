@@ -351,11 +351,9 @@ const PERMISSION_ACTIONS: Array<[string, string, string, string]> = [
   ['reservation.create', 'reservation', 'normal', 'Create reservations (assisted booking)'],
   ['reservation.modify', 'reservation', 'normal', 'Modify reservations'],
   ['reservation.cancel', 'reservation', 'elevated', 'Cancel reservations'],
-  ['reservation.override', 'reservation', 'high', 'Apply overridable-rule exceptions'],
   ['rental.read', 'rental', 'normal', 'View rentals'],
   ['rental.pickup', 'rental', 'normal', 'Run pickup / open rentals'],
   ['rental.return', 'rental', 'normal', 'Receive returns / close rentals'],
-  ['rental.extend.approve', 'rental', 'elevated', 'Approve extension requests'],
   ['payment.read', 'payment', 'normal', 'View payments and receipts'],
   ['payment.refund', 'payment', 'high', 'Issue refunds'],
   ['payment.reconcile', 'payment', 'elevated', 'Resolve reconciliation exceptions'],
@@ -401,76 +399,78 @@ const ADMIN_ONLY_ACTIONS: Record<string, string[]> = {
   'email.manage': ['administrator'],
 };
 
-const SYSTEM_ROLES: Array<{ code: string; name: string; actions: string[] | 'ALL' }> = [
-  {
-    code: 'rental_agent',
-    name: 'Rental agent',
-    actions: [
-      'catalogue.read',
-      'reservation.read',
-      'reservation.create',
-      'reservation.modify',
-      'reservation.cancel',
-      'rental.read',
-      'rental.pickup',
-      'rental.return',
-      'payment.read',
-      'customer.read',
-      'fleet.read',
-    ],
-  },
-  {
-    code: 'fleet_staff',
-    name: 'Fleet staff',
-    actions: [
-      'catalogue.read',
-      'catalogue.manage',
-      'fleet.read',
-      'fleet.manage',
-      'rental.read',
-      'report.read',
-    ],
-  },
-  {
-    code: 'finance_staff',
-    name: 'Finance staff',
-    actions: [
-      'payment.read',
-      'payment.refund',
-      'payment.reconcile',
-      'reservation.read',
-      'rental.read',
-      'report.read',
-      'report.export',
-    ],
-  },
-  {
-    code: 'support_staff',
-    name: 'Support staff',
-    actions: [
-      'catalogue.read',
-      'reservation.read',
-      'reservation.modify',
-      'rental.read',
-      'customer.read',
-      'payment.read',
-    ],
-  },
-  { code: 'manager', name: 'Location manager', actions: 'ALL' },
-  { code: 'administrator', name: 'System administrator', actions: 'ALL' },
-  {
-    code: 'auditor',
-    name: 'Auditor',
-    actions: [
-      'reservation.read',
-      'rental.read',
-      'payment.read',
-      'fleet.read',
-      'report.read',
-      'audit.read',
-    ],
-  },
-];
+/** `ALL` = every action except the admin-only ones; `WILDCARD` = the `*` grant (everything, always). */
+const SYSTEM_ROLES: Array<{ code: string; name: string; actions: string[] | 'ALL' | 'WILDCARD' }> =
+  [
+    {
+      code: 'rental_agent',
+      name: 'Rental agent',
+      actions: [
+        'catalogue.read',
+        'reservation.read',
+        'reservation.create',
+        'reservation.modify',
+        'reservation.cancel',
+        'rental.read',
+        'rental.pickup',
+        'rental.return',
+        'payment.read',
+        'customer.read',
+        'fleet.read',
+      ],
+    },
+    {
+      code: 'fleet_staff',
+      name: 'Fleet staff',
+      actions: [
+        'catalogue.read',
+        'catalogue.manage',
+        'fleet.read',
+        'fleet.manage',
+        'rental.read',
+        'report.read',
+      ],
+    },
+    {
+      code: 'finance_staff',
+      name: 'Finance staff',
+      actions: [
+        'payment.read',
+        'payment.refund',
+        'payment.reconcile',
+        'reservation.read',
+        'rental.read',
+        'report.read',
+        'report.export',
+      ],
+    },
+    {
+      code: 'support_staff',
+      name: 'Support staff',
+      actions: [
+        'catalogue.read',
+        'reservation.read',
+        'reservation.modify',
+        'rental.read',
+        'customer.read',
+        'payment.read',
+      ],
+    },
+    { code: 'manager', name: 'Location manager', actions: 'ALL' },
+    { code: 'administrator', name: 'System administrator', actions: 'WILDCARD' },
+    {
+      code: 'auditor',
+      name: 'Auditor',
+      actions: [
+        'reservation.read',
+        'rental.read',
+        'payment.read',
+        'fleet.read',
+        'report.read',
+        'audit.read',
+      ],
+    },
+  ];
 
 export async function seedSystem(db: Database): Promise<void> {
   // --- locales ---
@@ -568,12 +568,14 @@ export async function seedSystem(db: Database): Promise<void> {
   const allActionCodes = PERMISSION_ACTIONS.map(([c]) => c);
   for (const r of SYSTEM_ROLES) {
     const actions =
-      r.actions === 'ALL'
-        ? allActionCodes.filter((code) => {
-            const allowList = ADMIN_ONLY_ACTIONS[code];
-            return !allowList || allowList.includes(r.code);
-          })
-        : r.actions;
+      r.actions === 'WILDCARD'
+        ? ['*'] // resolved per request: an action added later is covered without a reseed
+        : r.actions === 'ALL'
+          ? allActionCodes.filter((code) => {
+              const allowList = ADMIN_ONLY_ACTIONS[code];
+              return !allowList || allowList.includes(r.code);
+            })
+          : r.actions;
     await db
       .insert(role)
       .values({
@@ -581,11 +583,12 @@ export async function seedSystem(db: Database): Promise<void> {
         code: r.code,
         name: r.name,
         isSystem: true,
+        locked: true,
         permissionActions: actions,
       })
       .onConflictDoUpdate({
         target: [role.organizationId, role.code],
-        set: { name: r.name, permissionActions: actions, updatedAt: sql`now()` },
+        set: { name: r.name, locked: true, permissionActions: actions, updatedAt: sql`now()` },
       });
   }
 

@@ -1,9 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { inArray } from 'drizzle-orm';
-
-import { DB } from '../../database/database.module';
-import type { Database } from '../../database/drizzle';
-import { role } from '../../database/schema/iam';
+import { Injectable } from '@nestjs/common';
 
 import type { Actor, AuthScope } from './types';
 
@@ -17,20 +12,6 @@ const GLOBAL_ACTIONS = new Set([
 
 @Injectable()
 export class RbacService {
-  constructor(@Inject(DB) private readonly db: Database) {}
-
-  /** Resolve role codes to the union of their permission action codes. */
-  async resolvePermissions(roleCodes: string[]): Promise<string[]> {
-    if (!roleCodes.length) return [];
-    const rows = await this.db
-      .select({ code: role.code, actions: role.permissionActions })
-      .from(role)
-      .where(inArray(role.code, roleCodes));
-    const set = new Set<string>();
-    for (const r of rows) for (const a of r.actions) set.add(a);
-    return [...set];
-  }
-
   has(actor: Pick<Actor, 'permissions'>, action: string): boolean {
     return actor.permissions.includes(action);
   }

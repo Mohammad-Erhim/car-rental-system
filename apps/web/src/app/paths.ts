@@ -53,6 +53,7 @@ export const paths = {
 
   // administration
   staff: '/admin/staff',
+  access: '/admin/access',
   audit: '/admin/audit',
   consentLog: '/admin/consent-log',
   dataQuality: '/admin/data-quality',
@@ -133,6 +134,7 @@ const ORG_WIDE_PREFIXES: readonly string[] = [
   paths.templates,
   '/settings',
   '/admin/audit',
+  paths.access,
   paths.consentLog,
   paths.dataQuality,
 ];

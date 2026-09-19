@@ -1,17 +1,25 @@
 import { randomBytes } from 'node:crypto';
 
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
+import { computeEffective, expandActions, amountLimit } from '../../common/auth/access-graph';
+import { AccessService } from '../../common/auth/access.service';
 import { assertLocationAccess } from '../../common/auth/location-scope';
 import { PasswordService } from '../../common/auth/password.service';
 import { SessionService } from '../../common/auth/session.service';
 import type { Actor } from '../../common/auth/types';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
-import { account, permissionAction, role, staffProfile } from '../../database/schema/iam';
+import {
+  account,
+  permissionAction,
+  role,
+  staffProfile,
+  staffRoleAssignment,
+} from '../../database/schema/iam';
 import { ConfigPublic } from '../config/config.public';
 import { IamPublic } from '../iam/iam.public';
 
@@ -24,16 +32,8 @@ export class StaffService {
     private readonly iam: IamPublic,
     private readonly sessions: SessionService,
     private readonly config: ConfigPublic,
+    private readonly access: AccessService,
   ) {}
-
-  async listRoles() {
-    const roles = await this.db.select().from(role).orderBy(asc(role.name));
-    const actions = await this.db
-      .select()
-      .from(permissionAction)
-      .orderBy(asc(permissionAction.group));
-    return { roles, permissionActions: actions };
-  }
 
   async listStaff(actor: Actor) {
     const rows = await this.db
@@ -44,10 +44,8 @@ export class StaffService {
         accountStatus: account.status,
         lastSignInAt: account.lastSignInAt,
         profileId: staffProfile.id,
-        roleCodes: staffProfile.roleCodes,
         locationScope: staffProfile.locationScope,
         status: staffProfile.status,
-        approvalLimitMinor: staffProfile.approvalLimitMinor,
         organizationId: staffProfile.organizationId,
       })
       .from(staffProfile)
@@ -58,9 +56,24 @@ export class StaffService {
       .orderBy(asc(account.displayName));
     // A location-scoped manager sees the staff who work at their branches (and themselves) — not
     // the organisation-wide accounts (administrators) or other branches' teams.
+    const graph = await this.access.loadGraph({
+      staffProfileIds: rows.map((r) => r.profileId),
+      organizationId: actor.organizationId,
+    });
+    const withAccess = rows.map((r) => {
+      const eff = computeEffective(graph, r.profileId);
+      return {
+        ...r,
+        roleCodes: eff.roleCodes,
+        // the largest refund this person may issue (null = unlimited / cannot refund)
+        refundLimitMinor: eff.permissions.includes('payment.refund')
+          ? amountLimit(eff.conditions, 'payment.refund')
+          : null,
+      };
+    });
     const own = actor.locationScope?.length ? actor.locationScope : null;
-    if (!own) return rows;
-    return rows.filter(
+    if (!own) return withAccess;
+    return withAccess.filter(
       (r) => r.accountId === actor.accountId || r.locationScope.some((c) => own.includes(c)),
     );
   }
@@ -69,24 +82,6 @@ export class StaffService {
     actor: Actor,
     input: { email: string; fullName: string; roleCodes: string[]; locationScope?: string[] },
   ) {
-    // validate roles exist
-    const known = new Set(
-      (await this.db.select({ code: role.code }).from(role)).map((r) => r.code),
-    );
-    for (const rc of input.roleCodes) {
-      if (!known.has(rc)) {
-        throw new AppError('validation_failed', {
-          title: `Unknown role: ${rc}`,
-          fieldErrors: [{ path: 'roleCodes', code: 'unknown_role' }],
-        });
-      }
-    }
-    // prevent granting administrator unless the actor is an administrator
-    if (input.roleCodes.includes('administrator') && !actor.roleCodes.includes('administrator')) {
-      throw new AppError('forbidden', {
-        title: 'Only an administrator can grant the administrator role',
-      });
-    }
     // A location-scoped staff.manage actor can only grant scope they themselves hold — otherwise
     // a branch manager could invite a new hire (or edit an existing one, in changeAccess below)
     // with visibility across every location in the org, escalating past their own access.
@@ -124,30 +119,25 @@ export class StaffService {
     }
 
     const org = actor.organizationId ?? (await this.defaultOrgId());
-    await this.db
-      .insert(staffProfile)
-      .values({
-        accountId,
-        organizationId: org,
-        roleCodes: input.roleCodes,
-        locationScope: input.locationScope ?? [],
-        status: 'invited',
-        invitedAt: sql`now()`,
-        createdBy: actor.accountId,
-        approvalLimitMinor: approvalLimitFor(input.roleCodes),
-      })
-      .onConflictDoUpdate({
-        target: staffProfile.accountId,
-        set: {
-          roleCodes: input.roleCodes,
+    await this.db.transaction(async (tx) => {
+      const [profile] = await tx
+        .insert(staffProfile)
+        .values({
+          accountId,
+          organizationId: org,
           locationScope: input.locationScope ?? [],
-          // a re-invite (resend) can change roles before the invitee ever accepts — keep the
-          // approval limit in sync the same way changeAccess does, or a role bump/cut made this
-          // way silently doesn't take effect.
-          approvalLimitMinor: approvalLimitFor(input.roleCodes),
-          updatedAt: sql`now()`,
-        },
-      });
+          status: 'invited',
+          invitedAt: sql`now()`,
+          createdBy: actor.accountId,
+        })
+        .onConflictDoUpdate({
+          target: staffProfile.accountId,
+          set: { locationScope: input.locationScope ?? [], updatedAt: sql`now()` },
+        })
+        .returning({ id: staffProfile.id });
+      // a re-invite (resend) can change roles before the invitee ever accepts
+      await this.setPermanentRoles(tx, actor, profile!.id, org, input.roleCodes);
+    });
 
     await this.iam.sendInviteChallenge({
       accountId,
@@ -189,19 +179,27 @@ export class StaffService {
     // the account exactly as effectively as losing the role does), and a different staff.manage
     // actor (e.g. a 'manager', who has every permission action but isn't personally an
     // 'administrator') suspending, deactivating, or role-stripping the org's only administrator.
+    const graph = await this.access.loadGraph({ organizationId: profile.organizationId });
+    const effBefore = computeEffective(graph, profile.id);
     const targetIsActiveAdmin =
-      profile.status === 'active' && profile.roleCodes.includes('administrator');
+      profile.status === 'active' && effBefore.roleCodes.includes('administrator');
     const losesAdminRole = !!input.roleCodes && !input.roleCodes.includes('administrator');
     const losesActiveStatus = input.status === 'suspended' || input.status === 'deactivated';
 
     if (targetIsActiveAdmin && (losesAdminRole || losesActiveStatus)) {
-      const admins = await this.db
-        .select({ n: sql<number>`count(*)::int` })
+      const active = await this.db
+        .select({ id: staffProfile.id })
         .from(staffProfile)
         .where(
-          and(eq(staffProfile.status, 'active'), sql`${staffProfile.roleCodes} ? 'administrator'`),
+          and(
+            eq(staffProfile.organizationId, profile.organizationId),
+            eq(staffProfile.status, 'active'),
+          ),
         );
-      if ((admins[0]?.n ?? 0) <= 1) {
+      const admins = active.filter((p) =>
+        computeEffective(graph, p.id).roleCodes.includes('administrator'),
+      );
+      if (admins.length <= 1) {
         throw new AppError('business_rule_violation', {
           title:
             "This account is the organization's only active administrator — it can't be suspended, deactivated, or lose the administrator role.",
@@ -209,37 +207,35 @@ export class StaffService {
         });
       }
     }
-    if (input.roleCodes?.includes('administrator') && !actor.roleCodes.includes('administrator')) {
-      throw new AppError('forbidden', {
-        title: 'Only an administrator can grant the administrator role',
-      });
-    }
     assertGrantedScopeWithinActor(actor, input.locationScope);
 
     const before = {
-      roleCodes: profile.roleCodes,
+      roleCodes: effBefore.roleCodes,
       locationScope: profile.locationScope,
       status: profile.status,
     };
-    await this.db
-      .update(staffProfile)
-      .set({
-        roleCodes: input.roleCodes ?? profile.roleCodes,
-        locationScope: input.locationScope ?? profile.locationScope,
-        status: input.status ?? profile.status,
-        // a role change (promotion or demotion) has to move the approval limit with it — invite()
-        // sets this from the initial roles, but changeAccess previously never touched it again, so
-        // promoting someone to manager/administrator silently left them at the lower limit (and
-        // demoting an ex-admin left them with the higher one — a privilege-retention gap).
-        approvalLimitMinor: input.roleCodes
-          ? approvalLimitFor(input.roleCodes)
-          : profile.approvalLimitMinor,
-        activatedAt:
-          input.status === 'active' && !profile.activatedAt ? sql`now()` : profile.activatedAt,
-        updatedAt: sql`now()`,
-        updatedBy: actor.accountId,
-      })
-      .where(eq(staffProfile.id, profile.id));
+    await this.db.transaction(async (tx) => {
+      if (input.roleCodes) {
+        await this.setPermanentRoles(
+          tx,
+          actor,
+          profile.id,
+          profile.organizationId,
+          input.roleCodes,
+        );
+      }
+      await tx
+        .update(staffProfile)
+        .set({
+          locationScope: input.locationScope ?? profile.locationScope,
+          status: input.status ?? profile.status,
+          activatedAt:
+            input.status === 'active' && !profile.activatedAt ? sql`now()` : profile.activatedAt,
+          updatedAt: sql`now()`,
+          updatedBy: actor.accountId,
+        })
+        .where(eq(staffProfile.id, profile.id));
+    });
 
     if (input.status === 'suspended' || input.status === 'deactivated') {
       await this.db
@@ -282,6 +278,86 @@ export class StaffService {
     return { accountId, ...input };
   }
 
+  /**
+   * Make `codes` the person's permanent roles (assignments with no end date); time-bound ones are
+   * left alone. Every code must be an existing, non-archived role visible to the organisation, and
+   * the caller must hold everything a newly granted role grants (no privilege escalation).
+   */
+  private async setPermanentRoles(
+    tx: Pick<Database, 'select' | 'insert' | 'delete'>,
+    actor: Actor,
+    staffProfileId: string,
+    organizationId: string,
+    codes: string[],
+  ): Promise<void> {
+    const wanted = [...new Set(codes)];
+    const roles = wanted.length
+      ? await tx
+          .select()
+          .from(role)
+          .where(
+            and(
+              inArray(role.code, wanted),
+              isNull(role.archivedAt),
+              or(isNull(role.organizationId), eq(role.organizationId, organizationId)),
+            ),
+          )
+          .orderBy(sql`${role.organizationId} nulls last`)
+      : [];
+    const byCode = new Map<string, (typeof roles)[number]>();
+    for (const r of roles) if (!byCode.has(r.code)) byCode.set(r.code, r);
+    for (const rc of wanted) {
+      if (!byCode.has(rc)) {
+        throw new AppError('validation_failed', {
+          title: `Unknown role: ${rc}`,
+          fieldErrors: [{ path: 'roleCodes', code: 'unknown_role' }],
+        });
+      }
+    }
+    if (wanted.includes('administrator') && !actor.roleCodes.includes('administrator')) {
+      throw new AppError('forbidden', {
+        title: 'Only an administrator can grant the administrator role',
+      });
+    }
+    const current = await tx
+      .select({ id: staffRoleAssignment.id, roleId: staffRoleAssignment.roleId })
+      .from(staffRoleAssignment)
+      .where(
+        and(
+          eq(staffRoleAssignment.staffProfileId, staffProfileId),
+          isNull(staffRoleAssignment.validUntil),
+        ),
+      );
+    const haveRoleIds = new Set(current.map((c) => c.roleId));
+    const wantIds = new Set([...byCode.values()].map((r) => r.id));
+    const catalogue = (await tx.select({ code: permissionAction.code }).from(permissionAction)).map(
+      (r) => r.code,
+    );
+    const mine = new Set(actor.permissions);
+    for (const r of byCode.values()) {
+      if (haveRoleIds.has(r.id)) continue;
+      const missing = expandActions(r.permissionActions, catalogue).filter((a) => !mine.has(a));
+      if (missing.length) {
+        throw new AppError('forbidden', {
+          title: `You can only grant roles whose permissions you hold yourself (missing: ${missing.slice(0, 5).join(', ')})`,
+          params: { reason: 'privilege_escalation', missing: missing.join(',') },
+        });
+      }
+    }
+    const drop = current.filter((c) => !wantIds.has(c.roleId)).map((c) => c.id);
+    if (drop.length)
+      await tx.delete(staffRoleAssignment).where(inArray(staffRoleAssignment.id, drop));
+    for (const r of byCode.values()) {
+      if (haveRoleIds.has(r.id)) continue;
+      await tx.insert(staffRoleAssignment).values({
+        staffProfileId,
+        roleId: r.id,
+        grantedBy: actor.accountId,
+        reason: 'staff access',
+      });
+    }
+  }
+
   /** Delegates to `ConfigPublic.defaultOrganization()` (deterministically ordered by
    *  `createdAt`) rather than repeating the raw, unordered `organization` query — see
    *  `config.public.ts`. */
@@ -307,11 +383,4 @@ function assertGrantedScopeWithinActor(actor: Actor, grantedScope?: string[]): v
  *  cosmetic id, so `Math.random()` is not acceptable here. */
 function cryptoRandom(): string {
   return randomBytes(24).toString('base64url');
-}
-
-/** The staff-profile approval limit is derived purely from role codes (DEC/FR-ADM-009's simple
- *  tiering: manager/administrator get the higher limit, everyone else the base one) — shared by
- *  every write path that can set `roleCodes` so a later role change actually takes effect. */
-function approvalLimitFor(roleCodes: string[]): number {
-  return roleCodes.some((r) => ['manager', 'administrator'].includes(r)) ? 500_000 : 20_000;
 }

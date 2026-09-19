@@ -181,3 +181,43 @@ describe('AuthProvider — never signs the user out by accident', () => {
     await vi.waitFor(() => expect(ctx.actor?.displayName).toBe('B'));
   });
 });
+
+describe('AuthProvider — keeps the permissions current', () => {
+  const staffSession = (permissions: string[]): SessionResponse =>
+    ({
+      ...session('Staff'),
+      actor: { ...session('Staff').actor, permissions, roleCodes: ['agent'] },
+    }) as SessionResponse;
+
+  it('on focus a staff member’s permissions are re-read from the API (an admin may have changed them)', async () => {
+    apiFetch.mockResolvedValueOnce(staffSession(['reservation.read', 'payment.refund']));
+    mount();
+    await waitFor(() => expect(ctx.status).toBe('authenticated'));
+    expect(ctx.hasPermission('payment.refund')).toBe(true);
+    apiFetch.mockClear();
+    apiFetch.mockResolvedValue({
+      permissions: ['reservation.read'],
+      roleCodes: ['agent'],
+      locationScope: [],
+    });
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await waitFor(() => expect(ctx.hasPermission('payment.refund')).toBe(false));
+    expect(apiFetch).toHaveBeenCalledWith('/auth/me/access');
+  });
+
+  it('is throttled — repeated focus events do not hammer the API', async () => {
+    apiFetch.mockResolvedValueOnce(staffSession(['a']));
+    mount();
+    await waitFor(() => expect(ctx.status).toBe('authenticated'));
+    apiFetch.mockClear();
+    apiFetch.mockResolvedValue({ permissions: ['a'], roleCodes: ['agent'], locationScope: [] });
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      document.dispatchEvent(new Event('visibilitychange'));
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+  });
+});

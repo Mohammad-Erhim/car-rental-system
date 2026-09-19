@@ -128,6 +128,9 @@ export function AuthProvider({
   const channelRef = useRef<BroadcastChannel | null>(null);
   const appliedActorLocale = useRef<string | null>(readAppliedActorLocale(audience));
   const doRefreshRef = useRef<() => Promise<boolean>>(() => Promise.resolve(false));
+  const actorRef = useRef<Actor | null>(null);
+  actorRef.current = actor;
+  const lastAccessSync = useRef(0);
 
   const scheduleRefresh = useCallback((expiresInSeconds: number) => {
     if (refreshTimer.current) clearTimeout(refreshTimer.current);
@@ -135,6 +138,42 @@ export function AuthProvider({
     refreshTimer.current = setTimeout(() => {
       void doRefreshRef.current();
     }, delay);
+  }, []);
+
+  /**
+   * The permissions in the session are a snapshot from sign-in / the last refresh; an administrator
+   * may have changed this person's access since. On focus, ask the API for the current picture
+   * (throttled) so the UI stops offering — or hiding — things the server now decides differently.
+   */
+  const syncAccess = useCallback(async () => {
+    const cur = actorRef.current;
+    if (!cur || cur.kind !== 'staff' || statusRef.current !== 'authenticated') return;
+    if (Date.now() - lastAccessSync.current < 30_000) return;
+    lastAccessSync.current = Date.now();
+    try {
+      const a = await apiFetch<{
+        permissions: string[];
+        roleCodes: string[];
+        locationScope: string[];
+      }>('/auth/me/access');
+      setActor((prev) => {
+        if (!prev || prev.kind !== 'staff') return prev;
+        const same =
+          prev.permissions.join('|') === a.permissions.join('|') &&
+          prev.roleCodes.join('|') === a.roleCodes.join('|') &&
+          prev.locationScope.join('|') === a.locationScope.join('|');
+        return same
+          ? prev
+          : {
+              ...prev,
+              permissions: a.permissions,
+              roleCodes: a.roleCodes,
+              locationScope: a.locationScope,
+            };
+      });
+    } catch {
+      /* transient — the next focus tries again; a 401 already goes through the refresh path */
+    }
   }, []);
 
   const cancelRetry = useCallback(() => {
@@ -324,6 +363,8 @@ export function AuthProvider({
       ) {
         backgroundRetries.current = 0;
         void doRefresh();
+      } else if (authed) {
+        void syncAccess();
       }
     };
     document.addEventListener('visibilitychange', settle);
@@ -342,7 +383,7 @@ export function AuthProvider({
       if (retryTimer.current) clearTimeout(retryTimer.current);
       retryTimer.current = null;
     };
-  }, [audience, doRefresh, clearSession, installSession]);
+  }, [audience, doRefresh, clearSession, installSession, syncAccess]);
 
   // A signed-in actor's saved locale preference follows them across sign-ins / devices
   // (FR-IAM-006). Only push when the actor's own value *changes* from what we last applied

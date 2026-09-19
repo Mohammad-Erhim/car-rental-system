@@ -8,7 +8,7 @@ import { AppError } from '../../common/app-error';
 import { decodeAuditCursor, encodeAuditCursor } from '../../common/audit/audit-cursor';
 import { AuditService } from '../../common/audit/audit.service';
 import { effectiveLocationCodes } from '../../common/auth/location-scope';
-import { RbacService } from '../../common/auth/rbac.service';
+import { AccessService } from '../../common/auth/access.service';
 import type { Actor } from '../../common/auth/types';
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
@@ -56,7 +56,7 @@ export class ReportService {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
-    private readonly rbac: RbacService,
+    private readonly access: AccessService,
     private readonly outbox: OutboxService,
     private readonly notify: NotifyService,
   ) {}
@@ -916,7 +916,8 @@ export class ReportService {
       .where(eq(staffProfile.accountId, accountId))
       .limit(1);
     if (!profile || profile.status !== 'active') return null;
-    const permissions = await this.rbac.resolvePermissions(profile.roleCodes);
+    const eff = await this.access.resolveForProfile(profile.id);
+    const permissions = eff.permissions;
     if (!permissions.includes('report.export')) return null;
     return {
       accountId: acc.id,
@@ -927,9 +928,9 @@ export class ReportService {
       staffProfileId: profile.id,
       organizationId: profile.organizationId,
       permissions,
-      roleCodes: profile.roleCodes,
+      roleCodes: eff.roleCodes,
       locationScope: profile.locationScope,
-      approvalLimitMinor: profile.approvalLimitMinor,
+      permissionConditions: eff.conditions,
       tokenId: 'schedule-dispatch',
     };
   }

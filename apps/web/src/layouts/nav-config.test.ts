@@ -32,7 +32,13 @@ describe('visibleNavGroups', () => {
   it('shows only the entries the actor may open, dropping emptied groups', () => {
     const groups = visibleNavGroups(allowing('fleet.read', 'staff.manage'));
     // the media library also opens for `fleet.read`
-    expect(pagePaths(groups)).toEqual(['/', '/fleet', '/website/media', '/admin/staff']);
+    expect(pagePaths(groups)).toEqual([
+      '/',
+      '/fleet',
+      '/website/media',
+      '/admin/staff',
+      '/admin/access',
+    ]);
     expect(groups.map((g) => g.titleKey)).toEqual([
       undefined,
       'ops.navGroup.operations',
@@ -108,6 +114,7 @@ describe('visibleNavGroups — location-limited accounts', () => {
     '/website/translations',
     '/settings/organization',
     '/admin/audit',
+    '/admin/access',
     '/admin/data-quality',
     '/catalogue/categories',
   ];

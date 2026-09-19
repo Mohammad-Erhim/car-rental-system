@@ -13,7 +13,8 @@ export interface Actor {
   roleCodes: string[];
   /** location ids the staff member is scoped to; empty = org-wide within their roles */
   locationScope: string[];
-  approvalLimitMinor: number;
+  /** per-action limits from the roles granting them, e.g. the largest refund (`amountMinorMax`) */
+  permissionConditions: Record<string, { amountMinorMax?: number }>;
   /** when the account last did a full password auth — for step-up checks */
   lastFullAuthAt?: string;
   /** the access token's jti, for correlation */

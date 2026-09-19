@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   LayoutTemplate,
   ListChecks,
+  LockKeyhole,
   Mail,
   MapPin,
   Package,
@@ -206,6 +207,7 @@ export const NAV_GROUPS: NavGroup[] = [
     titleKey: 'ops.navGroup.administration',
     items: [
       { to: paths.staff, label: 'ops.nav.staff', icon: Users, anyOf: ['staff.manage'] },
+      { to: paths.access, label: 'ops.nav.access', icon: LockKeyhole, anyOf: ['staff.manage'] },
       {
         to: paths.audit,
         label: 'ops.nav.audit',
