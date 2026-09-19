@@ -62,9 +62,9 @@ import {
   usePublishedPages,
   useUploadPageAsset,
 } from '@/lib/pages-hooks';
+import { SITE_ORIGIN } from '@/lib/site-origin';
 import { useListParams } from '@/lib/use-list-params';
 
-const SITE_ORIGIN = import.meta.env.VITE_SITE_URL || window.location.origin;
 type Panel = 'block' | 'announcement' | 'colours';
 
 /**

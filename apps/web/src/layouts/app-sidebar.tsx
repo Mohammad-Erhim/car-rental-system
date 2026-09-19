@@ -17,9 +17,8 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
+import { SITE_ORIGIN } from '@/lib/site-origin';
 import { cn } from '@/lib/utils';
-
-const SITE_URL = (import.meta.env.VITE_SITE_URL as string | undefined) || '/';
 
 function isActive(pathname: string, item: NavItem): boolean {
   if (item.end || item.to === '/') return pathname === item.to;
@@ -115,7 +114,7 @@ export function AppSidebar({ groups }: { groups: NavGroup[] }) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild tooltip={t('ops.nav.viewSite')}>
-              <a href={SITE_URL}>
+              <a href={SITE_ORIGIN}>
                 <ExternalLink aria-hidden="true" />
                 <span className="truncate">{t('ops.nav.viewSite')}</span>
               </a>
