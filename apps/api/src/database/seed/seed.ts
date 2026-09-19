@@ -10,6 +10,7 @@ import { createDb } from '../drizzle';
 import { bootstrapEnvForScript } from '../script-env';
 
 import { seedDevelopment } from './development';
+import { seedReferenceTranslations } from './reference-i18n';
 import { seedSystem } from './system';
 import { seedTest } from './test';
 
@@ -47,6 +48,10 @@ export async function runSeed(connectionString: string, profile: Profile): Promi
       console.log('[seed] test…');
       await seedTest(db);
     }
+    // the reference data's fr/ar labels need the rows above (values, categories) to exist first
+    const translated = await seedReferenceTranslations(db);
+    // eslint-disable-next-line no-console
+    console.log(`[seed] reference translations: ${translated} new`);
     // eslint-disable-next-line no-console
     console.log('[seed] done');
   } finally {

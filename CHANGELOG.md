@@ -32,6 +32,10 @@ opens as a sheet or dialog. Old `packages/ui` screens under `src/surfaces/` are 
   `SectionCard`, `DetailList`, form-field helpers, `MediaPickerField`, `SecretField`,
   `LocalizedField`, `ConfigHistory` (revision workflow), `useListParams` (URL-backed lists),
   `useClientPage`.
+- **Seeded translations:** French and Arabic labels for every reference-data value, vehicle category and
+  feature (`apps/api/src/database/seed/reference-i18n.ts`), so a fresh checkout is 100% translated for
+  en / fr / ar across `common`, `mobile`, `lookup:*` and `catalogue:*`; a spec fails if a new value ships
+  without them.
 - **API:** paged endpoints for search, reservations, rentals, fleet units and the media library
   (`GET /ops/media/browse`), each with tab counts where the UI shows them.
 
