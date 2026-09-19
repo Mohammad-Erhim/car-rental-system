@@ -1,10 +1,10 @@
 import type { Localized } from '@carrental/contracts';
 
-import { localizedGet, localizedSet } from './consent-model';
 
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { localizedGet, localizedSet } from '@/lib/localized';
 
 /**
  * One text in one chosen language. The other languages are untouched; an emptied non-English

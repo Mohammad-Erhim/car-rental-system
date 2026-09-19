@@ -1,7 +1,9 @@
 import type { Localized } from '@carrental/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { clone, issueLines, localizedGet, localizedSet, translatedCount } from './consent-model';
+import { clone, issueLines, translatedCount } from './consent-model';
+
+import { localizedGet, localizedSet } from '@/lib/localized';
 
 const loc = (v: Record<string, string>) => v as unknown as Localized;
 

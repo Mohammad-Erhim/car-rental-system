@@ -10,11 +10,12 @@ import { useState } from 'react';
 import { useFieldArray, useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 
-import { clone, issueLines, localizedGet, newCookieRow } from './consent-model';
-import { LocalizedField } from './localized-field';
+import { clone, issueLines, newCookieRow } from './consent-model';
+
 
 import { FormSection } from '@/components/form-section';
 import { FormSheet } from '@/components/form-sheet';
+import { LocalizedField } from '@/components/localized-field';
 import { StateSwitcher } from '@/components/state-switcher';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -30,6 +31,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useDraftConsent } from '@/lib/consent-hooks';
+import { localizedGet } from '@/lib/localized';
 import { FormMessageError } from '@/lib/use-form-submit';
 
 /**
