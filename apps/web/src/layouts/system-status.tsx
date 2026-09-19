@@ -54,7 +54,7 @@ export function SystemStatus() {
         >
           <Badge variant={view.variant} data-testid="system-status" data-status={view.status}>
             <view.Icon aria-hidden="true" />
-            <span className="hidden max-w-[9rem] truncate 2xl:inline">{view.label}</span>
+            <span className="max-w-[9rem] truncate">{view.label}</span>
           </Badge>
         </Link>
       </TooltipTrigger>
