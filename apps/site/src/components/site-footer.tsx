@@ -39,7 +39,7 @@ export function SiteFooter({ locale }: { locale: string }) {
 
   return (
     <footer className="border-t border-hairline bg-surface-muted print:hidden">
-      <div className="mx-auto w-full max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-6xl px-4 pb-28 pt-12 sm:px-6 lg:px-8 lg:pb-12">
         <div className="grid gap-10 md:grid-cols-[1.4fr_repeat(3,1fr)]">
           <div className="max-w-xs">
             <div className="flex items-center gap-2 font-semibold">

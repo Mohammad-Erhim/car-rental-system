@@ -74,8 +74,9 @@ export default async function LocaleLayout({
           <SiteAnnouncement initial={pages.announcement ?? null} locale={locale} />
           <SiteHeader locale={locale} />
           {/* Edge-to-edge: the marketing homepage runs full-bleed bands; app routes opt back
-              into a centred gutter via <SiteContainer>. `pb-24` clears the mobile bottom nav. */}
-          <main id="main" className="min-w-0 flex-1 pb-24 lg:pb-0">
+              into a centred gutter via <SiteContainer>. The mobile bottom nav is clear of the page end by the
+              footer's own bottom padding, not by a gap above the footer. */}
+          <main id="main" className="min-w-0 flex-1">
             {children}
           </main>
           <SiteFooter locale={locale} />
