@@ -162,7 +162,7 @@ export function ConsentLogPage() {
           ),
       },
     ],
-     
+
     [t, fmt],
   );
 

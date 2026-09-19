@@ -1,8 +1,8 @@
 import { createQueryClient } from '@carrental/client';
 import { AuthProvider } from '@carrental/client/react';
 import type { ResourceBundle } from '@carrental/i18n';
-import { I18nProvider, useI18n } from '@carrental/i18n/react';
-import { ThemeProvider, ToastProvider, UiStringsProvider } from '@carrental/ui';
+import { I18nProvider } from '@carrental/i18n/react';
+import { ThemeProvider } from '@carrental/ui';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 
@@ -22,14 +22,6 @@ function BrandedThemeProvider({ children }: { children: ReactNode }) {
     <ThemeProvider defaultTheme="system" brand={branding.data?.config ?? null}>
       {children}
     </ThemeProvider>
-  );
-}
-
-/** Localises the micro-copy the shared `packages/ui` components render themselves. */
-function LocalisedUiStrings({ children }: { children: ReactNode }) {
-  const { t } = useI18n();
-  return (
-    <UiStringsProvider value={{ optional: t('field.optional') }}>{children}</UiStringsProvider>
   );
 }
 
@@ -96,16 +88,12 @@ export function AppProviders({ children }: { children: ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <BrandedThemeProvider>
         <I18nBoundary>
-          <LocalisedUiStrings>
-            <AuthProvider>
-              <LocationScopeProvider>
-                <ToastProvider>
-                  <StepUpProvider>{children}</StepUpProvider>
-                  <Toaster richColors closeButton position="top-right" />
-                </ToastProvider>
-              </LocationScopeProvider>
-            </AuthProvider>
-          </LocalisedUiStrings>
+          <AuthProvider>
+            <LocationScopeProvider>
+              <StepUpProvider>{children}</StepUpProvider>
+              <Toaster richColors closeButton position="top-right" />
+            </LocationScopeProvider>
+          </AuthProvider>
         </I18nBoundary>
       </BrandedThemeProvider>
     </QueryClientProvider>

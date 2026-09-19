@@ -232,7 +232,7 @@ export function StaffPage() {
         cell: ({ row: { original: s } }) => menu(s),
       },
     ],
-     
+
     [t, roles.data, locations.data],
   );
 

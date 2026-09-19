@@ -6,6 +6,30 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### Operations dashboard redesign (2026-09)
+
+`apps/web` was rebuilt on shadcn/Radix + Tailwind. Every screen follows the same shape: the page
+is one thing (a list, or one record) and everything that edits it — forms, confirmations, filters —
+opens as a sheet or dialog. Old `packages/ui` screens under `src/surfaces/` are gone.
+
+- **Layout & shell:** sidebar, header (search, location scope, system status, theme, language),
+  breadcrumbs, command menu; sign-in / recovery; phone, tablet and desktop layouts; dark mode; RTL.
+- **Operations:** dashboard, search, reservations (+ record), rentals (+ record), fleet, finance,
+  customers (+ record).
+- **Catalogue:** reference data, rate plans, vehicle categories (+ features page), extras &
+  protection, media library.
+- **Configuration:** versioning (policy), locations (+ location page), organization, languages,
+  translations (+ per-namespace editor), notification templates (+ template page), pages builder,
+  branding, SEO, cookie consent, payments, email.
+- **Administration:** staff & roles, reports, audit log, consent log, data quality.
+- **Shared building blocks** (`components/`, `lib/`): `DataTable` (TanStack, card layout on phones),
+  `FormSheet` / `FormDialog` / `ConfirmDialog`, `FiltersSheet`, `StateSwitcher`, `FilterChips`,
+  `SectionCard`, `DetailList`, form-field helpers, `MediaPickerField`, `SecretField`,
+  `LocalizedField`, `ConfigHistory` (revision workflow), `useListParams` (URL-backed lists),
+  `useClientPage`.
+- **API:** paged endpoints for search, reservations, rentals, fleet units and the media library
+  (`GET /ops/media/browse`), each with tab counts where the UI shows them.
+
 ### Stage 7 — audit, repair & scope completion (2026-09-08)
 
 Independent Stage 7 audit (`docs/ai-delivery/05-system-validation/`). Fixed defects it found and

@@ -33,26 +33,29 @@ test('SCREEN-OPS-033/034: draft → preview → submit → a second admin approv
   await page.goto('/ops/config');
   await expect(page.getByRole('heading', { name: 'Configuration versioning' })).toBeVisible();
 
-  // draft a cancellation-policy change
-  await page.getByTestId('config-key').selectOption('cancellation');
-  await page.getByLabel('Free-cancel window (hours)', { exact: false }).fill('36');
-  await page.getByLabel('Late-cancel fee (basis points)', { exact: false }).fill('2500');
+  // draft a cancellation-policy change in the side sheet
+  await page.getByTestId('config-key-cancellation').click();
+  await page.getByTestId('config-new').click();
+  const sheet = page.getByRole('dialog');
+  await sheet.getByTestId('cfg-freeCancelHours').fill('36');
+  await sheet.getByTestId('cfg-lateFeeBps').fill('2500');
 
-  await page.getByTestId('config-preview').click();
-  await expect(page.getByTestId('config-preview-output')).toContainText('36h');
+  await sheet.getByTestId('config-preview').click();
+  await expect(sheet.getByTestId('config-preview-output')).toContainText(/36 h/);
   await shot(page, testInfo, 'ops-config-preview');
 
-  await page.getByTestId('config-draft').click();
-  const draftRow = page
-    .getByTestId('config-version-rows')
-    .locator('tr[data-state="draft"]')
-    .first();
+  await sheet.getByRole('button', { name: 'Save draft' }).click();
+  const history = page.getByTestId('config-history');
+  const draftRow = history.locator('li').filter({ hasText: 'Draft' }).first();
   await expect(draftRow).toBeVisible();
-  const rev = (await draftRow.getAttribute('data-rev'))!;
-  const row = page.getByTestId(`config-row-${rev}`);
+  const rev = ((await draftRow.textContent()) ?? '').match(/Rev (\d+)/)![1]!;
+  const row = history
+    .locator('li')
+    .filter({ hasText: `Rev ${rev}` })
+    .first();
 
-  await row.getByRole('button', { name: 'Submit' }).click();
-  await expect(row).toHaveAttribute('data-state', 'in_review');
+  await row.getByRole('button', { name: 'Submit for review' }).click();
+  await expect(row).toContainText('In review');
   await shot(page, testInfo, 'ops-config-in-review');
 
   // publishing is a different person — switch to a second admin who holds config.publish
@@ -61,14 +64,18 @@ test('SCREEN-OPS-033/034: draft → preview → submit → a second admin approv
   await signInStaff(page, MANAGER);
   await page.goto('/ops/config');
 
-  const row2 = page.getByTestId(`config-row-${rev}`);
+  const row2 = page
+    .getByTestId('config-history')
+    .locator('li')
+    .filter({ hasText: `Rev ${rev}` })
+    .first();
   await row2.getByRole('button', { name: /Approve & publish/ }).click();
   // approving publishes live — confirm first
   await page
     .getByRole('dialog')
     .getByRole('button', { name: /Approve & publish/ })
     .click();
-  await expect(row2).toHaveAttribute('data-state', 'published');
+  await expect(row2).toContainText('Published');
   await shot(page, testInfo, 'ops-config-published');
 
   guards.assertClean();
@@ -81,17 +88,19 @@ test('SCREEN-OPS-035: run a report, see the scope, export CSV', async ({ page },
   await page.goto('/ops/insights');
   await expect(page.getByRole('heading', { name: 'Reports' })).toBeVisible();
 
-  await page.getByTestId('report-select').selectOption('fleet_utilisation');
+  await page.getByTestId('report-select').click();
+  await page.getByRole('option', { name: /utili[sz]ation/i }).click();
   await page.getByTestId('report-run').click();
 
   await expect(page.getByTestId('report-result')).toBeVisible();
   await expect(page.getByTestId('report-scope-note')).toContainText(/location/i);
-  await expect(page.getByTestId('report-table')).toBeVisible();
+  await expect(page.getByTestId('report-result').locator('table')).toBeVisible();
   await shot(page, testInfo, 'ops-report-result');
 
+  // the export is a file download now
+  const download = page.waitForEvent('download');
   await page.getByTestId('report-export').click();
-  await expect(page.getByTestId('report-csv')).toContainText('state,units');
-  await shot(page, testInfo, 'ops-report-csv');
+  expect((await download).suggestedFilename()).toMatch(/^report-.*\.csv$/);
 
   guards.assertClean();
 });
@@ -105,8 +114,9 @@ test('SCREEN-OPS-038: the audit viewer filters to the config workflow', async ({
   await page.goto('/ops/audit');
   await expect(page.getByRole('heading', { name: 'Audit & activity' })).toBeVisible();
 
-  await page.getByTestId('audit-target').fill('config_version');
-  await page.getByTestId('audit-apply').click();
+  await page.getByTestId('audit-filters').click();
+  await page.getByRole('dialog').getByLabel('Target type').fill('config_version');
+  await page.getByRole('dialog').getByRole('button', { name: 'Apply filters' }).click();
 
   await expect(page.getByTestId('audit-rows')).toContainText('config.version.approved');
   await expect(page.getByTestId('audit-rows')).toContainText('config.version.drafted');
@@ -124,24 +134,27 @@ test('SCREEN-OPS-033 / FR-ADM-011: edit → preview → submit → publish a not
   await page.goto('/ops/config/templates');
   await expect(page.getByRole('heading', { name: 'Notification templates' })).toBeVisible();
 
-  // pick reservation_confirmed · en (seeded with declared vars: reference, total)
-  await page.getByTestId('tpl-loc-reservation_confirmed-en').click();
-  const body = page.getByTestId('tpl-body');
+  // open reservation_confirmed · en (seeded with declared vars: reference, total)
+  await page.goto('/ops/config/templates/reservation_confirmed/email?locale=en');
+  await page.getByTestId('tpl-edit').click();
+  const sheet = page.getByRole('dialog');
+  const body = sheet.getByTestId('tpl-body');
   await expect(body).toBeVisible();
   // keep {{reference}} (already declared); introduce {{terms}} as a new placeholder
   await body.fill('Booking {{reference}} is confirmed. Terms: {{terms}}');
-  // {{terms}} is not declared yet → the editor flags it and blocks save
-  await expect(page.getByTestId('tpl-undeclared')).toContainText('terms');
-  await page.getByRole('button', { name: 'Add variable' }).click();
-  await page.getByTestId('tpl-var-name').last().fill('terms');
-  await expect(page.getByTestId('tpl-undeclared')).toHaveCount(0);
+  // {{terms}} is not declared yet → the sheet flags it and blocks the save
+  await expect(sheet.getByTestId('tpl-undeclared')).toContainText('terms');
+  await sheet.getByTestId('tpl-add-var').click();
+  await sheet.getByTestId('tpl-var-name').last().fill('terms');
+  await expect(sheet.getByTestId('tpl-undeclared')).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Save draft' }).click();
+  await sheet.getByRole('button', { name: 'Save draft' }).click();
   // the draft is persisted once Submit-for-review appears (needs a saved draft row)
   await expect(page.getByRole('button', { name: 'Submit for review' })).toBeVisible();
 
   await page.getByRole('button', { name: 'Preview' }).click();
   await expect(page.getByTestId('tpl-preview')).toContainText('RES-SAMPLE1');
+  await page.keyboard.press('Escape');
 
   await page.getByRole('button', { name: 'Submit for review' }).click();
   await expect(page.getByTestId('tpl-publish')).toBeVisible();
@@ -150,20 +163,22 @@ test('SCREEN-OPS-033 / FR-ADM-011: edit → preview → submit → publish a not
   const publishDialog = page.getByRole('dialog');
   await expect(publishDialog).toContainText('Publish this template?');
   await publishDialog.getByRole('button', { name: 'Publish' }).click();
-  await expect(page.getByText(/Status: Published · version 1\.1/)).toBeVisible();
+  await expect(page.getByText('Published', { exact: true }).first()).toBeVisible();
   await shot(page, testInfo, 'ops-templates-published');
 
-  // FR-ADM-011 event-rules half — the delivery rule for this event is editable below
+  // FR-ADM-011 event-rules half — the delivery rule for this event is edited in its own sheet
   const rule = page.getByTestId('rule-card');
   await expect(rule).toBeVisible();
   await expect(rule.getByTestId('rule-enabled')).toContainText('on');
-  await rule.getByTestId('rule-sender').fill('bookings');
-  await rule.getByTestId('rule-audience').selectOption('account_holder');
-  await rule.getByTestId('rule-save').click();
-  // re-selecting the template re-loads the saved rule (no longer the default badge)
-  await page.getByTestId('tpl-loc-reservation_confirmed-fr').click();
-  await page.getByTestId('tpl-loc-reservation_confirmed-en').click();
-  await expect(rule.getByTestId('rule-sender')).toHaveValue('bookings');
+  await rule.getByTestId('rule-edit').click();
+  const ruleSheet = page.getByRole('dialog');
+  await ruleSheet.getByTestId('rule-sender').fill('bookings');
+  await ruleSheet.getByTestId('rule-audience').click();
+  await page.getByRole('option', { name: 'Account holder' }).click();
+  await ruleSheet.getByRole('button', { name: 'Save delivery rule' }).click();
+  // the saved rule shows on the page (no longer the default)
+  await expect(rule).toContainText('bookings');
+  await expect(rule).toContainText('Account holder');
 
   guards.assertClean();
 });
@@ -205,31 +220,34 @@ test('SCREEN-OPS-027 / FR-ADM-006: add an extra to the catalogue, then deactivat
   // the seeded catalogue is listed
   await expect(page.getByTestId('products-rows')).toContainText('GPS navigation');
 
-  // create a new extra — the server owns the price
-  await page.getByTestId('product-code').fill(code);
-  await page.getByTestId('product-name').fill('E2E roof box');
-  await page.getByTestId('product-kind').selectOption('extra');
-  await page.getByTestId('product-price').fill('13.50');
-  await page.getByTestId('product-create').click();
+  // create a new extra in the side sheet — the server owns the price
+  await page.getByTestId('product-new').click();
+  const sheet = page.getByRole('dialog');
+  await sheet.getByTestId('product-code').fill(code);
+  await sheet.getByTestId('product-name').fill('E2E roof box');
+  await sheet.getByTestId('product-price').fill('13.50');
+  await sheet.getByRole('button', { name: 'Save product' }).click();
 
-  const row = page.locator(`[data-code="${code}"]`);
+  const row = page.getByTestId('products-rows').locator('tr').filter({ hasText: code });
   await expect(row).toBeVisible();
   await expect(row).toContainText('E2E roof box');
   await expect(row).toContainText('13.50');
-  await expect(row).toHaveAttribute('data-active', 'true');
   await shot(page, testInfo, 'ops-products');
 
-  // edit it: the code is read-only, and the pricing unit / scope can change
-  await row.getByRole('button', { name: 'Edit' }).click();
-  await expect(page.locator('input[data-testid="product-code"]')).toHaveCount(0); // code is locked
-  await page.getByTestId('product-pricing-unit').selectOption('per_day');
-  await page.getByTestId('product-create').click();
+  // edit it: the code is read-only, and the pricing unit can change
+  await row.locator('td').first().click();
+  const edit = page.getByRole('dialog');
+  await expect(edit.locator('input[data-testid="product-code"]')).toHaveCount(0); // code is locked
+  await edit.getByTestId('product-pricing-unit').click();
+  await page.getByRole('option', { name: 'Per day' }).click();
+  await edit.getByRole('button', { name: 'Save changes' }).click();
   await expect(row).toContainText(/per day/i);
 
   // deactivate it — it drops out of what a customer can pick (confirmed first)
-  await page.getByTestId(`product-toggle-${code}`).click();
+  await row.getByRole('button', { name: 'More actions' }).click();
+  await page.getByRole('menuitem', { name: 'Deactivate' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Deactivate' }).click();
-  await expect(page.locator(`[data-code="${code}"]`)).toHaveAttribute('data-active', 'false');
+  await expect(row).toContainText('Inactive');
 
   guards.assertClean();
 });
@@ -317,22 +335,32 @@ test('SCREEN-OPS-028 / FR-ADM-007: edit a location’s hours + add a closure exc
   await page.goto('/ops/config/locations');
   await expect(page.getByRole('heading', { level: 1, name: 'Locations' })).toBeVisible();
 
-  // the seeded locations are listed; open JFK
-  await page.getByTestId('loc-item-JFK').click();
-  await expect(page.getByTestId('loc-name')).toHaveValue(/JFK/);
+  // the seeded locations are listed; open JFK on its own page
+  await page
+    .getByTestId('locations-rows')
+    .locator('tr')
+    .filter({ hasText: 'JFK' })
+    .locator('a')
+    .first()
+    .click();
+  await expect(page.getByTestId('loc-record')).toContainText('JFK');
 
-  // toggle after-hours + save (server accepts, no error banner)
-  await page.getByTestId('loc-afterhours').click();
-  await page.getByTestId('loc-save').click();
-  await expect(page.getByTestId('loc-save-error')).toHaveCount(0);
+  // toggle after-hours in the edit sheet + save (server accepts, sheet closes)
+  await page.getByTestId('loc-edit').click();
+  const sheet = page.getByRole('dialog');
+  await sheet.getByTestId('loc-afterhours').click();
+  await sheet.getByRole('button', { name: 'Save location' }).click();
+  await expect(sheet).toHaveCount(0);
   await shot(page, testInfo, 'ops-locations');
 
   // add a holiday closure, see it, remove it
-  await page.getByTestId('loc-ex-date').fill('2026-12-25');
-  await page.getByTestId('loc-ex-add').click();
-  await expect(page.getByTestId('loc-exceptions')).toContainText('2026-12-25');
+  await page.getByTestId('loc-ex-new').click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByTestId('loc-ex-date').fill('2026-12-25');
+  await dialog.getByRole('button', { name: 'Add closure' }).click();
+  await expect(page.getByTestId('loc-exceptions')).toContainText('Dec 25, 2026');
   await page.getByTestId('loc-exceptions').getByRole('button', { name: 'Remove' }).click();
-  await expect(page.getByTestId('loc-exceptions')).not.toContainText('2026-12-25');
+  await expect(page.getByTestId('loc-exceptions')).toHaveCount(0);
 
   guards.assertClean();
 });

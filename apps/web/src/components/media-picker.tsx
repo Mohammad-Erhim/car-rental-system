@@ -1,5 +1,4 @@
 import { useI18n } from '@carrental/i18n/react';
-import { defaultDescribeItem } from '@carrental/ui';
 import { Check, ImageOff, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 
@@ -14,6 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMediaLibrary, useUploadMedia } from '@/lib/media-hooks';
+import { describeMedia } from '@/lib/media-label';
 import { cn } from '@/lib/utils';
 
 const ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml';
@@ -168,7 +168,7 @@ export function MediaPickerField({
                     >
                       <img
                         src={item.url}
-                        alt={defaultDescribeItem(item, i)}
+                        alt={describeMedia(item, i)}
                         className="size-full object-cover"
                         loading="lazy"
                       />

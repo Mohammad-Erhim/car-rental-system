@@ -1,5 +1,5 @@
 import { useI18n } from '@carrental/i18n/react';
-import { useToast } from '@carrental/ui';
+import { toast } from 'sonner';
 
 import { ApiError } from './api.js';
 
@@ -12,14 +12,12 @@ import { ApiError } from './api.js';
  */
 export function useWorkflowError() {
   const { t } = useI18n();
-  const { toast } = useToast();
   return (e: unknown) =>
-    toast({
-      title:
-        e instanceof ApiError
-          ? e.problem.params?.reason === 'author_cannot_approve'
-            ? t('ops.cfg.authorCannotApprove')
-            : e.message
-          : t('ops.cfg.actionFail'),
-    });
+    toast.error(
+      e instanceof ApiError
+        ? e.problem.params?.reason === 'author_cannot_approve'
+          ? t('ops.cfg.authorCannotApprove')
+          : e.message
+        : t('ops.cfg.actionFail'),
+    );
 }

@@ -1,9 +1,12 @@
-import type { MediaPickerItem } from '@carrental/ui';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { apiFetch } from './api.js';
 
-export interface MediaItem extends MediaPickerItem {
+export interface MediaItem {
+  ref: string;
+  url: string;
+  purpose: string;
+  mediaType: string;
   id: string;
   ownerType: string;
   ownerId: string | null;

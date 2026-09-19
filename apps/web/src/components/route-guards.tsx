@@ -1,9 +1,11 @@
 import { stashReturnTo } from '@carrental/client';
 import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
-import { AppStateView, Spinner } from '@carrental/ui';
+import { Loader2, ShieldAlert } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
+
+import { StateView } from '@/components/state-view';
 
 /** Requires an authenticated session of the given audience; otherwise redirects to sign-in
  * while stashing the return target (FLOW-CUS-002, SRS-UI-006). */
@@ -20,8 +22,12 @@ export function RequireAuth({
 
   if (status === 'loading') {
     return (
-      <div className="flex justify-center py-16">
-        <Spinner label={t('guard.checkingSession')} />
+      <div
+        role="status"
+        className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground"
+      >
+        <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+        {t('guard.checkingSession')}
       </div>
     );
   }
@@ -35,8 +41,8 @@ export function RequireAuth({
     // wrong audience (e.g. a customer hitting /ops)
     return (
       <div className="mx-auto max-w-md p-8">
-        <AppStateView
-          kind="permission-denied"
+        <StateView
+          icon={ShieldAlert}
           title={t('guard.staffOnly')}
           description={t('guard.staffOnlyBody')}
         />
@@ -63,11 +69,7 @@ export function RequirePermission({
   if (!hasPermission(...anyOf)) {
     return (
       <div className="mx-auto max-w-md p-8">
-        <AppStateView
-          kind="permission-denied"
-          title={title}
-          description={t('guard.noAccessBody')}
-        />
+        <StateView icon={ShieldAlert} title={title} description={t('guard.noAccessBody')} />
       </div>
     );
   }

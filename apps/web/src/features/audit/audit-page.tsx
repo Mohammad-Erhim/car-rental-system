@@ -133,12 +133,12 @@ export function AuditLogPage() {
         cell: ({ row: { original: r } }) =>
           r.targetType ? (
             <span className="text-xs">
-              {r.targetType}
+              <bdi>{r.targetType}</bdi>
               {r.targetId ? (
-                <span className="bidi-isolate text-muted-foreground">
+                <>
                   {' '}
-                  · {r.targetId.slice(0, 8)}
-                </span>
+                  <bdi className="text-muted-foreground">· {r.targetId.slice(0, 8)}</bdi>
+                </>
               ) : null}
             </span>
           ) : (

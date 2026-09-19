@@ -1,5 +1,5 @@
 import { useT } from '@carrental/i18n/react';
-import { AppStateView } from '@carrental/ui';
+import { SearchX } from 'lucide-react';
 import type { ReactNode } from 'react';
 import {
   createBrowserRouter,
@@ -9,6 +9,7 @@ import {
 } from 'react-router-dom';
 
 import { RequireAuth, RequirePermission } from '../components/route-guards.js';
+import { StateView } from '../components/state-view.js';
 import { AuditLogPage } from '../features/audit/audit-page.js';
 import { RecoveryPage } from '../features/auth/recovery-page.js';
 import { SignInPage } from '../features/auth/sign-in-page.js';
@@ -61,11 +62,12 @@ function RouteError() {
   console.error('Route error', error);
   return (
     <div className="mx-auto max-w-md p-8">
-      <AppStateView
-        kind="failure"
+      <StateView
+        kind="error"
         title={t('route.error.title')}
         description={t('route.error.body')}
-        primaryAction={{ label: t('route.goHome'), onClick: () => navigate('/') }}
+        actionLabel={t('route.goHome')}
+        onAction={() => navigate('/')}
       />
     </div>
   );
@@ -76,11 +78,12 @@ function NotFound() {
   const t = useT();
   return (
     <div className="mx-auto max-w-md p-8">
-      <AppStateView
-        kind="no-results"
+      <StateView
+        icon={SearchX}
         title={t('route.notFound.title')}
         description={t('route.notFound.body')}
-        primaryAction={{ label: t('route.goHome'), onClick: () => navigate('/') }}
+        actionLabel={t('route.goHome')}
+        onAction={() => navigate('/')}
       />
     </div>
   );

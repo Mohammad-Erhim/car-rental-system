@@ -217,7 +217,7 @@ export function DataQualityPage() {
         cell: ({ row: { original: c } }) => menu(c),
       },
     ],
-     
+
     [t, fmt, canManage],
   );
 

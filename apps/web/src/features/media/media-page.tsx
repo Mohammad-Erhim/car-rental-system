@@ -1,6 +1,5 @@
 import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
-import { defaultDescribeItem } from '@carrental/ui';
 import { ImageOff, Trash2, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -30,6 +29,7 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useDeleteMedia, useMediaBrowse, type MediaItem } from '@/lib/media-hooks';
+import { describeMedia } from '@/lib/media-label';
 import { PAGE_SIZES, useListParams } from '@/lib/use-list-params';
 
 const PARAMS = ['purpose'] as const;
@@ -162,7 +162,7 @@ export function MediaLibraryPage() {
                   >
                     <img
                       src={m.url}
-                      alt={defaultDescribeItem(m, i)}
+                      alt={describeMedia(m, i)}
                       loading="lazy"
                       className="size-full object-cover transition-transform group-hover:scale-105"
                     />
@@ -215,7 +215,7 @@ export function MediaLibraryPage() {
             <div className="grid max-h-[65dvh] place-items-center overflow-hidden rounded-lg border bg-muted">
               <img
                 src={modal.item.url}
-                alt={defaultDescribeItem(modal.item, modal.index)}
+                alt={describeMedia(modal.item, modal.index)}
                 className="max-h-[65dvh] max-w-full object-contain"
               />
             </div>

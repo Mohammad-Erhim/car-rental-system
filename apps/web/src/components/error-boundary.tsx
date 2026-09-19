@@ -1,16 +1,18 @@
 import { useI18n } from '@carrental/i18n/react';
-import { AppStateView } from '@carrental/ui';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+
+import { StateView } from '@/components/state-view';
 
 function CrashView() {
   const { t } = useI18n();
   return (
     <div className="mx-auto max-w-md p-8">
-      <AppStateView
-        kind="failure"
+      <StateView
+        kind="error"
         title={t('state.crash.title')}
         description={t('state.crash.body')}
-        primaryAction={{ label: t('state.crash.reload'), onClick: () => window.location.reload() }}
+        actionLabel={t('state.crash.reload')}
+        onAction={() => window.location.reload()}
       />
     </div>
   );
