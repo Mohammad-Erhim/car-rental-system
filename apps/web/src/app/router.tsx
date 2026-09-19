@@ -15,6 +15,7 @@ import { SignInPage } from '../features/auth/sign-in-page.js';
 import { BrandingPage } from '../features/branding/branding-page.js';
 import { CategoriesPage } from '../features/categories/categories-page.js';
 import { FeaturesPage } from '../features/categories/features-page.js';
+import { ConsentLogPage } from '../features/consent/consent-log-page.js';
 import { ConsentPage } from '../features/consent/consent-page.js';
 import { CustomerDetailPage } from '../features/customers/customer-detail-page.js';
 import { CustomersPage } from '../features/customers/customers-page.js';
@@ -47,7 +48,6 @@ import { TranslationEditorPage } from '../features/translations/translation-edit
 import { TranslationsPage } from '../features/translations/translations-page.js';
 import { AuthLayout } from '../layouts/auth-layout.js';
 import { DashboardLayout } from '../layouts/dashboard-layout.js';
-import { ConsentLogPage } from '../surfaces/ops/consent/consent-log-page.js';
 import { DataQualityPage } from '../surfaces/ops/data-quality-page.js';
 
 /**

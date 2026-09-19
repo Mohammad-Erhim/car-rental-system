@@ -12,7 +12,6 @@ import { toast } from 'sonner';
 
 import { clone, issueLines, newCookieRow } from './consent-model';
 
-
 import { FormSection } from '@/components/form-section';
 import { FormSheet } from '@/components/form-sheet';
 import { LocalizedField } from '@/components/localized-field';

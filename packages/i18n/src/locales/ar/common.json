@@ -506,6 +506,7 @@
   "ops.consent.log.filterByVisitor": "معرّف الزائر",
   "ops.consent.log.filterByVisitorHint": "ألصق معرّفًا، أو انقر على خلية زائر أدناه",
   "ops.consent.log.from": "من",
+  "ops.consent.log.loadFail": "تعذر تحميل سجل الموافقات",
   "ops.consent.log.locale": "اللغة",
   "ops.consent.log.next": "التالي",
   "ops.consent.log.optIn": "قبول {c}",

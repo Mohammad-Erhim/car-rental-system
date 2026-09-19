@@ -506,6 +506,7 @@
   "ops.consent.log.filterByVisitor": "Visitor ID",
   "ops.consent.log.filterByVisitorHint": "paste an id, or click a Visitor cell below",
   "ops.consent.log.from": "From",
+  "ops.consent.log.loadFail": "Couldn’t load the consent log",
   "ops.consent.log.locale": "Locale",
   "ops.consent.log.next": "Next",
   "ops.consent.log.optIn": "{c} opt-in",
