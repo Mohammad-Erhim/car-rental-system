@@ -6,6 +6,8 @@ import { X } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
+import { isAllowedPreviewOrigin } from '../lib/preview-origin';
+
 const DISMISS_KEY = 'carrental.announcement.dismissed';
 
 const VARIANT_CLASS: Record<Announcement['variant'], string> = {
@@ -41,7 +43,7 @@ export function SiteAnnouncement({
   useEffect(() => {
     if (!preview) return;
     function onMessage(e: MessageEvent) {
-      if (e.origin !== window.location.origin) return;
+      if (!isAllowedPreviewOrigin(e.origin, window.location.origin)) return;
       const data = e.data as { type?: string; payload?: { announcement?: unknown } };
       if (data?.type !== 'carrental:preview:update' || !data.payload) return;
       if (!('announcement' in data.payload)) return;

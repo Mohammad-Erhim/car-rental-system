@@ -5,6 +5,8 @@ import { useI18n } from '@carrental/i18n/react';
 import { brandConfigSchema, brandConfigToCss } from '@carrental/theme';
 import { useEffect, useState } from 'react';
 
+import { isAllowedPreviewOrigin, previewParentOrigin } from '../../lib/preview-origin';
+
 import { BlockRenderer } from './block-renderer';
 import type { FleetCategory } from './fleet-showcase';
 import type { LocationItem } from './locations-strip';
@@ -32,7 +34,7 @@ function applyPreviewBrand(css: string | null) {
 
 /**
  * Renders a public page from a live draft pushed by the ops page builder over `postMessage`
- * (same-origin only). First paint uses the server-provided blocks; every editor change re-renders
+ * (same origin, or an allow-listed dashboard origin). First paint uses the server-provided blocks; every editor change re-renders
  * client-side — content, layout, block order, and the brand palette. Mounted only for
  * `/{locale}...?preview=1`.
  */
@@ -53,7 +55,7 @@ export function PreviewBridge({
 
   useEffect(() => {
     function onMessage(e: MessageEvent) {
-      if (e.origin !== window.location.origin) return;
+      if (!isAllowedPreviewOrigin(e.origin, window.location.origin)) return;
       const data = e.data as {
         type?: string;
         payload?: { blocks?: unknown; locale?: unknown; brand?: unknown };
@@ -69,7 +71,10 @@ export function PreviewBridge({
       }
     }
     window.addEventListener('message', onMessage);
-    window.parent?.postMessage({ type: 'carrental:preview:ready', v: 1 }, window.location.origin);
+    window.parent?.postMessage(
+      { type: 'carrental:preview:ready', v: 1 },
+      previewParentOrigin(document.referrer, window.location.origin),
+    );
     return () => {
       window.removeEventListener('message', onMessage);
       applyPreviewBrand(null);
