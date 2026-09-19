@@ -20,6 +20,7 @@ import { ConsentPage } from '../features/consent/consent-page.js';
 import { CustomerDetailPage } from '../features/customers/customer-detail-page.js';
 import { CustomersPage } from '../features/customers/customers-page.js';
 import { DashboardPage } from '../features/dashboard/dashboard-page.js';
+import { DataQualityPage } from '../features/data-quality/data-quality-page.js';
 import { EmailPage } from '../features/email/email-page.js';
 import { FinancePage } from '../features/finance/finance-page.js';
 import { FleetPage } from '../features/fleet/fleet-page.js';
@@ -48,7 +49,6 @@ import { TranslationEditorPage } from '../features/translations/translation-edit
 import { TranslationsPage } from '../features/translations/translations-page.js';
 import { AuthLayout } from '../layouts/auth-layout.js';
 import { DashboardLayout } from '../layouts/dashboard-layout.js';
-import { DataQualityPage } from '../surfaces/ops/data-quality-page.js';
 
 /**
  * `apps/web` is the Operations & Admin dashboard only (DEC-023 — the customer surface is
