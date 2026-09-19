@@ -31,7 +31,7 @@ interface DialogProps {
 const SCOPE_KINDS = ['all', 'category', 'location'] as const;
 const CODE = /^[A-Za-z0-9_-]+$/;
 
-/** Start an eligibility restriction. A *different* manager must approve it before it applies. */
+/** Start an eligibility restriction. It stays pending until a manager approves it. */
 export function AddRestrictionDialog({
   customerId,
   open,
@@ -71,7 +71,7 @@ export function AddRestrictionDialog({
       form={form}
       defaultValues={defaults}
       title={t('ops.cust.rstrAdd')}
-      description={t('ops.cust.rstrAddBody')}
+      description={t('ops.cust.rstrAddBody2')}
       submitLabel={t('ops.cust.rstrAdd')}
       onSubmit={async (v) => {
         await create.mutateAsync({
@@ -342,13 +342,12 @@ export function UnmergeDialog({
   );
 }
 
-/** Whether the signed-in staff member may approve a restriction (a different manager must). */
-export function useCanDecide(restriction: CustomerRestriction) {
-  const { hasPermission, actor } = useAuth();
+/** Whether the signed-in staff member may approve a restriction (any `customer.manage` holder — the author may). */
+export function useCanDecide() {
+  const { hasPermission } = useAuth();
   const manage = hasPermission('customer.manage');
   return {
     manage,
-    canApprove: manage && restriction.createdBy !== actor?.accountId,
-    isAuthor: restriction.createdBy === actor?.accountId,
+    canApprove: manage,
   };
 }

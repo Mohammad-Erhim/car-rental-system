@@ -26,7 +26,7 @@ const dash = <span className="text-muted-foreground">—</span>;
  * SCREEN-OPS — SEO configuration (SRS-ADM-006). What the site tells search engines: titles, the
  * description, canonical URLs, social cards and whether it may be indexed. The page shows what is
  * live and how a result would read; changes are edited in a sheet, saved as a draft and published
- * by a different reviewer (the same workflow as branding and policy).
+ * directly or after an optional review (the same workflow as branding and policy).
  */
 export function SeoPage() {
   const { t } = useI18n();
@@ -106,7 +106,7 @@ export function SeoPage() {
       />
 
       {tab === 'history' ? (
-        <SectionCard title={t('ops.branding.history')} description={t('ops.branding.historyHint')}>
+        <SectionCard title={t('ops.branding.history')} description={t('ops.branding.historyHint2')}>
           <ConfigHistory
             versions={versions.data}
             isLoading={versions.isLoading}

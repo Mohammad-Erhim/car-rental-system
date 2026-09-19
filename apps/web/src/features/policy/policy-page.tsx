@@ -23,7 +23,7 @@ const KIND = 'policy';
 
 /**
  * SCREEN-OPS-033/034 — Configuration versioning. A policy change is drafted, previewed, submitted,
- * then published by a different person (FR-ADM-006 separation of duties); publishing supersedes the
+ * then published (directly, or after an optional review); publishing supersedes the
  * previous revision and applies with no redeploy, and a published revision is never edited in
  * place (FR-ADM-005). The page shows what is in force and the revision trail; changes are proposed
  * in a sheet.
@@ -56,7 +56,7 @@ export function PolicyPage() {
 
   return (
     <Page>
-      <PageHeader title={t('ops.cfg.titlePolicies')} description={t('ops.cfg.subtitle')} />
+      <PageHeader title={t('ops.cfg.titlePolicies')} description={t('ops.cfg.subtitle2')} />
 
       <StateSwitcher
         label={t('ops.cfg.setting')}

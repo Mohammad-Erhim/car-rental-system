@@ -358,13 +358,6 @@ describe('STAGE-007 security', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({})
       .expect(201);
-    const self = await request(server)
-      .post(`/api/v1/ops/config/versions/${draft.body.id}/approve`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({})
-      .expect(403);
-    expect(self.body.code).toBe('approval_required');
-    // a different publisher can
     await request(server)
       .post(`/api/v1/ops/config/versions/${draft.body.id}/approve`)
       .set('Authorization', `Bearer ${managerToken}`)

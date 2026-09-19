@@ -70,7 +70,7 @@ type Panel = 'block' | 'announcement' | 'colours';
 /**
  * SCREEN-OPS — Pages (the public site's layout). Each page is an ordered list of blocks with text
  * per language; edits show live in a preview of the real site and are saved as a draft revision a
- * different reviewer publishes. The site announcement and quick colour changes live here too. A
+ * published directly or after an optional review. The site announcement and quick colour changes live here too. A
  * builder needs its controls and preview side by side, so this stays a workspace: blocks on the
  * left, the inspector in the middle, the preview on the right.
  */
@@ -306,7 +306,7 @@ export function PagesPage() {
       />
 
       {tab === 'history' ? (
-        <SectionCard title={t('ops.pages.history')} description={t('ops.branding.historyHint')}>
+        <SectionCard title={t('ops.pages.history')} description={t('ops.branding.historyHint2')}>
           <ConfigHistory
             versions={versions.data}
             isLoading={versions.isLoading}

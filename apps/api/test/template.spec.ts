@@ -21,8 +21,7 @@ describe('notification templates (SCREEN-OPS-033 / FR-ADM-011)', () => {
     server = httpServer(app);
     adminToken = (await signIn(app, 'test-admin@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
-    // a second config-publisher account — separation of duties (FR-ADM-006) requires a
-    // different actor from the one who drafted a template to publish it, same as config-version.
+    // a second config-publisher account (a reviewer is optional, but a second account is handy)
     managerToken = (await signIn(app, 'test-manager@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
     agentToken = (await signIn(app, 'test-agent@example.test', 'Test-Passw0rd!', 'staff'))
@@ -125,13 +124,6 @@ describe('notification templates (SCREEN-OPS-033 / FR-ADM-011)', () => {
       .post(`/api/v1/ops/templates/${id}/submit`)
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(201);
-
-    // separation of duties (FR-ADM-006): the drafting actor cannot publish their own change
-    const selfPublish = await request(server)
-      .post(`/api/v1/ops/templates/${id}/publish`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .expect(403);
-    expect(selfPublish.body.params?.reason).toBe('author_cannot_approve');
 
     const published = await request(server)
       .post(`/api/v1/ops/templates/${id}/publish`)

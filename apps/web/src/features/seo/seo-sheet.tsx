@@ -15,7 +15,7 @@ import { useDraftSeo } from '@/lib/seo-hooks';
 import { FormMessageError } from '@/lib/use-form-submit';
 
 /**
- * Edit the site's SEO settings and save them as a draft revision (a different reviewer publishes
+ * Edit the site's SEO settings and save them as a draft revision (published directly or after an optional review
  * it). Fields are checked with the same schema the API uses, so a bad URL or handle is caught here
  * with the field it belongs to.
  */
@@ -71,7 +71,7 @@ export function SeoSheet({
       defaultValues={defaults}
       size="lg"
       title={t('ops.seo.editTitle')}
-      description={t('ops.seo.sheetHint')}
+      description={t('ops.seo.sheetHint2')}
       submitLabel={t('ops.cfg.saveDraft')}
       onSubmit={async (v) => {
         const parsed = toSeoConfig(v);

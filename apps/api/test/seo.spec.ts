@@ -7,7 +7,7 @@ import { signIn } from './helpers/auth';
 
 /**
  * SRS-ADM-006 — dashboard-managed SEO config. The `seo` config-version kind rides the existing
- * draft → submit → approve workflow (separation of duties), validates structure + https URLs,
+ * draft → submit → approve workflow , validates structure + https URLs,
  * and is served publicly at `GET /api/v1/meta/seo` for `apps/site` to fold into route metadata.
  */
 describe('SEO config', () => {
@@ -40,7 +40,7 @@ describe('SEO config', () => {
     expect(res.headers['cache-control']).toContain('max-age');
   });
 
-  it('draft → submit → a different reviewer approves → served publicly', async () => {
+  it('draft → submit → approve → served publicly', async () => {
     const next = {
       ...DEFAULT_SEO_CONFIG,
       siteName: 'Acme Rentals',
@@ -63,13 +63,6 @@ describe('SEO config', () => {
       .post(`/api/v1/ops/config/versions/${id}/submit`)
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(201);
-
-    const selfApprove = await request(server)
-      .post(`/api/v1/ops/config/versions/${id}/approve`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({})
-      .expect(403);
-    expect(selfApprove.body.code).toBe('approval_required');
 
     const approved = await request(server)
       .post(`/api/v1/ops/config/versions/${id}/approve`)

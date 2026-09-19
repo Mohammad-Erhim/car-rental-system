@@ -72,7 +72,7 @@ export function ConsentSheet({
       defaultValues={defaults}
       size="lg"
       title={t('ops.consent.editTitle')}
-      description={t('ops.consent.sheetHint')}
+      description={t('ops.consent.sheetHint2')}
       submitLabel={t('ops.consent.saveDraft')}
       onSubmit={async (v) => {
         const { note, ...config } = v;

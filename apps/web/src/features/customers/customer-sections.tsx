@@ -171,7 +171,7 @@ function RestrictionRow({
   onAction: (x: CustomerRestriction, action: RestrictionAction) => void;
 }) {
   const { t } = useI18n();
-  const { manage, canApprove, isAuthor } = useCanDecide(x);
+  const { manage, canApprove } = useCanDecide();
   return (
     <li
       className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
@@ -214,8 +214,6 @@ function RestrictionRow({
             >
               {t('ops.cust.rstrApprove')}
             </Button>
-          ) : isAuthor ? (
-            <span className="text-xs text-muted-foreground">{t('ops.cust.rstrOwnAuthor')}</span>
           ) : null}
           <Button
             size="sm"
@@ -241,7 +239,7 @@ function RestrictionRow({
   );
 }
 
-/** Eligibility restrictions: create → a different manager approves → active → lift. */
+/** Eligibility restrictions: create → a manager approves → active → lift. */
 export function RestrictionsCard({
   r,
   onAction,

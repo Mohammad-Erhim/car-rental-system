@@ -115,8 +115,7 @@ describe('notification event rules (FR-ADM-011)', () => {
     const app = await getTestApp();
     server = httpServer(app);
     admin = (await signIn(app, 'test-admin@example.test', 'Test-Passw0rd!', 'staff')).accessToken;
-    // a second config-publisher account — separation of duties (FR-ADM-006) requires a
-    // different actor from the one who drafted a template to publish it.
+    // a second config-publisher account (a reviewer is optional, but a second account is handy)
     manager = (await signIn(app, 'test-manager@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
     agent = (await signIn(app, 'test-agent@example.test', 'Test-Passw0rd!', 'staff')).accessToken;

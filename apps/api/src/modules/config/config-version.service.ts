@@ -177,18 +177,18 @@ export class ConfigVersionService {
     return this.shape(await this.load(id));
   }
 
+  /**
+   * Publish a revision. Allowed straight from `draft` (the default, "Direct" path — whoever holds
+   * `config.publish` may publish their own change) or from `in_review` (the optional review path).
+   * There is deliberately NO "author cannot approve" rule: a second person is something an owner
+   * opts into with a workflow step (see docs plan-workflows-roles-permissions.md), not a hard-coded
+   * requirement. The draft → publish transition still validates, previews and records who did what.
+   */
   async approve(actor: Actor, id: string) {
     const row = await this.load(id);
-    if (row.state !== 'in_review') {
-      throw AppError.businessRule(`A ${row.state} version cannot be approved`, {
+    if (row.state !== 'in_review' && row.state !== 'draft') {
+      throw AppError.businessRule(`A ${row.state} version cannot be published`, {
         reason: row.state,
-      });
-    }
-    // separation of duties (FR-ADM-006): the person who drafted a change may not approve it.
-    if (row.createdBy === actor.accountId) {
-      throw new AppError('approval_required', {
-        title: 'A different reviewer must approve this change',
-        params: { reason: 'author_cannot_approve' },
       });
     }
     this.validate(row.kind, row.payload, row.key);

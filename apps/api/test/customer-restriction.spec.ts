@@ -78,7 +78,7 @@ describe('customer eligibility restrictions (FR-ADM-002)', () => {
       .expect(403);
   });
 
-  it('create → author cannot self-approve → a second manager approves → enforced → lifted', async () => {
+  it('create → a manager approves → enforced → lifted', async () => {
     // a clean booking works first
     await book('economy').then((r) => expect(r.status).toBe(201));
 
@@ -90,13 +90,6 @@ describe('customer eligibility restrictions (FR-ADM-002)', () => {
     expect(created.body.status).toBe('pending_review');
     expect(created.body.isActive).toBe(false);
     const rid = created.body.id as string;
-
-    // segregation of duties — the author cannot approve their own
-    await request(server)
-      .post(`/api/v1/ops/customers/${customerId}/restrictions/${rid}/approve`)
-      .set('Authorization', `Bearer ${manager}`)
-      .send({})
-      .expect(403);
 
     // still pending → still not enforced
     await book('economy').then((r) => expect(r.status).toBe(201));
@@ -122,6 +115,26 @@ describe('customer eligibility restrictions (FR-ADM-002)', () => {
       .expect(201);
     expect(lifted.body.status).toBe('lifted');
     await book('economy').then((r) => expect(r.status).toBe(201));
+  });
+
+  it('the author may approve and lift their own restriction (no hard-coded second person)', async () => {
+    const created = await request(server)
+      .post(`/api/v1/ops/customers/${customerId}/restrictions`)
+      .set('Authorization', `Bearer ${manager}`)
+      .send({ category: 'block', scope: 'all', reasonCode: 'complaint' })
+      .expect(201);
+    const rid = created.body.id as string;
+    const approved = await request(server)
+      .post(`/api/v1/ops/customers/${customerId}/restrictions/${rid}/approve`)
+      .set('Authorization', `Bearer ${manager}`)
+      .send({ notes: 'self-approved' })
+      .expect(201);
+    expect(approved.body.status).toBe('active');
+    await request(server)
+      .post(`/api/v1/ops/customers/${customerId}/restrictions/${rid}/lift`)
+      .set('Authorization', `Bearer ${manager}`)
+      .send({ notes: 'done' })
+      .expect(201);
   });
 
   it('rejects a restriction reason that is not an active restriction_reason value', async () => {

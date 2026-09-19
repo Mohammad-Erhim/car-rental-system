@@ -12,7 +12,7 @@ import { ConfigPublic } from '../config/config.public';
 /**
  * FR-ADM-002 — customer eligibility restrictions, write side + enforcement. A free-text note
  * cannot deny service; a `customer_restriction` row does. Lifecycle:
- * `pending_review` → (a **different** user approves) → `active` → `lifted`; or → `rejected`.
+ * `pending_review` → (a user with `customer.manage` approves — the author may) → `active` → `lifted`; or → `rejected`.
  * `assertCanTransact()` is the enforcement point called by booking + rental pickup.
  */
 export type RestrictionScope = 'all' | `category:${string}` | `location:${string}`;
@@ -101,10 +101,6 @@ export class CustomerRestrictionService {
       throw AppError.businessRule(`A ${row.status} restriction cannot be ${decision}d`, {
         reason: 'restriction_not_pending',
       });
-    }
-    // segregation of duties — the author cannot approve their own restriction (FR-ADM-002)
-    if (decision === 'approve' && row.createdBy && row.createdBy === actor.accountId) {
-      throw AppError.forbidden('A restriction must be approved by someone other than its author');
     }
     const [updated] = await this.db
       .update(customerRestriction)

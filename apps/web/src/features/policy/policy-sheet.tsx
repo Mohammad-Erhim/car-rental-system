@@ -18,7 +18,7 @@ type Values = Record<string, string> & { note: string };
 
 /**
  * Propose a change to one policy setting: enter the new values, preview what they mean in money
- * and hours, and save a draft revision. A different reviewer approves it before it applies.
+ * and hours, and save a draft revision. It can be published straight away or submitted for review.
  */
 export function PolicySheet({
   kind,
@@ -97,7 +97,7 @@ export function PolicySheet({
       form={form}
       defaultValues={defaults}
       title={t('ops.cfg.newFor', { setting: t(`ops.cfg.key.${setting.key}`) })}
-      description={t('ops.cfg.newForHint')}
+      description={t('ops.cfg.newForHint2')}
       submitLabel={t('ops.cfg.saveDraft')}
       onSubmit={async (v) => {
         const created = await draft.mutateAsync({

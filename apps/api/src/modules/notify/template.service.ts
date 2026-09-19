@@ -255,16 +255,6 @@ export class TemplateService {
         reason: row.status,
       });
     }
-    // separation of duties, same rule as config-version's approve(): the person who authored a
-    // template change may not be the one who publishes it — otherwise a single config.publish
-    // actor can draft, submit, and publish a legally-gated (cancellation/refund wording etc.)
-    // transactional template entirely alone, with no second reviewer.
-    if (row.createdBy && row.createdBy === actor.accountId) {
-      throw new AppError('approval_required', {
-        title: 'A different reviewer must publish this change',
-        params: { reason: 'author_cannot_approve' },
-      });
-    }
     const contentIssues = this.publishIssues(
       row.subject ?? '',
       row.bodyTemplate,

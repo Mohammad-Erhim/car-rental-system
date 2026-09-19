@@ -24,7 +24,7 @@ export function SaveDraftDialog({
       form={form}
       defaultValues={defaults}
       title={t('ops.pages.saveDraft')}
-      description={t('ops.pages.saveDraftHint')}
+      description={t('ops.pages.saveDraftHint2')}
       submitLabel={t('ops.pages.saveDraft')}
       onSubmit={(v) => onSave(v.note.trim())}
     >

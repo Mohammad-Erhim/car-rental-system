@@ -416,3 +416,23 @@ routing-payment.adapter,payment-config.controller,stripe-webhook.controller}.ts`
   `apps/api/test/location-scope.spec.ts` and the web unit tests beside each. New env: none.
   Not covered: a transfer-request / receiving-branch approval flow (a product decision), and
   invoices/customers stay org-wide reads.
+
+### DEC-030 — No hard-coded "second person"
+
+- Context: config versions, message templates and customer restrictions refused the author as
+  approver (`author_cannot_approve`). The owner wants no action to _require_ another person by
+  default, and any review to be something they configure.
+- Decision (phase 1 of `plan-workflows-roles-permissions.md`): the three author-exclusion checks are
+  removed. A config revision can be published straight from `draft` (or from `in_review`);
+  the review path (submit → approve/reject) stays available and optional; a template's author can
+  publish it; any `customer.manage` holder can approve a restriction, including its author. Draft
+  remains a content state (preview, diff, rollback). The `approval_required` error code stays in the
+  contract for the upcoming workflow engine. The remaining guard rails are unchanged: only an
+  administrator grants `administrator`, the last administrator can't be removed, step-up on
+  payments/email config.
+- Consequences: `config-version.service.ts` (`approve` accepts `draft`), `template.service.ts`,
+  `customer-restriction.service.ts`; web `config-history.tsx` (Publish + Submit on a draft),
+  customers restriction row; copy moved to new i18n keys (`*2`) — published translations from an
+  earlier seed are not overwritten; tests `direct-publish.spec.ts` and updated specs.
+  Not yet: a restriction is still created `pending_review` and needs one explicit approve click
+  (it can be the author); the workflow engine (phase 3) makes "Direct" a real per-action choice.

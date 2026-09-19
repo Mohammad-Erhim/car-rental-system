@@ -57,7 +57,7 @@ import { cn } from '@/lib/utils';
 
 /**
  * SCREEN-OPS — Branding & theme (DEC-025). Curated controls become design tokens, versioned through
- * the same draft → submit → approve workflow as every config (a different reviewer publishes) and
+ * the same draft → submit → approve workflow as every config (published directly or after an optional review) and
  * applied live to the public site and this dashboard with no redeploy. The controls sit beside a
  * live preview, so this is a workspace rather than a list with a form in a modal.
  */
@@ -182,7 +182,7 @@ export function BrandingPage() {
       />
 
       {tab === 'history' ? (
-        <SectionCard title={t('ops.branding.history')} description={t('ops.branding.historyHint')}>
+        <SectionCard title={t('ops.branding.history')} description={t('ops.branding.historyHint2')}>
           <ConfigHistory
             versions={versions.data}
             isLoading={versions.isLoading}

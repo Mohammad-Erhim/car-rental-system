@@ -29,7 +29,7 @@ const getRowId = (r: Cookie) => `${r.name}:${r.provider}`;
  * SCREEN-OPS — Cookie consent. What visitors are asked and what the site declares it sets: banner
  * text and layout, the four categories, and the cookie table on the Cookie Policy page. The page
  * shows what is live, in the language you pick; one sheet edits everything and saves a draft
- * revision that a different reviewer publishes.
+ * revision that is published directly or after an optional review.
  */
 export function ConsentPage() {
   const { t } = useI18n();
@@ -163,7 +163,7 @@ export function ConsentPage() {
       </div>
 
       {tab === 'history' ? (
-        <SectionCard title={t('ops.consent.history')} description={t('ops.branding.historyHint')}>
+        <SectionCard title={t('ops.consent.history')} description={t('ops.branding.historyHint2')}>
           <ConfigHistory
             versions={versions.data}
             isLoading={versions.isLoading}

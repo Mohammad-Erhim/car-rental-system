@@ -45,7 +45,7 @@ const show = (rows: CustomerRestriction[]) => {
 };
 
 describe('RestrictionsCard', () => {
-  it('lets a different manager approve or reject a pending restriction', () => {
+  it('lets a manager approve or reject a pending restriction', () => {
     manage = true;
     const onAction = show([restriction({})]);
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
@@ -53,11 +53,11 @@ describe('RestrictionsCard', () => {
     expect(onAction.mock.calls.map((c) => c[1])).toEqual(['approve', 'reject']);
   });
 
-  it('does not let the author approve their own restriction', () => {
+  it('lets the author approve their own restriction (no hard-coded second person)', () => {
     manage = true;
-    show([restriction({ createdBy: 'me' })]);
-    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
-    expect(screen.getByText('another manager must approve')).toBeInTheDocument();
+    const onAction = show([restriction({ createdBy: 'me' })]);
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ id: 'r1' }), 'approve');
   });
 
   it('offers Lift on an active restriction', () => {

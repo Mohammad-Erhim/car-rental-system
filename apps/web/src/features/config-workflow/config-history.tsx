@@ -118,9 +118,9 @@ type Dialog = { kind: 'approve' | 'reject' | 'delete'; version: ConfigVersion } 
 
 /**
  * Revision history + review controls, shared by every versioned config screen (branding, SEO,
- * consent, pages). DEC-025 / FR-ADM-006: a draft is submitted, then a different reviewer approves
- * — which publishes it live with no redeploy — or rejects it with a reason. Approve, reject and
- * delete are confirmed because they act on what customers see.
+ * consent, pages). DEC-025: a draft is published directly by anyone holding `config.publish` (no
+ * redeploy), or — optionally — submitted for review first, then approved or rejected with a reason.
+ * Publish, approve, reject and delete are confirmed because they act on what customers see.
  */
 export function ConfigHistory({
   versions,
@@ -213,15 +213,26 @@ export function ConfigHistory({
                   </Button>
                 ) : null}
                 {canPublish && v.state === 'draft' ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={pending}
-                    onClick={() => void run(v, 'submit').catch(() => undefined)}
-                  >
-                    <Send aria-hidden="true" />
-                    {t('ops.cfg.submit')}
-                  </Button>
+                  <>
+                    <Button
+                      size="sm"
+                      disabled={pending}
+                      onClick={() => setDialog({ kind: 'approve', version: v })}
+                      data-testid={`publish-${v.revision}`}
+                    >
+                      <Check aria-hidden="true" />
+                      {t('ops.cfg.publish')}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() => void run(v, 'submit').catch(() => undefined)}
+                    >
+                      <Send aria-hidden="true" />
+                      {t('ops.cfg.submit')}
+                    </Button>
+                  </>
                 ) : null}
                 {canPublish && v.state === 'draft' && onDelete ? (
                   <Button
@@ -277,7 +288,7 @@ export function ConfigHistory({
           onOpenChange={close}
           title={t('ops.cfg.approveTitle')}
           description={<ApproveDiff approving={dialog.version} published={live} />}
-          confirmLabel={t('ops.cfg.approve')}
+          confirmLabel={t(dialog.version.state === 'draft' ? 'ops.cfg.publish' : 'ops.cfg.approve')}
           onConfirm={() => run(dialog.version, 'approve')}
         />
       ) : null}

@@ -15,7 +15,7 @@ import { signIn } from './helpers/auth';
 
 /**
  * STAGE-006 — Administration & reporting.
- *  - config versioning: append-only revisions, submit → approve, separation of duties
+ *  - config versioning: append-only revisions, submit → approve (no hard-coded second reviewer)
  *    (the author of a draft may not approve it — FR-ADM-006), publish supersedes the prior
  *    published revision, and the published policy is what the cancellation flow reads.
  *  - an invalid policy payload is refused before it can be drafted.
@@ -132,16 +132,7 @@ describe('STAGE-006 administration & reporting', () => {
       .expect(201);
     expect(submitted.body.state).toBe('in_review');
 
-    // the author may not approve their own change (FR-ADM-006 separation of duties)
-    const selfApprove = await request(server)
-      .post(`/api/v1/ops/config/versions/${id}/approve`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({})
-      .expect(403);
-    expect(selfApprove.body.code).toBe('approval_required');
-    expect(selfApprove.body.params?.reason).toBe('author_cannot_approve');
-
-    // a different publisher approves → published, with a distinct approver
+    // approving publishes it (the author may — a second person is opt-in, not hard-coded)
     const approved = await request(server)
       .post(`/api/v1/ops/config/versions/${id}/approve`)
       .set('Authorization', `Bearer ${managerToken}`)
@@ -149,7 +140,6 @@ describe('STAGE-006 administration & reporting', () => {
       .expect(201);
     expect(approved.body.state).toBe('published');
     expect(approved.body.approvedBy).toBeTruthy();
-    expect(approved.body.approvedBy).not.toBe(approved.body.createdBy);
     expect(approved.body.effectiveFrom).toBeTruthy();
   });
 

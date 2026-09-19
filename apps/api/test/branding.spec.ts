@@ -8,7 +8,7 @@ import { signIn } from './helpers/auth';
 
 /**
  * STAGE-009 — dashboard-managed theming & branding (DEC-025). The `branding` config-version
- * kind rides the existing draft → submit → approve workflow (separation of duties), validates
+ * kind rides the existing draft → submit → approve workflow , validates
  * structure + WCAG AA, and is served publicly at `GET /api/v1/meta/branding`.
  */
 describe('branding / theming config', () => {
@@ -40,7 +40,7 @@ describe('branding / theming config', () => {
     expect(res.headers['cache-control']).toContain('max-age');
   });
 
-  it('draft → submit → a different reviewer approves → served publicly', async () => {
+  it('draft → submit → approve → served publicly', async () => {
     const next = structuredClone(DEFAULT_BRAND_CONFIG);
     next.colors.light.primary = '160 84% 24%';
     next.colors.light.ring = '160 84% 28%';
@@ -62,14 +62,6 @@ describe('branding / theming config', () => {
       .post(`/api/v1/ops/config/versions/${id}/submit`)
       .set('Authorization', `Bearer ${adminToken}`)
       .expect(201);
-
-    // author cannot approve their own change (FR-ADM-006)
-    const selfApprove = await request(server)
-      .post(`/api/v1/ops/config/versions/${id}/approve`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({})
-      .expect(403);
-    expect(selfApprove.body.code).toBe('approval_required');
 
     const approved = await request(server)
       .post(`/api/v1/ops/config/versions/${id}/approve`)
