@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { CookieConsent } from '../../components/cookie-consent';
+import { PreviewGuard } from '../../components/preview-guard';
 import { Providers } from '../../components/providers';
 import { SiteAnnouncement } from '../../components/site-announcement';
 import { SiteFooter } from '../../components/site-footer';
@@ -69,6 +70,7 @@ export default async function LocaleLayout({
           <a href="#main" className="skip-link">
             {t.t('common.skipToContent')}
           </a>
+          <PreviewGuard />
           <SiteAnnouncement initial={pages.announcement ?? null} locale={locale} />
           <SiteHeader locale={locale} />
           {/* Edge-to-edge: the marketing homepage runs full-bleed bands; app routes opt back
