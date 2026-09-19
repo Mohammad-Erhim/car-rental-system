@@ -12,6 +12,7 @@ import { RootErrorBoundary } from './components/error-boundary.js';
 configureClient({
   baseUrl: (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api/v1',
   correlationPrefix: 'web',
+  audience: 'staff', // the ops dashboard owns the staff session, apart from the customer site
 });
 
 const rootEl = document.getElementById('root');

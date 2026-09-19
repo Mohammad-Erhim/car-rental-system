@@ -2,11 +2,11 @@ import CookieManager from '@react-native-cookies/cookies';
 
 import { getApiOrigin } from './config';
 
-// MUST match `CSRF_COOKIE` in apps/api/src/modules/iam/iam.cookies.ts — duplicated rather than
+// MUST match `csrfCookieName('customer')` in apps/api/src/common/security/refresh-cookie-name.ts — duplicated rather than
 // imported since a package may not depend on an app (same constraint `@carrental/client`'s
 // browser `readCsrfCookie` documents). Deliberately non-HttpOnly server-side so it's readable —
 // here via the native cookie jar (`document.cookie` doesn't exist in RN) instead of `document`.
-const CSRF_COOKIE = 'carrental_csrf';
+const CSRF_COOKIE = 'carrental_csrf_customer';
 
 /**
  * The double-submit CSRF token for cookie-authenticated writes (`/auth/refresh`,

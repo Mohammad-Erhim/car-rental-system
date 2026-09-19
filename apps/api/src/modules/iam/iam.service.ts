@@ -304,8 +304,8 @@ export class IamService {
     return this.mintSession(acc.id, ctx, { fullAuth: true });
   }
 
-  async refresh(refreshToken: string, ctx: SessionCtx) {
-    const rotated = await this.sessions.rotate(refreshToken, ctx);
+  async refresh(refreshToken: string, ctx: SessionCtx, audience: 'customer' | 'staff') {
+    const rotated = await this.sessions.rotate(refreshToken, ctx, audience);
     if (!rotated.ok) {
       throw new AppError('auth_session_expired', {
         title:
@@ -314,7 +314,18 @@ export class IamService {
             : 'Your session has expired. Please sign in again.',
       });
     }
+    // A refresh must not outlive the account: suspended / closed accounts lose
+    // their session chain here rather than getting a fresh token that every call would reject.
+    const acc = await this.accounts.findById(rotated.accountId);
+    if (!acc || acc.status === 'suspended' || acc.status === 'closed') {
+      await this.sessions.revokeFamily(rotated.issued.familyId, 'account_inactive');
+      throw new AppError('auth_session_expired', {
+        title: 'Your session has ended. Please sign in again.',
+      });
+    }
     const session = await this.buildSessionResponse(rotated.accountId, rotated.issued);
+    // ~2% of refreshes sweep this account's dead sessions (sign-in does it every time)
+    if (Math.random() < 0.02) void this.sessions.pruneAccount(rotated.accountId);
     return {
       ...session,
       refreshToken: rotated.issued.refreshToken,
@@ -490,6 +501,7 @@ export class IamService {
       ip: ctx.ip,
     });
     const session = await this.buildSessionResponse(accountId, issued);
+    void this.sessions.pruneAccount(accountId);
     return { ...session, refreshToken: issued.refreshToken, expiresAt: issued.expiresAt };
   }
 

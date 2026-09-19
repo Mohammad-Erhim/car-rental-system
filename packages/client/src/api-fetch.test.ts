@@ -57,8 +57,9 @@ describe('apiFetch', () => {
     expect(authHeader(1)).toBeUndefined();
   });
 
-  it('echoes the carrental_csrf cookie as X-CSRF-Token on a mutating request, not on GET', async () => {
-    document.cookie = 'carrental_csrf=tok-abc-123';
+  it("echoes this audience's CSRF cookie as X-CSRF-Token on a mutating request, not on GET", async () => {
+    document.cookie = 'carrental_csrf_customer=tok-abc-123';
+    document.cookie = 'carrental_csrf_staff=tok-staff-999';
     const fetchMock = vi.fn(() => Promise.resolve(jsonResponse(200, {})));
     vi.stubGlobal('fetch', fetchMock);
 
@@ -68,13 +69,24 @@ describe('apiFetch', () => {
         string
       >;
 
+    configureClient({ audience: 'customer' });
     await apiFetch('/meta/build');
     expect(headersOf(0)['X-CSRF-Token']).toBeUndefined();
+    expect(headersOf(0)['X-Auth-Audience']).toBeUndefined(); // only on /auth/*
 
     await apiFetch('/auth/sign-out', { method: 'POST', body: {} });
     expect(headersOf(1)['X-CSRF-Token']).toBe('tok-abc-123');
+    expect(headersOf(1)['X-Auth-Audience']).toBe('customer');
 
-    document.cookie = 'carrental_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    // the ops dashboard reads (and announces) the staff pair — never the site's
+    configureClient({ audience: 'staff' });
+    await apiFetch('/auth/refresh', { method: 'POST', anonymous: true });
+    expect(headersOf(2)['X-CSRF-Token']).toBe('tok-staff-999');
+    expect(headersOf(2)['X-Auth-Audience']).toBe('staff');
+
+    configureClient({ audience: 'customer' });
+    for (const n of ['carrental_csrf_customer', 'carrental_csrf_staff'])
+      document.cookie = `${n}=; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
   });
 
   it('throws an ApiError carrying the Problem body on failure', async () => {

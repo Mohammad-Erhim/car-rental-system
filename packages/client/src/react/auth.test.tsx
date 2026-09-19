@@ -67,7 +67,7 @@ beforeEach(() => {
   localStorage.clear();
   refresh.mockReset();
   seenLocale = '';
-  localStorage.setItem('carrental.session.hint', '1'); // there is a session to restore
+  localStorage.setItem('carrental.session.hint.staff', '1'); // there is a session to restore
 });
 afterEach(() => {
   vi.clearAllMocks();
@@ -78,13 +78,13 @@ describe('AuthProvider — following the actor locale (FR-IAM-006)', () => {
     refresh.mockResolvedValue(session('fr'));
     mount();
     await waitFor(() => expect(seenLocale).toBe('fr'));
-    expect(localStorage.getItem('carrental.locale.fromActor')).toBe('fr');
+    expect(localStorage.getItem('carrental.locale.fromActor.staff')).toBe('fr');
   });
 
   it('does NOT re-assert the account locale over a switcher choice on reload', async () => {
     // an earlier session applied the account default 'en'; this session the user switched to 'ar'
     // (persisted by the i18n provider's onLocaleChange).
-    localStorage.setItem('carrental.locale.fromActor', 'en');
+    localStorage.setItem('carrental.locale.fromActor.staff', 'en');
     localStorage.setItem('carrental.locale', 'ar');
     refresh.mockResolvedValue(session('en'));
     mount();
@@ -95,11 +95,11 @@ describe('AuthProvider — following the actor locale (FR-IAM-006)', () => {
   });
 
   it('applies a genuinely changed account locale (e.g. updated in profile)', async () => {
-    localStorage.setItem('carrental.locale.fromActor', 'en');
+    localStorage.setItem('carrental.locale.fromActor.staff', 'en');
     localStorage.setItem('carrental.locale', 'en');
     refresh.mockResolvedValue(session('fr')); // account default is now fr
     mount();
     await waitFor(() => expect(seenLocale).toBe('fr'));
-    expect(localStorage.getItem('carrental.locale.fromActor')).toBe('fr');
+    expect(localStorage.getItem('carrental.locale.fromActor.staff')).toBe('fr');
   });
 });

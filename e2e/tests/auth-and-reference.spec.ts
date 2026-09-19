@@ -52,7 +52,7 @@ test.describe('customer auth (APP-CWEB)', () => {
     await expect(page).toHaveURL(/\/account$/);
 
     const state = await page.context().storageState();
-    expect(state.cookies.some((c) => c.name === 'carrental_rt')).toBe(true);
+    expect(state.cookies.some((c) => c.name === 'carrental_rt_customer')).toBe(true);
 
     const reopened = await browser.newContext({ storageState: state });
     try {

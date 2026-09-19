@@ -2,14 +2,21 @@ import { randomBytes } from 'node:crypto';
 
 import type { CookieOptions, Response } from 'express';
 
+import {
+  LEGACY_CSRF_COOKIE,
+  LEGACY_REFRESH_COOKIE,
+  csrfCookieName,
+  refreshCookieName,
+  type AuthAudience,
+} from '../../common/security/refresh-cookie-name';
 import type { Env } from '../../config/env.schema';
 
-export const REFRESH_COOKIE = 'carrental_rt';
-export const CSRF_COOKIE = 'carrental_csrf';
+export { csrfCookieName, refreshCookieName, type AuthAudience };
 
 /**
  * Browser refresh token: Secure, HttpOnly, SameSite=Lax on a shared origin (SRS-SEC-003).
- * `Path=/api/v1/auth` limits where the cookie is sent.
+ * `Path=/api/v1/auth` limits where the cookie is sent. One cookie per audience (see
+ * `refresh-cookie-name.ts`) so the ops dashboard and the customer site keep separate sessions.
  */
 export function refreshCookieOptions(env: Env, maxAgeMs: number): CookieOptions {
   return {
@@ -21,12 +28,21 @@ export function refreshCookieOptions(env: Env, maxAgeMs: number): CookieOptions 
   };
 }
 
-export function setRefreshCookie(res: Response, env: Env, token: string, maxAgeMs: number): void {
-  res.cookie(REFRESH_COOKIE, token, refreshCookieOptions(env, maxAgeMs));
+export function setRefreshCookie(
+  res: Response,
+  env: Env,
+  audience: AuthAudience,
+  token: string,
+  maxAgeMs: number,
+): void {
+  res.cookie(refreshCookieName(audience), token, refreshCookieOptions(env, maxAgeMs));
 }
 
-export function clearRefreshCookie(res: Response, env: Env): void {
-  res.clearCookie(REFRESH_COOKIE, { ...refreshCookieOptions(env, 0), maxAge: undefined });
+export function clearRefreshCookie(res: Response, env: Env, audience: AuthAudience): void {
+  res.clearCookie(refreshCookieName(audience), {
+    ...refreshCookieOptions(env, 0),
+    maxAge: undefined,
+  });
 }
 
 /**
@@ -46,10 +62,25 @@ export function csrfCookieOptions(env: Env, maxAgeMs: number): CookieOptions {
   };
 }
 
-export function setCsrfCookie(res: Response, env: Env, maxAgeMs: number): void {
-  res.cookie(CSRF_COOKIE, randomBytes(24).toString('base64url'), csrfCookieOptions(env, maxAgeMs));
+export function setCsrfCookie(
+  res: Response,
+  env: Env,
+  audience: AuthAudience,
+  maxAgeMs: number,
+): void {
+  res.cookie(
+    csrfCookieName(audience),
+    randomBytes(24).toString('base64url'),
+    csrfCookieOptions(env, maxAgeMs),
+  );
 }
 
-export function clearCsrfCookie(res: Response, env: Env): void {
-  res.clearCookie(CSRF_COOKIE, { ...csrfCookieOptions(env, 0), maxAge: undefined });
+export function clearCsrfCookie(res: Response, env: Env, audience: AuthAudience): void {
+  res.clearCookie(csrfCookieName(audience), { ...csrfCookieOptions(env, 0), maxAge: undefined });
+}
+
+/** Drop the pre-audience shared cookies so an upgraded browser doesn't carry a stale pair. */
+export function clearLegacyCookies(res: Response, env: Env): void {
+  res.clearCookie(LEGACY_REFRESH_COOKIE, { ...refreshCookieOptions(env, 0), maxAge: undefined });
+  res.clearCookie(LEGACY_CSRF_COOKIE, { ...csrfCookieOptions(env, 0), maxAge: undefined });
 }

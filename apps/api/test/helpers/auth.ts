@@ -31,7 +31,7 @@ export async function signIn(
     .expect(201);
   return {
     accessToken: res.body.accessToken,
-    refreshCookie: cookieFrom(res, 'carrental_rt'),
+    refreshCookie: cookieFrom(res, `carrental_rt_${audience}`),
     actor: res.body.actor,
   };
 }

@@ -61,6 +61,7 @@ export async function createApp(): Promise<NestExpressApplication> {
       'Idempotency-Key',
       'If-Match',
       'X-CSRF-Token',
+      'X-Auth-Audience',
       'X-Request-Id',
       'Accept-Language',
     ],

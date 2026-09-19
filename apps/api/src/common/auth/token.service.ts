@@ -80,4 +80,14 @@ export class TokenService {
   refreshTtlMs(): number {
     return this.env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000;
   }
+
+  /** Hard cap on a session family's lifetime, measured from its original sign-in. */
+  refreshAbsoluteTtlMs(): number {
+    return this.env.REFRESH_ABSOLUTE_TTL_DAYS * 24 * 60 * 60 * 1000;
+  }
+
+  /** Window in which an already-rotated refresh token is still accepted (see env schema). */
+  reuseGraceMs(): number {
+    return this.env.REFRESH_REUSE_GRACE_SECONDS * 1000;
+  }
 }

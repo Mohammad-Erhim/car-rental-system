@@ -58,6 +58,8 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
     const csrf = await readCsrfCookie();
     if (csrf) headers['X-CSRF-Token'] = csrf;
   }
+  // which cookie pair the API should use — the app is customer-only (see `@carrental/client`)
+  if (path.startsWith('/auth/')) headers['X-Auth-Audience'] = 'customer';
 
   const accessToken = getAccessToken();
   if (!opts.anonymous && accessToken) headers.Authorization = `Bearer ${accessToken}`;

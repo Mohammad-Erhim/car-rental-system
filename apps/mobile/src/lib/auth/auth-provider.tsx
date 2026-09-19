@@ -1,3 +1,4 @@
+import { ApiError } from '@carrental/client';
 import type { SessionResponse } from '@carrental/contracts';
 import { useI18n } from '@carrental/i18n/react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -98,18 +99,41 @@ export function AuthProvider({ children, defaultAudience = 'customer' }: AuthPro
     qc.clear();
   }, [qc]);
 
-  const doRefresh = useCallback(async (): Promise<boolean> => {
-    try {
-      const session = await apiFetch<SessionResponse>('/auth/refresh', {
-        method: 'POST',
-        anonymous: true,
-      });
-      applySession(session);
-      return true;
-    } catch {
-      clearSession();
-      return false;
-    }
+  // Same contract as `@carrental/client`'s web provider: only the API answering 401 ends the
+  // session. A dropped connection, a 5xx, a 429 or a tunnel/elevator is retried and the user stays
+  // signed in (the foreground-resume check below picks it up again).
+  const refreshInFlight = useRef<Promise<boolean> | null>(null);
+  const doRefresh = useCallback((): Promise<boolean> => {
+    refreshInFlight.current ??= (async () => {
+      try {
+        for (let attempt = 0; ; attempt++) {
+          try {
+            const session = await apiFetch<SessionResponse>('/auth/refresh', {
+              method: 'POST',
+              anonymous: true,
+            });
+            applySession(session);
+            return true;
+          } catch (err) {
+            if (err instanceof ApiError && err.status === 401) {
+              clearSession();
+              return false;
+            }
+            const delay = [400, 1200, 3000][attempt];
+            if (delay === undefined) {
+              // unavailable, not logged out: keep the hint, let resume/next call retry
+              setStatus((s) => (s === 'loading' ? 'anonymous' : s));
+              const expiresAt = getAccessTokenExpiresAt();
+              return expiresAt !== null && expiresAt - Date.now() > 5_000;
+            }
+            await new Promise((r) => setTimeout(r, delay));
+          }
+        }
+      } finally {
+        refreshInFlight.current = null;
+      }
+    })();
+    return refreshInFlight.current;
   }, [applySession, clearSession]);
 
   // Same pattern as `@carrental/client/react`'s web `AuthProvider` (`doRefreshRef.current =
@@ -138,7 +162,14 @@ export function AuthProvider({ children, defaultAudience = 'customer' }: AuthPro
   // check the token's real expiry (tracked in the token store) and refresh proactively.
   useEffect(() => {
     const onChange = (next: AppStateStatus) => {
-      if (next !== 'active' || status !== 'authenticated') return;
+      if (next !== 'active') return;
+      if (status !== 'authenticated') {
+        // a launch/refresh that hit an outage kept the hint: try to restore now
+        void AsyncStorage.getItem(SESSION_HINT_KEY).then((hint) => {
+          if (hint === '1') void doRefreshRef.current();
+        });
+        return;
+      }
       const expiresAt = getAccessTokenExpiresAt();
       if (expiresAt !== null && Date.now() > expiresAt - 60_000) {
         void doRefreshRef.current();

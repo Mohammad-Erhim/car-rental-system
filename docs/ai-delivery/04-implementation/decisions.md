@@ -332,3 +332,35 @@ routing-payment.adapter,payment-config.controller,stripe-webhook.controller}.ts`
   unit tests + 8 integration tests added, zero regressions in the full API suite. No live Stripe
   test-mode account was available to verify against the real Stripe API end-to-end — the adapter
   is verified against the documented Stripe error/response shape and a mocked SDK client only.
+
+### DEC-028 — Audience-scoped sessions and a refresh that never signs the user out by accident
+
+- Context: the ops dashboard (`/ops`) and the customer site share one origin, so one refresh
+  cookie / CSRF cookie / localStorage hint served both — a customer sign-in replaced a staff
+  session, a customer sign-out ended it, and the dashboard's refresh could return a customer
+  actor. Separately, refresh-token rotation was non-atomic with no grace window (two tabs, a retry
+  or a lost response revoked the whole family), and the client treated _any_ refresh error
+  (network, 5xx, API restart) as a logout, clearing the hint in every tab.
+- Decision:
+  - Cookies are per audience: `carrental_rt_{staff|customer}` / `carrental_csrf_{staff|customer}`;
+    the client sends `X-Auth-Audience` on `/auth/*` (`configureClient({ audience })`), the API
+    resolves the pair from it (falls back to the only cookie present, never guesses when both are)
+    and rejects a session whose audience differs. localStorage hint and applied-locale keys are
+    per audience too. Legacy shared cookies are cleared on the next sign-in/out.
+  - `SessionService.rotate` runs in one transaction holding a row lock on the presented token.
+    A token rotated within `REFRESH_REUSE_GRACE_SECONDS` (20) yields a sibling session in the
+    same family; a replay after the window (or of a token revoked for another reason) is theft →
+    family revoked. Absolute lifetime `REFRESH_ABSOLUTE_TTL_DAYS` (90) from the family's first row;
+    `REFRESH_TOKEN_TTL_DAYS` (30) remains the idle window. Refresh also rejects suspended/closed
+    accounts and clears the cookies on a definitive 401. Dead sessions are pruned opportunistically.
+  - Client (`AuthProvider`): only a 401 from `/auth/refresh` ends the session; network/5xx/429 are
+    retried inline (400/1200/3000 ms) then in the background (bounded backoff) and on `online` /
+    tab-visible / focus, keeping the hint. Refresh is serialised across tabs with Web Locks and the
+    winner shares the session over a `BroadcastChannel`; a queued tab skips a redundant call.
+    The mobile provider follows the same 401-only rule.
+- Source IDs: user request (2026-09-19, Telegram), SRS-SEC-002/003.
+- Consequences: `apps/api/src/common/{auth/session.service,security/*}`, `modules/iam/*`,
+  `packages/client/src/{config,api-fetch,session-sync}.ts`, `react/auth.tsx`, mobile
+  `lib/api/*` + `lib/auth/auth-provider.tsx`; tests `apps/api/test/session-resilience.spec.ts`,
+  `packages/client/src/react/auth-session.test.tsx`. Users signed in before the deploy are asked
+  to sign in once (cookie names changed). Not covered: session-list UI, reuse-event alerting.

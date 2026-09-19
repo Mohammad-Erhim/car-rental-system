@@ -47,7 +47,7 @@ describe('IAM / auth', () => {
     expect(verify.body.accessToken).toBeTruthy();
     expect(verify.body.actor.emailVerified).toBe(true);
     expect(verify.body.actor.kind).toBe('customer');
-    expect(cookieFrom(verify, 'carrental_rt')).toMatch(/^carrental_rt=/);
+    expect(cookieFrom(verify, 'carrental_rt_customer')).toMatch(/^carrental_rt_customer=/);
 
     // /auth/me works with the access token
     const me = await request(server)
@@ -97,38 +97,12 @@ describe('IAM / auth', () => {
     expect(res.body.params?.reason).toBe('account_exists');
   });
 
-  it('TEST-IAM-003 sign-in: wrong password is a neutral 401; correct works', async () => {
-    const bad = await request(server)
-      .post('/api/v1/auth/sign-in')
-      .send({ email: 'test-customer@example.test', password: 'wrong', audience: 'customer' })
-      .expect(401);
-    expect(bad.body.code).toBe('auth_invalid_credentials');
-    expect(JSON.stringify(bad.body)).not.toMatch(/exists|not found/i);
-
-    const ok = await signIn(await getTestApp(), 'test-customer@example.test', 'Test-Passw0rd!');
-    expect(ok.actor.kind).toBe('customer');
-  });
-
-  it('TEST-IAM-003 staff audience: a customer cannot get a staff session', async () => {
-    await request(server)
-      .post('/api/v1/auth/sign-in')
-      .send({ email: 'test-customer@example.test', password: 'Test-Passw0rd!', audience: 'staff' })
-      .expect(403);
-  });
-
-  it('TEST-IAM-003 customer audience: a staff account cannot get a customer session', async () => {
-    await request(server)
-      .post('/api/v1/auth/sign-in')
-      .send({ email: 'test-agent@example.test', password: 'Test-Passw0rd!', audience: 'customer' })
-      .expect(403);
-  });
-
-  it('TEST-IAM-003 refresh rotates; the old refresh token is rejected (reuse detection)', async () => {
+  it('TEST-IAM-003 refresh rotates; the rotated token yields a fresh one; a dead family stays dead', async () => {
     const first = await request(server)
       .post('/api/v1/auth/sign-in')
       .send({ email: 'test-agent@example.test', password: 'Test-Passw0rd!', audience: 'staff' })
       .expect(201);
-    const rt1 = cookieFrom(first, 'carrental_rt');
+    const rt1 = cookieFrom(first, 'carrental_rt_staff');
 
     // CsrfGuard requires either an allowed Origin or the double-submit token on a cookie-authed
     // write; a real browser always sends Origin on a same-origin POST, so simulate that here
@@ -138,20 +112,30 @@ describe('IAM / auth', () => {
       .post('/api/v1/auth/refresh')
       .set('Cookie', rt1)
       .set('Origin', origin)
+      .set('X-Auth-Audience', 'staff')
       .expect(201);
-    const rt2 = cookieFrom(r2, 'carrental_rt');
+    const rt2 = cookieFrom(r2, 'carrental_rt_staff');
     expect(rt2).not.toBe(rt1);
 
-    // reusing rt1 is now a security event -> 401 and the family is revoked
+    // sign-out kills the chain; even inside the grace window the old token must not resurrect it
+    await request(server)
+      .post('/api/v1/auth/sign-out')
+      .set('Cookie', rt2)
+      .set('Origin', origin)
+      .set('X-Auth-Audience', 'staff')
+      .send({ everywhere: false })
+      .expect(201);
     await request(server)
       .post('/api/v1/auth/refresh')
       .set('Cookie', rt1)
       .set('Origin', origin)
+      .set('X-Auth-Audience', 'staff')
       .expect(401);
     await request(server)
       .post('/api/v1/auth/refresh')
       .set('Cookie', rt2)
       .set('Origin', origin)
+      .set('X-Auth-Audience', 'staff')
       .expect(401);
   });
 

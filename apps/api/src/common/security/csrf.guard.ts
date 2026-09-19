@@ -5,7 +5,7 @@ import { ENV } from '../../config/config.module';
 import type { Env } from '../../config/env.schema';
 import { AppError } from '../app-error';
 
-import { CSRF_COOKIE, REFRESH_COOKIE } from './refresh-cookie-name';
+import { csrfCookieName, refreshCookieName, resolveAudience } from './refresh-cookie-name';
 
 /**
  * SRS-SEC-003 — CSRF defense for cookie-authenticated writes (`POST /auth/refresh`,
@@ -14,7 +14,7 @@ import { CSRF_COOKIE, REFRESH_COOKIE } from './refresh-cookie-name';
  *
  * Enforcement: when the request carries the refresh cookie, it must ALSO clear one of two bars —
  * a verified-allowed `Origin`/`Referer`, or a double-submit `X-CSRF-Token` header matching the
- * non-HttpOnly `carrental_csrf` cookie (`@carrental/client` sets this on every mutating request).
+ * non-HttpOnly `carrental_csrf_<audience>` cookie (`@carrental/client` sets this on every mutating request).
  * A request with neither header at all no longer passes by default — that previously treated a
  * request with no Origin/Referer as trivially "same-origin," which is exactly the shape a
  * same-site-cookie-riding but cross-origin-fetch-avoiding attack would take. A request with no
@@ -27,8 +27,12 @@ export class CsrfGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     const req = context.switchToHttp().getRequest<Request>();
-    const hasRefreshCookie = Boolean(req.cookies?.[REFRESH_COOKIE]);
-    if (!hasRefreshCookie) return true; // nothing cookie-authed to protect
+    // The refresh/CSRF cookies are audience-scoped; guard the pair for the surface that is calling.
+    // Unresolvable audience (no header, zero or two cookies): the handler rejects it anyway.
+    const audience = resolveAudience(req);
+    const hasRefreshCookie =
+      audience !== null && Boolean(req.cookies?.[refreshCookieName(audience)]);
+    if (!audience || !hasRefreshCookie) return true; // nothing cookie-authed to protect
 
     const origin = originOf(req);
     const originAllowed = origin !== null && this.env.CORS_ALLOWED_ORIGINS.includes(origin);
@@ -38,7 +42,7 @@ export class CsrfGuard implements CanActivate {
       // whole check (`if (origin && ...)`), silently trusting any request with both headers
       // stripped instead of requiring the token the way a genuinely cross-site request would.
       const header = req.header('x-csrf-token');
-      const cookie = req.cookies?.[CSRF_COOKIE] as string | undefined;
+      const cookie = req.cookies?.[csrfCookieName(audience)] as string | undefined;
       if (!header || !cookie || header !== cookie) {
         throw new AppError('forbidden', { title: 'Cross-site request blocked' });
       }

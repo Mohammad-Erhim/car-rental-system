@@ -171,7 +171,7 @@ describe('STAGE-007 security', () => {
       })
       .expect(201);
     const raw = (res.headers['set-cookie'] as unknown as string[]).find((c) =>
-      c.startsWith('carrental_rt='),
+      c.startsWith('carrental_rt_customer='),
     )!;
     expect(raw).toMatch(/HttpOnly/i);
     expect(raw).toMatch(/SameSite=Lax/i);
@@ -188,7 +188,7 @@ describe('STAGE-007 security', () => {
       })
       .expect(201);
     const rt = (signedIn.headers['set-cookie'] as unknown as string[])
-      .find((c) => c.startsWith('carrental_rt='))!
+      .find((c) => c.startsWith('carrental_rt_customer='))!
       .split(';')[0]!;
 
     await request(server)
@@ -214,8 +214,8 @@ describe('STAGE-007 security', () => {
       })
       .expect(201);
     const setCookies = signedIn.headers['set-cookie'] as unknown as string[];
-    const rt = setCookies.find((c) => c.startsWith('carrental_rt='))!.split(';')[0]!;
-    const csrfCookieHeader = setCookies.find((c) => c.startsWith('carrental_csrf='))!;
+    const rt = setCookies.find((c) => c.startsWith('carrental_rt_customer='))!.split(';')[0]!;
+    const csrfCookieHeader = setCookies.find((c) => c.startsWith('carrental_csrf_customer='))!;
     expect(csrfCookieHeader).not.toMatch(/HttpOnly/i); // must be JS-readable to be double-submitted
     const csrfCookie = csrfCookieHeader.split(';')[0]!;
     const csrfValue = csrfCookie.split('=')[1]!;

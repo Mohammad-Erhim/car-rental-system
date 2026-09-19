@@ -96,7 +96,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
       <BrandedThemeProvider>
         <I18nBoundary>
           <RadixDirection>
-            <AuthProvider>
+            <AuthProvider defaultAudience="staff">
               <LocationScopeProvider>
                 <StepUpProvider>{children}</StepUpProvider>
                 <Toaster richColors closeButton position="top-right" />

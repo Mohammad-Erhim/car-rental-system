@@ -13,7 +13,7 @@ import { ConsentProvider } from '../lib/consent';
 import { persistLocaleChoice, type Messages } from '../lib/i18n';
 
 // Browser calls hit the same-origin `/api/v1` proxy (next.config rewrites, DEC-021).
-configureClient({ baseUrl: '/api/v1', correlationPrefix: 'site' });
+configureClient({ baseUrl: '/api/v1', correlationPrefix: 'site', audience: 'customer' });
 
 /** Client providers for the public site: i18n context, theme (light/dark + brand), react-query. */
 export function Providers({
@@ -58,7 +58,7 @@ export function Providers({
         >
           {/* followActorLocale=false: the `/{locale}/…` URL owns the language here, so a signed-in
               customer viewing /ar stays on Arabic even if their account default is English. */}
-          <AuthProvider followActorLocale={false}>
+          <AuthProvider defaultAudience="customer" followActorLocale={false}>
             <ToastProvider>
               <ConsentProvider locale={locale} config={consent}>
                 <LocalisedUiStrings>{children}</LocalisedUiStrings>

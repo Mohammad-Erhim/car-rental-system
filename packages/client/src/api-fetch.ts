@@ -21,15 +21,16 @@ export interface RequestOptions {
 let refreshing: Promise<boolean> | null = null;
 let steppingUp: Promise<boolean> | null = null;
 
-// Must match `CSRF_COOKIE` in apps/api/src/modules/iam/iam.cookies.ts — duplicated rather than
-// imported since a package may not depend on an app. Deliberately non-HttpOnly on the server side
-// so this can read it; echoing it back as a header is the double-submit half of CsrfGuard's
-// defense for the cookie-authenticated auth endpoints (refresh / sign-out).
-const CSRF_COOKIE = 'carrental_csrf';
+// Must match `csrfCookieName` in apps/api/src/common/security/refresh-cookie-name.ts — duplicated
+// rather than imported since a package may not depend on an app. Deliberately non-HttpOnly on the
+// server side so this can read it; echoing it back as a header is the double-submit half of
+// CsrfGuard's defense for the cookie-authenticated auth endpoints (refresh / sign-out). One cookie
+// per audience, so the ops dashboard and the site (same origin) keep separate sessions.
+const csrfCookieName = (audience: 'staff' | 'customer') => `carrental_csrf_${audience}`;
 
-function readCsrfCookie(): string | null {
+function readCsrfCookie(audience: 'staff' | 'customer'): string | null {
   if (typeof document === 'undefined') return null; // SSR — no cookie jar to read
-  const match = document.cookie.match(new RegExp(`(?:^|; )${CSRF_COOKIE}=([^;]*)`));
+  const match = document.cookie.match(new RegExp(`(?:^|; )${csrfCookieName(audience)}=([^;]*)`));
   return match ? decodeURIComponent(match[1]!) : null;
 }
 
@@ -55,7 +56,7 @@ function safeJson(text: string): unknown {
  * step-up prompt once and retries. Everything else surfaces as an `ApiError`.
  */
 export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Promise<T> {
-  const { baseUrl } = getClientConfig();
+  const { baseUrl, audience } = getClientConfig();
   const correlationId = newCorrelationId();
   const headers: Record<string, string> = {
     Accept: 'application/json',
@@ -70,9 +71,11 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
   // cookie is present), but harmless to attach on every mutation — cheaper than special-casing
   // which specific endpoints the guard happens to be decorated onto.
   if (opts.method && opts.method !== 'GET') {
-    const csrf = readCsrfCookie();
+    const csrf = readCsrfCookie(audience);
     if (csrf) headers['X-CSRF-Token'] = csrf;
   }
+  // tells the API which cookie pair (staff / customer) this call is about — see `ClientConfig`
+  if (path.startsWith('/auth/')) headers['X-Auth-Audience'] = audience;
 
   const accessToken = getAccessToken();
   if (!opts.anonymous && accessToken) headers.Authorization = `Bearer ${accessToken}`;

@@ -36,7 +36,16 @@ const baseEnvSchema = z.object({
   JWT_ISSUER: z.string().default('car-rental-system'),
   JWT_AUDIENCE_CUSTOMER: z.string().default('carrental.customer'),
   JWT_AUDIENCE_STAFF: z.string().default('carrental.staff'),
+  /** Idle lifetime: every rotation renews the refresh token for this long. */
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
+  /** Hard cap from the original sign-in — a rolling session can never outlive this. */
+  REFRESH_ABSOLUTE_TTL_DAYS: z.coerce.number().int().positive().default(90),
+  /**
+   * How long after a rotation the *previous* token is still honoured (it yields a sibling
+   * session instead of tripping reuse detection). Absorbs concurrent tabs, retried requests and
+   * lost responses; a replay after the window is treated as theft and revokes the family.
+   */
+  REFRESH_REUSE_GRACE_SECONDS: z.coerce.number().int().min(0).max(300).default(20),
   PASSWORD_PEPPER: z.string().min(16),
   COOKIE_SECRET: z.string().min(16),
 

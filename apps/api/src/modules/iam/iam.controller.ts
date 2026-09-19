@@ -22,12 +22,17 @@ import {
 import type { Actor } from '../../common/auth/types';
 import { CsrfGuard } from '../../common/security/csrf.guard';
 import { RateLimit } from '../../common/security/rate-limit.decorator';
+import {
+  refreshCookieName,
+  resolveAudience,
+  type AuthAudience,
+} from '../../common/security/refresh-cookie-name';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { ENV } from '../../config/config.module';
 import type { Env } from '../../config/env.schema';
 
 import {
-  REFRESH_COOKIE,
+  clearLegacyCookies,
   clearCsrfCookie,
   clearRefreshCookie,
   setCsrfCookie,
@@ -67,12 +72,18 @@ export class IamController {
     @Inject(ENV) private readonly env: Env,
   ) {}
 
-  private issueCookie(res: Response, refreshToken: string, expiresAt: Date) {
+  private issueCookie(
+    res: Response,
+    audience: AuthAudience,
+    refreshToken: string,
+    expiresAt: Date,
+  ) {
     const maxAgeMs = expiresAt.getTime() - Date.now();
-    setRefreshCookie(res, this.env, refreshToken, maxAgeMs);
+    clearLegacyCookies(res, this.env);
+    setRefreshCookie(res, this.env, audience, refreshToken, maxAgeMs);
     // Issued alongside the refresh cookie every time (not just at sign-in) — a session that
     // outlives a page's lifetime (a rolling refresh) must keep a matching CSRF cookie current too.
-    setCsrfCookie(res, this.env, maxAgeMs);
+    setCsrfCookie(res, this.env, audience, maxAgeMs);
   }
 
   @Post('register')
@@ -103,7 +114,7 @@ export class IamController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const session = await this.iam.verifyContact(body.challengeId, body.code, ctxOf(req));
-    this.issueCookie(res, session.refreshToken, session.expiresAt);
+    this.issueCookie(res, 'customer', session.refreshToken, session.expiresAt); // register is customer-only
     return {
       accessToken: session.accessToken,
       expiresInSeconds: session.expiresInSeconds,
@@ -128,7 +139,7 @@ export class IamController {
     @Res({ passthrough: true }) res: Response,
   ) {
     const session = await this.iam.signIn(body, ctxOf(req));
-    this.issueCookie(res, session.refreshToken, session.expiresAt);
+    this.issueCookie(res, body.audience, session.refreshToken, session.expiresAt);
     return {
       accessToken: session.accessToken,
       expiresInSeconds: session.expiresInSeconds,
@@ -141,15 +152,27 @@ export class IamController {
   @UseGuards(CsrfGuard)
   @ApiOperation({ operationId: 'auth_refresh', summary: 'Rotate the refresh session' })
   async refresh(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
-    const token = req.cookies?.[REFRESH_COOKIE] as string | undefined;
-    if (!token) throw new AppError('auth_required', { title: 'No session' });
-    const session = await this.iam.refresh(token, ctxOf(req));
-    this.issueCookie(res, session.refreshToken, session.expiresAt);
-    return {
-      accessToken: session.accessToken,
-      expiresInSeconds: session.expiresInSeconds,
-      actor: session.actor,
-    };
+    const audience = resolveAudience(req);
+    const token = audience
+      ? (req.cookies?.[refreshCookieName(audience)] as string | undefined)
+      : undefined;
+    if (!audience || !token) throw new AppError('auth_required', { title: 'No session' });
+    try {
+      const session = await this.iam.refresh(token, ctxOf(req), audience);
+      this.issueCookie(res, audience, session.refreshToken, session.expiresAt);
+      return {
+        accessToken: session.accessToken,
+        expiresInSeconds: session.expiresInSeconds,
+        actor: session.actor,
+      };
+    } catch (err) {
+      // A definitively dead session: drop its cookies so the browser stops presenting them.
+      if (err instanceof AppError && err.code === 'auth_session_expired') {
+        clearRefreshCookie(res, this.env, audience);
+        clearCsrfCookie(res, this.env, audience);
+      }
+      throw err;
+    }
   }
 
   @Post('sign-out')
@@ -162,10 +185,17 @@ export class IamController {
     @Res({ passthrough: true }) res: Response,
     @MaybeCurrentActor() actor?: Actor,
   ) {
-    const token = req.cookies?.[REFRESH_COOKIE] as string | undefined;
+    const audience = resolveAudience(req) ?? actor?.audience ?? null;
+    const token = audience
+      ? (req.cookies?.[refreshCookieName(audience)] as string | undefined)
+      : undefined;
     await this.iam.signOut(token, body.everywhere, actor?.accountId);
-    clearRefreshCookie(res, this.env);
-    clearCsrfCookie(res, this.env);
+    // only this audience's cookies — signing out of the site must not end the ops session
+    if (audience) {
+      clearRefreshCookie(res, this.env, audience);
+      clearCsrfCookie(res, this.env, audience);
+    }
+    clearLegacyCookies(res, this.env);
     return { ok: true };
   }
 
@@ -201,8 +231,9 @@ export class IamController {
     @Res({ passthrough: true }) res: Response,
   ) {
     await this.iam.changePassword(actor.accountId, body.currentPassword, body.newPassword);
-    clearRefreshCookie(res, this.env);
-    clearCsrfCookie(res, this.env);
+    clearRefreshCookie(res, this.env, actor.audience);
+    clearCsrfCookie(res, this.env, actor.audience);
+    clearLegacyCookies(res, this.env);
     return { ok: true, message: 'Password changed. Sign in again.' };
   }
 
