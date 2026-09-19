@@ -34,6 +34,7 @@ import { RatePlansPage } from '../features/rate-plans/rate-plans-page.js';
 import { ReferenceDataPage } from '../features/reference-data/reference-data-page.js';
 import { RentalDetailPage } from '../features/rentals/rental-detail-page.js';
 import { RentalsPage } from '../features/rentals/rentals-page.js';
+import { ReportsPage } from '../features/reports/reports-page.js';
 import { ReservationDetailPage } from '../features/reservations/reservation-detail-page.js';
 import { ReservationsPage } from '../features/reservations/reservations-page.js';
 import { SearchPage } from '../features/search/search-page.js';
@@ -48,7 +49,6 @@ import { DashboardLayout } from '../layouts/dashboard-layout.js';
 import { AuditLogPage } from '../surfaces/ops/audit-log-page.js';
 import { ConsentLogPage } from '../surfaces/ops/consent/consent-log-page.js';
 import { DataQualityPage } from '../surfaces/ops/data-quality-page.js';
-import { ReportsPage } from '../surfaces/ops/reports-page.js';
 
 /**
  * `apps/web` is the Operations & Admin dashboard only (DEC-023 — the customer surface is
