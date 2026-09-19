@@ -1,5 +1,5 @@
 import { useI18n } from '@carrental/i18n/react';
-import { CheckCircle2, ChevronRight, Wallet } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Lock, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { SectionCard } from '@/components/section-card';
@@ -20,7 +20,8 @@ export function FinanceExceptionsCard({
   unavailable,
   orgWideNote,
 }: {
-  data: FinanceExceptions | undefined;
+  /** `null` = the account is limited to specific locations and these figures are org-wide */
+  data: FinanceExceptions | null | undefined;
   loading: boolean;
   unavailable: boolean;
   /** true when a location filter is active but finance can only be counted org-wide */
@@ -47,6 +48,13 @@ export function FinanceExceptionsCard({
           <Skeleton className="h-9 w-16" />
           <Skeleton className="h-5 w-32" />
         </div>
+      ) : data === null ? (
+        <StateView
+          icon={Lock}
+          title={t('ops.dash.financeRestricted')}
+          description={t('ops.dash.financeRestrictedBody')}
+          className="py-6"
+        />
       ) : unavailable || !data ? (
         <StateView kind="error" title={t('ops.dash.unavailable')} className="py-6" />
       ) : data.total === 0 ? (

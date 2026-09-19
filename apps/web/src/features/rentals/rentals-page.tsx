@@ -1,6 +1,6 @@
 import { useI18n } from '@carrental/i18n/react';
 import { PackageOpen, SearchX, SlidersHorizontal } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { RentalCard, useRentalColumns, type RentalAction } from './rental-columns';
@@ -9,6 +9,7 @@ import { IncidentDialog, PickupDialog, ReadinessDialog, ReturnDialog } from './r
 import { DataTable } from '@/components/data-table/data-table';
 import { FilterChips } from '@/components/filter-chips';
 import { FiltersSheet, useFilterFields } from '@/components/filters-sheet';
+import { ListError } from '@/components/list-error';
 import { Page, PageHeader } from '@/components/page-header';
 import { StateSwitcher } from '@/components/state-switcher';
 import { StateView } from '@/components/state-view';
@@ -19,7 +20,7 @@ import { useLocationScope } from '@/lib/location-scope';
 import { useOpsRentals, type RentalBoardRow } from '@/lib/rental-hooks';
 import { PAGE_SIZES, useListParams } from '@/lib/use-list-params';
 
-const FILTERS = ['state', 'flow', 'location', 'from', 'to'] as const;
+const FILTERS = ['state', 'flow', 'from', 'to'] as const;
 const STATE_TABS = ['', 'awaiting_pickup', 'active', 'overdue', 'closed'] as const;
 const getRowId = (r: RentalBoardRow) => r.reference;
 
@@ -27,7 +28,7 @@ const getRowId = (r: RentalBoardRow) => r.reference;
  * SCREEN-OPS-009/012/016 — the rental board. State tabs (with live counts) narrow the list; the
  * rest of the filters sit behind a side sheet. Pickup, return, incident and readiness are modals
  * opened from a row, so the list never reflows around an inline form. Confined to the actor's
- * pickup locations by the API; an `active` rental past its return time is flagged overdue live.
+ * locations by the API (pickups by the pickup branch, returns by the return branch); an `active` rental past its return time is flagged overdue live.
  * Everything is URL-backed.
  */
 export function RentalsPage() {
@@ -38,19 +39,13 @@ export function RentalsPage() {
   const fieldOf = useFilterFields();
   const [action, setAction] = useState<{ row: RentalBoardRow; kind: RentalAction } | null>(null);
 
-  // seed the location filter from the global switcher on first load only
-  const { selected: globalLocation, options: locations } = useLocationScope();
-  const seeded = useRef(false);
-  useEffect(() => {
-    if (seeded.current) return;
-    seeded.current = true;
-    if (!state.location && globalLocation) update({ location: globalLocation });
-  }, []);
+  // which branches — the top-bar filter, the single source (`?location=` in this URL)
+  const { codes: locationCode } = useLocationScope();
 
   const flow = state.flow === 'pickup' || state.flow === 'return' ? state.flow : undefined;
   const list = useOpsRentals({
     state: state.state || undefined,
-    locationCode: state.location || undefined,
+    locationCode,
     flow,
     from: state.from || undefined,
     to: state.to || undefined,
@@ -60,19 +55,13 @@ export function RentalsPage() {
   const data = list.data;
   const columns = useRentalColumns((row, kind) => setAction({ row, kind }));
 
-  const filterCount = [flow, state.location, state.from, state.to].filter(Boolean).length;
+  const filterCount = [flow, state.from, state.to].filter(Boolean).length;
   const anyFilter = filterCount > 0 || !!state.state;
-  const chips: Array<{ key: 'flow' | 'location' | 'from' | 'to'; label: string }> = [];
+  const chips: Array<{ key: 'flow' | 'from' | 'to'; label: string }> = [];
   if (flow) {
     chips.push({
       key: 'flow',
       label: flow === 'pickup' ? t('ops.rent.flowPickup') : t('ops.rent.flowReturn'),
-    });
-  }
-  if (state.location) {
-    chips.push({
-      key: 'location',
-      label: locations.find((l) => l.code === state.location)?.name ?? state.location,
     });
   }
   if (state.from)
@@ -138,13 +127,10 @@ export function RentalsPage() {
           skeletonRows={Math.min(state.pageSize, 8)}
           error={
             list.isError ? (
-              <StateView
-                kind="error"
+              <ListError
+                error={list.error}
                 title={t('ops.rent.loadFail')}
-                description={t('state.failure.body')}
-                actionLabel={t('ops.st.retry')}
-                onAction={() => void list.refetch()}
-                className="py-14"
+                onRetry={() => void list.refetch()}
               />
             ) : undefined
           }
@@ -203,13 +189,10 @@ export function RentalsPage() {
               { value: 'return', label: t('ops.rent.flowReturn') },
             ],
           },
-          fieldOf.location(locations),
           fieldOf.dates(),
         ]}
-        values={{ flow: flow ?? '', location: state.location, from: state.from, to: state.to }}
-        onApply={(v) =>
-          update({ flow: v.flow ?? '', location: v.location, from: v.from, to: v.to })
-        }
+        values={{ flow: flow ?? '', from: state.from, to: state.to }}
+        onApply={(v) => update({ flow: v.flow ?? '', from: v.from, to: v.to })}
       />
 
       {action?.kind === 'pickup' ? (

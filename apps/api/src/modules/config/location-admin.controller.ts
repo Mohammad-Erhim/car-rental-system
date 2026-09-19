@@ -3,8 +3,8 @@ import { ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { z } from 'zod';
 
-import { CurrentActor } from '../../common/auth/auth.guard';
-import { Permissions } from '../../common/auth/permissions.guard';
+import { CurrentActor, RequireAudience } from '../../common/auth/auth.guard';
+import { OrgWide, Permissions } from '../../common/auth/permissions.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 
@@ -73,12 +73,14 @@ export class LocationAdminController {
   constructor(private readonly locations: LocationAdminService) {}
 
   @Get('organization/legal')
+  @OrgWide()
   @Permissions('config.read', 'config.publish')
   getLegalProfile() {
     return this.locations.getLegalProfile();
   }
 
   @Post('organization/legal')
+  @OrgWide()
   @Permissions('config.publish')
   updateLegalProfile(
     @Body(new ZodValidationPipe(zLegalProfile)) body: z.infer<typeof zLegalProfile>,
@@ -91,14 +93,22 @@ export class LocationAdminController {
 
   @Get('locations')
   @Permissions('config.read', 'config.publish')
-  list() {
-    return this.locations.list();
+  list(@CurrentActor() actor: Actor) {
+    return this.locations.list(actor);
+  }
+
+  // Registered BEFORE `locations/:code` so "options" is never read as a location code. Any staff
+  // account may read it — every list filter and form picker is built from it.
+  @Get('locations/options')
+  @RequireAudience('staff')
+  options(@CurrentActor() actor: Actor) {
+    return this.locations.options(actor);
   }
 
   @Get('locations/:code')
   @Permissions('config.read', 'config.publish')
-  get(@Param('code') code: string) {
-    return this.locations.get(code);
+  get(@Param('code') code: string, @CurrentActor() actor: Actor) {
+    return this.locations.get(code, actor);
   }
 
   @Get('locations/:code/impact')
@@ -108,6 +118,7 @@ export class LocationAdminController {
   }
 
   @Post('locations')
+  @OrgWide()
   @Permissions('config.publish')
   upsert(
     @Body(new ZodValidationPipe(zLocation)) body: z.infer<typeof zLocation>,
@@ -117,18 +128,21 @@ export class LocationAdminController {
   }
 
   @Post('locations/:code/archive')
+  @OrgWide()
   @Permissions('config.publish')
   archive(@Param('code') code: string, @Req() req: Request, @CurrentActor() actor: Actor) {
     return this.locations.setStatus(actor, code, 'archived', { force: req.query.force === 'true' });
   }
 
   @Post('locations/:code/restore')
+  @OrgWide()
   @Permissions('config.publish')
   restore(@Param('code') code: string, @CurrentActor() actor: Actor) {
     return this.locations.setStatus(actor, code, 'active');
   }
 
   @Post('locations/:code/hours-exceptions')
+  @OrgWide()
   @Permissions('config.publish')
   addException(
     @Param('code') code: string,
@@ -139,6 +153,7 @@ export class LocationAdminController {
   }
 
   @Post('locations/:code/hours-exceptions/:id/remove')
+  @OrgWide()
   @Permissions('config.publish')
   removeException(
     @Param('code') code: string,

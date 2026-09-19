@@ -10,6 +10,7 @@ import { SelectField } from '@/components/form-fields';
 import { LookupSelect } from '@/components/lookup-select';
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useLocations } from '@/lib/discovery-hooks';
+import { useLocationScope } from '@/lib/location-scope';
 import {
   useAddFleetBlock,
   useReleaseFleetBlock,
@@ -120,6 +121,7 @@ export function TransferDialog({ unit, open, onOpenChange }: DialogProps & { uni
   // the destination is a write target, not a view filter: the full org list, not just the
   // actor's own scope — a fleet manager may transfer to a branch outside their view
   const locations = useLocations();
+  const { options: mine, restricted } = useLocationScope();
   const schema = useMemo(
     () => z.object({ toLocationCode: z.string().min(1, t('error.field.required')) }),
     [t],
@@ -153,6 +155,13 @@ export function TransferDialog({ unit, open, onOpenChange }: DialogProps & { uni
           .filter((l) => l.code !== unit.currentLocationCode)
           .map((l) => ({ value: l.code, label: `${l.name} (${l.code})` }))}
       />
+      {restricted &&
+      form.watch('toLocationCode') &&
+      !mine.some((o) => o.code === form.watch('toLocationCode')) ? (
+        <p role="note" className="text-sm text-warning" data-testid="transfer-leaves-note">
+          {t('ops.fleet.transferLeaves')}
+        </p>
+      ) : null}
     </FormDialog>
   );
 }

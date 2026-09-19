@@ -718,6 +718,20 @@
         ]
       }
     },
+    "/api/v1/ops/locations/options": {
+      "get": {
+        "operationId": "LocationAdminController_options",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-config"
+        ]
+      }
+    },
     "/api/v1/ops/locations/{code}": {
       "get": {
         "operationId": "LocationAdminController_get",
@@ -1915,6 +1929,14 @@
           },
           {
             "name": "status",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "locationCode",
             "required": true,
             "in": "query",
             "schema": {

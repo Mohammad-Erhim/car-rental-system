@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
 
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, desc, eq, gte, inArray, lte, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
-import { assertLocationAccess } from '../../common/auth/location-scope';
+import { assertRecordInScope, effectiveLocationCodes } from '../../common/auth/location-scope';
 import type { Actor } from '../../common/auth/types';
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
@@ -52,12 +52,21 @@ export class RentalService {
     if (actor.kind !== 'staff') throw AppError.forbidden('Staff only');
   }
 
-  /** A location-scoped staffer only acts on rentals / reservations for their pickup locations. */
-  private assertInScope(actor: Actor, pickupLocationCode: string) {
-    const scope = actor.locationScope ?? [];
-    if (scope.length && !scope.includes(pickupLocationCode)) {
-      throw AppError.forbidden('This record is outside your assigned locations');
-    }
+  /**
+   * A location-scoped staffer acts on rentals whose pickup OR return branch is theirs (a one-way
+   * hire is handled by both ends); `mode` restricts the actions that belong to one end only.
+   */
+  private assertInScope(
+    actor: Actor,
+    ends: { pickupLocationCode: string; returnLocationCode?: string | null },
+    mode: 'any' | 'pickup' | 'return' = 'any',
+  ) {
+    assertRecordInScope(
+      actor,
+      { pickup: ends.pickupLocationCode, return: ends.returnLocationCode },
+      'This record is outside your assigned locations',
+      mode,
+    );
   }
 
   // ---------------------------------------------------------- assign + pickup
@@ -70,7 +79,7 @@ export class RentalService {
       .where(eq(reservation.reference, reservationReference))
       .limit(1);
     if (!res) throw AppError.notFound('reservation');
-    this.assertInScope(actor, res.pickupLocationCode);
+    this.assertInScope(actor, res, 'pickup');
     if (res.state !== 'confirmed') {
       throw AppError.businessRule(`Cannot assign a ${res.state} reservation`, {
         reason: res.state,
@@ -264,7 +273,7 @@ export class RentalService {
   ) {
     this.staffOnly(actor);
     const row = await this.load(reference);
-    this.assertInScope(actor, row.pickupLocationCode);
+    this.assertInScope(actor, row, 'pickup');
     if (row.state !== 'awaiting_pickup') {
       throw AppError.businessRule(`Rental is ${row.state}, not awaiting pickup`, {
         reason: row.state,
@@ -368,7 +377,7 @@ export class RentalService {
     // assertOwnerOrStaff. assertInScope alone doesn't cover this: a customer actor's
     // locationScope is always empty, so the scope check silently passes for anyone.
     if (actor.kind === 'staff') {
-      this.assertInScope(actor, row.pickupLocationCode);
+      this.assertInScope(actor, row, 'any');
     } else if (res.accountId !== actor.accountId) {
       throw AppError.forbidden('This rental belongs to another account');
     }
@@ -477,7 +486,7 @@ export class RentalService {
   ) {
     this.staffOnly(actor);
     const row = await this.load(reference);
-    this.assertInScope(actor, row.pickupLocationCode);
+    this.assertInScope(actor, row, 'any');
     if (!['active', 'overdue'].includes(row.state)) {
       throw AppError.businessRule(`A ${row.state} rental has no vehicle in service`, {
         reason: row.state,
@@ -664,7 +673,7 @@ export class RentalService {
   ) {
     this.staffOnly(actor);
     const row = await this.load(reference);
-    this.assertInScope(actor, row.pickupLocationCode);
+    this.assertInScope(actor, row, 'return');
     if (!['active', 'overdue'].includes(row.state)) {
       throw AppError.businessRule(`A ${row.state} rental cannot be returned`, {
         reason: row.state,
@@ -825,7 +834,7 @@ export class RentalService {
   async runReadiness(reference: string, actor: Actor, passed: boolean) {
     this.staffOnly(actor);
     const row = await this.load(reference);
-    this.assertInScope(actor, row.pickupLocationCode);
+    this.assertInScope(actor, row, 'any');
     if (row.state !== 'closed') {
       throw AppError.businessRule(
         `Readiness runs on a returned rental — this one is ${row.state}`,
@@ -992,14 +1001,26 @@ export class RentalService {
     if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > MAX_PAGE_SIZE) {
       throw AppError.validation([{ path: 'pageSize', code: 'out_of_range' }]);
     }
-    // a location outside the actor's own scope is a 403, not a silently-empty result (SRS-SEC-007)
-    assertLocationAccess(actor, filter.locationCode);
-    const scope = actor.locationScope?.length ? actor.locationScope : null;
+    // `locationCode` may be a comma-separated list (top-bar filter); a code outside the actor's
+    // own scope is a 403, not a silently-empty result (SRS-SEC-007)
+    const codes = effectiveLocationCodes(actor, filter.locationCode);
     const liveOverdue = sql`(${rental.state} = 'active' and ${rental.scheduledReturnAt} < now())`;
 
     const where: SQL[] = [];
-    if (filter.locationCode) where.push(eq(rental.pickupLocationCode, filter.locationCode));
-    else if (scope) where.push(inArray(rental.pickupLocationCode, scope));
+    if (codes) {
+      // which end of the trip the locations apply to follows the flow: "pickups" are the pickup
+      // branch's, "returns" the return branch's (a one-way hire is returned elsewhere); without a
+      // flow, a rental belongs to both branches.
+      const atPickup = inArray(rental.pickupLocationCode, codes);
+      const atReturn = inArray(rental.returnLocationCode, codes);
+      where.push(
+        filter.flow === 'pickup'
+          ? atPickup
+          : filter.flow === 'return'
+            ? atReturn
+            : or(atPickup, atReturn)!,
+      );
+    }
     // everything except the state filter — the per-state counts share it
     const from = this.parseDate(filter.from, 'from');
     const to = this.parseDate(filter.to, 'to');
@@ -1270,7 +1291,7 @@ export class RentalService {
   async detailForActor(reference: string, actor: Actor) {
     const row = await this.load(reference);
     if (actor.kind === 'staff') {
-      this.assertInScope(actor, row.pickupLocationCode);
+      this.assertInScope(actor, row, 'any');
     } else {
       const [res] = await this.db
         .select({ accountId: reservation.accountId })

@@ -1,6 +1,6 @@
 import { useI18n } from '@carrental/i18n/react';
 import { CheckCircle2, SearchX, SlidersHorizontal } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { AssignVehicleDialog } from './assign-vehicle-dialog';
@@ -10,6 +10,7 @@ import { paths } from '@/app/paths';
 import { DataTable } from '@/components/data-table/data-table';
 import { FilterChips } from '@/components/filter-chips';
 import { FiltersSheet, useFilterFields } from '@/components/filters-sheet';
+import { ListError } from '@/components/list-error';
 import { Page, PageHeader } from '@/components/page-header';
 import { StateSwitcher } from '@/components/state-switcher';
 import { StateView } from '@/components/state-view';
@@ -21,14 +22,14 @@ import { useOpsReservations, type OpsReservationRow } from '@/lib/reservation-ho
 import { RESERVATION_STATES } from '@/lib/statuses';
 import { PAGE_SIZES, useListParams } from '@/lib/use-list-params';
 
-const FILTERS = ['view', 'state', 'location', 'from', 'to'] as const;
+const FILTERS = ['view', 'state', 'from', 'to'] as const;
 const getRowId = (r: OpsReservationRow) => r.reference;
 
 /**
  * SCREEN-OPS-004 — the staff reservation queue. Two views: "Needs action" (the actionable
  * default — confirmed reservations with no rental yet, soonest pickup first) and "All" (the
  * browsable list). Filters live behind a side sheet; assigning a vehicle is a modal. Confined to
- * the actor's pickup locations by the API, and every control is URL-backed so a view is shareable
+ * the actor's locations by the API (the top-bar filter narrows further), and every control is URL-backed so a view is shareable
  * and survives a refresh.
  */
 export function ReservationsPage() {
@@ -40,20 +41,13 @@ export function ReservationsPage() {
   const fieldOf = useFilterFields();
   const [assignTarget, setAssignTarget] = useState<OpsReservationRow | null>(null);
 
-  // seed the location filter from the global switcher on first load only — never fights a value
-  // the operator has since set (or cleared) here
-  const { selected: globalLocation, options: locations } = useLocationScope();
-  const seeded = useRef(false);
-  useEffect(() => {
-    if (seeded.current) return;
-    seeded.current = true;
-    if (!state.location && globalLocation) update({ location: globalLocation });
-  }, []);
+  // which branches — the top-bar filter, the single source (`?location=` in this URL)
+  const { codes: locationCode } = useLocationScope();
 
   const list = useOpsReservations({
     view,
     state: view === 'all' ? state.state : undefined,
-    locationCode: state.location,
+    locationCode,
     from: state.from,
     to: state.to,
     page: state.page,
@@ -67,15 +61,9 @@ export function ReservationsPage() {
   const setView = (v: string) => update({ view: v === 'all' ? 'all' : '', state: '' });
 
   const stateFilter = view === 'all' ? state.state : '';
-  const filterCount = [stateFilter, state.location, state.from, state.to].filter(Boolean).length;
-  const chips: Array<{ key: 'state' | 'location' | 'from' | 'to'; label: string }> = [];
+  const filterCount = [stateFilter, state.from, state.to].filter(Boolean).length;
+  const chips: Array<{ key: 'state' | 'from' | 'to'; label: string }> = [];
   if (stateFilter) chips.push({ key: 'state', label: t(`ops.status.${stateFilter}`) });
-  if (state.location) {
-    chips.push({
-      key: 'location',
-      label: locations.find((l) => l.code === state.location)?.name ?? state.location,
-    });
-  }
   if (state.from)
     chips.push({ key: 'from', label: t('ops.search.fromChip', { date: fmt.date(state.from) }) });
   if (state.to)
@@ -137,13 +125,10 @@ export function ReservationsPage() {
           skeletonRows={Math.min(state.pageSize, 8)}
           error={
             list.isError ? (
-              <StateView
-                kind="error"
+              <ListError
+                error={list.error}
                 title={t('ops.queue.loadFail')}
-                description={t('state.failure.body')}
-                actionLabel={t('ops.st.retry')}
-                onAction={() => void list.refetch()}
-                className="py-14"
+                onRetry={() => void list.refetch()}
               />
             ) : undefined
           }
@@ -188,15 +173,9 @@ export function ReservationsPage() {
       <FiltersSheet
         open={filtersOpen}
         onOpenChange={setFiltersOpen}
-        fields={[
-          ...(view === 'all' ? [fieldOf.status(RESERVATION_STATES)] : []),
-          fieldOf.location(locations),
-          fieldOf.dates(),
-        ]}
-        values={{ status: stateFilter, location: state.location, from: state.from, to: state.to }}
-        onApply={(v) =>
-          update({ state: v.status ?? '', location: v.location, from: v.from, to: v.to })
-        }
+        fields={[...(view === 'all' ? [fieldOf.status(RESERVATION_STATES)] : []), fieldOf.dates()]}
+        values={{ status: stateFilter, from: state.from, to: state.to }}
+        onApply={(v) => update({ state: v.status ?? '', from: v.from, to: v.to })}
       />
 
       {assignTarget ? (

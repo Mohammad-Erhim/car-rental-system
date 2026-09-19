@@ -21,7 +21,7 @@ import { PlanStatus } from './plan-status';
 
 import { DataTable } from '@/components/data-table/data-table';
 import { FilterChips } from '@/components/filter-chips';
-import { FiltersSheet, useFilterFields } from '@/components/filters-sheet';
+import { FiltersSheet } from '@/components/filters-sheet';
 import { Page, PageHeader } from '@/components/page-header';
 import { StateSwitcher } from '@/components/state-switcher';
 import { StateView } from '@/components/state-view';
@@ -36,11 +36,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { useLocations } from '@/lib/discovery-hooks';
+import { useLocationScope } from '@/lib/location-scope';
 import { useOpsCategories, useRatePlans, type RatePlan } from '@/lib/ops-discovery-hooks';
 import { PAGE_SIZES, useListParams } from '@/lib/use-list-params';
 
-const PARAMS = ['tab', 'category', 'location'] as const;
+const PARAMS = ['tab', 'category'] as const;
 const TABS = ['published', 'drafts', 'retired', 'all'] as const;
 type Tab = (typeof TABS)[number];
 const getRowId = (p: RatePlan) => p.id;
@@ -72,24 +72,26 @@ export function RatePlansPage() {
     : 'published';
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [modal, setModal] = useState<Modal | null>(null);
-  const fieldOf = useFilterFields();
+  const { selected: locationSelection, nameOf } = useLocationScope();
 
   const plans = useRatePlans();
   const categories = useOpsCategories();
-  const locations = useLocations();
   const all = useMemo(() => plans.data ?? [], [plans.data]);
 
-  const scopeName = (code: string | null) =>
-    code ? (locations.data?.find((l) => l.code === code)?.name ?? code) : t('ops.rp.allLocations');
+  const scopeName = (code: string | null) => (code ? nameOf(code) : t('ops.rp.allLocations'));
 
   const filtered = useMemo(
     () =>
       all.filter(
         (p) =>
           (!state.category || p.categoryCode === state.category) &&
-          (!state.location || (p.locationCode ?? '') === state.location),
+          // the top-bar location filter: a plan applies at a branch when it is pinned there OR is
+          // organisation-wide (no location) — filtering to LHR must still show the plans that price LHR
+          (!locationSelection.length ||
+            !p.locationCode ||
+            locationSelection.includes(p.locationCode)),
       ),
-    [all, state.category, state.location],
+    [all, state.category, locationSelection],
   );
   const visible = filtered.filter((p) => inTab(p, tab));
   const count = (tb: Tab) => filtered.filter((p) => inTab(p, tb)).length;
@@ -103,15 +105,14 @@ export function RatePlansPage() {
   const page = Math.min(state.page, pageCount);
   const pageRows = visible.slice((page - 1) * state.pageSize, page * state.pageSize);
 
-  const filterCount = [state.category, state.location].filter(Boolean).length;
-  const chips: Array<{ key: 'category' | 'location'; label: string }> = [];
+  const filterCount = [state.category].filter(Boolean).length;
+  const chips: Array<{ key: 'category'; label: string }> = [];
   if (state.category) {
     chips.push({
       key: 'category',
       label: categories.data?.find((c) => c.code === state.category)?.displayName ?? state.category,
     });
   }
-  if (state.location) chips.push({ key: 'location', label: scopeName(state.location) });
 
   const open = (m: Modal) => setModal(m);
   const act = (plan: RatePlan, action: PlanAction) => {
@@ -224,7 +225,7 @@ export function RatePlansPage() {
       },
     ],
 
-    [t, fmt, canPublish, locations.data],
+    [t, fmt, canPublish, nameOf],
   );
 
   const close = (o: boolean) => {
@@ -366,10 +367,9 @@ export function RatePlansPage() {
             anyLabel: t('ops.fleet.anyCategory'),
             options: (categories.data ?? []).map((c) => ({ value: c.code, label: c.displayName })),
           },
-          fieldOf.location((locations.data ?? []).map((l) => ({ code: l.code, name: l.name }))),
         ]}
-        values={{ category: state.category, location: state.location }}
-        onApply={(v) => update({ category: v.category ?? '', location: v.location ?? '' })}
+        values={{ category: state.category }}
+        onApply={(v) => update({ category: v.category ?? '' })}
       />
 
       {modal?.kind === 'detail' ? (

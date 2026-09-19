@@ -99,3 +99,44 @@ describe('firstPath', () => {
     expect(firstPath(folder)).toBe('/settings/integrations/payments');
   });
 });
+
+describe('visibleNavGroups — location-limited accounts', () => {
+  const everything = () => true;
+  const org = [
+    '/finance',
+    '/website/branding',
+    '/website/translations',
+    '/settings/organization',
+    '/admin/audit',
+    '/admin/data-quality',
+    '/catalogue/categories',
+  ];
+
+  it('hides every organisation-wide area from an account limited to specific locations', () => {
+    const paths = pagePaths(visibleNavGroups(everything, undefined, true));
+    for (const p of org) expect(paths).not.toContain(p);
+  });
+
+  it('keeps the branch-aware and shared pages', () => {
+    const paths = pagePaths(visibleNavGroups(everything, undefined, true));
+    for (const p of [
+      '/',
+      '/search',
+      '/reservations',
+      '/rentals',
+      '/fleet',
+      '/reports',
+      '/catalogue/rate-plans',
+      '/catalogue/products',
+      '/catalogue/locations',
+      '/admin/staff',
+    ]) {
+      expect(paths).toContain(p);
+    }
+  });
+
+  it('an organisation-wide account still sees them all', () => {
+    const paths = pagePaths(visibleNavGroups(everything, undefined, false));
+    for (const p of org) expect(paths).toContain(p);
+  });
+});

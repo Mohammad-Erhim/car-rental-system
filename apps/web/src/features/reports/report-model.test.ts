@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  CRON_PRESETS,
-  LOCATION_KEYED_REPORTS,
-  parseRecipients,
-  recipientsValid,
-} from './report-model';
+import { CRON_PRESETS, parseRecipients, recipientsValid } from './report-model';
 
 describe('report-model', () => {
   it('splits recipients on commas, semicolons and whitespace', () => {
@@ -22,11 +17,6 @@ describe('report-model', () => {
     expect(recipientsValid([])).toBe(false);
     expect(recipientsValid(['a@x.com'])).toBe(true);
     expect(recipientsValid(['a@x.com', 'nope'])).toBe(false);
-  });
-
-  it('knows which reports narrow by location', () => {
-    expect(LOCATION_KEYED_REPORTS.has('revenue_by_category')).toBe(true);
-    expect(LOCATION_KEYED_REPORTS.has('refunds')).toBe(false);
   });
 
   it('offers weekly, daily and monthly presets', () => {

@@ -93,3 +93,50 @@ export const LEGACY_REDIRECTS: Array<[from: string, to: string]> = [
 export function fillPattern(pattern: string, params: Record<string, string | undefined>): string {
   return pattern.replace(/:(\w+)/g, (_m, name: string) => enc(params[name] ?? ''));
 }
+
+/**
+ * The pages whose content the top-bar location filter narrows (every one reads it through
+ * `useLocationScope()`). Everywhere else the filter is shown as "organisation-wide" and inactive:
+ * finance, catalogue, staff, settings and the audit log are not organised by branch. Router-
+ * relative pathnames, exact match.
+ */
+const LOCATION_SCOPED = new Set<string>([
+  paths.dashboard,
+  paths.search,
+  paths.reservations,
+  paths.rentals,
+  paths.fleet,
+  paths.reports,
+  paths.ratePlans,
+]);
+
+export function isLocationScopedPath(pathname: string): boolean {
+  const clean = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname;
+  return LOCATION_SCOPED.has(clean);
+}
+
+/**
+ * Areas that cover the whole organisation (settings, website, finance, audit, catalogue setup). The
+ * API refuses them to an account limited to specific locations, so the console hides them from that
+ * account's navigation and answers a direct visit with an explanation instead of a wall of errors.
+ * Mirrors the `@OrgWide()` endpoints on the API. Prefix match on router-relative paths.
+ */
+const ORG_WIDE_PREFIXES: readonly string[] = [
+  paths.finance,
+  paths.categories, // also covers /catalogue/categories/features
+  '/website/pages',
+  paths.branding,
+  paths.seo,
+  paths.consent,
+  paths.languages,
+  paths.translations,
+  paths.templates,
+  '/settings',
+  '/admin/audit',
+  paths.consentLog,
+  paths.dataQuality,
+];
+
+export function isOrgWidePath(pathname: string): boolean {
+  return ORG_WIDE_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}

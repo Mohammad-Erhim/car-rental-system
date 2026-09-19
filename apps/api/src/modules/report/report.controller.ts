@@ -4,7 +4,7 @@ import type { Response } from 'express';
 import { z } from 'zod';
 
 import { CurrentActor } from '../../common/auth/auth.guard';
-import { Permissions } from '../../common/auth/permissions.guard';
+import { OrgWide, Permissions } from '../../common/auth/permissions.guard';
 import { StepUp } from '../../common/auth/step-up.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
@@ -36,12 +36,11 @@ const zActorSearch = z.object({ q: z.string().min(2).max(60) });
 // of the retroactive-occupancy join in dashboardAnalytics()
 const zDashboardAnalytics = z.object({
   days: z.coerce.number().int().min(7).max(90).default(30),
-  // narrows *within* the actor's own locationScope — never broadens it; a code outside the
-  // actor's scope yields honest zero rows (same AND-of-two-filters pattern already established
-  // in reservation-ops/rental/fleet/search), not an error or a scope bypass
-  locationCode: z.string().max(20).optional(),
+  // narrows *within* the actor's own locationScope — never broadens it. A comma-separated list
+  // (the top-bar filter is multi-select); a code outside the actor's scope is a 403.
+  locationCode: z.string().max(1000).optional(),
 });
-const zDashboardQuery = z.object({ locationCode: z.string().max(20).optional() });
+const zDashboardQuery = z.object({ locationCode: z.string().max(1000).optional() });
 const zAuditQuery = z.object({
   action: z.string().max(100).optional(),
   targetType: z.string().max(60).optional(),
@@ -87,8 +86,8 @@ export class ReportController {
 
   @Get('reports')
   @Permissions('report.read')
-  listDefinitions() {
-    return this.reports.listDefinitions();
+  listDefinitions(@CurrentActor() actor: Actor) {
+    return this.reports.listDefinitions(actor);
   }
 
   @Get('reports/runs')
@@ -149,12 +148,14 @@ export class ReportController {
   // ---- config versioning ----
 
   @Get('config/versions')
+  @OrgWide()
   @Permissions('config.read', 'config.publish')
   listVersions(@Query('kind') kind: string, @Query('key') key?: string) {
     return this.config.list(kind, key);
   }
 
   @Post('config/versions')
+  @OrgWide()
   @Permissions('config.publish')
   draft(
     @Body(new ZodValidationPipe(zDraft)) body: z.infer<typeof zDraft>,
@@ -165,6 +166,7 @@ export class ReportController {
 
   // read-only dry-run (no write) — config.read alone is correct here, unlike the writes below
   @Post('config/versions/preview')
+  @OrgWide()
   @Permissions('config.read', 'config.publish')
   preview(@Body(new ZodValidationPipe(zPreview)) body: z.infer<typeof zPreview>) {
     return this.config.preview(body.kind, body.payload, body.key);
@@ -177,18 +179,21 @@ export class ReportController {
   }
 
   @Post('config/versions/:id/submit')
+  @OrgWide()
   @Permissions('config.publish')
   submit(@Param('id') id: string, @CurrentActor() actor: Actor) {
     return this.config.submit(actor, id);
   }
 
   @Post('config/versions/:id/approve')
+  @OrgWide()
   @Permissions('config.publish')
   approve(@Param('id') id: string, @CurrentActor() actor: Actor) {
     return this.config.approve(actor, id);
   }
 
   @Post('config/versions/:id/reject')
+  @OrgWide()
   @Permissions('config.publish')
   reject(
     @Param('id') id: string,
@@ -201,6 +206,7 @@ export class ReportController {
   // ---- audit viewer (SCREEN-OPS-038) ----
 
   @Get('audit')
+  @OrgWide()
   @Permissions('audit.read')
   audit(@Query(new ZodValidationPipe(zAuditQuery)) q: z.infer<typeof zAuditQuery>) {
     return this.reports.auditLog(q);
@@ -210,6 +216,7 @@ export class ReportController {
   // collision risk either way since neither this controller nor `audit` above uses a `:id`
   // segment here.
   @Get('audit/actors')
+  @OrgWide()
   @Permissions('audit.read')
   searchActors(@Query(new ZodValidationPipe(zActorSearch)) q: z.infer<typeof zActorSearch>) {
     return this.reports.searchActors(q.q);
@@ -218,6 +225,7 @@ export class ReportController {
   // ---- data quality (SCREEN-OPS-039) ----
 
   @Get('data-quality')
+  @OrgWide()
   @Permissions('audit.read', 'config.read')
   dataQuality() {
     return this.reports.dataQuality();
@@ -227,12 +235,14 @@ export class ReportController {
   // a write (SRS-SEC-007; the exact bug class this session's own permission sweep found twice
   // elsewhere in this app).
   @Post('data-quality/:checkId/acknowledge')
+  @OrgWide()
   @Permissions('audit.manage')
   acknowledgeFinding(@Param('checkId') checkId: string, @CurrentActor() actor: Actor) {
     return this.reports.acknowledgeFinding(actor, checkId);
   }
 
   @Post('data-quality/:checkId/resolve')
+  @OrgWide()
   @Permissions('audit.manage')
   resolveFinding(
     @Param('checkId') checkId: string,

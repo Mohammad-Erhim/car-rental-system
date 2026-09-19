@@ -56,7 +56,13 @@ export class StaffService {
         actor.organizationId ? eq(staffProfile.organizationId, actor.organizationId) : sql`true`,
       )
       .orderBy(asc(account.displayName));
-    return rows;
+    // A location-scoped manager sees the staff who work at their branches (and themselves) — not
+    // the organisation-wide accounts (administrators) or other branches' teams.
+    const own = actor.locationScope?.length ? actor.locationScope : null;
+    if (!own) return rows;
+    return rows.filter(
+      (r) => r.accountId === actor.accountId || r.locationScope.some((c) => own.includes(c)),
+    );
   }
 
   async invite(

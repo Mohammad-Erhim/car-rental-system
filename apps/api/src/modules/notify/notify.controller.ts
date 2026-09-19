@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 import { CurrentActor } from '../../common/auth/auth.guard';
 import { Public } from '../../common/auth/decorators';
-import { Permissions } from '../../common/auth/permissions.guard';
+import { OrgWide, Permissions } from '../../common/auth/permissions.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { ENV } from '../../config/config.module';
@@ -82,6 +82,7 @@ const zRule = z.object({
 
 /** SCREEN-OPS-033 / FR-ADM-011 — notification template administration (content half). */
 @ApiTags('admin')
+@OrgWide()
 @Controller({ path: 'ops', version: '1' })
 export class TemplateController {
   constructor(

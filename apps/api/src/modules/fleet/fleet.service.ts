@@ -3,7 +3,7 @@ import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
-import { assertLocationAccess } from '../../common/auth/location-scope';
+import { assertLocationAccess, effectiveLocationCodes } from '../../common/auth/location-scope';
 import type { Actor } from '../../common/auth/types';
 import { isUniqueViolation } from '../../common/db-error';
 import { ObjectStorageService } from '../../common/object-storage/object-storage.service';
@@ -157,6 +157,18 @@ export interface BlockRow {
 // unrelated business-logic findings. Follow-up: add fleet.public.ts / pricing.public.ts /
 // catalogue.public.ts / availability.public.ts / discovery.public.ts, each re-exporting only what
 // cross-module callers actually use, then migrate every call site above in one pass.
+/** A retired branch can't receive cars: units created or moved there would vanish from every list. */
+function assertLocationActive(status: string, code: string): void {
+  if (status !== 'active') {
+    throw AppError.businessRule(
+      `Location ${code} is archived — restore it before adding cars there`,
+      {
+        reason: 'location_archived',
+      },
+    );
+  }
+}
+
 @Injectable()
 export class FleetService {
   constructor(
@@ -195,9 +207,10 @@ export class FleetService {
       throw AppError.validation([{ path: 'pageSize', code: 'out_of_range' }]);
     }
     const needle = (filter.q ?? '').trim().toLowerCase();
-    // a location outside the actor's own scope is a 403, not a silently-empty result (SRS-SEC-007)
-    assertLocationAccess(actor, filter.locationCode);
-    const scope = actor.locationScope?.length ? actor.locationScope : null;
+    // `locationCode` may be a comma-separated list (top-bar filter); a code outside the actor's
+    // own scope is a 403, not a silently-empty result (SRS-SEC-007). With none requested this is
+    // the actor's own scope (or null = org-wide).
+    const codes = effectiveLocationCodes(actor, filter.locationCode);
     const rows = await this.db
       .select({
         id: vehicleUnit.id,
@@ -228,7 +241,7 @@ export class FleetService {
     );
 
     // FR-RPT-004 — a location-scoped staffer only sees units currently at their locations.
-    const inScope = rows.filter((r) => !scope || scope.includes(r.currentLocationCode));
+    const inScope = rows.filter((r) => !codes || codes.includes(r.currentLocationCode));
     // `vehicleUnit.state` only flips to `on_rent` at actual pickup — a unit already assigned to
     // an `awaiting_pickup` rental still reads `available` here. A caller asking for genuinely
     // pickable units (the assign/reassign/incident-replacement dropdowns all do) would otherwise
@@ -246,7 +259,6 @@ export class FleetService {
     // everything except the state filter — the per-state counts share it
     const matching = inScope.filter(
       (r) =>
-        (!filter.locationCode || r.currentLocationCode === filter.locationCode) &&
         (!filter.categoryCode || r.categoryCode === filter.categoryCode) &&
         (!needle ||
           [r.plate, r.vin, r.make, r.model].some((v) => (v ?? '').toLowerCase().includes(needle))),
@@ -353,11 +365,16 @@ export class FleetService {
       .limit(1);
     if (!cat) throw AppError.notFound(`vehicle category ${input.categoryCode}`);
     const [loc] = await this.db
-      .select({ id: location.id, organizationId: location.organizationId })
+      .select({
+        id: location.id,
+        organizationId: location.organizationId,
+        status: location.status,
+      })
       .from(location)
       .where(eq(location.code, input.locationCode))
       .limit(1);
     if (!loc) throw AppError.notFound(`location ${input.locationCode}`);
+    assertLocationActive(loc.status, input.locationCode);
 
     const plate = input.plate.toUpperCase().trim();
     const vin = input.vin.toUpperCase().trim();
@@ -611,9 +628,10 @@ export class FleetService {
    */
   async listBlocks(
     actor: Actor,
-    filter: { unitId?: string; status?: string } = {},
+    filter: { unitId?: string; status?: string; locationCode?: string } = {},
   ): Promise<BlockRow[]> {
-    const scope = actor.locationScope?.length ? actor.locationScope : null;
+    // same rule as the unit list: requested codes (CSV) validated against the actor's scope
+    const scope = effectiveLocationCodes(actor, filter.locationCode);
     const where = [
       filter.unitId ? eq(vehicleBlock.unitId, filter.unitId) : undefined,
       filter.status ? eq(vehicleBlock.status, filter.status) : undefined,
@@ -793,11 +811,12 @@ export class FleetService {
     const unit = await this.loadUnit(input.unitId);
     await this.assertUnitInScope(actor, unit.currentLocationId);
     const [dest] = await this.db
-      .select({ id: location.id, code: location.code })
+      .select({ id: location.id, code: location.code, status: location.status })
       .from(location)
       .where(eq(location.code, input.toLocationCode))
       .limit(1);
     if (!dest) throw AppError.notFound(`location ${input.toLocationCode}`);
+    assertLocationActive(dest.status, dest.code);
     if (unit.currentLocationId === dest.id) {
       throw AppError.businessRule('The unit is already at that location', { reason: 'no_op' });
     }
@@ -848,7 +867,12 @@ export class FleetService {
       .select({ id: vehicleCategory.id, code: vehicleCategory.code })
       .from(vehicleCategory);
     const locs = await this.db
-      .select({ id: location.id, code: location.code, organizationId: location.organizationId })
+      .select({
+        id: location.id,
+        code: location.code,
+        organizationId: location.organizationId,
+        status: location.status,
+      })
       .from(location);
     const catByCode = new Map(cats.map((c) => [c.code, c.id]));
     const locByCode = new Map(locs.map((l) => [l.code, l]));
@@ -883,6 +907,8 @@ export class FleetService {
       const loc = locByCode.get(rec.locationCode ?? '');
       if (!rec.locationCode) err('locationCode', 'required');
       else if (!loc) err('locationCode', `unknown location "${rec.locationCode}"`);
+      else if (loc.status !== 'active')
+        err('locationCode', `location "${rec.locationCode}" is archived`);
       else if (scope && !scope.includes(rec.locationCode))
         err('locationCode', `"${rec.locationCode}" is outside your assigned locations`);
 

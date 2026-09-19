@@ -2,7 +2,7 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 
-import { Permissions } from '../../common/auth/permissions.guard';
+import { OrgWide, Permissions } from '../../common/auth/permissions.guard';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 
 import { ConsentService } from './consent.service';
@@ -21,6 +21,7 @@ const zLogQuery = z.object({
 
 /** Ops-only view over the consent audit trail (proof of consent, opt-in rates). */
 @ApiTags('admin')
+@OrgWide()
 @Controller({ path: 'ops/consent', version: '1' })
 export class ConsentAdminController {
   constructor(private readonly consent: ConsentService) {}

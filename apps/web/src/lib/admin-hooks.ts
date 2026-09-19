@@ -7,6 +7,7 @@ import {
 } from '@tanstack/react-query';
 
 import { apiFetch, getAccessToken, getRefreshHandler } from './api.js';
+import { useInvalidateLocations } from './location-hooks.js';
 import { useWorkflowError } from './use-workflow-error.js';
 
 const BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api/v1';
@@ -114,6 +115,11 @@ export interface ReportDefinition {
   queryKind: string;
   columns: string[];
   minPermission: string;
+  /** `location`: rows trace to a branch and narrow by the location filter;
+   *  `org_wide`: whole-organisation figures — refused to accounts limited to specific locations */
+  scope: 'location' | 'org_wide';
+  /** may THIS account run it (false for an org-wide report on a location-limited account) */
+  available: boolean;
 }
 
 export interface ReportRunResult {
@@ -406,7 +412,8 @@ export interface OpsDashboard {
   assignQueue: number;
   cancellationsToday: number;
   revenueToday: { minor: number; currency: string };
-  financeExceptions: { recoveryCases: number; reconciliation: number; total: number };
+  /** `null` for an account limited to specific locations — these figures are organisation-wide */
+  financeExceptions: { recoveryCases: number; reconciliation: number; total: number } | null;
   fleet: {
     available: number;
     on_rent: number;
@@ -959,14 +966,7 @@ export interface OpsSearchResponse {
 
 /** A query is worth running once there are 2+ characters OR at least one structured filter. */
 export function opsSearchReady(p: OpsSearchParams): boolean {
-  return (
-    (p.q?.trim().length ?? 0) >= 2 ||
-    !!p.kind ||
-    !!p.status ||
-    !!p.locationCode ||
-    !!p.from ||
-    !!p.to
-  );
+  return (p.q?.trim().length ?? 0) >= 2 || !!p.kind || !!p.status || !!p.from || !!p.to;
 }
 
 export function useOpsSearch(params: OpsSearchParams) {
@@ -1024,6 +1024,17 @@ export type LocationInput = Partial<Omit<OpsLocation, 'id'>> &
 
 const LOC_KEY = ['ops', 'locations'];
 
+/** What archiving a location would leave behind (see `LocationAdminService.impact`). */
+export interface LocationImpact {
+  code: string;
+  futureReservations: number;
+  openRentals: number;
+  units: number;
+  staff: number;
+  ratePlans: number;
+  products: number;
+}
+
 export function useOpsLocations() {
   return useQuery({
     queryKey: LOC_KEY,
@@ -1043,17 +1054,13 @@ export function useOpsLocationImpact(code: string | null) {
   return useQuery({
     queryKey: [...LOC_KEY, code, 'impact'],
     enabled: !!code,
-    queryFn: ({ signal }) =>
-      apiFetch<{ code: string; futureReservations: number; openRentals: number }>(
-        `/ops/locations/${code}/impact`,
-        { signal },
-      ),
+    queryFn: ({ signal }) => apiFetch<LocationImpact>(`/ops/locations/${code}/impact`, { signal }),
   });
 }
 
 function useLocInvalidate() {
-  const qc = useQueryClient();
-  return () => void qc.invalidateQueries({ queryKey: LOC_KEY });
+  const invalidateLocations = useInvalidateLocations();
+  return () => invalidateLocations();
 }
 
 export function useUpsertLocation() {

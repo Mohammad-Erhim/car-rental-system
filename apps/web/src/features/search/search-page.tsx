@@ -1,6 +1,6 @@
 import { useI18n } from '@carrental/i18n/react';
 import { Loader2, Search, SearchX, SlidersHorizontal, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { SearchResultCard, useSearchColumns } from './search-columns';
@@ -8,6 +8,7 @@ import { PAGE_SIZES, activeFilterCount, useSearchState, type SearchKind } from '
 
 import { DataTable } from '@/components/data-table/data-table';
 import { FiltersSheet, useFilterFields } from '@/components/filters-sheet';
+import { ListError } from '@/components/list-error';
 import { Page, PageHeader } from '@/components/page-header';
 import { StateSwitcher } from '@/components/state-switcher';
 import { StateView } from '@/components/state-view';
@@ -44,16 +45,8 @@ export function SearchPage() {
   const columns = useSearchColumns();
   const fieldOf = useFilterFields();
 
-  // seed the location filter from the global switcher on first load only — never fights a value
-  // the operator has since set (or cleared) here. `options` is already narrowed to what this
-  // actor may see, so the filter never offers a branch that would just come back empty.
-  const { selected: globalLocation, options: locations } = useLocationScope();
-  const seeded = useRef(false);
-  useEffect(() => {
-    if (seeded.current) return;
-    seeded.current = true;
-    if (!state.location && globalLocation) update({ location: globalLocation });
-  }, []);
+  // which branches — the top-bar filter, the single source (`?location=` in this URL)
+  const { codes: locationCode } = useLocationScope();
 
   // The text box is debounced into the URL; every other control writes immediately.
   const { draft, setDraft, clear: clearBox } = useSearchBox(state.q, (q) => update({ q }));
@@ -62,7 +55,7 @@ export function SearchPage() {
     q: state.q || undefined,
     kind: state.kind || undefined,
     status: state.status || undefined,
-    locationCode: state.location || undefined,
+    locationCode,
     from: state.from || undefined,
     to: state.to || undefined,
     page: state.page,
@@ -83,10 +76,6 @@ export function SearchPage() {
 
   const chips: Array<{ key: keyof typeof state; label: string }> = [];
   if (state.status) chips.push({ key: 'status', label: t(`ops.status.${state.status}`) });
-  if (state.location) {
-    const name = locations.find((l) => l.code === state.location)?.name;
-    chips.push({ key: 'location', label: name ?? state.location });
-  }
   if (state.from)
     chips.push({ key: 'from', label: t('ops.search.fromChip', { date: fmt.date(state.from) }) });
   if (state.to)
@@ -227,13 +216,10 @@ export function SearchPage() {
             skeletonRows={Math.min(state.pageSize, 8)}
             error={
               search.isError ? (
-                <StateView
-                  kind="error"
+                <ListError
+                  error={search.error}
                   title={t('ops.search.loadFail')}
-                  description={t('state.failure.body')}
-                  actionLabel={t('ops.st.retry')}
-                  onAction={() => void search.refetch()}
-                  className="py-14"
+                  onRetry={() => void search.refetch()}
                 />
               ) : undefined
             }
@@ -266,13 +252,9 @@ export function SearchPage() {
       <FiltersSheet
         open={filtersOpen}
         onOpenChange={setFiltersOpen}
-        fields={[
-          fieldOf.status(statusOptions(state.kind)),
-          fieldOf.location(locations),
-          fieldOf.dates(),
-        ]}
-        values={{ status: state.status, location: state.location, from: state.from, to: state.to }}
-        onApply={(v) => update({ status: v.status, location: v.location, from: v.from, to: v.to })}
+        fields={[fieldOf.status(statusOptions(state.kind)), fieldOf.dates()]}
+        values={{ status: state.status, from: state.from, to: state.to }}
+        onApply={(v) => update({ status: v.status, from: v.from, to: v.to })}
       />
     </Page>
   );

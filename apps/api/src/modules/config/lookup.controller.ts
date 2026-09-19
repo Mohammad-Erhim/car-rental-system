@@ -5,7 +5,7 @@ import type { Request } from 'express';
 import { z } from 'zod';
 
 import { CurrentActor, MaybeCurrentActor, OptionalAuth } from '../../common/auth/auth.guard';
-import { Permissions } from '../../common/auth/permissions.guard';
+import { OrgWide, Permissions } from '../../common/auth/permissions.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 
@@ -64,6 +64,7 @@ export class LookupController {
   }
 
   @Post('types/:code/values')
+  @OrgWide()
   @Permissions('lookup.manage')
   @ApiOperation({ operationId: 'lookup_createValue', summary: 'Add a reference value' })
   createValue(
@@ -76,6 +77,7 @@ export class LookupController {
   }
 
   @Post('types/:code/values/:valueId')
+  @OrgWide()
   @Permissions('lookup.manage')
   @ApiOperation({ operationId: 'lookup_updateValue', summary: 'Edit a reference value / labels' })
   updateValue(
@@ -95,6 +97,7 @@ export class LookupController {
   }
 
   @Post('types/:code/values/:valueId/deactivate')
+  @OrgWide()
   @Permissions('lookup.manage')
   deactivate(@Req() req: Request, @CurrentActor() actor: Actor) {
     return this.lookups.setActive(actor, req.params.code!, req.params.valueId!, false, {
@@ -103,12 +106,14 @@ export class LookupController {
   }
 
   @Post('types/:code/values/:valueId/restore')
+  @OrgWide()
   @Permissions('lookup.manage')
   restore(@Req() req: Request, @CurrentActor() actor: Actor) {
     return this.lookups.setActive(actor, req.params.code!, req.params.valueId!, true);
   }
 
   @Post('types/:code/reorder')
+  @OrgWide()
   @Permissions('lookup.manage')
   reorder(
     @Req() req: Request,

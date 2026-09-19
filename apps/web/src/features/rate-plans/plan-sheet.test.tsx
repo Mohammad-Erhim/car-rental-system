@@ -1,9 +1,17 @@
 import { I18nProvider } from '@carrental/i18n/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { PlanSheet } from './plan-sheet';
+const scope = { restricted: false };
+vi.mock('@/lib/location-scope', () => ({
+  useLocationScope: () => ({
+    restricted: scope.restricted,
+    options: [{ id: '1', code: 'LHR', name: 'Heathrow', status: 'active', timezone: 'UTC' }],
+  }),
+}));
+
+const { PlanSheet } = await import('./plan-sheet');
 
 const show = () =>
   render(
@@ -40,5 +48,18 @@ describe('PlanSheet', () => {
     fireEvent.click(screen.getByTestId('rp-add-fee'));
     expect(screen.getByLabelText('Code')).toBeInTheDocument();
     expect(screen.getByLabelText('Shown as')).toBeInTheDocument();
+  });
+
+  it('an org-wide account may leave the plan for every location; a location-limited one must pick one', async () => {
+    scope.restricted = true;
+    try {
+      show();
+      fireEvent.change(screen.getByTestId('rp-base'), { target: { value: '50' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Create draft' }));
+      // name / category / location are all required for a restricted account
+      expect((await screen.findAllByText('This is required')).length).toBeGreaterThanOrEqual(3);
+    } finally {
+      scope.restricted = false;
+    }
   });
 });

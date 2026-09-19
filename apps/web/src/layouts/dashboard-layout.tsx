@@ -8,8 +8,11 @@ import { AppSidebar } from './app-sidebar';
 import { BreadcrumbLabelProvider } from './breadcrumb-label';
 import { visibleNavGroups } from './nav-config';
 
+import { LocationScopeGate } from '@/components/location-scope-gate';
+import { OrgWideGate } from '@/components/org-wide-gate';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { LocationScopeProvider, useLocationScope } from '@/lib/location-scope';
 
 /**
  * Shell for every authenticated staff screen: sidebar + sticky header + the routed page. Auth is
@@ -17,11 +20,24 @@ import { TooltipProvider } from '@/components/ui/tooltip';
  * the actor's permissions.
  */
 export function DashboardLayout() {
+  return (
+    <LocationScopeProvider>
+      <DashboardShell />
+    </LocationScopeProvider>
+  );
+}
+
+function DashboardShell() {
   const { t } = useI18n();
   const { hasPermission } = useAuth();
+  // from the server (fresh), not the session snapshot: an administrator may have narrowed this account
+  const { restricted } = useLocationScope();
   // `hasPermission` is a stable callback that changes with the actor, so this re-filters exactly
   // when the permission set does
-  const groups = useMemo(() => visibleNavGroups(hasPermission), [hasPermission]);
+  const groups = useMemo(
+    () => visibleNavGroups(hasPermission, undefined, restricted),
+    [hasPermission, restricted],
+  );
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -35,7 +51,11 @@ export function DashboardLayout() {
             <SidebarInset>
               <AppHeader groups={groups} />
               <main id="ops-main" className="flex-1 p-4 sm:p-6 lg:p-8">
-                <Outlet />
+                <OrgWideGate>
+                  <LocationScopeGate>
+                    <Outlet />
+                  </LocationScopeGate>
+                </OrgWideGate>
               </main>
             </SidebarInset>
           </div>

@@ -24,8 +24,15 @@ import {
 } from '@/components/form-fields';
 import { FormSection } from '@/components/form-section';
 import { FormSheet } from '@/components/form-sheet';
+import {
+  LocationScopeField,
+  scopeIssue,
+  scopeModeOf,
+  type ScopeMode,
+  type ScopeOption,
+} from '@/components/location-scope-field';
 import { useUpsertProduct, type CatalogueProduct } from '@/lib/admin-hooks';
-import { useLocations } from '@/lib/discovery-hooks';
+import { useLocationScope } from '@/lib/location-scope';
 import { useOpsCategories } from '@/lib/ops-discovery-hooks';
 
 const digits = (v: string) => v.replace(/\D/g, '');
@@ -35,6 +42,8 @@ const digits = (v: string) => v.replace(/\D/g, '');
  * is refused (the API would overwrite it). An empty category or location scope means "offered
  * everywhere". Bookings snapshot the price they accepted, so repricing never rewrites the past.
  */
+type FormValues = ProductValues & { locationMode: ScopeMode };
+
 export function ProductSheet({
   product,
   existingCodes,
@@ -51,31 +60,56 @@ export function ProductSheet({
   const editing = product !== null;
   const upsert = useUpsertProduct();
   const categories = useOpsCategories();
-  const locations = useLocations();
+  const { options: locationOptions, restricted } = useLocationScope();
 
   const schema = useMemo(
     () =>
-      z.object({
-        code: z
-          .string()
-          .refine((v) => editing || PRODUCT_CODE.test(v), { message: t('ops.cat.codeInvalid') })
-          .refine((v) => editing || !existingCodes.includes(v), { message: t('ops.cat.codeDup') }),
-        name: z.string().trim().min(1, t('error.field.required')),
-        kind: z.enum(['extra', 'protection']),
-        price: z.string().regex(PRICE, t('ops.prod.priceInvalid')),
-        currency: z.string().min(1, t('error.field.required')),
-        pricingUnit: z.enum(['per_rental', 'per_day']),
-        maxQuantity: z.string().refine(validQuantity, { message: t('ops.prod.maxQtyInvalid') }),
-        taxable: z.boolean(),
-        categoryScope: z.array(z.string()),
-        locationScope: z.array(z.string()),
-        sortOrder: z.string(),
-      }),
+      z
+        .object({
+          code: z
+            .string()
+            .refine((v) => editing || PRODUCT_CODE.test(v), { message: t('ops.cat.codeInvalid') })
+            .refine((v) => editing || !existingCodes.includes(v), {
+              message: t('ops.cat.codeDup'),
+            }),
+          name: z.string().trim().min(1, t('error.field.required')),
+          kind: z.enum(['extra', 'protection']),
+          price: z.string().regex(PRICE, t('ops.prod.priceInvalid')),
+          currency: z.string().min(1, t('error.field.required')),
+          pricingUnit: z.enum(['per_rental', 'per_day']),
+          maxQuantity: z.string().refine(validQuantity, { message: t('ops.prod.maxQtyInvalid') }),
+          taxable: z.boolean(),
+          categoryScope: z.array(z.string()),
+          locationScope: z.array(z.string()),
+          locationMode: z.enum(['all', 'specific']),
+          sortOrder: z.string(),
+        })
+        .refine((v) => !scopeIssue(v.locationMode, v.locationScope), {
+          path: ['locationScope'],
+          message: t('ops.scope.pickOne'),
+        }),
     [t, editing, existingCodes],
   );
 
-  const defaults: ProductValues = product ? productValues(product) : emptyProduct();
-  const form = useForm<ProductValues>({ resolver: zodResolver(schema), defaultValues: defaults });
+  const base = product ? productValues(product) : emptyProduct();
+  const defaults: FormValues = {
+    ...base,
+    // a restricted account can only manage products pinned to its own branches
+    locationMode: restricted ? 'specific' : scopeModeOf(base.locationScope),
+  };
+  const scopeOptions = useMemo(() => {
+    const list: ScopeOption[] = locationOptions
+      .filter((o) => o.status === 'active')
+      .map((o) => ({ value: o.code, label: o.name }));
+    for (const code of base.locationScope) {
+      if (!list.some((l) => l.value === code)) {
+        const o = locationOptions.find((x) => x.code === code);
+        list.push({ value: code, label: o?.name ?? code, archived: true });
+      }
+    }
+    return list;
+  }, [locationOptions, product]);
+  const form = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: defaults });
 
   return (
     <FormSheet
@@ -98,7 +132,7 @@ export function ProductSheet({
           taxable: v.taxable,
           maxQuantity: Number(v.maxQuantity),
           categoryScope: v.categoryScope,
-          locationScope: v.locationScope,
+          locationScope: v.locationMode === 'all' ? [] : v.locationScope,
           sortOrder: Number(v.sortOrder || 0),
         });
         toast.success(editing ? t('ops.prod.saved') : t('ops.prod.created'));
@@ -197,12 +231,17 @@ export function ProductSheet({
           options={(categories.data ?? []).map((c) => ({ value: c.code, label: c.displayName }))}
           testId="product-category-scope"
         />
-        <CheckboxGroupField
+        <LocationScopeField
           control={form.control}
           name="locationScope"
+          modeName="locationMode"
           label={t('ops.prod.locationScope')}
-          emptyLabel={t('ops.prod.allLocations')}
-          options={(locations.data ?? []).map((l) => ({ value: l.code, label: l.name }))}
+          restricted={restricted}
+          allLabel={t('ops.prod.scopeAll')}
+          allHint={t('ops.prod.scopeAllHint')}
+          specificLabel={t('ops.prod.scopeSpecific')}
+          specificHint={t('ops.prod.scopeSpecificHint')}
+          options={scopeOptions}
           testId="product-location-scope"
         />
       </FormSection>

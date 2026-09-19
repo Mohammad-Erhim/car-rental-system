@@ -5,7 +5,7 @@ import { Menu } from 'lucide-react';
 import { Breadcrumbs } from './breadcrumbs';
 import { CommandMenu } from './command-menu';
 import { LanguageMenu } from './language-menu';
-import { LocationMenu } from './location-menu';
+import { LocationSwitcher } from './location-switcher';
 import type { NavGroup } from './nav-config';
 import { SystemStatus } from './system-status';
 import { ThemeMenu } from './theme-menu';
@@ -14,7 +14,6 @@ import { UserMenu } from './user-menu';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useSidebar } from '@/components/ui/sidebar';
-import { useLocationScope } from '@/lib/location-scope';
 
 /**
  * Sticky top bar: drawer toggle (mobile), breadcrumbs, then the global tools — quick search,
@@ -25,9 +24,6 @@ export function AppHeader({ groups }: { groups: NavGroup[] }) {
   const { t } = useI18n();
   const { actor } = useAuth();
   const { isMobile, setOpenMobile } = useSidebar();
-  const { options } = useLocationScope();
-  // a dropdown is only worth showing when there's an actual choice to make
-  const canSwitchLocation = options.length > 1;
 
   return (
     <header className="sticky top-0 z-30 flex h-16 shrink-0 items-center gap-2 border-b bg-background/80 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/70 sm:gap-3 sm:px-6">
@@ -47,7 +43,7 @@ export function AppHeader({ groups }: { groups: NavGroup[] }) {
       </div>
       <div className="flex shrink-0 items-center gap-1 sm:gap-2">
         <CommandMenu groups={groups} />
-        {canSwitchLocation ? <LocationMenu /> : null}
+        <LocationSwitcher />
         <SystemStatus />
         <ThemeMenu />
         <LanguageMenu />

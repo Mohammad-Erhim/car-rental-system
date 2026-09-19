@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 import { AppError } from '../../common/app-error';
 import { CurrentActor } from '../../common/auth/auth.guard';
-import { Permissions } from '../../common/auth/permissions.guard';
+import { OrgWide, Permissions } from '../../common/auth/permissions.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { InvoicePublic } from '../invoice/invoice.public';
@@ -145,12 +145,14 @@ export class ReservationController {
   }
 
   @Get('ops/payments/reconciliation')
+  @OrgWide()
   @Permissions('payment.reconcile', 'payment.read')
   listExceptions() {
     return this.ops.listExceptions();
   }
 
   @Post('ops/payments/reconciliation/run')
+  @OrgWide()
   @Permissions('payment.reconcile')
   reconcile(
     @Body(new ZodValidationPipe(z.object({ injectMismatchRef: z.string().optional() })))
@@ -161,6 +163,7 @@ export class ReservationController {
   }
 
   @Post('ops/payments/reconciliation/:id/resolve')
+  @OrgWide()
   @Permissions('payment.reconcile')
   resolveException(
     @Param('id') id: string,
@@ -171,12 +174,14 @@ export class ReservationController {
   }
 
   @Get('ops/cases')
+  @OrgWide()
   @Permissions('payment.reconcile', 'payment.read')
   cases() {
     return this.ops.openCasesList();
   }
 
   @Post('ops/cases/:id/resolve')
+  @OrgWide()
   @Permissions('payment.reconcile')
   resolveCase(
     @Param('id') id: string,
@@ -187,6 +192,7 @@ export class ReservationController {
   }
 
   @Post('ops/cases/:id/retry')
+  @OrgWide()
   @Permissions('payment.reconcile')
   retryCase(@Param('id') id: string, @CurrentActor() actor: Actor) {
     return this.ops.retryCase(actor, id);

@@ -267,13 +267,38 @@ export class PricingService {
 
   // ---- rate plan management (SCREEN-OPS-025/026) ----
 
-  async listPlans() {
+  /**
+   * A location-scoped actor may create / edit / publish / delete only plans pinned to one of
+   * their own locations. An organisation-wide plan (`locationCode` null) prices every branch, so
+   * changing it needs an account that isn't limited to specific locations.
+   */
+  private assertPlanWritable(actor: Actor, planLocation: string | null | undefined): void {
+    const scope = actor.locationScope?.length ? actor.locationScope : null;
+    if (!scope) return;
+    if (!planLocation) {
+      throw AppError.forbidden(
+        'This rate plan applies to every location, so it needs an account that is not limited to specific locations',
+      );
+    }
+    if (!scope.includes(planLocation)) {
+      throw AppError.forbidden(`You don't have access to location "${planLocation}"`);
+    }
+  }
+
+  /**
+   * A location-scoped actor sees the plans that price THEIR branches: their own location's plans
+   * and the organisation-wide ones (`locationCode` null) — the latter read-only, see
+   * `assertPlanWritable`. An org-wide actor sees everything.
+   */
+  async listPlans(actor?: Actor) {
     const orgId = await this.orgId();
-    const plans = await this.db
+    const scope = actor?.locationScope?.length ? actor.locationScope : null;
+    const all = await this.db
       .select()
       .from(ratePlan)
       .where(eq(ratePlan.organizationId, orgId))
       .orderBy(asc(ratePlan.categoryCode), asc(ratePlan.effectiveFrom));
+    const plans = all.filter((p) => !scope || !p.locationCode || scope.includes(p.locationCode));
     if (!plans.length) return [];
     const tiers = await this.db
       .select()
@@ -316,6 +341,7 @@ export class PricingService {
     const orgId = await this.orgId();
     this.validatePlan(input);
     await this.assertScope(input);
+    this.assertPlanWritable(actor, input.locationCode);
     const values = {
       organizationId: orgId,
       categoryCode: input.categoryCode,
@@ -335,6 +361,7 @@ export class PricingService {
     if (id) {
       const [existing] = await this.db.select().from(ratePlan).where(eq(ratePlan.id, id)).limit(1);
       if (!existing) throw AppError.notFound('rate plan');
+      this.assertPlanWritable(actor, existing.locationCode);
       if (existing.status === 'published' || existing.status === 'retired') {
         throw AppError.businessRule(
           `A ${existing.status} rate plan cannot be edited — clone it into a new draft`,
@@ -482,6 +509,7 @@ export class PricingService {
   async publishPlan(actor: Actor, id: string) {
     const [existing] = await this.db.select().from(ratePlan).where(eq(ratePlan.id, id)).limit(1);
     if (!existing) throw AppError.notFound('rate plan');
+    this.assertPlanWritable(actor, existing.locationCode);
     if (existing.status === 'published') return existing;
     if (existing.status === 'retired') {
       throw AppError.businessRule('A retired rate plan cannot be published — clone it', {
@@ -537,6 +565,7 @@ export class PricingService {
   async deletePlan(actor: Actor, id: string) {
     const [existing] = await this.db.select().from(ratePlan).where(eq(ratePlan.id, id)).limit(1);
     if (!existing) throw AppError.notFound('rate plan');
+    this.assertPlanWritable(actor, existing.locationCode);
     if (existing.status !== 'draft' && existing.status !== 'in_review') {
       throw AppError.businessRule('Only a draft rate plan can be deleted', {
         reason: 'not_a_draft',

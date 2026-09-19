@@ -3,7 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 
 import { CurrentActor } from '../../common/auth/auth.guard';
-import { Permissions } from '../../common/auth/permissions.guard';
+import { OrgWide, Permissions } from '../../common/auth/permissions.guard';
 import { StepUp } from '../../common/auth/step-up.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
@@ -60,6 +60,7 @@ const zUpdate = z.object({
  * reasoning as payments: even seeing whether a real SMTP account is configured is narrow.
  */
 @ApiTags('ops-email')
+@OrgWide()
 @Controller({ path: 'ops/email', version: '1' })
 export class EmailConfigController {
   constructor(private readonly config: EmailConfigService) {}

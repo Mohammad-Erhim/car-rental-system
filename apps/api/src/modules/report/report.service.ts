@@ -7,7 +7,7 @@ import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from 'drizzle-o
 import { AppError } from '../../common/app-error';
 import { decodeAuditCursor, encodeAuditCursor } from '../../common/audit/audit-cursor';
 import { AuditService } from '../../common/audit/audit.service';
-import { assertLocationAccess } from '../../common/auth/location-scope';
+import { effectiveLocationCodes } from '../../common/auth/location-scope';
 import { RbacService } from '../../common/auth/rbac.service';
 import type { Actor } from '../../common/auth/types';
 import { OutboxService } from '../../common/outbox/outbox.service';
@@ -28,9 +28,26 @@ import { rental } from '../../database/schema/rental';
 import { reservation, reconciliationException } from '../../database/schema/reservation';
 import { NotifyService } from '../notify/notify.service';
 
-/** `report_definition.queryKind`s that actually filter by `reservation.pickupLocationCode` — the
- *  only ones an explicit `params.locationCode` narrowing can honestly apply to. */
-const LOCATION_KEYED_REPORTS = new Set(['reservations_by_state', 'revenue_by_category']);
+/**
+ * How each `report_definition.queryKind` relates to a location scope:
+ *  - `location`: every row traces to a branch (reservation pickup, a car's current branch, the
+ *    reservation a payment belongs to), so it can be narrowed to the actor's / the requested
+ *    locations;
+ *  - `org_wide`: rows have no reliable branch (recovery cases reference polymorphic subjects, the
+ *    data-quality sweep inspects the whole database). A location-scoped actor is REFUSED these
+ *    rather than shown organisation-wide numbers under a "Scoped to X" label.
+ * A new query kind must be listed here — an unlisted kind is treated as `org_wide`.
+ */
+export const REPORT_SCOPE: Record<string, 'location' | 'org_wide'> = {
+  reservations_by_state: 'location',
+  revenue_by_category: 'location',
+  fleet_utilisation: 'location',
+  refunds: 'location',
+  open_cases: 'org_wide',
+  data_quality_sweep: 'org_wide',
+};
+export const reportScopeOf = (queryKind: string): 'location' | 'org_wide' =>
+  REPORT_SCOPE[queryKind] ?? 'org_wide';
 
 @Injectable()
 export class ReportService {
@@ -50,8 +67,14 @@ export class ReportService {
     return org.id;
   }
 
-  async listDefinitions() {
-    return this.db.select().from(reportDefinition).orderBy(asc(reportDefinition.code));
+  /** Definitions plus how each relates to a location scope, so the UI can label / disable them. */
+  async listDefinitions(actor?: Actor) {
+    const rows = await this.db.select().from(reportDefinition).orderBy(asc(reportDefinition.code));
+    const scoped = !!actor && this.scopeCodes(actor) !== null;
+    return rows.map((d) => {
+      const scope = reportScopeOf(d.queryKind);
+      return { ...d, scope, available: !(scoped && scope === 'org_wide') };
+    });
   }
 
   /**
@@ -70,11 +93,8 @@ export class ReportService {
    * (`assertLocationAccess`, SRS-SEC-007) rather than silently narrowed to zero rows — a
    * scope violation must be visible and actionable, not indistinguishable from "no data."
    */
-  private effectiveScope(actor: Actor, requested?: string): string[] | null {
-    assertLocationAccess(actor, requested);
-    const own = this.scopeCodes(actor);
-    if (!requested) return own;
-    return [requested];
+  private effectiveScope(actor: Actor, requested?: string | string[]): string[] | null {
+    return effectiveLocationCodes(actor, requested);
   }
 
   /** `null` scope reads as "All locations"; a non-empty scope (this method's only other possible
@@ -103,9 +123,18 @@ export class ReportService {
     // column at all) would see "Scoped to X" on numbers that were never actually filtered by X.
     const requestedLocation =
       typeof params.locationCode === 'string' ? params.locationCode : undefined;
-    const scope = LOCATION_KEYED_REPORTS.has(def.queryKind)
-      ? this.effectiveScope(actor, requestedLocation)
-      : this.scopeCodes(actor);
+    let scope: string[] | null;
+    if (reportScopeOf(def.queryKind) === 'location') {
+      scope = this.effectiveScope(actor, requestedLocation);
+    } else {
+      // org-wide data can't be attributed to a branch — never hand it to a branch-scoped actor
+      if (this.scopeCodes(actor) !== null) {
+        throw AppError.forbidden(
+          'This report covers the whole organisation, so it needs an account that is not limited to specific locations',
+        );
+      }
+      scope = null;
+    }
     const scopeNote = this.scopeNoteFor(scope);
 
     let rows: Array<Record<string, unknown>> = [];
@@ -141,7 +170,12 @@ export class ReportService {
         const q = this.db
           .select({ state: vehicleUnit.state, units: sql<number>`count(*)::int` })
           .from(vehicleUnit)
-          .where(eq(vehicleUnit.organizationId, orgId))
+          .innerJoin(location, eq(location.id, vehicleUnit.currentLocationId))
+          .where(
+            scope
+              ? and(eq(vehicleUnit.organizationId, orgId), inArray(location.code, scope))
+              : eq(vehicleUnit.organizationId, orgId),
+          )
           .groupBy(vehicleUnit.state);
         rows = (await q).map((r) => ({ ...r }));
         break;
@@ -153,7 +187,15 @@ export class ReportService {
             intents: sql<number>`(count(*) filter (where ${paymentIntent.refundedMinor} > 0))::int`,
           })
           .from(paymentIntent)
-          .where(eq(paymentIntent.organizationId, orgId));
+          .leftJoin(reservation, eq(reservation.reference, paymentIntent.reservationReference))
+          .where(
+            scope
+              ? and(
+                  eq(paymentIntent.organizationId, orgId),
+                  inArray(reservation.pickupLocationCode, scope),
+                )
+              : eq(paymentIntent.organizationId, orgId),
+          );
         rows = [{ refundedMinor: r?.refundedMinor ?? 0, intents: r?.intents ?? 0 }];
         break;
       }
@@ -238,7 +280,7 @@ export class ReportService {
    * the fleet breakdown (via `vehicleUnit.currentLocationId` -> `location.code`) and revenue
    * (via `paymentIntent.reservationReference` -> `reservation.pickupLocationCode` — payments
    * carry no location column of their own, but every one traces back to the reservation it was
-   * collected for). `financeExceptions` stays org-wide: `recoveryCase.subjectRef` is a
+   * collected for). `financeExceptions` stays org-wide (and is withheld, `null`, from location-scoped actors): `recoveryCase.subjectRef` is a
    * polymorphic reference whose meaning (and therefore location) varies by `kind`, so it can't be
    * reliably attributed to one location without per-kind resolution logic — a known, disclosed
    * gap rather than a silently-wrong number. A metric that cannot be read is `null`, never `0`
@@ -375,11 +417,16 @@ export class ReportService {
       assignQueue: queue?.n ?? 0,
       cancellationsToday: cancellations?.n ?? 0,
       revenueToday: { minor: revenue?.minor ?? 0, currency: org?.currency ?? 'USD' },
-      financeExceptions: {
-        recoveryCases: cases?.n ?? 0,
-        reconciliation: exc?.n ?? 0,
-        total: (cases?.n ?? 0) + (exc?.n ?? 0),
-      },
+      // org-wide by nature (recovery cases reference polymorphic subjects) — a branch-scoped
+      // actor gets `null` ("not available for your locations"), never the organisation's numbers
+      financeExceptions:
+        this.scopeCodes(actor) !== null
+          ? null
+          : {
+              recoveryCases: cases?.n ?? 0,
+              reconciliation: exc?.n ?? 0,
+              total: (cases?.n ?? 0) + (exc?.n ?? 0),
+            },
       fleet,
       fleetTotal,
       utilisation,

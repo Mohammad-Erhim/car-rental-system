@@ -45,7 +45,7 @@ function useNow(intervalMs = 30_000) {
  */
 export function DashboardPage() {
   const { t, fmt } = useI18n();
-  const { selected: locationCode } = useLocationScope();
+  const { codes: locationCode } = useLocationScope();
   const dash = useOpsDashboard(locationCode);
   const now = useNow();
 

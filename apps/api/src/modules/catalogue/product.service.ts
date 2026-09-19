@@ -55,15 +55,42 @@ export class ProductService {
     return org.id;
   }
 
-  /** Full list for the ops editor (includes inactive). */
-  async list() {
+  /**
+   * Full list for the ops editor (includes inactive). A location-scoped actor sees the products
+   * offered at their branches (an empty `locationScope` = offered everywhere, read-only for them —
+   * see `assertProductWritable`).
+   */
+  async list(actor?: Actor) {
     const org = await this.orgId();
+    const scope = actor?.locationScope?.length ? actor.locationScope : null;
     const rows = await this.db
       .select()
       .from(product)
       .where(eq(product.organizationId, org))
       .orderBy(asc(product.sortOrder), asc(product.code));
-    return rows.map((r) => this.shape(r));
+    return rows
+      .filter(
+        (r) =>
+          !scope || r.locationScope.length === 0 || r.locationScope.some((c) => scope.includes(c)),
+      )
+      .map((r) => this.shape(r));
+  }
+
+  /**
+   * A location-scoped actor may only manage products limited to their own locations: every code in
+   * the product's `locationScope` must be theirs, and an empty (offered-everywhere) scope is an
+   * organisation-wide decision.
+   */
+  private assertProductWritable(actor: Actor, locationScope: string[] | undefined): void {
+    const scope = actor.locationScope?.length ? actor.locationScope : null;
+    if (!scope) return;
+    if (!locationScope?.length) {
+      throw AppError.forbidden(
+        'This product is offered at every location, so it needs an account that is not limited to specific locations',
+      );
+    }
+    const outside = locationScope.find((c) => !scope.includes(c));
+    if (outside) throw AppError.forbidden(`You don't have access to location "${outside}"`);
   }
 
   /**
@@ -199,6 +226,9 @@ export class ProductService {
       .from(product)
       .where(and(eq(product.organizationId, org), eq(product.code, input.code)))
       .limit(1);
+    // both the state being saved and the state being replaced must be inside the actor's scope
+    this.assertProductWritable(actor, input.locationScope ?? existing?.locationScope);
+    if (existing) this.assertProductWritable(actor, existing.locationScope);
 
     const values = {
       name: input.name,
@@ -239,6 +269,12 @@ export class ProductService {
 
   async setActive(actor: Actor, code: string, active: boolean) {
     const org = await this.orgId();
+    const [current] = await this.db
+      .select({ locationScope: product.locationScope })
+      .from(product)
+      .where(and(eq(product.organizationId, org), eq(product.code, code)))
+      .limit(1);
+    if (current) this.assertProductWritable(actor, current.locationScope);
     const [row] = await this.db
       .update(product)
       .set({ active, updatedBy: actor.accountId, updatedAt: new Date().toISOString() })

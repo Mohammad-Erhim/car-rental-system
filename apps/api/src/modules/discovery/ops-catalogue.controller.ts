@@ -5,7 +5,7 @@ import type { Request } from 'express';
 import { z } from 'zod';
 
 import { CurrentActor } from '../../common/auth/auth.guard';
-import { Permissions } from '../../common/auth/permissions.guard';
+import { OrgWide, Permissions } from '../../common/auth/permissions.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { AvailabilityService } from '../availability/availability.service';
@@ -129,8 +129,8 @@ export class OpsCatalogueController {
 
   @Get('catalogue/products')
   @Permissions('catalogue.read', 'config.read')
-  listProducts() {
-    return this.products.list();
+  listProducts(@CurrentActor() actor: Actor) {
+    return this.products.list(actor);
   }
 
   @Post('catalogue/products')
@@ -169,6 +169,7 @@ export class OpsCatalogueController {
   }
 
   @Post('catalogue/categories')
+  @OrgWide()
   @Permissions('catalogue.manage')
   upsertCategory(
     @Body(new ZodValidationPipe(zUpsertVehicleCategory))
@@ -181,18 +182,21 @@ export class OpsCatalogueController {
   }
 
   @Post('catalogue/categories/:code/deactivate')
+  @OrgWide()
   @Permissions('catalogue.manage')
   deactivateCategory(@Param('code') code: string, @CurrentActor() actor: Actor) {
     return this.catalogue.setCategoryActive(actor, code, false);
   }
 
   @Post('catalogue/categories/:code/restore')
+  @OrgWide()
   @Permissions('catalogue.manage')
   restoreCategory(@Param('code') code: string, @CurrentActor() actor: Actor) {
     return this.catalogue.setCategoryActive(actor, code, true);
   }
 
   @Post('catalogue/features')
+  @OrgWide()
   @Permissions('catalogue.manage')
   upsertFeature(
     @Body(new ZodValidationPipe(zUpsertVehicleFeature))
@@ -205,12 +209,14 @@ export class OpsCatalogueController {
   }
 
   @Post('catalogue/features/:code/deactivate')
+  @OrgWide()
   @Permissions('catalogue.manage')
   deactivateFeature(@Param('code') code: string, @CurrentActor() actor: Actor) {
     return this.catalogue.setFeatureActive(actor, code, false);
   }
 
   @Post('catalogue/features/:code/restore')
+  @OrgWide()
   @Permissions('catalogue.manage')
   restoreFeature(@Param('code') code: string, @CurrentActor() actor: Actor) {
     return this.catalogue.setFeatureActive(actor, code, true);
@@ -245,8 +251,9 @@ export class OpsCatalogueController {
     @CurrentActor() actor: Actor,
     @Query('unitId') unitId?: string,
     @Query('status') status?: string,
+    @Query('locationCode') locationCode?: string,
   ) {
-    return this.fleet.listBlocks(actor, { unitId, status });
+    return this.fleet.listBlocks(actor, { unitId, status, locationCode });
   }
 
   @Post('fleet/blocks')
@@ -322,8 +329,8 @@ export class OpsCatalogueController {
 
   @Get('pricing/rate-plans')
   @Permissions('config.read', 'config.publish')
-  listPlans() {
-    return this.pricing.listPlans();
+  listPlans(@CurrentActor() actor: Actor) {
+    return this.pricing.listPlans(actor);
   }
 
   @Post('pricing/rate-plans')
@@ -353,8 +360,8 @@ export class OpsCatalogueController {
 
   @Get('availability/holds')
   @Permissions('reservation.read', 'config.read')
-  listHolds(@Query('status') status?: string) {
-    return this.availability.listHolds(status ?? 'active');
+  listHolds(@CurrentActor() actor: Actor, @Query('status') status?: string) {
+    return this.availability.listHolds(status ?? 'active', actor);
   }
 
   @Post('availability/holds/:id/release')

@@ -5,7 +5,7 @@ import { CalendarClock, Download, FileBarChart, Play, Plus, Send } from 'lucide-
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-import { downloadCsv, LOCATION_KEYED_REPORTS } from './report-model';
+import { downloadCsv } from './report-model';
 import { ScheduleDialog } from './schedule-dialog';
 
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -52,7 +52,12 @@ export function ReportsPage() {
   const canSchedule = hasPermission('report.export');
   const { state, update } = useListParams(['tab'] as const);
   const tab: Tab = (TABS as readonly string[]).includes(state.tab) ? (state.tab as Tab) : 'run';
-  const { selected: locationCode, options: locationOptions } = useLocationScope();
+  const {
+    codes: locationCode,
+    selected: locationSelection,
+    options: locationOptions,
+    nameOf,
+  } = useLocationScope();
 
   const defs = useReportDefinitions();
   const runs = useReportRuns();
@@ -218,15 +223,15 @@ export function ReportsPage() {
   );
 
   const narrowing =
-    locationCode && locationOptions.length > 1 && LOCATION_KEYED_REPORTS.has(code)
-      ? (locationOptions.find((o) => o.code === locationCode)?.name ?? locationCode)
+    locationSelection.length && locationOptions.length > 1 && def?.scope === 'location'
+      ? locationSelection.map(nameOf).join(', ')
       : null;
 
   return (
     <Page>
       <PageHeader
         title={t('ops.rpt.title')}
-        description={t('ops.rpt.subtitle')}
+        description={t('ops.rpt.subtitleScoped')}
         actions={
           canSchedule && tab === 'schedules' && defs.data?.length ? (
             <Button onClick={() => setScheduleOpen(true)} data-testid="schedule-new">
@@ -282,8 +287,9 @@ export function ReportsPage() {
                       </SelectTrigger>
                       <SelectContent>
                         {(defs.data ?? []).map((d) => (
-                          <SelectItem key={d.code} value={d.code}>
+                          <SelectItem key={d.code} value={d.code} disabled={!d.available}>
                             {d.title}
+                            {d.scope === 'org_wide' ? ` · ${t('ops.rpt.orgWideTag')}` : ''}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -292,7 +298,7 @@ export function ReportsPage() {
                   <Button
                     onClick={() => void doRun()}
                     loading={run.isPending}
-                    disabled={!code}
+                    disabled={!code || def?.available === false}
                     data-testid="report-run"
                   >
                     <Play aria-hidden="true" />
@@ -301,6 +307,11 @@ export function ReportsPage() {
                 </div>
                 {def?.description ? (
                   <p className="text-sm text-muted-foreground">{def.description}</p>
+                ) : null}
+                {def?.scope === 'org_wide' ? (
+                  <p className="text-xs text-muted-foreground" data-testid="report-org-wide">
+                    {def.available ? t('ops.rpt.orgWideNote') : t('ops.rpt.orgWideBlocked')}
+                  </p>
                 ) : null}
                 {narrowing ? (
                   <p className="text-xs text-muted-foreground" data-testid="report-location-filter">

@@ -3,7 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 
 import { CurrentActor, OptionalAuth } from '../../common/auth/auth.guard';
-import { Permissions } from '../../common/auth/permissions.guard';
+import { OrgWide, Permissions } from '../../common/auth/permissions.guard';
 import { StepUp } from '../../common/auth/step-up.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
@@ -30,6 +30,7 @@ const zUpdate = z.object({
  * configured, and by whom, is scoped to the same narrow audience as changing it.
  */
 @ApiTags('ops-payments')
+@OrgWide()
 @Controller({ path: 'ops/payments', version: '1' })
 export class PaymentConfigController {
   constructor(private readonly config: PaymentConfigService) {}

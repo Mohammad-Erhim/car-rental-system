@@ -38,6 +38,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ApiError } from '@/lib/api';
+import { useLocationAccess } from '@/lib/location-scope';
 import { useOpsRentalDetail } from '@/lib/rental-hooks';
 
 type Dialog = 'pickup' | 'return' | 'extend' | 'incident' | 'readiness' | 'reassign' | null;
@@ -104,8 +105,10 @@ export function RentalDetailPage() {
   const inProgress = d.state === 'active' || d.state === 'overdue';
 
   // mirrors the API's per-action @Permissions
-  const canPickup = d.state === 'awaiting_pickup' && hasPermission('rental.pickup');
-  const canReturn = inProgress && hasPermission('rental.return');
+  const actsAt = useLocationAccess(); // pickup actions belong to the pickup branch, return actions to the return branch
+  const canPickup =
+    d.state === 'awaiting_pickup' && hasPermission('rental.pickup') && actsAt(d.pickupLocationCode);
+  const canReturn = inProgress && hasPermission('rental.return') && actsAt(d.returnLocationCode);
   const canReady =
     d.state === 'closed' &&
     !d.readinessOutcome &&
@@ -113,7 +116,9 @@ export function RentalDetailPage() {
   const canExtend = inProgress && hasPermission('rental.pickup', 'rental.return');
   const canIncident = inProgress && hasPermission('rental.pickup', 'rental.return');
   const canReassign =
-    d.state === 'awaiting_pickup' && hasPermission('rental.pickup', 'fleet.manage');
+    d.state === 'awaiting_pickup' &&
+    hasPermission('rental.pickup', 'fleet.manage') &&
+    actsAt(d.pickupLocationCode);
   const hasMenu = canExtend || canIncident || canReassign;
 
   const close = (open: boolean) => {

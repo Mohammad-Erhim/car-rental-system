@@ -5,7 +5,7 @@ import type { Request } from 'express';
 import { z } from 'zod';
 
 import { CurrentActor } from '../../common/auth/auth.guard';
-import { Permissions } from '../../common/auth/permissions.guard';
+import { OrgWide, Permissions } from '../../common/auth/permissions.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 
@@ -22,6 +22,7 @@ const zUpsertLocale = z.object({
 
 /** SCREEN-OPS-034 · SRS-I18N-001 · DEC-024 — translation catalogue + locale administration. */
 @ApiTags('config')
+@OrgWide()
 @Controller({ path: 'config', version: '1' })
 export class TranslationController {
   constructor(private readonly translations: TranslationService) {}

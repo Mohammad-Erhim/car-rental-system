@@ -3,6 +3,7 @@ import { and, eq, gt, inArray, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
+import { assertRecordInScope } from '../../common/auth/location-scope';
 import type { Actor } from '../../common/auth/types';
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
@@ -636,6 +637,12 @@ export class AvailabilityService {
   async releaseHold(actor: Actor, id: string, reason = 'forced'): Promise<void> {
     const [row] = await this.db.select().from(hold).where(eq(hold.id, id)).limit(1);
     if (!row) throw AppError.notFound('hold');
+    // a location-scoped staffer releases only holds on trips that start or end at their branches
+    assertRecordInScope(
+      actor,
+      { pickup: row.pickupLocationCode, return: row.returnLocationCode },
+      'This hold is outside your assigned locations',
+    );
     if (row.status !== 'active') return;
     await this.db
       .update(hold)
@@ -655,13 +662,19 @@ export class AvailabilityService {
     });
   }
 
-  async listHolds(status = 'active') {
-    return this.db
+  async listHolds(status = 'active', actor?: Actor) {
+    const rows = await this.db
       .select()
       .from(hold)
       .where(eq(hold.status, status))
       .orderBy(sql`${hold.expiresAt} asc`)
       .limit(200);
+    // a location-scoped actor sees holds on trips that start or end at their branches
+    const scope = actor?.locationScope?.length ? actor.locationScope : null;
+    if (!scope) return rows;
+    return rows.filter(
+      (h) => scope.includes(h.pickupLocationCode) || scope.includes(h.returnLocationCode),
+    );
   }
 
   /** Worker hook: expire holds past their TTL. Returns the count expired. */

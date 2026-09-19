@@ -364,3 +364,55 @@ routing-payment.adapter,payment-config.controller,stripe-webhook.controller}.ts`
   `lib/api/*` + `lib/auth/auth-provider.tsx`; tests `apps/api/test/session-resilience.spec.ts`,
   `packages/client/src/react/auth-session.test.tsx`. Users signed in before the deploy are asked
   to sign in once (cookie names changed). Not covered: session-list UI, reuse-event alerting.
+
+### DEC-029 — One location filter, one scope policy
+
+- Context: the ops console had a global location switcher AND a per-page location filter on five
+  pages (seeded once from the switcher, never kept in sync), built from the public customer
+  endpoint (active only, cached 5 min, not refreshed when a location changed) and the session's
+  stale copy of the account's scope. Backend scope was enforced by pickup branch only and in six
+  modules; reports labelled organisation-wide figures "Scoped to X"; several org-wide areas
+  (audit, payments, settings, rate plans, products, staff directory) ignored the account's
+  location scope entirely; archived branches could still receive cars; "no location selected"
+  meant "every location" (fail-open) in the staff and product editors.
+- Decision (web):
+  - **One filter** in the top bar (`LocationSwitcher`, multi-select, searchable, always visible,
+    short code on phones). Its state IS the URL (`?location=LHR,JFK`) on branch-aware pages
+    (`isLocationScopedPath`: dashboard, search, reservations, rentals, fleet, reports, rate
+    plans); the last choice is remembered per account and re-applied. Pages have no location
+    filter of their own. It is inactive (with a tooltip) elsewhere, and a single reachable branch
+    shows as a badge.
+  - Options come from `GET /ops/locations/options` — `{ restricted, options }`: active AND archived,
+    narrowed to the account's scope as of the request — so a scope change (and the navigation /
+    picker rules that follow `restricted`) applies on the next refetch/focus, not at next sign-in. Codes the account can't see are dropped from the URL with a notice; a 403 on a list
+    offers "show all my locations". Location mutations invalidate every cached list.
+  - Editors (staff, product) use an explicit **All locations / Specific locations** choice, never an
+    empty checklist; a limited account can't grant or pick "all". Rate plans/products: a limited
+    account can only choose its own branches. Row actions that belong to one branch (assign, pickup
+    = pickup branch; return = return branch) are hidden elsewhere.
+  - Organisation-wide areas are hidden from a limited account's navigation and answered with an
+    explanation (`OrgWideGate`) — mirroring `@OrgWide()` on the API.
+- Decision (API): `effectiveLocationCodes()` (comma-separated `locationCode`, validated against the
+  actor's scope, 403 not silent-empty) is the single entry point for lists, dashboard, search,
+  reports. A reservation/rental belongs to its pickup AND return branch (`assertRecordInScope`,
+  per-action mode); the work queue and pickup/assign remain the pickup branch's, return the
+  return branch's. `@OrgWide()` refuses limited accounts on settings, audit, payments config,
+  reconciliation/cases, data quality, reference-data writes, catalogue-setup writes, customer
+  merge, location create/archive. Reports declare `location` vs `org_wide` (`REPORT_SCOPE`): location
+  ones (incl. fleet utilisation, refunds) are narrowed truthfully; org-wide ones are refused to a
+  limited account. Rate plans / products / holds / staff directory / locations list are filtered to
+  the account's branches, and writes limited to entities pinned inside its scope. Archiving reports
+  cars, staff scope, rate plans and products tied to the branch; cars can't be created at,
+  transferred to or imported into an archived branch.
+- Policy matrix (limited account): branch data (reservations, rentals, fleet, holds, search,
+  dashboard, reports on location-keyed kinds) = own branches; shared reference reads (categories,
+  lookups, public locations) = read; customers = org-wide directory by design (a customer rents
+  anywhere); everything in `@OrgWide()` = refused.
+- Source IDs: user request (2026-09-19, Telegram), FR-RPT-004, SRS-SEC-007, DEC-028.
+- Consequences: `apps/api/src/common/auth/{location-scope,permissions.guard}.ts`, report / rental /
+  reservation-ops / fleet / search / pricing / product / staff / availability / location-admin
+  services, `apps/web/src/lib/location-{scope,hooks}.ts(x)`, `layouts/location-switcher.tsx`,
+  `components/{location-scope-field,location-scope-gate,org-wide-gate,list-error}.tsx`; tests
+  `apps/api/test/location-scope.spec.ts` and the web unit tests beside each. New env: none.
+  Not covered: a transfer-request / receiving-branch approval flow (a product decision), and
+  invoices/customers stay org-wide reads.

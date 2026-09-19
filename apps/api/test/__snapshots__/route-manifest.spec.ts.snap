@@ -128,6 +128,7 @@ POST   /api/v1/ops/locations/:code/hours-exceptions
 POST   /api/v1/ops/locations/:code/hours-exceptions/:id/remove
 GET    /api/v1/ops/locations/:code/impact
 POST   /api/v1/ops/locations/:code/restore
+GET    /api/v1/ops/locations/options
 GET    /api/v1/ops/media
 POST   /api/v1/ops/media
 DELETE /api/v1/ops/media/:id

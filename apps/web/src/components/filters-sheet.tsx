@@ -128,7 +128,7 @@ export function FiltersSheet({
           >
             <SheetHeader className="border-b p-6 pe-12">
               <SheetTitle>{t('ops.search.filtersTitle')}</SheetTitle>
-              <SheetDescription>{t('ops.search.filtersDesc')}</SheetDescription>
+              <SheetDescription>{t('ops.search.filtersDescTopBar')}</SheetDescription>
             </SheetHeader>
 
             <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-6">
@@ -281,13 +281,6 @@ export function useFilterFields() {
         label: t('ops.tbl.status'),
         anyLabel: t('ops.search.anyStatus'),
         options: codes.map((c) => ({ value: c, label: label ? label(c) : t(`ops.status.${c}`) })),
-      }),
-      location: (locations: Array<{ code: string; name: string }>): FilterField => ({
-        type: 'select',
-        name: 'location',
-        label: t('ops.search.location'),
-        anyLabel: t('ops.search.anyLocation'),
-        options: locations.map((l) => ({ value: l.code, label: `${l.name} (${l.code})` })),
       }),
       dates: (labels?: { from: string; to: string }): FilterField => ({
         type: 'dateRange',

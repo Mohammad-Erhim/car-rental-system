@@ -9,6 +9,7 @@ import { SelectField, TextField } from '@/components/form-fields';
 import { FormSheet } from '@/components/form-sheet';
 import { MediaPickerField } from '@/components/media-picker';
 import { FormItem, FormLabel } from '@/components/ui/form';
+import { useSelectedLocations } from '@/lib/location-scope';
 import {
   useCreateUnit,
   useOpsCategories,
@@ -55,9 +56,18 @@ export function UnitSheet({
     [t, editing],
   );
   type Values = z.infer<typeof schema>;
+  // a new car starts where the person is already looking: the one branch picked in the top bar, or
+  // the only branch they work at
+  const selected = useSelectedLocations();
+  const suggested =
+    selected.length === 1 && locations.some((l) => l.code === selected[0])
+      ? selected[0]!
+      : locations.length === 1
+        ? locations[0]!.code
+        : '';
   const defaults: Values = {
     categoryCode: unit?.categoryCode ?? '',
-    locationCode: unit?.currentLocationCode ?? '',
+    locationCode: unit?.currentLocationCode ?? suggested,
     plate: unit?.plate ?? '',
     vin: unit?.vin ?? '',
     year: unit?.year ?? '',

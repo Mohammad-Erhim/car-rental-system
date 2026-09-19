@@ -10,6 +10,7 @@ import { DataTable } from '@/components/data-table/data-table';
 import { StateView } from '@/components/state-view';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { useLocationScope } from '@/lib/location-scope';
 import { useFleetBlocks, type FleetBlock } from '@/lib/ops-discovery-hooks';
 
 const getRowId = (b: FleetBlock) => b.id;
@@ -19,7 +20,8 @@ export function HoldsTable({ onRelease }: { onRelease: (block: FleetBlock) => vo
   const { t, fmt } = useI18n();
   const { hasPermission } = useAuth();
   const canManage = hasPermission('fleet.manage');
-  const blocks = useFleetBlocks('active');
+  const { codes: locationCode } = useLocationScope();
+  const blocks = useFleetBlocks('active', locationCode);
   const kindLabel = useBlockKindLabel();
 
   const columns = useMemo<ColumnDef<FleetBlock, unknown>[]>(

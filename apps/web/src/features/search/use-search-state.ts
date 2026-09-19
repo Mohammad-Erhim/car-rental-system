@@ -6,7 +6,7 @@ export { PAGE_SIZES, DEFAULT_PAGE_SIZE } from '@/lib/use-list-params';
 
 export type SearchKind = '' | 'reservation' | 'rental';
 
-const KEYS = ['q', 'kind', 'status', 'location', 'from', 'to'] as const;
+const KEYS = ['q', 'kind', 'status', 'from', 'to'] as const;
 type Key = (typeof KEYS)[number];
 
 /** Everything the search screen shows is derived from this — and it all lives in the URL. */
@@ -26,6 +26,6 @@ export function useSearchState() {
 }
 
 /** How many of the secondary filters (the ones behind the Filters sheet) are set. */
-export function activeFilterCount(s: Pick<SearchState, 'status' | 'location' | 'from' | 'to'>) {
-  return [s.status, s.location, s.from, s.to].filter(Boolean).length;
+export function activeFilterCount(s: Pick<SearchState, 'status' | 'from' | 'to'>) {
+  return [s.status, s.from, s.to].filter(Boolean).length;
 }

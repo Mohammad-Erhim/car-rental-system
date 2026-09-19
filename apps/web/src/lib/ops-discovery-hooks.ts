@@ -92,11 +92,15 @@ export interface FleetBlock {
 
 const FLEET_KEYS = { units: ['ops', 'fleet-units'], blocks: ['ops', 'fleet-blocks'] };
 
-export function useFleetBlocks(status: 'active' | 'released' = 'active') {
+/** `locationCode` is the top-bar location filter (CSV); omit for all of the actor's locations. */
+export function useFleetBlocks(status: 'active' | 'released' = 'active', locationCode?: string) {
   return useQuery({
-    queryKey: [...FLEET_KEYS.blocks, status],
+    queryKey: [...FLEET_KEYS.blocks, status, locationCode ?? null],
     queryFn: ({ signal }) =>
-      apiFetch<FleetBlock[]>(`/ops/fleet/blocks?status=${status}`, { signal }),
+      apiFetch<FleetBlock[]>(
+        `/ops/fleet/blocks?status=${status}${locationCode ? `&locationCode=${encodeURIComponent(locationCode)}` : ''}`,
+        { signal },
+      ),
   });
 }
 

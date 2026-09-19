@@ -3,14 +3,18 @@ import { and, asc, eq, gte, inArray, or, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
+import { assertLocationAccess } from '../../common/auth/location-scope';
 import type { Actor } from '../../common/auth/types';
 import { CacheBus } from '../../common/cache/cache-bus';
 import { isUniqueViolation } from '../../common/db-error';
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
-import { vehicleCategory } from '../../database/schema/catalogue';
+import { product, vehicleCategory } from '../../database/schema/catalogue';
+import { vehicleUnit } from '../../database/schema/fleet';
+import { staffProfile } from '../../database/schema/iam';
 import { location, locationHoursException, organization } from '../../database/schema/org';
+import { ratePlan } from '../../database/schema/pricing';
 import { rental } from '../../database/schema/rental';
 import { reservation } from '../../database/schema/reservation';
 
@@ -151,17 +155,46 @@ export class LocationAdminService {
   }
 
   /** Every location incl. draft/archived, for the ops editor. */
-  async list() {
+  /** Every location of the organisation; a location-scoped actor only sees their own branches. */
+  async list(actor?: Actor) {
     const org = await this.orgId();
     const rows = await this.db
       .select()
       .from(location)
       .where(eq(location.organizationId, org))
       .orderBy(asc(location.name));
-    return rows.map((r) => this.shape(r));
+    const scope = actor?.locationScope?.length ? actor.locationScope : null;
+    return rows.filter((r) => !scope || scope.includes(r.code)).map((r) => this.shape(r));
   }
 
-  async get(code: string) {
+  /**
+   * The locations the caller may pick from in a filter or a form — active AND archived (an
+   * archived branch still owns history), narrowed to the actor's own scope. Unlike the public
+   * `/config/locations`, this reflects the actor's scope as of THIS request, so a scope change
+   * made by an admin takes effect in the UI without waiting for the next sign-in refresh.
+   */
+  async options(actor: Actor) {
+    const org = await this.orgId();
+    const scope = actor.locationScope?.length ? actor.locationScope : null;
+    const rows = await this.db
+      .select({
+        id: location.id,
+        code: location.code,
+        name: location.name,
+        status: location.status,
+        timezone: location.timezone,
+      })
+      .from(location)
+      .where(eq(location.organizationId, org))
+      .orderBy(asc(location.name));
+    return {
+      restricted: scope !== null,
+      options: rows.filter((r) => !scope || scope.includes(r.code)),
+    };
+  }
+
+  async get(code: string, actor?: Actor) {
+    if (actor) assertLocationAccess(actor, code);
     const row = await this.load(code);
     const exceptions = await this.db
       .select()
@@ -210,12 +243,64 @@ export class LocationAdminService {
           or(eq(rental.pickupLocationCode, code), eq(rental.returnLocationCode, code)),
         ),
       );
-    return { code, futureReservations: res?.n ?? 0, openRentals: rent?.n ?? 0 };
+    // cars parked here, staff whose access is limited to it, and pricing/catalogue entries that
+    // only apply here would all be stranded (invisible in every filter) by archiving it
+    const [units] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(vehicleUnit)
+      .where(
+        and(eq(vehicleUnit.currentLocationId, row.id), sql`${vehicleUnit.state} <> 'retired'`),
+      );
+    const [staff] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(staffProfile)
+      .where(
+        and(
+          sql`${staffProfile.locationScope} ? ${code}`,
+          inArray(staffProfile.status, ['active', 'invited']),
+        ),
+      );
+    const [plans] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(ratePlan)
+      .where(
+        and(
+          eq(ratePlan.organizationId, row.organizationId),
+          eq(ratePlan.locationCode, code),
+          sql`${ratePlan.status} <> 'retired'`,
+        ),
+      );
+    const [products] = await this.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(product)
+      .where(
+        and(
+          eq(product.organizationId, row.organizationId),
+          eq(product.active, true),
+          sql`${product.locationScope} ? ${code}`,
+        ),
+      );
+    return {
+      code,
+      futureReservations: res?.n ?? 0,
+      openRentals: rent?.n ?? 0,
+      units: units?.n ?? 0,
+      staff: staff?.n ?? 0,
+      ratePlans: plans?.n ?? 0,
+      products: products?.n ?? 0,
+    };
   }
 
   /** anything that would be stranded by retiring this location. */
-  private impactTotal(i: { futureReservations: number; openRentals: number }): number {
-    return i.futureReservations + i.openRentals;
+  private impactTotal(i: {
+    futureReservations: number;
+    openRentals: number;
+    units: number;
+    staff: number;
+    ratePlans: number;
+    products: number;
+  }): number {
+    return i.futureReservations + i.openRentals + i.units + i.staff + i.ratePlans + i.products;
   }
 
   async upsert(actor: Actor, input: LocationInput) {
@@ -307,11 +392,15 @@ export class LocationAdminService {
       const impact = await this.impact(code);
       if (this.impactTotal(impact) > 0) {
         throw AppError.businessRule(
-          'This location still has upcoming reservations or cars due back — confirm to archive it',
+          'This location still has upcoming reservations, cars, staff or pricing tied to it — confirm to archive it',
           {
             reason: 'location_has_future_reservations',
             futureReservations: impact.futureReservations,
             openRentals: impact.openRentals,
+            units: impact.units,
+            staff: impact.staff,
+            ratePlans: impact.ratePlans,
+            products: impact.products,
           },
         );
       }

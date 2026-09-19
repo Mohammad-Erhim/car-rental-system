@@ -59,7 +59,17 @@ export function useListParams<K extends string>(filterKeys: readonly K[]) {
     [setParams],
   );
 
-  const reset = useCallback(() => setParams({}), [setParams]);
+  // clearing a page's filters must not drop the top-bar location choice that lives in the same URL
+  const reset = useCallback(
+    () =>
+      setParams((current) => {
+        const next = new URLSearchParams();
+        const location = current.get('location');
+        if (location) next.set('location', location);
+        return next;
+      }),
+    [setParams],
+  );
 
   return { state, update, reset };
 }

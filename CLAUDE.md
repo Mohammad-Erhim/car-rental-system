@@ -74,6 +74,11 @@ When you add a module: register it in `apps/api/src/app.module.ts` **and** in `A
   session's audience always equals the account kind (one email = one account = one kind), so a
   customer session can only ever belong to a customer account and vice versa — and
   `@RequireAudience('staff' | 'customer')` is available to assert it per controller.
+- A branch-aware list resolves its `locationCode` query (comma-separated, multi-select) through
+  `effectiveLocationCodes(actor, raw)` and guards a single record with `assertRecordInScope(...)` — a
+  rental/reservation belongs to its pickup AND return branch. An endpoint that covers the whole
+  organisation (settings, audit, payments config…) is marked `@OrgWide()`, which refuses accounts
+  limited to specific locations. See DEC-029.
 - `apps/api/test/route-manifest.spec.ts` snapshots the full method + path + guard table. If your
   change moves a route or drops a guard, that test fails — update the snapshot deliberately.
 

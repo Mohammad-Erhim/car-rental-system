@@ -13,6 +13,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useLocationAccess } from '@/lib/location-scope';
 import type { RentalBoardRow } from '@/lib/rental-hooks';
 
 /** What a board action opens. The page owns the modal; rows only ask for it. */
@@ -30,12 +31,16 @@ export function useRentalActions() {
   const canReturn = hasPermission('rental.return');
   const canIncident = hasPermission('rental.pickup', 'rental.return');
   const canReady = hasPermission('fleet.manage', 'rental.return');
+  // handing the keys over is the pickup branch's job, taking the car back the return branch's
+  const actsAt = useLocationAccess();
   return useMemo(
     () => ({
       primary: (r: RentalBoardRow): PrimaryAction | null =>
-        r.state === 'awaiting_pickup' && canPickup
+        r.state === 'awaiting_pickup' && canPickup && actsAt(r.pickupLocationCode)
           ? 'pickup'
-          : (r.state === 'active' || r.state === 'overdue') && canReturn
+          : (r.state === 'active' || r.state === 'overdue') &&
+              canReturn &&
+              actsAt(r.returnLocationCode)
             ? 'return'
             : r.state === 'closed' && !r.readinessOutcome && canReady
               ? 'readiness'
@@ -43,7 +48,7 @@ export function useRentalActions() {
       canIncident: (r: RentalBoardRow) =>
         canIncident && (r.state === 'active' || r.state === 'overdue'),
     }),
-    [canPickup, canReturn, canIncident, canReady],
+    [canPickup, canReturn, canIncident, canReady, actsAt],
   );
 }
 

@@ -10,24 +10,32 @@ import { CheckboxGroupField, TextField } from '@/components/form-fields';
 import { FormSection } from '@/components/form-section';
 import { FormSheet } from '@/components/form-sheet';
 import {
+  LocationScopeField,
+  scopeIssue,
+  scopeModeOf,
+  type ScopeMode,
+  type ScopeOption,
+} from '@/components/location-scope-field';
+import {
   useInviteStaff,
   useStaffAccessChange,
   useStaffRoles,
   type StaffRow,
 } from '@/lib/admin-hooks';
-import { useLocations } from '@/lib/discovery-hooks';
+import { useLocationScope } from '@/lib/location-scope';
 
 interface Values {
   fullName: string;
   email: string;
   roleCodes: string[];
   locationScope: string[];
+  scopeMode: ScopeMode;
 }
 
 /**
  * Invite a staff member (`staff` null), or change one's roles and location scope. Only an
  * administrator can grant the administrator role — shown locked here as a hint; the API enforces it.
- * No location selected means access to every location.
+ * "All locations" is an explicit choice, never an empty checklist.
  */
 export function StaffSheet({
   staff,
@@ -43,18 +51,24 @@ export function StaffSheet({
   const isAdmin = actor?.roleCodes.includes('administrator') ?? false;
   const editing = staff !== null;
   const roles = useStaffRoles();
-  const locations = useLocations();
+  const { options, restricted } = useLocationScope();
   const invite = useInviteStaff();
   const change = useStaffAccessChange();
 
   const schema = useMemo(
     () =>
-      z.object({
-        fullName: editing ? z.string() : z.string().trim().min(1, t('error.field.required')),
-        email: editing ? z.string() : z.string().trim().email(t('ops.loc.emailInvalid')),
-        roleCodes: z.array(z.string()).min(1, t('ops.staff.roleRequired')),
-        locationScope: z.array(z.string()),
-      }),
+      z
+        .object({
+          fullName: editing ? z.string() : z.string().trim().min(1, t('error.field.required')),
+          email: editing ? z.string() : z.string().trim().email(t('ops.loc.emailInvalid')),
+          roleCodes: z.array(z.string()).min(1, t('ops.staff.roleRequired')),
+          locationScope: z.array(z.string()),
+          scopeMode: z.enum(['all', 'specific']),
+        })
+        .refine((v) => !scopeIssue(v.scopeMode, v.locationScope), {
+          path: ['locationScope'],
+          message: t('ops.scope.pickOne'),
+        }),
     [t, editing],
   );
   const defaults: Values = {
@@ -62,7 +76,22 @@ export function StaffSheet({
     email: staff?.email ?? '',
     roleCodes: staff?.roleCodes ?? ['rental_agent'],
     locationScope: staff?.locationScope ?? [],
+    scopeMode: scopeModeOf(staff?.locationScope ?? []),
   };
+  // what the person granting access may grant: their own locations (an org-wide granter: all of
+  // them), plus any archived branch already in this member's scope so it can be taken off
+  const scopeOptions = useMemo(() => {
+    const base: ScopeOption[] = options
+      .filter((o) => o.status === 'active')
+      .map((o) => ({ value: o.code, label: o.name }));
+    for (const code of staff?.locationScope ?? []) {
+      if (!base.some((b) => b.value === code)) {
+        const o = options.find((x) => x.code === code);
+        base.push({ value: code, label: o?.name ?? code, archived: true });
+      }
+    }
+    return base;
+  }, [options, staff?.locationScope]);
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: defaults });
 
   return (
@@ -80,7 +109,10 @@ export function StaffSheet({
         if (editing) {
           await change.mutateAsync({
             accountId: staff.accountId,
-            body: { roleCodes: v.roleCodes, locationScope: v.locationScope },
+            body: {
+              roleCodes: v.roleCodes,
+              locationScope: v.scopeMode === 'all' ? [] : v.locationScope,
+            },
             successKey: 'ops.staff.changeSaved',
           });
           toast.success(t('ops.staff.changeSaved'));
@@ -89,7 +121,7 @@ export function StaffSheet({
             email: v.email.trim(),
             fullName: v.fullName.trim(),
             roleCodes: v.roleCodes,
-            locationScope: v.locationScope,
+            locationScope: v.scopeMode === 'all' ? [] : v.locationScope,
           });
           toast.success(t('ops.staff.inviteSent'), { description: t('ops.staff.inviteSentBody') });
         }
@@ -127,13 +159,18 @@ export function StaffSheet({
           testId="staff-roles"
         />
       </FormSection>
-      <FormSection title={t('ops.staff.locationScope')} hint={t('ops.staff.scopeExplain')}>
-        <CheckboxGroupField
+      <FormSection title={t('ops.staff.locationScope')} hint={t('ops.staff.scopeIntro')}>
+        <LocationScopeField
           control={form.control}
           name="locationScope"
+          modeName="scopeMode"
           label={t('ops.staff.locationScope')}
-          emptyLabel={t('ops.staff.scopeAllHint')}
-          options={(locations.data ?? []).map((l) => ({ value: l.code, label: l.name }))}
+          restricted={restricted}
+          allLabel={t('ops.staff.scopeAll')}
+          allHint={t('ops.staff.scopeAllHelp')}
+          specificLabel={t('ops.staff.scopeSpecific')}
+          specificHint={t('ops.staff.scopeSpecificHint')}
+          options={scopeOptions}
           testId="staff-scope"
         />
       </FormSection>

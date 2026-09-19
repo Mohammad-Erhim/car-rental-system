@@ -16,14 +16,6 @@ export const parseRecipients = (raw: string) =>
 export const recipientsValid = (list: string[]) =>
   list.length > 0 && list.every((r) => EMAIL.test(r));
 
-/**
- * Report kinds keyed by pickup location. Only these narrow to the selected location; the others
- * ignore it server-side, so the pre-run hint may only promise narrowing for these (the scope
- * actually used is always shown after the fact on the result).
- * Keep in sync with `LOCATION_KEYED_REPORTS` in report.service.ts.
- */
-export const LOCATION_KEYED_REPORTS = new Set(['reservations_by_state', 'revenue_by_category']);
-
 /** Trigger a browser download of CSV text. */
 export function downloadCsv(runId: string, text: string) {
   const url = URL.createObjectURL(new Blob([text], { type: 'text/csv' }));

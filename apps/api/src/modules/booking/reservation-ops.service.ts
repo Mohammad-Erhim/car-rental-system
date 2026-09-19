@@ -1,9 +1,9 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
-import { assertLocationAccess } from '../../common/auth/location-scope';
+import { assertRecordInScope, effectiveLocationCodes } from '../../common/auth/location-scope';
 import type { Actor } from '../../common/auth/types';
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { ENV } from '../../config/config.module';
@@ -67,16 +67,17 @@ export class ReservationOpsService {
   }
 
   private assertOwnerOrStaff(
-    row: { accountId: string | null; pickupLocationCode?: string },
+    row: { accountId: string | null; pickupLocationCode?: string; returnLocationCode?: string },
     actor: Actor,
   ) {
     if (actor.kind === 'staff') {
-      // a location-scoped staffer can only touch reservations for their pickup locations
-      // (FR-RPT-004) — the same boundary the queue and reports apply.
-      const scope = actor.locationScope ?? [];
-      if (scope.length && row.pickupLocationCode && !scope.includes(row.pickupLocationCode)) {
-        throw AppError.forbidden('This reservation is outside your assigned locations');
-      }
+      // a location-scoped staffer touches reservations at either end of the trip (FR-RPT-004) —
+      // the same boundary the queue and reports apply.
+      assertRecordInScope(
+        actor,
+        { pickup: row.pickupLocationCode, return: row.returnLocationCode },
+        'This reservation is outside your assigned locations',
+      );
       return;
     }
     if (row.accountId && row.accountId === actor.accountId) return;
@@ -126,32 +127,34 @@ export class ReservationOpsService {
       throw AppError.validation([{ path: 'pageSize', code: 'out_of_range' }]);
     }
 
-    // a location outside the actor's own scope is a 403, not a silently-empty result (SRS-SEC-007)
-    assertLocationAccess(actor, filter.locationCode);
-    const scope = actor.locationScope?.length ? actor.locationScope : null;
+    // `locationCode` may be a comma-separated list (the top-bar filter is multi-select); a code
+    // outside the actor's own scope is a 403, not a silently-empty result (SRS-SEC-007)
+    const codes = effectiveLocationCodes(actor, filter.locationCode);
     const noRental = sql`not exists (select 1 from rental r where r.reservation_reference = ${reservation.reference})`;
 
-    // location boundary shared by the list and the queue badge
-    const scopeWhere: Array<ReturnType<typeof eq>> = [];
-    if (filter.locationCode) {
-      scopeWhere.push(eq(reservation.pickupLocationCode, filter.locationCode));
-    } else if (scope) {
-      scopeWhere.push(inArray(reservation.pickupLocationCode, scope));
-    }
-    const queueWhere = and(...scopeWhere, eq(reservation.state, 'confirmed'), noRental);
+    // The work queue is the pickup branch's job (assign a car before the customer arrives). The
+    // browsable list also shows a one-way booking to the branch it is returned to.
+    const atPickup = codes ? inArray(reservation.pickupLocationCode, codes) : undefined;
+    const atEitherEnd = codes
+      ? or(
+          inArray(reservation.pickupLocationCode, codes),
+          inArray(reservation.returnLocationCode, codes),
+        )
+      : undefined;
+    const queueWhere = and(atPickup, eq(reservation.state, 'confirmed'), noRental);
 
-    const where: Array<ReturnType<typeof eq> | typeof noRental> = [...scopeWhere];
+    const where: Array<SQL | undefined> = [];
     if (filter.view === 'queue') {
-      where.push(eq(reservation.state, 'confirmed'));
-      where.push(noRental);
-    } else if (filter.state) {
-      where.push(eq(reservation.state, filter.state));
+      where.push(atPickup, eq(reservation.state, 'confirmed'), noRental);
+    } else {
+      where.push(atEitherEnd);
+      if (filter.state) where.push(eq(reservation.state, filter.state));
     }
     const from = this.parseDate(filter.from, 'from');
     const to = this.parseDate(filter.to, 'to');
     if (from) where.push(gte(reservation.pickupAt, from.toISOString()));
     if (to) where.push(lte(reservation.pickupAt, to.toISOString()));
-    const whereSql = where.length ? and(...where) : sql`true`;
+    const whereSql = and(...where) ?? sql`true`;
 
     const [[countRow], [queueRow]] = await Promise.all([
       this.db

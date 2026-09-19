@@ -3,7 +3,7 @@ import { Body, Controller, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentActor } from '../../common/auth/auth.guard';
-import { Permissions } from '../../common/auth/permissions.guard';
+import { OrgWide, Permissions } from '../../common/auth/permissions.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 
@@ -11,6 +11,7 @@ import { BrandAssetService } from './brand-asset.service';
 
 /** DEC-025 — brand image uploads (logo / favicon / OG) that the theme config references. */
 @ApiTags('config')
+@OrgWide()
 @Controller({ path: 'config', version: '1' })
 export class BrandingController {
   constructor(private readonly brandAssets: BrandAssetService) {}

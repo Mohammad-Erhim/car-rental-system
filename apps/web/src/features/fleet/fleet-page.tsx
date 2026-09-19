@@ -1,7 +1,7 @@
 import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import { CarFront, FileUp, Loader2, Plus, Search, SlidersHorizontal, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { UnitCard, useUnitColumns, useUnitStateLabel } from './fleet-columns';
 import { BlockDialog, RetireDialog, ReleaseDialog, TransferDialog } from './fleet-dialogs';
@@ -11,7 +11,8 @@ import { UnitSheet } from './unit-sheet';
 
 import { CountPills } from '@/components/count-pills';
 import { DataTable } from '@/components/data-table/data-table';
-import { FiltersSheet, useFilterFields } from '@/components/filters-sheet';
+import { FiltersSheet } from '@/components/filters-sheet';
+import { ListError } from '@/components/list-error';
 import { Page, PageHeader } from '@/components/page-header';
 import { StateSwitcher } from '@/components/state-switcher';
 import { StateView } from '@/components/state-view';
@@ -30,7 +31,7 @@ import {
 import { PAGE_SIZES, useListParams } from '@/lib/use-list-params';
 import { useSearchBox } from '@/lib/use-search-box';
 
-const FILTERS = ['view', 'q', 'state', 'location', 'category'] as const;
+const FILTERS = ['view', 'q', 'state', 'category'] as const;
 const UNIT_STATES = ['available', 'on_rent', 'prep', 'maintenance', 'out_of_service', 'retired'];
 const getRowId = (u: OpsUnit) => u.id;
 
@@ -51,28 +52,23 @@ export function FleetPage() {
   const { hasPermission } = useAuth();
   const canManage = hasPermission('fleet.manage');
   const stateLabel = useUnitStateLabel();
-  const fieldOf = useFilterFields();
   const { state, update, reset } = useListParams(FILTERS);
   const view = state.view === 'holds' ? 'holds' : 'vehicles';
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [modal, setModal] = useState<Modal | null>(null);
 
-  // seed the location filter from the global switcher on first load only
-  const { selected: globalLocation, options: locations } = useLocationScope();
-  const seeded = useRef(false);
-  useEffect(() => {
-    if (seeded.current) return;
-    seeded.current = true;
-    if (!state.location && globalLocation) update({ location: globalLocation });
-  }, []);
+  // which branches — the top-bar filter, the single source (`?location=` in this URL). Cars can
+  // only be added at an active branch the account may see.
+  const { codes: locationCode, options } = useLocationScope();
+  const createLocations = useMemo(() => options.filter((o) => o.status === 'active'), [options]);
 
   const search = useSearchBox(state.q, (q) => update({ q }));
   const categories = useOpsCategories();
-  const holds = useFleetBlocks('active');
+  const holds = useFleetBlocks('active', locationCode);
 
   const units = useOpsUnits(
     {
-      locationCode: state.location || undefined,
+      locationCode,
       categoryCode: state.category || undefined,
       state: state.state || undefined,
       q: state.q || undefined,
@@ -95,15 +91,9 @@ export function FleetPage() {
     setModal(action === 'edit' ? { kind: 'sheet', unit } : { kind: action, unit }),
   );
 
-  const filterCount = [state.location, state.category].filter(Boolean).length;
+  const filterCount = [state.category].filter(Boolean).length;
   const anyFilter = filterCount > 0 || !!state.q || !!state.state;
-  const chips: Array<{ key: 'location' | 'category'; label: string }> = [];
-  if (state.location) {
-    chips.push({
-      key: 'location',
-      label: locations.find((l) => l.code === state.location)?.name ?? state.location,
-    });
-  }
+  const chips: Array<{ key: 'category'; label: string }> = [];
   if (state.category) {
     chips.push({
       key: 'category',
@@ -275,13 +265,10 @@ export function FleetPage() {
             skeletonRows={Math.min(state.pageSize, 8)}
             error={
               units.isError ? (
-                <StateView
-                  kind="error"
+                <ListError
+                  error={units.error}
                   title={t('ops.fleet.loadFail')}
-                  description={t('state.failure.body')}
-                  actionLabel={t('ops.st.retry')}
-                  onAction={() => void units.refetch()}
-                  className="py-14"
+                  onRetry={() => void units.refetch()}
                 />
               ) : undefined
             }
@@ -324,7 +311,6 @@ export function FleetPage() {
         open={filtersOpen}
         onOpenChange={setFiltersOpen}
         fields={[
-          fieldOf.location(locations),
           {
             type: 'select',
             name: 'category',
@@ -333,12 +319,12 @@ export function FleetPage() {
             options: (categories.data ?? []).map((c) => ({ value: c.code, label: c.displayName })),
           },
         ]}
-        values={{ location: state.location, category: state.category }}
-        onApply={(v) => update({ location: v.location ?? '', category: v.category ?? '' })}
+        values={{ category: state.category }}
+        onApply={(v) => update({ category: v.category ?? '' })}
       />
 
       {modal?.kind === 'sheet' ? (
-        <UnitSheet unit={modal.unit} locations={locations} open onOpenChange={close} />
+        <UnitSheet unit={modal.unit} locations={createLocations} open onOpenChange={close} />
       ) : null}
       {modal?.kind === 'block' ? (
         <BlockDialog

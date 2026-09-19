@@ -30,6 +30,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { ApiError } from '@/lib/api';
 import { useOpsInvoices } from '@/lib/invoice-hooks';
+import { useLocationAccess } from '@/lib/location-scope';
 import { useReservationDetail, useReservationHistory } from '@/lib/reservation-hooks';
 
 type Dialog = 'assign' | 'noShow' | 'cancel' | 'refund' | null;
@@ -97,10 +98,12 @@ export function ReservationDetailPage() {
   const canModify = hasPermission('reservation.modify');
   const canCancel = hasPermission('reservation.cancel', 'reservation.modify');
   const canAssign = hasPermission('rental.pickup', 'fleet.manage');
+  const actsAt = useLocationAccess();
   const canRefund = hasPermission('payment.refund');
   const refundableMinor = d.paidMinor - d.refundedMinor;
 
-  const showAssign = canAssign && d.state === 'confirmed' && !d.assignedRentalRef;
+  const showAssign =
+    canAssign && d.state === 'confirmed' && !d.assignedRentalRef && actsAt(d.pickupLocationCode);
   const showNoShow = canModify && d.state === 'confirmed';
   const showCancel = canCancel && d.cancellable;
   const showRefund = canRefund && refundableMinor > 0;

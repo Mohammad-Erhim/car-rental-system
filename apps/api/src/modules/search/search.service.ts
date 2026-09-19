@@ -3,7 +3,7 @@ import { and, desc, eq, gte, ilike, inArray, lte, or, sql, type SQL } from 'driz
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
-import { assertLocationAccess } from '../../common/auth/location-scope';
+import { effectiveLocationCodes } from '../../common/auth/location-scope';
 import type { Actor } from '../../common/auth/types';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
@@ -102,9 +102,11 @@ export class SearchService {
     const window = page * pageSize;
     const from = this.parseDate(params.from, 'from');
     const to = this.parseDate(params.to, 'to');
-    // a location outside the actor's own scope is a 403, not a silently-empty result (SRS-SEC-007)
-    assertLocationAccess(actor, params.locationCode);
-    const scope = this.scopeCodes(actor);
+    // `locationCode` may be a comma-separated list (top-bar filter); a code outside the actor's own
+    // scope is a 403, not a silently-empty result (SRS-SEC-007). A booking belongs to both its
+    // pickup and its return branch.
+    const scope = effectiveLocationCodes(actor, params.locationCode);
+    const actorScoped = this.scopeCodes(actor) !== null;
 
     const wantReservations = canReservations && params.kind !== 'rental';
     const wantRentals = canRentals && params.kind !== 'reservation';
@@ -142,7 +144,7 @@ export class SearchService {
         to: params.to ?? null,
         page,
         total,
-        locationScoped: !!scope,
+        locationScoped: actorScoped,
       },
     });
 
@@ -194,8 +196,14 @@ export class SearchService {
   ): Promise<{ hits: SearchHit[]; total: number }> {
     const where: SQL[] = [];
     if (params.status) where.push(eq(reservation.state, params.status));
-    if (params.locationCode) where.push(eq(reservation.pickupLocationCode, params.locationCode));
-    if (scope) where.push(inArray(reservation.pickupLocationCode, scope));
+    if (scope) {
+      where.push(
+        or(
+          inArray(reservation.pickupLocationCode, scope),
+          inArray(reservation.returnLocationCode, scope),
+        )!,
+      );
+    }
     if (from) where.push(gte(reservation.pickupAt, from.toISOString()));
     if (to) where.push(lte(reservation.pickupAt, to.toISOString()));
     if (q) {
@@ -274,8 +282,11 @@ export class SearchService {
   ): Promise<{ hits: SearchHit[]; total: number }> {
     const where: SQL[] = [];
     if (params.status) where.push(eq(rental.state, params.status));
-    if (params.locationCode) where.push(eq(rental.pickupLocationCode, params.locationCode));
-    if (scope) where.push(inArray(rental.pickupLocationCode, scope));
+    if (scope) {
+      where.push(
+        or(inArray(rental.pickupLocationCode, scope), inArray(rental.returnLocationCode, scope))!,
+      );
+    }
     if (from) where.push(gte(rental.scheduledPickupAt, from.toISOString()));
     if (to) where.push(lte(rental.scheduledPickupAt, to.toISOString()));
     if (q) {

@@ -42,7 +42,7 @@ import {
   useStaffRoles,
   type StaffRow,
 } from '@/lib/admin-hooks';
-import { useLocations } from '@/lib/discovery-hooks';
+import { useLocationScope } from '@/lib/location-scope';
 import { useClientPage } from '@/lib/use-client-page';
 import { useListParams } from '@/lib/use-list-params';
 import { useSearchBox } from '@/lib/use-search-box';
@@ -74,13 +74,12 @@ export function StaffPage() {
 
   const staff = useStaffList();
   const roles = useStaffRoles();
-  const locations = useLocations();
+  const { nameOf: locationName } = useLocationScope();
   const resend = useResendStaffInvite();
   const access = useStaffAccessChange();
   const all = useMemo(() => staff.data ?? [], [staff.data]);
 
   const roleName = (code: string) => roles.data?.roles.find((r) => r.code === code)?.name ?? code;
-  const locationName = (code: string) => locations.data?.find((l) => l.code === code)?.name ?? code;
 
   const q = state.q.toLowerCase();
   const searched = useMemo(
@@ -236,7 +235,7 @@ export function StaffPage() {
       },
     ],
 
-    [t, roles.data, locations.data],
+    [t, roles.data, locationName],
   );
 
   const close = (o: boolean) => {

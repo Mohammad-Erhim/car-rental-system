@@ -8,6 +8,7 @@ import { Link } from 'react-router-dom';
 import { paths } from '@/app/paths';
 import { StatusBadge } from '@/components/status-badge';
 import { Button } from '@/components/ui/button';
+import { useLocationAccess } from '@/lib/location-scope';
 import type { OpsReservationRow } from '@/lib/reservation-hooks';
 
 const carName = (u: { make: string | null; model: string | null }) =>
@@ -19,11 +20,16 @@ export function useReservationRow() {
   const { hasPermission } = useAuth();
   // mirrors the detail page's identical check for the same assign action
   const canAssign = hasPermission('rental.pickup', 'fleet.manage');
+  // assigning a car is the pickup branch's job — a one-way booking listed at its return branch is view-only
+  const actsAt = useLocationAccess();
   return useMemo(
     () => ({
       canAssign,
       needsVehicle: (r: OpsReservationRow) =>
-        r.state === 'confirmed' && !r.assignedRentalRef && canAssign,
+        r.state === 'confirmed' &&
+        !r.assignedRentalRef &&
+        canAssign &&
+        actsAt(r.pickupLocationCode),
       money: (r: OpsReservationRow, minor: number) =>
         fmt.money({ amountMinor: minor, currency: r.currency }),
       locations: (r: OpsReservationRow) =>
@@ -34,7 +40,7 @@ export function useReservationRow() {
       picked: (r: OpsReservationRow) =>
         r.pickedUnit ? t('ops.queue.picked', { car: carName(r.pickedUnit) }) : null,
     }),
-    [fmt, t, canAssign],
+    [fmt, t, canAssign, actsAt],
   );
 }
 

@@ -31,7 +31,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-import { paths } from '@/app/paths';
+import { isOrgWidePath, paths } from '@/app/paths';
 
 /**
  * The dashboard's navigation, as data. One source for the sidebar, the command palette and the
@@ -235,6 +235,8 @@ export const NAV_GROUPS: NavGroup[] = [
 export function visibleNavGroups(
   hasPermission: (...permissions: string[]) => boolean,
   groups: NavGroup[] = NAV_GROUPS,
+  /** an account limited to specific locations never sees the organisation-wide areas */
+  restricted = false,
 ): NavGroup[] {
   const keep = (items: NavItem[]): NavItem[] =>
     items.flatMap((it) => {
@@ -242,6 +244,7 @@ export function visibleNavGroups(
       // a folder (no page of its own) is shown only while something inside it is
       if (!it.to) return children?.length ? [{ ...it, children }] : [];
       if (it.anyOf && !hasPermission(...it.anyOf)) return [];
+      if (restricted && isOrgWidePath(it.to)) return [];
       return [{ ...it, ...(children ? { children } : {}) }];
     });
   return groups.map((g) => ({ ...g, items: keep(g.items) })).filter((g) => g.items.length > 0);

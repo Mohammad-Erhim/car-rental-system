@@ -21,7 +21,7 @@ import { LookupSelect } from '@/components/lookup-select';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { useLocations } from '@/lib/discovery-hooks';
+import { useLocationScope } from '@/lib/location-scope';
 import { useOpsCategories, useSaveRatePlan, type RatePlan } from '@/lib/ops-discovery-hooks';
 
 const decimal = /^\d+(\.\d{1,2})?$/;
@@ -47,9 +47,24 @@ export function PlanSheet({
 }) {
   const { t } = useI18n();
   const categories = useOpsCategories();
-  const locations = useLocations();
+  const { options: locationOptions, restricted } = useLocationScope();
   const save = useSaveRatePlan();
   const editing = plan !== null;
+  // active branches the account may price, plus the plan's own branch if it has since been archived
+  const scopeChoices = useMemo(() => {
+    const list = locationOptions
+      .filter((o) => o.status === 'active')
+      .map((o) => ({ value: o.code, label: `${o.name} (${o.code})` }));
+    const own = plan?.locationCode;
+    if (own && !list.some((l) => l.value === own)) {
+      const o = locationOptions.find((x) => x.code === own);
+      list.push({
+        value: own,
+        label: `${o?.name ?? own} (${own}) · ${t('ops.locFilter.archivedTag')}`,
+      });
+    }
+    return list;
+  }, [locationOptions, plan?.locationCode, t]);
 
   const schema = useMemo(() => {
     const req = t('error.field.required');
@@ -58,7 +73,8 @@ export function PlanSheet({
       .object({
         categoryCode: z.string().min(1, req),
         name: z.string().trim().min(1, req),
-        scope: z.string(),
+        // a restricted account can only price its own branches — an org-wide plan is not theirs to set
+        scope: restricted ? z.string().min(1, req) : z.string(),
         currency: z.string().min(1, req),
         effectiveFrom: z.string().min(1, req),
         effectiveTo: z.string(),
@@ -193,11 +209,8 @@ export function PlanSheet({
             control={form.control}
             name="scope"
             label={t('ops.rp.scope')}
-            noneLabel={t('ops.rp.allLocations')}
-            options={(locations.data ?? []).map((l) => ({
-              value: l.code,
-              label: `${l.name} (${l.code})`,
-            }))}
+            noneLabel={restricted ? undefined : t('ops.rp.allLocations')}
+            options={scopeChoices}
           />
           <FormField
             control={form.control}

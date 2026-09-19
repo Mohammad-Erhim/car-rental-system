@@ -3,7 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 
 import { CurrentActor } from '../../common/auth/auth.guard';
-import { Permissions } from '../../common/auth/permissions.guard';
+import { OrgWide, Permissions } from '../../common/auth/permissions.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 
@@ -107,6 +107,7 @@ export class CustomerController {
   // --- duplicate review + reversible merge (FR-ADM-001) ---
 
   @Post('customers/:id/merge')
+  @OrgWide()
   @Permissions('customer.manage')
   merge(
     @Param('id') id: string,
@@ -118,6 +119,7 @@ export class CustomerController {
   }
 
   @Post('customers/:id/unmerge')
+  @OrgWide()
   @Permissions('customer.manage')
   unmerge(@Param('id') id: string, @CurrentActor() actor: Actor) {
     return this.merges.unmerge(actor, id);
