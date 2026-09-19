@@ -1,3 +1,4 @@
+import { useTheme } from '@carrental/ui';
 import { Toaster as Sonner } from 'sonner';
 
 type ToasterProps = React.ComponentProps<typeof Sonner>;
@@ -7,8 +8,11 @@ type ToasterProps = React.ComponentProps<typeof Sonner>;
  * Fire toasts with `import { toast } from 'sonner'`.
  */
 function Toaster({ ...props }: ToasterProps) {
+  const { resolvedTheme } = useTheme();
+
   return (
     <Sonner
+      theme={resolvedTheme}
       className="toaster group"
       toastOptions={{
         classNames: {

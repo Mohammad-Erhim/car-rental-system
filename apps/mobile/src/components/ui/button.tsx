@@ -1,5 +1,12 @@
 import { forwardRef } from 'react';
-import { Pressable, StyleSheet, type PressableProps, type StyleProp, type View, type ViewStyle } from 'react-native';
+import {
+  Pressable,
+  StyleSheet,
+  type PressableProps,
+  type StyleProp,
+  type View,
+  type ViewStyle,
+} from 'react-native';
 
 import { useTheme } from '../../lib/theme/theme-provider';
 
@@ -25,7 +32,18 @@ const HEIGHT: Record<ButtonSize, number> = { sm: 36, md: 46, lg: 54 };
 const PAD_X: Record<ButtonSize, number> = { sm: 12, md: 16, lg: 20 };
 
 export const Button = forwardRef<View, ButtonProps>(function Button(
-  { variant = 'primary', size = 'md', loading, fullWidth, icon, trailingIcon, children, disabled, style, ...props },
+  {
+    variant = 'primary',
+    size = 'md',
+    loading,
+    fullWidth,
+    icon,
+    trailingIcon,
+    children,
+    disabled,
+    style,
+    ...props
+  },
   ref,
 ) {
   const { colors, radius } = useTheme();
@@ -51,7 +69,7 @@ export const Button = forwardRef<View, ButtonProps>(function Button(
       ref={ref}
       accessibilityRole="button"
       accessibilityLabel={typeof children === 'string' ? children : undefined}
-      accessibilityState={{ disabled: isDisabled }}
+      accessibilityState={{ disabled: isDisabled, busy: !!loading }}
       disabled={isDisabled}
       style={({ pressed }) => [
         styles.base,
@@ -71,16 +89,11 @@ export const Button = forwardRef<View, ButtonProps>(function Button(
       {...props}
     >
       {loading ? (
-        <Spinner />
+        <Spinner color={palette.fg} />
       ) : (
         <>
           {icon}
-          <Text
-            variant="button"
-            style={{ color: palette.fg }}
-            numberOfLines={1}
-            accessible={false}
-          >
+          <Text variant="button" style={{ color: palette.fg }} numberOfLines={1} accessible={false}>
             {children}
           </Text>
           {trailingIcon}
