@@ -11,7 +11,7 @@ const chrome = { channel: 'chrome' as const, launchOptions: { args: ['--no-sandb
 
 export default defineConfig({
   testDir: './tests',
-  testMatch: /workflows\.spec\.ts/,
+  testMatch: new RegExp(process.env.E2E_MATCH ?? 'workflows\\.spec\\.ts'),
   outputDir: './test-results-workflows',
   fullyParallel: false,
   workers: 1,

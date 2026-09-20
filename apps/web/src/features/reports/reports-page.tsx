@@ -2,12 +2,22 @@ import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { CalendarClock, Download, FileBarChart, Play, Plus, Send } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
+import {
+  cellText,
+  columnLabel,
+  csvName,
+  isNumericColumn,
+  scopeText,
+  visibleColumns,
+} from './report-columns';
 import { downloadCsv } from './report-model';
+import { ReportRowCard } from './report-row-card';
 import { ScheduleDialog } from './schedule-dialog';
 
+import { ChoiceTabs } from '@/components/choice-tabs';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DataTable } from '@/components/data-table/data-table';
 import { Page, PageHeader } from '@/components/page-header';
@@ -16,13 +26,6 @@ import { StateSwitcher } from '@/components/state-switcher';
 import { StateView } from '@/components/state-view';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import {
   fetchReportCsv,
   useReportDefinitions,
@@ -34,6 +37,7 @@ import {
   type ReportRunSummary,
   type ReportSchedule,
 } from '@/lib/admin-hooks';
+import { humanize } from '@/lib/labels';
 import { useLocationScope } from '@/lib/location-scope';
 import { useClientPage } from '@/lib/use-client-page';
 import { useListParams } from '@/lib/use-list-params';
@@ -47,7 +51,8 @@ type Tab = (typeof TABS)[number];
  * result. A finished run can be exported as CSV; a report can be scheduled for recurring email.
  */
 export function ReportsPage() {
-  const { t, fmt } = useI18n();
+  const i18n = useI18n();
+  const { t, fmt } = i18n;
   const { hasPermission } = useAuth();
   const canSchedule = hasPermission('report.export');
   const { state, update } = useListParams(['tab'] as const);
@@ -59,7 +64,17 @@ export function ReportsPage() {
     nameOf,
   } = useLocationScope();
 
-  const defs = useReportDefinitions();
+  const defsQuery = useReportDefinitions();
+  // reports you can run first, branch-level ones before whole-organisation ones, then by name
+  const defs = useMemo(() => {
+    const list = [...(defsQuery.data ?? [])].sort(
+      (a, b) =>
+        Number(b.available) - Number(a.available) ||
+        Number(a.scope === 'org_wide') - Number(b.scope === 'org_wide') ||
+        a.title.localeCompare(b.title),
+    );
+    return { ...defsQuery, data: defsQuery.data ? list : undefined };
+  }, [defsQuery]);
   const runs = useReportRuns();
   const schedules = useReportSchedules();
   const run = useRunReport();
@@ -67,11 +82,18 @@ export function ReportsPage() {
 
   const [selected, setSelected] = useState('');
   const [result, setResult] = useState<ReportRunResult | null>(null);
+  const [ranAt, setRanAt] = useState<Date | null>(null);
+  const resultRef = useRef<HTMLElement>(null);
+  // the picker is tall; after a run, bring the answer into view
+  useEffect(() => {
+    if (ranAt) resultRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }, [ranAt]);
   const [runError, setRunError] = useState<string | null>(null);
   const [resultPage, setResultPage] = useState({ page: 1, pageSize: 25 });
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [sending, setSending] = useState<ReportSchedule | null>(null);
-  const code = selected || defs.data?.[0]?.code || '';
+  const titleOf = (c: string) => defs.data?.find((d) => d.code === c)?.title ?? humanize(c);
+  const code = selected || defs.data?.find((d) => d.available)?.code || defs.data?.[0]?.code || '';
   const def = defs.data?.find((d) => d.code === code);
 
   async function doRun() {
@@ -80,14 +102,15 @@ export function ReportsPage() {
       // narrows within the actor's own scope; a report that doesn't filter by location ignores it
       const r = await run.mutateAsync({ code, params: locationCode ? { locationCode } : {} });
       setResult(r);
+      setRanAt(new Date());
       setResultPage((p) => ({ ...p, page: 1 }));
     } catch (err) {
       setRunError(err instanceof Error ? err.message : t('ops.rpt.runFail'));
     }
   }
-  async function exportRun(runId: string) {
+  async function exportRun(runId: string, reportCode: string, on: Date) {
     try {
-      downloadCsv(runId, await fetchReportCsv(runId));
+      downloadCsv(csvName(reportCode, on), await fetchReportCsv(runId));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t('ops.rpt.exportFail'));
     }
@@ -95,21 +118,27 @@ export function ReportsPage() {
 
   // ---- result table: positional aggregate rows with a run-defined column set ----
   const cols = result
-    ? result.columns.length
-      ? result.columns
-      : Object.keys(result.rows[0] ?? {})
+    ? visibleColumns(
+        result.columns.length ? result.columns : Object.keys(result.rows[0] ?? {}),
+        result.rows,
+      )
     : [];
   const resultColumns = useMemo<ColumnDef<Record<string, unknown>, unknown>[]>(
     () =>
-      cols.map((c) => ({
-        id: c,
-        header: c,
-        cell: ({ row }) => (
-          <span className="font-mono text-xs">{String(row.original[c] ?? '')}</span>
-        ),
-      })),
-
-    [result],
+      cols.map((c) => {
+        const numeric = isNumericColumn(c, result?.rows ?? []);
+        return {
+          id: c,
+          header: columnLabel(i18n, c),
+          meta: { className: numeric ? 'text-end' : undefined },
+          cell: ({ row }) => (
+            <span className={numeric ? 'tabular-nums' : undefined}>
+              {cellText(i18n, c, row.original)}
+            </span>
+          ),
+        };
+      }),
+    [result, i18n.locale],
   );
   const resultRows = result?.rows ?? [];
   const resultOffset = (resultPage.page - 1) * resultPage.pageSize;
@@ -126,14 +155,16 @@ export function ReportsPage() {
       {
         id: 'report',
         header: t('ops.rpt.report'),
-        cell: ({ row: { original: r } }) => <span className="font-medium">{r.definitionCode}</span>,
+        cell: ({ row: { original: r } }) => (
+          <span className="font-medium">{titleOf(r.definitionCode)}</span>
+        ),
       },
       {
         id: 'scope',
         header: t('ops.rpt.scopeNote'),
         meta: { className: 'hidden md:table-cell' },
         cell: ({ row: { original: r } }) => (
-          <span className="text-muted-foreground">{r.scopeNote ?? '—'}</span>
+          <span className="text-muted-foreground">{scopeText(i18n, r.scopeNote, nameOf)}</span>
         ),
       },
       {
@@ -155,7 +186,11 @@ export function ReportsPage() {
         header: () => <span className="sr-only">{t('ops.resv.actions')}</span>,
         meta: { className: 'text-end' },
         cell: ({ row: { original: r } }) => (
-          <Button size="sm" variant="ghost" onClick={() => void exportRun(r.id)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => void exportRun(r.id, r.definitionCode, new Date(r.createdAt))}
+          >
             <Download aria-hidden="true" />
             {t('ops.rpt.export')}
           </Button>
@@ -163,7 +198,7 @@ export function ReportsPage() {
       },
     ],
 
-    [t, fmt],
+    [t, fmt, defs.data, nameOf],
   );
 
   // ---- schedules ----
@@ -180,7 +215,9 @@ export function ReportsPage() {
       {
         id: 'report',
         header: t('ops.rpt.report'),
-        cell: ({ row: { original: s } }) => <span className="font-medium">{s.definitionCode}</span>,
+        cell: ({ row: { original: s } }) => (
+          <span className="font-medium">{titleOf(s.definitionCode)}</span>
+        ),
       },
       {
         id: 'cron',
@@ -219,7 +256,7 @@ export function ReportsPage() {
       },
     ],
 
-    [t, canSchedule],
+    [t, canSchedule, defs.data],
   );
 
   const narrowing =
@@ -272,42 +309,39 @@ export function ReportsPage() {
               />
             ) : (
               <div className="space-y-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                  <div className="w-full space-y-1.5 sm:w-80">
-                    <span className="text-sm font-medium">{t('ops.rpt.report')}</span>
-                    <Select
-                      value={code}
-                      onValueChange={(v) => {
-                        setSelected(v);
-                        setResult(null);
-                      }}
-                    >
-                      <SelectTrigger data-testid="report-select" aria-label={t('ops.rpt.report')}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(defs.data ?? []).map((d) => (
-                          <SelectItem key={d.code} value={d.code} disabled={!d.available}>
-                            {d.title}
-                            {d.scope === 'org_wide' ? ` · ${t('ops.rpt.orgWideTag')}` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <Button
-                    onClick={() => void doRun()}
-                    loading={run.isPending}
-                    disabled={!code || def?.available === false}
-                    data-testid="report-run"
-                  >
-                    <Play aria-hidden="true" />
-                    {t('ops.rpt.runAction')}
-                  </Button>
-                </div>
-                {def?.description ? (
-                  <p className="text-sm text-muted-foreground">{def.description}</p>
-                ) : null}
+                <ChoiceTabs
+                  layout="list"
+                  className="sm:grid-cols-2"
+                  label={t('ops.rpt.report')}
+                  value={code}
+                  onChange={(v) => {
+                    setSelected(v);
+                    setResult(null);
+                  }}
+                  testIdPrefix="report-choice"
+                  options={(defs.data ?? []).map((d) => ({
+                    value: d.code,
+                    disabled: !d.available,
+                    label: (
+                      <span className="flex flex-wrap items-center gap-2">
+                        {d.title}
+                        {d.scope === 'org_wide' ? (
+                          <Badge variant="outline">{t('ops.rpt.orgWideTag')}</Badge>
+                        ) : null}
+                      </span>
+                    ),
+                    description: d.description,
+                  }))}
+                />
+                <Button
+                  onClick={() => void doRun()}
+                  loading={run.isPending}
+                  disabled={!code || def?.available === false}
+                  data-testid="report-run"
+                >
+                  <Play aria-hidden="true" />
+                  {def ? t('ops.rpt.runNamed', { name: def.title }) : t('ops.rpt.runAction')}
+                </Button>
                 {def?.scope === 'org_wide' ? (
                   <p className="text-xs text-muted-foreground" data-testid="report-org-wide">
                     {def.available ? t('ops.rpt.orgWideNote') : t('ops.rpt.orgWideBlocked')}
@@ -332,21 +366,27 @@ export function ReportsPage() {
           </SectionCard>
 
           {result ? (
-            <section data-testid="report-result" aria-label={result.title} className="space-y-3">
+            <section
+              ref={resultRef}
+              data-testid="report-result"
+              aria-label={result.title}
+              className="scroll-mt-20 space-y-3"
+            >
               <div className="flex flex-wrap items-center justify-between gap-2 px-1">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <h2 className="text-base font-semibold">{result.title}</h2>
                   <Badge variant="secondary" data-testid="report-scope-note">
-                    {result.scopeNote}
+                    {scopeText(i18n, result.scopeNote, nameOf)}
                   </Badge>
                   <span className="text-muted-foreground">
                     {t('ops.rpt.rows', { n: result.rowCount })}
+                    {ranAt ? ` · ${t('ops.rpt.ranAt', { when: fmt.dateTime(ranAt) })}` : ''}
                   </span>
                 </div>
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => void exportRun(result.runId)}
+                  onClick={() => void exportRun(result.runId, result.code, ranAt ?? new Date())}
                   data-testid="report-export"
                 >
                   <Download aria-hidden="true" />
@@ -357,6 +397,7 @@ export function ReportsPage() {
                 label={result.title}
                 columns={resultColumns}
                 data={resultSlice}
+                renderCard={(r) => <ReportRowCard row={r} columns={cols} rows={resultRows} />}
                 getRowId={(r) => String(r.__i)}
                 bodyTestId="report-rows"
                 empty={<StateView title={t('ops.rpt.noData')} className="py-10" />}

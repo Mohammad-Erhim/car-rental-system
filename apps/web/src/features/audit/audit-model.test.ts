@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { csvCell, PAGE, shownRange, toCsv, toQuery } from './audit-model';
+import { csvCell, PAGE, shortId, shownRange, toCsv, toQuery } from './audit-model';
 
 import type { AuditRow } from '@/lib/admin-hooks';
 
@@ -50,5 +50,10 @@ describe('audit-model', () => {
   it('derives the shown range from the pages behind', () => {
     expect(shownRange(0, 50)).toEqual({ from: 1, to: 50 });
     expect(shownRange(2, 7)).toEqual({ from: 2 * PAGE + 1, to: 2 * PAGE + 7 });
+  });
+
+  it('shortens a uuid but shows a readable key whole', () => {
+    expect(shortId('6dc218e4-1111-4222-8333-444455556666')).toBe('6dc218e4');
+    expect(shortId('data_quality_sweep')).toBe('data_quality_sweep');
   });
 });

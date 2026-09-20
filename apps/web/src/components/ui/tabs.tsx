@@ -23,9 +23,12 @@ TabsList.displayName = 'TabsList';
 const TabsTrigger = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof TabsPrimitive.Trigger>
+  // Tabs here switch what the page shows and are not paired with `TabsContent` panels, so the
+  // `aria-controls` Radix adds would name an element that does not exist (an invalid ARIA value).
 >(({ className, ...props }, ref) => (
   <TabsPrimitive.Trigger
     ref={ref}
+    aria-controls={undefined}
     className={cn(
       'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow',
       className,

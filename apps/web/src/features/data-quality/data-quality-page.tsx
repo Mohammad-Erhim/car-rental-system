@@ -130,7 +130,7 @@ export function DataQualityPage() {
         {t('ops.dq.checkFailed')}
       </Badge>
     ) : c.ok ? (
-      <Badge variant="success">{t('ops.dq.clear')}</Badge>
+      <Badge variant="success">{t('ops.dq.state.clear')}</Badge>
     ) : (
       <span className="font-semibold tabular-nums text-destructive">{c.count}</span>
     );
@@ -276,7 +276,7 @@ export function DataQualityPage() {
           testIdPrefix="dq-tab"
           options={[
             { value: 'issues', label: `${t('ops.dq.tabIssues')} (${count('issues')})` },
-            { value: 'clear', label: `${t('ops.dq.clear')} (${count('clear')})` },
+            { value: 'clear', label: `${t('ops.dq.state.clear')} (${count('clear')})` },
             { value: 'all', label: `${t('ops.rp.tabAll')} (${count('all')})` },
           ]}
         />

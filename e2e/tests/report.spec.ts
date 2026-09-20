@@ -88,8 +88,7 @@ test('SCREEN-OPS-035: run a report, see the scope, export CSV', async ({ page },
   await page.goto('/ops/reports');
   await expect(page.getByRole('heading', { name: 'Reports' })).toBeVisible();
 
-  await page.getByTestId('report-select').click();
-  await page.getByRole('option', { name: /utili[sz]ation/i }).click();
+  await page.getByTestId('report-choice-fleet_utilisation').click();
   await page.getByTestId('report-run').click();
 
   await expect(page.getByTestId('report-result')).toBeVisible();

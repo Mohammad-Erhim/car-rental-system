@@ -143,12 +143,15 @@ export class ReportService {
         const q = this.db
           .select({
             state: reservation.state,
+            currency: reservation.currency,
             count: sql<number>`count(*)::int`,
             totalMinor: sql<number>`coalesce(sum(${reservation.totalMinor}),0)::int`,
           })
           .from(reservation)
           .where(scope ? inArray(reservation.pickupLocationCode, scope) : sql`true`)
-          .groupBy(reservation.state);
+          // money is never added across currencies: one row per state and currency
+          .groupBy(reservation.state, reservation.currency)
+          .orderBy(sql`count(*) desc`, reservation.state);
         rows = (await q).map((r) => ({ ...r }));
         break;
       }
@@ -157,12 +160,14 @@ export class ReportService {
         const q = this.db
           .select({
             categoryCode: reservation.categoryCode,
+            currency: reservation.currency,
             reservations: sql<number>`count(*)::int`,
             revenueMinor: sql<number>`coalesce(sum(${reservation.totalMinor}),0)::int`,
           })
           .from(reservation)
           .where(scope ? and(earned, inArray(reservation.pickupLocationCode, scope)) : earned)
-          .groupBy(reservation.categoryCode);
+          .groupBy(reservation.categoryCode, reservation.currency)
+          .orderBy(sql`sum(${reservation.totalMinor}) desc`, reservation.categoryCode);
         rows = (await q).map((r) => ({ ...r }));
         break;
       }
@@ -176,13 +181,15 @@ export class ReportService {
               ? and(eq(vehicleUnit.organizationId, orgId), inArray(location.code, scope))
               : eq(vehicleUnit.organizationId, orgId),
           )
-          .groupBy(vehicleUnit.state);
+          .groupBy(vehicleUnit.state)
+          .orderBy(sql`count(*) desc`, vehicleUnit.state);
         rows = (await q).map((r) => ({ ...r }));
         break;
       }
       case 'refunds': {
-        const [r] = await this.db
+        const q = this.db
           .select({
+            currency: paymentIntent.currency,
             refundedMinor: sql<number>`coalesce(sum(${paymentIntent.refundedMinor}),0)::int`,
             intents: sql<number>`(count(*) filter (where ${paymentIntent.refundedMinor} > 0))::int`,
           })
@@ -195,8 +202,11 @@ export class ReportService {
                   inArray(reservation.pickupLocationCode, scope),
                 )
               : eq(paymentIntent.organizationId, orgId),
-          );
-        rows = [{ refundedMinor: r?.refundedMinor ?? 0, intents: r?.intents ?? 0 }];
+          )
+          .groupBy(paymentIntent.currency)
+          .orderBy(paymentIntent.currency);
+        // a currency with no refund at all is noise; an empty result reads "nothing refunded"
+        rows = (await q).filter((r) => r.intents > 0).map((r) => ({ ...r }));
         break;
       }
       case 'open_cases': {

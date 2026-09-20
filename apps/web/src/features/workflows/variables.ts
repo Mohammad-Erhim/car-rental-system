@@ -2,6 +2,8 @@ import type { I18nContextValue } from '@carrental/i18n/react';
 
 import type { RuleWords } from './builder/rule';
 
+import { labelFor } from '@/lib/labels';
+
 /**
  * How the request's variables ("amount", "hoursToPickup", …) are shown to people: a translated
  * label when we know the variable, else the key made readable ("reasonCode" → "Reason code"),
@@ -10,18 +12,8 @@ import type { RuleWords } from './builder/rule';
  */
 type Tr = Pick<I18nContextValue, 't' | 'resolvedLocaleFor'>;
 
-const humanize = (key: string): string => {
-  const words = key
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/[_.-]+/g, ' ')
-    .trim()
-    .toLowerCase();
-  return words.charAt(0).toUpperCase() + words.slice(1);
-};
-
-export function variableLabel({ t, resolvedLocaleFor }: Tr, key: string): string {
-  const k = `ops.wf.var.${key}`;
-  return resolvedLocaleFor(k) === null ? humanize(key) : t(k);
+export function variableLabel(i18n: Tr, key: string): string {
+  return labelFor(i18n, `ops.wf.var.${key}`, key);
 }
 
 /** Variables holding integer minor units of the request's `currency`. */

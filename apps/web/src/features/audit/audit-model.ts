@@ -58,3 +58,8 @@ export const shownRange = (pagesBehind: number, onPage: number) => ({
   from: pagesBehind * PAGE + 1,
   to: pagesBehind * PAGE + onPage,
 });
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** A record id in a table: the first 8 characters of a UUID are enough to recognise it; a readable key ("data_quality_sweep") is shown whole. */
+export const shortId = (id: string) => (UUID.test(id) ? id.slice(0, 8) : id);

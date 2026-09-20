@@ -43,7 +43,10 @@ describe('SubjectLink', () => {
         <SubjectLink type="rental" reference="RNT-2" />
       </>,
     );
-    expect(screen.getByRole('link', { name: 'RES-1' })).toHaveAttribute('href', '/reservations/RES-1');
+    expect(screen.getByRole('link', { name: 'RES-1' })).toHaveAttribute(
+      'href',
+      '/reservations/RES-1',
+    );
     expect(screen.getByRole('link', { name: 'RNT-2' })).toHaveAttribute('href', '/rentals/RNT-2');
   });
 

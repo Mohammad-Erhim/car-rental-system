@@ -726,7 +726,7 @@ const REPORT_DEFINITIONS: Array<{
     title: 'Reservations by state',
     description: 'Count and value of reservations grouped by their current state.',
     queryKind: 'reservations_by_state',
-    columns: ['state', 'count', 'totalMinor'],
+    columns: ['state', 'currency', 'count', 'totalMinor'],
     minPermission: 'report.read',
   },
   {
@@ -734,7 +734,7 @@ const REPORT_DEFINITIONS: Array<{
     title: 'Revenue by vehicle category',
     description: 'Confirmed + fulfilled reservation revenue per category.',
     queryKind: 'revenue_by_category',
-    columns: ['categoryCode', 'reservations', 'revenueMinor'],
+    columns: ['categoryCode', 'currency', 'reservations', 'revenueMinor'],
     minPermission: 'report.read',
   },
   {
@@ -748,9 +748,10 @@ const REPORT_DEFINITIONS: Array<{
   {
     code: 'refunds',
     title: 'Refunds summary',
-    description: 'Total refunded amount and the number of intents with a refund.',
+    description:
+      'Total refunded amount per currency and the number of payments that were refunded.',
     queryKind: 'refunds',
-    columns: ['refundedMinor', 'intents'],
+    columns: ['currency', 'refundedMinor', 'intents'],
     minPermission: 'report.read',
   },
   {

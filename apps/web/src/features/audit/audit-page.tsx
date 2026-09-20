@@ -5,7 +5,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 import { ActorSearch } from './actor-search';
-import { AuditDetailSheet, OUTCOME_TONE } from './audit-detail-sheet';
+import { AuditDetailSheet } from './audit-detail-sheet';
+import { actionLabel, OutcomeBadge, targetLabel } from './audit-labels';
 import {
   COMMON_ACTIONS,
   OUTCOMES,
@@ -14,6 +15,7 @@ import {
   SURFACES,
   toCsv,
   toQuery,
+  shortId,
 } from './audit-model';
 
 import { DataTable } from '@/components/data-table/data-table';
@@ -48,7 +50,8 @@ const getRowId = (r: AuditRow) => r.id;
  * "page 4" is not bookmarkable — the cursors are kept in component state.
  */
 export function AuditLogPage() {
-  const { t, fmt } = useI18n();
+  const i18n = useI18n();
+  const { t, fmt } = i18n;
   const { state, update } = useListParams(PARAMS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [detail, setDetail] = useState<AuditRow | null>(null);
@@ -79,7 +82,7 @@ export function AuditLogPage() {
   if (state.targetId)
     chips.push({
       key: 'targetId',
-      label: `${t('ops.audit.filterTargetId')}: ${state.targetId.slice(0, 8)}…`,
+      label: `${t('ops.audit.filterTargetId')}: ${shortId(state.targetId)}…`,
     });
   if (state.actorId) chips.push({ key: 'actorId', label: t('ops.audit.actorChip') });
   if (state.surface) chips.push({ key: 'surface', label: t(`ops.audit.surface.${state.surface}`) });
@@ -123,7 +126,12 @@ export function AuditLogPage() {
         id: 'action',
         header: t('ops.audit.hAction'),
         cell: ({ row: { original: r } }) => (
-          <span className="bidi-isolate font-mono text-xs">{r.action}</span>
+          <span className="block">
+            <span className="block font-medium">{actionLabel(i18n, r.action)}</span>
+            <span className="bidi-isolate block font-mono text-xs text-muted-foreground">
+              {r.action}
+            </span>
+          </span>
         ),
       },
       {
@@ -133,11 +141,11 @@ export function AuditLogPage() {
         cell: ({ row: { original: r } }) =>
           r.targetType ? (
             <span className="text-xs">
-              <bdi>{r.targetType}</bdi>
+              <bdi>{targetLabel(i18n, r.targetType)}</bdi>
               {r.targetId ? (
                 <>
                   {' '}
-                  <bdi className="text-muted-foreground">· {r.targetId.slice(0, 8)}</bdi>
+                  <bdi className="text-muted-foreground">· {shortId(r.targetId)}</bdi>
                 </>
               ) : null}
             </span>
@@ -148,9 +156,7 @@ export function AuditLogPage() {
       {
         id: 'outcome',
         header: t('ops.audit.hOutcome'),
-        cell: ({ row: { original: r } }) => (
-          <Badge variant={OUTCOME_TONE[r.outcome] ?? 'secondary'}>{r.outcome}</Badge>
-        ),
+        cell: ({ row: { original: r } }) => <OutcomeBadge outcome={r.outcome} />,
       },
     ],
     [t, fmt],
@@ -225,15 +231,16 @@ export function AuditLogPage() {
               data-action={r.action}
             >
               <span className="flex items-start justify-between gap-2">
-                <span className="bidi-isolate break-all font-mono text-xs font-medium">
-                  {r.action}
-                </span>
-                <Badge variant={OUTCOME_TONE[r.outcome] ?? 'secondary'}>{r.outcome}</Badge>
+                <span className="font-medium">{actionLabel(i18n, r.action)}</span>
+                <OutcomeBadge outcome={r.outcome} />
               </span>
               <span className="block text-sm">{r.actor}</span>
               <span className="block text-xs text-muted-foreground">
                 {fmt.dateTime(r.occurredAt)}
-                {r.targetType ? ` · ${r.targetType}` : ''}
+                {r.targetType ? ` · ${targetLabel(i18n, r.targetType)}` : ''}
+              </span>
+              <span className="bidi-isolate block break-all font-mono text-xs text-muted-foreground">
+                {r.action}
               </span>
             </button>
           )}

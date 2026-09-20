@@ -17,11 +17,11 @@ export const recipientsValid = (list: string[]) =>
   list.length > 0 && list.every((r) => EMAIL.test(r));
 
 /** Trigger a browser download of CSV text. */
-export function downloadCsv(runId: string, text: string) {
+export function downloadCsv(filename: string, text: string) {
   const url = URL.createObjectURL(new Blob([text], { type: 'text/csv' }));
   const a = document.createElement('a');
   a.href = url;
-  a.download = `report-${runId}.csv`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
 }

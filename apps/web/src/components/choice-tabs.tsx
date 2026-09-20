@@ -49,9 +49,7 @@ export function ChoiceTabs({
       disabled={disabled}
       orientation={layout === 'list' ? 'vertical' : 'horizontal'}
       className={cn(
-        layout === 'pills'
-          ? 'flex flex-wrap gap-1 rounded-lg bg-muted p-1'
-          : 'grid gap-2',
+        layout === 'pills' ? 'flex flex-wrap gap-1 rounded-lg bg-muted p-1' : 'grid gap-2',
         className,
       )}
     >

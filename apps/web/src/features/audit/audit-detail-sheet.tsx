@@ -1,7 +1,8 @@
 import { useI18n } from '@carrental/i18n/react';
 
+import { actionLabel, OutcomeBadge } from './audit-labels';
+
 import { DetailList } from '@/components/detail-list';
-import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -12,12 +13,6 @@ import {
 } from '@/components/ui/sheet';
 import { diffPayloads } from '@/features/config-workflow/payload-diff';
 import type { AuditRow } from '@/lib/admin-hooks';
-
-export const OUTCOME_TONE: Record<string, BadgeProps['variant']> = {
-  accepted: 'success',
-  rejected: 'warning',
-  failed: 'destructive',
-};
 
 /**
  * One audit event in full: who, what, on which record, the reason given, and what changed
@@ -37,7 +32,8 @@ export function AuditDetailSheet({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { t, fmt } = useI18n();
+  const i18n = useI18n();
+  const { t, fmt } = i18n;
   const changes = diffPayloads(row.before ?? {}, row.after ?? {});
   const mono = (v: string) => <span className="bidi-isolate break-all font-mono text-xs">{v}</span>;
 
@@ -46,10 +42,13 @@ export function AuditDetailSheet({
       <SheetContent closeLabel={t('action.close')} className="overflow-y-auto p-6 sm:max-w-lg">
         <SheetHeader className="pe-8">
           <SheetTitle className="flex flex-wrap items-center gap-2">
-            <span className="bidi-isolate break-all font-mono text-base">{row.action}</span>
-            <Badge variant={OUTCOME_TONE[row.outcome] ?? 'secondary'}>{row.outcome}</Badge>
+            {actionLabel(i18n, row.action)}
+            <OutcomeBadge outcome={row.outcome} />
           </SheetTitle>
-          <SheetDescription>{fmt.dateTime(row.occurredAt)}</SheetDescription>
+          <SheetDescription>
+            {fmt.dateTime(row.occurredAt)} ·{' '}
+            <span className="bidi-isolate break-all font-mono text-xs">{row.action}</span>
+          </SheetDescription>
         </SheetHeader>
 
         <div className="mt-6 space-y-6">

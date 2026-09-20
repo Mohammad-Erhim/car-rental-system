@@ -486,6 +486,24 @@ describe('STAGE-006 administration & reporting', () => {
     expect(scopedTotal).toBeGreaterThanOrEqual(1);
   });
 
+  it('TEST-RPT-001b money reports never add different currencies together', async () => {
+    for (const code of ['reservations_by_state', 'revenue_by_category', 'refunds']) {
+      const run = await request(server)
+        .post(`/api/v1/ops/reports/${code}/run`)
+        .set('Authorization', `Bearer ${managerToken}`)
+        .send({})
+        .expect(201);
+      expect(run.body.columns).toContain('currency');
+      for (const row of run.body.rows as Array<{ currency?: string }>)
+        expect(row.currency).toMatch(/^[A-Z]{3}$/);
+      // one row per (group, currency): no duplicates of the same pair
+      const keys = (run.body.rows as Array<Record<string, unknown>>).map((r) =>
+        JSON.stringify([r.state ?? r.categoryCode ?? '', r.currency]),
+      );
+      expect(new Set(keys).size).toBe(keys.length);
+    }
+  });
+
   it('TEST-RPT-002 a report run exports as CSV with a header row', async () => {
     const run = await request(server)
       .post('/api/v1/ops/reports/fleet_utilisation/run')

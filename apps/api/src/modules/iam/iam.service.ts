@@ -298,6 +298,8 @@ export class IamService {
       action: 'iam.signin.succeeded',
       targetType: 'account',
       targetId: acc.id,
+      // the person who signed in is the actor — not "system"
+      actor: { accountId: acc.id, kind: acc.kind, displayName: acc.displayName },
       surface: input.audience,
     });
 

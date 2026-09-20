@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { CRON_PRESETS, parseRecipients, recipientsValid } from './report-model';
 
 import { FormDialog } from '@/components/form-dialog';
-import { SelectField, TextareaField, TextField } from '@/components/form-fields';
+import { ChoiceField, TextareaField, TextField } from '@/components/form-fields';
 import { useScheduleReport, type ReportDefinition } from '@/lib/admin-hooks';
 
 interface Values {
@@ -82,14 +82,14 @@ export function ScheduleDialog({
         toast.success(t('ops.rpt.scheduleCreated'));
       }}
     >
-      <SelectField
+      <ChoiceField
         control={form.control}
         name="definitionCode"
         label={t('ops.rpt.report')}
         options={definitions.map((d) => ({ value: d.code, label: d.title }))}
-        testId="schedule-report"
+        testIdPrefix="schedule-report"
       />
-      <SelectField
+      <ChoiceField
         control={form.control}
         name="preset"
         label={t('ops.rpt.cronPreset')}
@@ -97,7 +97,7 @@ export function ScheduleDialog({
           ...CRON_PRESETS.map((p) => ({ value: p.value, label: t(p.labelKey) })),
           { value: CUSTOM, label: t('ops.rpt.cronCustom') },
         ]}
-        testId="schedule-preset"
+        testIdPrefix="schedule-preset"
       />
       <TextField
         control={form.control}
