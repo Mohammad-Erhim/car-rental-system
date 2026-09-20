@@ -17,7 +17,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { ArrowDown, ArrowUp, GripVertical, Pencil, Trash2 } from 'lucide-react';
 
-import type { EditorDoc, EditorStep , selectorLabel } from './model';
+import type { EditorDoc, EditorStep, selectorLabel } from './model';
 import { stepSummary } from './step-summary';
 
 import { ChoiceTabs } from '@/components/choice-tabs';
@@ -69,7 +69,7 @@ function StepCard({
       )}
       data-testid={`step-${step.id}`}
     >
-      <div className="flex items-start gap-2 sm:gap-3">
+      <div className="flex flex-wrap items-start gap-2 sm:flex-nowrap sm:gap-3">
         <button
           type="button"
           ref={setActivatorNodeRef}
@@ -80,7 +80,7 @@ function StepCard({
         >
           <GripVertical className="size-4" aria-hidden="true" />
         </button>
-        <div className="min-w-0 flex-1 space-y-1">
+        <div className="min-w-0 flex-1 basis-40 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="grid size-6 place-items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
               {index + 1}
@@ -102,7 +102,7 @@ function StepCard({
             </p>
           ))}
         </div>
-        <div className="flex shrink-0 flex-wrap justify-end gap-0.5">
+        <div className="ms-auto flex shrink-0 flex-wrap justify-end gap-0.5">
           <Button
             type="button"
             size="icon-sm"

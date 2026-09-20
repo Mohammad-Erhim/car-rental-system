@@ -166,4 +166,62 @@ describe('apiFetch', () => {
     await Promise.allSettled(calls);
     expect(stepUp).toHaveBeenCalledTimes(1);
   });
+
+  it('a real step-up demand (401) opens the password prompt — it is not mistaken for an expired token', async () => {
+    let calls = 0;
+    const fetchMock = vi.fn(() => {
+      calls++;
+      return Promise.resolve(
+        calls === 1
+          ? jsonResponse(401, problem({ code: 'auth_step_up_required', status: 401 }))
+          : jsonResponse(200, { ok: true }),
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const refresh = vi.fn(() => Promise.resolve(true));
+    registerRefreshHandler(refresh);
+    const stepUp = vi.fn(() => Promise.resolve(true));
+    registerStepUpHandler(stepUp);
+
+    await expect(
+      apiFetch('/admin/workflows/definitions', { method: 'POST', body: {} }),
+    ).resolves.toEqual({ ok: true });
+    expect(stepUp).toHaveBeenCalledTimes(1); // the prompt appeared…
+    expect(refresh).not.toHaveBeenCalled(); // …and no pointless token refresh came first
+    expect(fetchMock).toHaveBeenCalledTimes(2); // original + one retry after the password
+  });
+
+  it('a genuinely expired token still refreshes once, and a step-up afterwards still prompts', async () => {
+    let calls = 0;
+    const fetchMock = vi.fn(() => {
+      calls++;
+      if (calls === 1)
+        return Promise.resolve(jsonResponse(401, problem({ code: 'auth_required', status: 401 })));
+      if (calls === 2)
+        return Promise.resolve(
+          jsonResponse(401, problem({ code: 'auth_step_up_required', status: 401 })),
+        );
+      return Promise.resolve(jsonResponse(200, { ok: true }));
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const refresh = vi.fn(() => Promise.resolve(true));
+    registerRefreshHandler(refresh);
+    const stepUp = vi.fn(() => Promise.resolve(true));
+    registerStepUpHandler(stepUp);
+    await expect(apiFetch('/x', { method: 'POST', body: {} })).resolves.toEqual({ ok: true });
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(stepUp).toHaveBeenCalledTimes(1);
+  });
+
+  it('a declined password prompt fails the request with the API’s message and does not loop', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve(jsonResponse(401, problem({ code: 'auth_step_up_required', status: 401 }))),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    registerStepUpHandler(vi.fn(() => Promise.resolve(false)));
+    await expect(apiFetch('/x', { method: 'POST', body: {} })).rejects.toMatchObject({
+      code: 'auth_step_up_required',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

@@ -14,6 +14,8 @@ export interface RequestOptions {
   headers?: Record<string, string>;
   /** internal: prevents infinite refresh / step-up recursion */
   _retried?: boolean;
+  /** set on the one retry made after the person confirmed their password */
+  _steppedUp?: boolean;
   /** skip attaching the bearer token (auth endpoints) */
   anonymous?: boolean;
 }
@@ -95,8 +97,14 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
 
   // silent refresh once on 401 for authenticated calls (never on /auth/* itself)
   const refreshFn = getRefreshHandler();
+  // A step-up demand is a 401 too, but the session is fine — the person only has to re-enter their
+  // password. Refreshing the token cannot help, and the refreshed retry would burn the "retried"
+  // flag so the password prompt below never appeared (the request just failed with "confirm your
+  // password" and no dialog).
+  const needsStepUp = isProblem(json) && json.code === 'auth_step_up_required';
   if (
     res.status === 401 &&
+    !needsStepUp &&
     !opts._retried &&
     !opts.anonymous &&
     refreshFn &&
@@ -113,18 +121,12 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
   // as the refresh above — a burst of concurrent requests all hitting `auth_step_up_required`
   // at once must share one prompt, not each open their own.
   const stepUpFn = getStepUpHandler();
-  if (
-    isProblem(json) &&
-    json.code === 'auth_step_up_required' &&
-    !opts._retried &&
-    stepUpFn &&
-    !path.startsWith('/auth/')
-  ) {
+  if (needsStepUp && !opts._steppedUp && stepUpFn && !path.startsWith('/auth/')) {
     steppingUp ??= stepUpFn().finally(() => {
       steppingUp = null;
     });
     const ok = await steppingUp;
-    if (ok) return apiFetch<T>(path, { ...opts, _retried: true });
+    if (ok) return apiFetch<T>(path, { ...opts, _steppedUp: true });
   }
 
   if (isProblem(json)) throw new ApiError(json);

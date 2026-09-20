@@ -11,9 +11,11 @@ import { SimulatorPanel, ValidationPanel } from './builder/check-panel';
 import { diffSpecs } from './builder/diff';
 import { ImportExport } from './builder/import-export';
 import {
+  canonical,
   fromSpec,
   insertStep,
   moveStep,
+  normalizeSpec,
   newStep,
   removeStep,
   replaceStep,
@@ -40,6 +42,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
+import { BreadcrumbLabelSetter } from '@/layouts/breadcrumb-label';
 import { useListParams } from '@/lib/use-list-params';
 import {
   useBindings,
@@ -145,7 +148,7 @@ function Editor({
 
   const spec = useMemo(() => toSpec(doc), [doc]);
   const dirty =
-    JSON.stringify(spec) !== JSON.stringify(initialSpec) ||
+    canonical(normalizeSpec(spec)) !== canonical(normalizeSpec(initialSpec)) ||
     meta.name !== def.name ||
     (meta.description || '') !== (def.description ?? '');
   const live = def.versions.find((v) => v.status === 'published');
@@ -254,6 +257,7 @@ function Editor({
 
   return (
     <Page>
+      <BreadcrumbLabelSetter label={def.name} />
       <Button asChild variant="ghost" size="sm" className="-ms-2">
         <Link to={paths.workflows}>
           <ArrowLeft aria-hidden="true" className="rtl:rotate-180" />

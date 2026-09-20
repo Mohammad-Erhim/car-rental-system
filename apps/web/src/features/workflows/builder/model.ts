@@ -312,3 +312,26 @@ export function selectorLabel(
       return names.dynamic(sel.source);
   }
 }
+
+/** Key-order-independent JSON, so two specs that mean the same thing compare equal. */
+export function canonical(value: unknown): string {
+  const walk = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === 'object') {
+      return Object.fromEntries(
+        Object.entries(v as Record<string, unknown>)
+          .filter(([, x]) => x !== undefined)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([k, x]) => [k, walk(x)]),
+      );
+    }
+    return v;
+  };
+  return JSON.stringify(walk(value));
+}
+
+/** A saved spec run through the schema, so defaults are filled in exactly as the editor's copy has them. */
+export function normalizeSpec(spec: unknown): unknown {
+  const parsed = zWorkflowSpec.safeParse(spec);
+  return parsed.success ? parsed.data : spec;
+}

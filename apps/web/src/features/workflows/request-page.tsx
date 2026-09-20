@@ -21,6 +21,7 @@ import { StateView } from '@/components/state-view';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { BreadcrumbLabelSetter } from '@/layouts/breadcrumb-label';
 import {
   useDecide,
   useMonitorAction,
@@ -67,6 +68,7 @@ export function RequestPage() {
 
   return (
     <Page>
+      <BreadcrumbLabelSetter label={r.subjectLabel ?? r.actionLabel} />
       <Button asChild variant="ghost" size="sm" className="-ms-2">
         <Link to={paths.tasks}>
           <ArrowLeft aria-hidden="true" className="rtl:rotate-180" />
