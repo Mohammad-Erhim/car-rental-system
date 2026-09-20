@@ -2,6 +2,8 @@ import { useI18n } from '@carrental/i18n/react';
 import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 
+import { variableLabel } from '../variables';
+
 import { emptyRule, fromJsonLogic, OPERATORS, toJsonLogic, type RuleForm } from './rule';
 
 import { ChoiceTabs } from '@/components/choice-tabs';
@@ -24,7 +26,8 @@ export function RuleBuilder({
   variables: string[];
   label: string;
 }) {
-  const { t } = useI18n();
+  const i18n = useI18n();
+  const { t } = i18n;
   const parsed = fromJsonLogic(value);
   // keep half-typed rows (no variable yet) in the form even though they are not part of the rule
   const [form, setForm] = useState<RuleForm>(() =>
@@ -95,7 +98,7 @@ export function RuleBuilder({
             label={t('ops.wfb.variable')}
             options={variables.map((v) => ({
               value: v,
-              label: <span className="bidi-isolate font-mono text-xs">{v}</span>,
+              label: <span className="bidi-isolate text-sm">{variableLabel(i18n, v)}</span>,
             }))}
           />
           <ChoiceTabs

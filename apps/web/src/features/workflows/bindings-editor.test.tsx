@@ -75,7 +75,7 @@ describe('RoutesEditor', () => {
     show([route({ id: 'lo', label: 'Everything else', condition: null, priority: 1 }), route({})]);
     const items = screen.getAllByRole('listitem');
     expect(items[0]).toHaveTextContent('Large refunds');
-    expect(items[0]).toHaveTextContent('amount > 500');
+    expect(items[0]).toHaveTextContent('Amount > 500');
     expect(items[1]).toHaveTextContent('always');
   });
 

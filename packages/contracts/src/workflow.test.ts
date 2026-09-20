@@ -21,6 +21,7 @@ const approval = (id: string, next: string | null) => ({
   actors,
   allowChanges: true,
   requireRejectComment: true,
+  allowWithdraw: true,
   next,
 });
 const spec = (over: Partial<WorkflowSpec>): WorkflowSpec => ({

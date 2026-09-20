@@ -26,13 +26,13 @@ template for anyone who wants the old behaviour back.
 
 ### 1.1 Hard-coded "second person" rules (what to remove)
 
-| Where | Rule | File |
-| --- | --- | --- |
-| Config versions (policies, cancellation rules, branding, SEO, consent, page builder, organisation…) | `approve()` refuses the author: `approval_required / author_cannot_approve` | `modules/config/config-version.service.ts:187` |
-| Message templates (email/SMS) | `publish()` refuses the author | `modules/notify/template.service.ts:258` |
-| Customer restrictions | `decide(approve)` refuses the author | `modules/customer/customer-restriction.service.ts:105` |
-| Staff | granting the `administrator` role needs an administrator; the last active administrator cannot be removed | `modules/admin/staff.service.ts` (not "another user" — keep as guard rails) |
-| Step-up | password re-entry on payments/email config, "send report now" | `@StepUp()` — not "another user", keep |
+| Where                                                                                               | Rule                                                                                                      | File                                                                        |
+| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Config versions (policies, cancellation rules, branding, SEO, consent, page builder, organisation…) | `approve()` refuses the author: `approval_required / author_cannot_approve`                               | `modules/config/config-version.service.ts:187`                              |
+| Message templates (email/SMS)                                                                       | `publish()` refuses the author                                                                            | `modules/notify/template.service.ts:258`                                    |
+| Customer restrictions                                                                               | `decide(approve)` refuses the author                                                                      | `modules/customer/customer-restriction.service.ts:105`                      |
+| Staff                                                                                               | granting the `administrator` role needs an administrator; the last active administrator cannot be removed | `modules/admin/staff.service.ts` (not "another user" — keep as guard rails) |
+| Step-up                                                                                             | password re-entry on payments/email config, "send report now"                                             | `@StepUp()` — not "another user", keep                                      |
 
 The same three flows also have **state machines duplicated per entity** (`draft → in_review →
 published/rejected`; `pending_review → active/rejected → lifted`; rate plans `draft → in_review →
@@ -56,8 +56,8 @@ and UI.
 
 ### 1.3 Permissions
 
-- **about 30 static actions** (catalogue, reservation.*, rental.*, payment.*, fleet.*, customer.*,
-  config.*, staff.manage, report.*, audit.read, integration.manage…) hard-coded in
+- **about 30 static actions** (catalogue, reservation._, rental._, payment._, fleet._, customer._,
+  config._, staff.manage, report.\*, audit.read, integration.manage…) hard-coded in
   `database/seed/system.ts` and in `@Permissions(...)` decorators. Two lists that must be kept in
   sync by hand.
 - **Too coarse.** `config.publish` appears on ~45 endpoints (translations, templates, branding, SEO,
@@ -284,16 +284,16 @@ current model uses free-text codes; check constraints on states; indexes for the
 
 ## 3. What happens to today's flows
 
-| Flow | Today | After |
-| --- | --- | --- |
-| Config versions | draft → in_review → published, author ≠ approver | `config.version.publish` workflow. Default **Direct**: the author can publish. _Draft_ stays a content state (preview, diff, rollback keep working). Review = a configurable step. |
-| Templates | same | `template.publish` workflow, same treatment |
-| Translations | draft / in_review / published | `translation.publish` |
-| Rate plans | draft → in_review → published | `rateplan.publish` |
-| Customer restrictions | pending_review → active, author ≠ approver | `customer.restriction.activate` |
-| Refunds | one step, no limit | `payment.refund` with amount-band routing; `approvalLimitMinor` → role condition |
-| Cancellation with fee, rental extend, customer merge, location archive, staff access change, recovery case resolve | single step | each declared as workflow-enabled, Direct by default |
-| `rental.extend.approve`, `reservation.override` | dead permissions | become real workflow actors / conditions or are removed |
+| Flow                                                                                                               | Today                                            | After                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Config versions                                                                                                    | draft → in_review → published, author ≠ approver | `config.version.publish` workflow. Default **Direct**: the author can publish. _Draft_ stays a content state (preview, diff, rollback keep working). Review = a configurable step. |
+| Templates                                                                                                          | same                                             | `template.publish` workflow, same treatment                                                                                                                                        |
+| Translations                                                                                                       | draft / in_review / published                    | `translation.publish`                                                                                                                                                              |
+| Rate plans                                                                                                         | draft → in_review → published                    | `rateplan.publish`                                                                                                                                                                 |
+| Customer restrictions                                                                                              | pending_review → active, author ≠ approver       | `customer.restriction.activate`                                                                                                                                                    |
+| Refunds                                                                                                            | one step, no limit                               | `payment.refund` with amount-band routing; `approvalLimitMinor` → role condition                                                                                                   |
+| Cancellation with fee, rental extend, customer merge, location archive, staff access change, recovery case resolve | single step                                      | each declared as workflow-enabled, Direct by default                                                                                                                               |
+| `rental.extend.approve`, `reservation.override`                                                                    | dead permissions                                 | become real workflow actors / conditions or are removed                                                                                                                            |
 
 Public API compatibility: today's `approve` / `reject` endpoints stay as thin wrappers over the
 engine for one release, then are removed. In-flight items (`in_review`, `pending_review`) are
@@ -303,42 +303,42 @@ converted to instances of the Direct-with-pending definition so nothing is orpha
 
 ## 4. Edge cases — decided up front
 
-| # | Case | Decision |
-| --- | --- | --- |
-| 1 | Nobody eligible for a step (role empty, users suspended) | Publish is blocked by validation; at runtime the step escalates to the definition's **fallback actors** (mandatory field, defaults to administrators); never a dead end. |
-| 2 | Assignee suspended / removed / role revoked mid-flight | Eligibility re-checked at decision time; task re-resolved, reassigned to the remaining set or fallback; event logged; initiator notified. |
-| 3 | Assignee gains the role after the task started | Live resolution: newly eligible people see the task (for role/group selectors); user selectors are exact. |
-| 4 | Definition edited while instances run | Instances pin their **definition version**; edits affect only new instances. Optional "migrate open instances" with a preview. |
-| 5 | Initiator is also the only approver | Allowed by default (matches the request); if _exclude initiator_ is on and no one else exists → fallback, or blocked at publish for that action's typical initiators. |
-| 6 | Two people decide at once (ALL / quorum) | Task-row lock + count in one transaction; exactly-once advancement; the loser gets "already decided" with the current state. |
-| 7 | Approve and reject race | First committed decision wins; reject on an ANY step is final unless the step allows "changes requested". |
-| 8 | Subject changed or deleted while pending | Subject version stored on the instance; executor re-checks it; mismatch ⇒ instance marked **stale**, approvers see "changed since request", initiator can re-submit. |
-| 9 | A second request for the same subject/action | Unique open-instance index; API returns the existing instance. |
-| 10 | Amount/condition edited so it crosses a threshold | Editing a pending subject cancels and restarts the instance with the new route (audited). |
-| 11 | Withdraw / cancel | Initiator may withdraw an open instance (unless a step forbids it); admins may cancel with a reason. |
-| 12 | Timeout | Per-step choice: remind → escalate → auto-approve / auto-reject / keep waiting. Reminder throttling (max N, min interval). |
-| 13 | Delegation / out-of-office | Delegate for a date range; delegate must hold the same eligibility unless the delegator explicitly allows; loops (A→B→A) rejected; chain depth capped; original owner remains visible in the audit. |
-| 14 | Actor in another location | Optional per-step "must be in the record's location scope"; otherwise org-wide roles pass. |
-| 15 | Executor fails (payment gateway down, validation) | Instance goes to `failed-to-apply`, retried with backoff (idempotent executor), visible in monitoring; approvers are not asked again. |
-| 16 | Workflow deleted / archived with instances open | Archive only; open instances finish on their pinned version. |
-| 17 | Admin locks themselves out (removes own permissions) | Guard rails: last-administrator rule, "you cannot remove your own access to Access/Workflows" without another holder, step-up on high-risk edits. |
-| 18 | Privilege escalation | Grantors can grant only what they hold (and only within their location scope); enforced server-side; UI hides the rest. |
-| 19 | Role deleted while assigned | Blocked; shows holders; archive instead (assignments keep working until reassigned). |
-| 20 | Permission cache staleness | Version stamp per staff; any change bumps it and invalidates Redis; guards read the current stamp; UI refetches `/auth/me/access`. |
-| 21 | Deny override vs allow via role | Deny wins, and the matrix shows the source. |
-| 22 | Expired assignment/override | Evaluated by time at request; nightly sweeper only tidies. |
-| 23 | Long-running instance across a permission change to the _executor_ | Executor runs as the system with the recorded initiator and approvers as actors of record; it does not re-check the initiator's permission at the end (it was checked at request time) but re-checks subject validity. |
-| 24 | Conditions referencing a missing variable | Validation rejects at publish; at runtime a missing variable evaluates to "no match" and hits the `else` branch, logged. |
-| 25 | Cycles / unreachable steps / no end | Rejected by the validator; "request changes" loops are bounded (max revisions). |
-| 26 | Approver = the subject (e.g. approving their own access change) | Hard rule for security-critical actions (`staff.access.change`, `role.change`): the subject can never approve — not configurable. |
-| 27 | Multi-tenant leakage | Every table org-scoped; every query through the scoped repo; tests with two orgs. |
-| 28 | Idempotency / retries from the client | `Idempotency-Key` on submit and decide. |
-| 29 | Clock skew, DST, business hours | All due times computed server-side in UTC from the location or org timezone. |
-| 30 | i18n / RTL / a11y | All builder and inbox strings in en/fr/ar; keyboard-operable drag & drop with an accessible reorder alternative; matrix is a real table with headers. |
-| 31 | Very large orgs | Matrix virtualised; inbox paginated (keyset); reverse-lookup queries indexed; resolved-assignee lists capped (e.g. 200) with "and N more". |
-| 32 | Import of a malformed definition | zod + graph validation with per-node errors; nothing partially applied. |
-| 33 | Notifications flood | Digest option, per-user preferences, dedupe key per (task, event). |
-| 34 | Audit needs | Every definition version, binding change, role/permission change, decision, reassignment, escalation, withdrawal, force-complete — actor, before/after, reason, timestamp, correlation id. |
+| #   | Case                                                               | Decision                                                                                                                                                                                                               |
+| --- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Nobody eligible for a step (role empty, users suspended)           | Publish is blocked by validation; at runtime the step escalates to the definition's **fallback actors** (mandatory field, defaults to administrators); never a dead end.                                               |
+| 2   | Assignee suspended / removed / role revoked mid-flight             | Eligibility re-checked at decision time; task re-resolved, reassigned to the remaining set or fallback; event logged; initiator notified.                                                                              |
+| 3   | Assignee gains the role after the task started                     | Live resolution: newly eligible people see the task (for role/group selectors); user selectors are exact.                                                                                                              |
+| 4   | Definition edited while instances run                              | Instances pin their **definition version**; edits affect only new instances. Optional "migrate open instances" with a preview.                                                                                         |
+| 5   | Initiator is also the only approver                                | Allowed by default (matches the request); if _exclude initiator_ is on and no one else exists → fallback, or blocked at publish for that action's typical initiators.                                                  |
+| 6   | Two people decide at once (ALL / quorum)                           | Task-row lock + count in one transaction; exactly-once advancement; the loser gets "already decided" with the current state.                                                                                           |
+| 7   | Approve and reject race                                            | First committed decision wins; reject on an ANY step is final unless the step allows "changes requested".                                                                                                              |
+| 8   | Subject changed or deleted while pending                           | Subject version stored on the instance; executor re-checks it; mismatch ⇒ instance marked **stale**, approvers see "changed since request", initiator can re-submit.                                                   |
+| 9   | A second request for the same subject/action                       | Unique open-instance index; API returns the existing instance.                                                                                                                                                         |
+| 10  | Amount/condition edited so it crosses a threshold                  | Editing a pending subject cancels and restarts the instance with the new route (audited).                                                                                                                              |
+| 11  | Withdraw / cancel                                                  | Initiator may withdraw an open instance (unless a step forbids it); admins may cancel with a reason.                                                                                                                   |
+| 12  | Timeout                                                            | Per-step choice: remind → escalate → auto-approve / auto-reject / keep waiting. Reminder throttling (max N, min interval).                                                                                             |
+| 13  | Delegation / out-of-office                                         | Delegate for a date range; delegate must hold the same eligibility unless the delegator explicitly allows; loops (A→B→A) rejected; chain depth capped; original owner remains visible in the audit.                    |
+| 14  | Actor in another location                                          | Optional per-step "must be in the record's location scope"; otherwise org-wide roles pass.                                                                                                                             |
+| 15  | Executor fails (payment gateway down, validation)                  | Instance goes to `failed-to-apply`, retried with backoff (idempotent executor), visible in monitoring; approvers are not asked again.                                                                                  |
+| 16  | Workflow deleted / archived with instances open                    | Archive only; open instances finish on their pinned version.                                                                                                                                                           |
+| 17  | Admin locks themselves out (removes own permissions)               | Guard rails: last-administrator rule, "you cannot remove your own access to Access/Workflows" without another holder, step-up on high-risk edits.                                                                      |
+| 18  | Privilege escalation                                               | Grantors can grant only what they hold (and only within their location scope); enforced server-side; UI hides the rest.                                                                                                |
+| 19  | Role deleted while assigned                                        | Blocked; shows holders; archive instead (assignments keep working until reassigned).                                                                                                                                   |
+| 20  | Permission cache staleness                                         | Version stamp per staff; any change bumps it and invalidates Redis; guards read the current stamp; UI refetches `/auth/me/access`.                                                                                     |
+| 21  | Deny override vs allow via role                                    | Deny wins, and the matrix shows the source.                                                                                                                                                                            |
+| 22  | Expired assignment/override                                        | Evaluated by time at request; nightly sweeper only tidies.                                                                                                                                                             |
+| 23  | Long-running instance across a permission change to the _executor_ | Executor runs as the system with the recorded initiator and approvers as actors of record; it does not re-check the initiator's permission at the end (it was checked at request time) but re-checks subject validity. |
+| 24  | Conditions referencing a missing variable                          | Validation rejects at publish; at runtime a missing variable evaluates to "no match" and hits the `else` branch, logged.                                                                                               |
+| 25  | Cycles / unreachable steps / no end                                | Rejected by the validator; "request changes" loops are bounded (max revisions).                                                                                                                                        |
+| 26  | Approver = the subject (e.g. approving their own access change)    | Hard rule for security-critical actions (`staff.access.change`, `role.change`): the subject can never approve — not configurable.                                                                                      |
+| 27  | Multi-tenant leakage                                               | Every table org-scoped; every query through the scoped repo; tests with two orgs.                                                                                                                                      |
+| 28  | Idempotency / retries from the client                              | `Idempotency-Key` on submit and decide.                                                                                                                                                                                |
+| 29  | Clock skew, DST, business hours                                    | All due times computed server-side in UTC from the location or org timezone.                                                                                                                                           |
+| 30  | i18n / RTL / a11y                                                  | All builder and inbox strings in en/fr/ar; keyboard-operable drag & drop with an accessible reorder alternative; matrix is a real table with headers.                                                                  |
+| 31  | Very large orgs                                                    | Matrix virtualised; inbox paginated (keyset); reverse-lookup queries indexed; resolved-assignee lists capped (e.g. 200) with "and N more".                                                                             |
+| 32  | Import of a malformed definition                                   | zod + graph validation with per-node errors; nothing partially applied.                                                                                                                                                |
+| 33  | Notifications flood                                                | Digest option, per-user preferences, dedupe key per (task, event).                                                                                                                                                     |
+| 34  | Audit needs                                                        | Every definition version, binding change, role/permission change, decision, reassignment, escalation, withdrawal, force-complete — actor, before/after, reason, timestamp, correlation id.                             |
 
 ---
 
@@ -347,14 +347,14 @@ converted to instances of the Direct-with-pending definition so nothing is orpha
 Each phase ends **green** (unit + API integration + browser tests, i18n, openapi, lint) and is
 shippable by itself.
 
-| Phase | Scope | Est. |
-| --- | --- | --- |
-| **1. Remove the second-person rule (interim)** | Delete the three author-exclusion checks; keep the draft/publish states so preview/diff/rollback still work; update tests, copy and buttons ("Publish" directly for a permitted user); keep an audit note. Ships the request #1 immediately, before the engine. | 0.5–1 d |
-| **2. Authorization v2** | Catalogue sync + test, granular actions with backfill, roles CRUD + versions, assignments, overrides, groups, `AccessService` (`can`/`explain`, cache), `packages/authz`, enforce approval limits, remove dead actions, `/auth/me/access`, guard rails; **permission matrix UI** (roles × actions, users × actions, reverse view, role editor, user access sheet, history). | 6–8 d |
-| **3. Workflow engine core** | Schema, zod definition, validator, interpreter, gate + executors for config versions / templates / restrictions, inbox + task detail + diff, notifications, timers + reconciler, monitoring, default **Direct** + **Two-person** templates, legacy `approve/reject` wrappers, migration of in-flight items. | 8–10 d |
-| **4. Builder** | Definition editor (pipeline + graph view), actors picker, conditions, timing, validation panel, simulator, versions/diff/rollback, import/export, templates gallery, bindings screen. | 6–8 d |
-| **5. Migrate the remaining actions** | Refund (amount bands), rate plan, translation, cancellation-with-fee, rental extend, location archive, customer merge, staff access, recovery cases; per-action tests. | 5–6 d |
-| **6. Hardening** | Concurrency/race suite, property tests on the validator and interpreter, two-org isolation tests, load test of inbox/matrix, Playwright flows across 3 viewports (incl. RTL), docs (admin guide, DEC), seed/gallery. | 4–5 d |
+| Phase                                          | Scope                                                                                                                                                                                                                                                                                                                                                                       | Est.    |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| **1. Remove the second-person rule (interim)** | Delete the three author-exclusion checks; keep the draft/publish states so preview/diff/rollback still work; update tests, copy and buttons ("Publish" directly for a permitted user); keep an audit note. Ships the request #1 immediately, before the engine.                                                                                                             | 0.5–1 d |
+| **2. Authorization v2**                        | Catalogue sync + test, granular actions with backfill, roles CRUD + versions, assignments, overrides, groups, `AccessService` (`can`/`explain`, cache), `packages/authz`, enforce approval limits, remove dead actions, `/auth/me/access`, guard rails; **permission matrix UI** (roles × actions, users × actions, reverse view, role editor, user access sheet, history). | 6–8 d   |
+| **3. Workflow engine core**                    | Schema, zod definition, validator, interpreter, gate + executors for config versions / templates / restrictions, inbox + task detail + diff, notifications, timers + reconciler, monitoring, default **Direct** + **Two-person** templates, legacy `approve/reject` wrappers, migration of in-flight items.                                                                 | 8–10 d  |
+| **4. Builder**                                 | Definition editor (pipeline + graph view), actors picker, conditions, timing, validation panel, simulator, versions/diff/rollback, import/export, templates gallery, bindings screen.                                                                                                                                                                                       | 6–8 d   |
+| **5. Migrate the remaining actions**           | Refund (amount bands), rate plan, translation, cancellation-with-fee, rental extend, location archive, customer merge, staff access, recovery cases; per-action tests.                                                                                                                                                                                                      | 5–6 d   |
+| **6. Hardening**                               | Concurrency/race suite, property tests on the validator and interpreter, two-org isolation tests, load test of inbox/matrix, Playwright flows across 3 viewports (incl. RTL), docs (admin guide, DEC), seed/gallery.                                                                                                                                                        | 4–5 d   |
 
 Roughly **5–6 weeks** of focused work end to end; phases 1–2 alone already deliver "no more second
 reviewer", the gap fixes and the permission matrix.

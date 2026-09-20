@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 
 import { describeRule } from './builder/rule';
 import { RuleBuilder } from './builder/rule-builder';
+import { ruleWords } from './variables';
 
 import { ChoiceTabs } from '@/components/choice-tabs';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -43,7 +44,9 @@ export function RoutesEditor({
   workflows: DefinitionRow[];
   canManage: boolean;
 }) {
-  const { t } = useI18n();
+  const i18n = useI18n();
+  const { t } = i18n;
+  const words = ruleWords(i18n);
   const save = useSaveBinding();
   const remove = useRemoveBinding();
   const [editing, setEditing] = useState<BindingRow | 'new' | null>(null);
@@ -110,8 +113,8 @@ export function RoutesEditor({
                 <p className="font-medium">{r.label || t('ops.wfr.routeN', { n: i + 1 })}</p>
                 <p className="text-muted-foreground">
                   {t('ops.wfr.when')}{' '}
-                  <span className="bidi-isolate font-mono text-xs">
-                    {r.condition ? describeRule(r.condition) || '…' : t('ops.wfr.always')}
+                  <span className="bidi-isolate text-xs">
+                    {r.condition ? describeRule(r.condition, words) || '…' : t('ops.wfr.always')}
                   </span>{' '}
                   → {r.definitionName}
                 </p>

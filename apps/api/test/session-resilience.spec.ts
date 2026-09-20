@@ -9,7 +9,6 @@ import { DB } from '../src/database/database.module';
 import type { Database } from '../src/database/drizzle';
 import { account, session } from '../src/database/schema/iam';
 
-
 import { closeTestApp, getTestApp, httpServer } from './helpers/app';
 import { cookieFrom } from './helpers/auth';
 

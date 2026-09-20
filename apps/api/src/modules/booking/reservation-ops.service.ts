@@ -90,7 +90,7 @@ export class ReservationOpsService implements OnModuleInit {
     this.workflows.register<{ reasonCode?: string; note?: string }>({
       key: 'reservation.cancel.withFee',
       subjectType: 'reservation',
-      label: 'Cancel a reservation that carries a fee (or waive it)',
+      label: 'Cancel with a late fee (or waive it)',
       description:
         'Staff cancel a reservation inside its free-cancellation window closing, where a late fee would apply or is being waived.',
       variables: ['fee', 'refund', 'total', 'goodwill', 'hoursToPickup'],
@@ -373,6 +373,7 @@ export class ReservationOpsService implements OnModuleInit {
             subjectLabel: `Cancel ${reference}${goodwill ? ' (fee waived)' : ` (fee ${(fee / 100).toFixed(2)} ${row.currency})`}`,
             payload: { reasonCode: input.reasonCode, note: input.note },
             context: {
+              currency: row.currency,
               fee,
               refund: Math.max(0, row.paidMinor - fee),
               total: row.totalMinor,

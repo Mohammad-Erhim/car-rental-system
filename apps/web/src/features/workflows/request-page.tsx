@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { z } from 'zod';
 
 import { DecisionDialog } from './decision-dialog';
+import { variableLabel, variableValue } from './variables';
 import { WorkflowStatusBadge } from './workflow-status';
 
 import { paths } from '@/app/paths';
@@ -35,7 +36,8 @@ const OPEN = ['running', 'applying', 'apply_failed'];
 
 /** One request in full: where it stands, who was asked and what they said, the change, and the history. */
 export function RequestPage() {
-  const { t, fmt } = useI18n();
+  const i18n = useI18n();
+  const { t, fmt } = i18n;
   const { id } = useParams();
   const req = useRequest(id);
   const decide = useDecide();
@@ -62,6 +64,7 @@ export function RequestPage() {
   }
   const r: RequestDetail = req.data;
   const open = OPEN.includes(r.status);
+  const myTask = r.tasks.find((task) => task.canDecide);
   const close = (o: boolean) => {
     if (!o) setDialog(null);
   };
@@ -93,27 +96,6 @@ export function RequestPage() {
                   {t('ops.wf.withdraw')}
                 </Button>
               ) : null}
-              {r.canMonitor ? (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setDialog({ kind: 'force', decision: 'approve' })}
-                  >
-                    {t('ops.wf.forceApprove')}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setDialog({ kind: 'force', decision: 'reject' })}
-                  >
-                    {t('ops.wf.forceReject')}
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => setDialog({ kind: 'cancel' })}>
-                    {t('ops.wf.cancelRequest')}
-                  </Button>
-                </>
-              ) : null}
             </div>
           ) : null
         }
@@ -134,6 +116,36 @@ export function RequestPage() {
         <div role="status" className="rounded-lg border bg-muted/40 p-4 text-sm">
           {t('ops.wf.staleBody')}
         </div>
+      ) : null}
+
+      {open && myTask ? (
+        <SectionCard
+          title={t('ops.wf.yourDecision')}
+          description={t('ops.wf.yourDecisionBody', { step: myTask.title })}
+          data-testid="your-decision"
+          className="border-primary/40"
+        >
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+            {myTask.decisions.map((d) => (
+              <Button
+                key={d}
+                variant={d === 'approve' || d === 'complete' ? 'default' : 'outline'}
+                className={d === 'request_changes' ? 'col-span-2 sm:col-span-1' : undefined}
+                onClick={() =>
+                  setDialog({
+                    kind: 'decide',
+                    taskId: myTask.id,
+                    decision: d,
+                    requireComment: myTask.requireComment,
+                  })
+                }
+                data-testid={`wf-${d}`}
+              >
+                {t(`ops.wf.do.${d}`)}
+              </Button>
+            ))}
+          </div>
+        </SectionCard>
       ) : null}
 
       <SectionCard title={t('ops.wf.summary')}>
@@ -157,8 +169,10 @@ export function RequestPage() {
             items={Object.entries(r.context)
               .filter(([, v]) => v !== null && v !== undefined && !Array.isArray(v))
               .map(([k, v]) => ({
-                term: k,
-                detail: <span className="bidi-isolate">{String(v)}</span>,
+                term: variableLabel(i18n, k),
+                detail: (
+                  <span className="bidi-isolate">{variableValue(i18n, k, v, r.context)}</span>
+                ),
               }))}
           />
         </SectionCard>
@@ -167,13 +181,6 @@ export function RequestPage() {
       <SectionCard title={t('ops.wf.steps')}>
         <ol className="space-y-4" data-testid="wf-steps">
           {r.tasks.map((task) => {
-            const me = task.assignees.find((a) => a.isMe && a.status === 'pending');
-            const decisions: WorkflowDecision[] =
-              task.stepType === 'task'
-                ? ['complete']
-                : task.allowChanges
-                  ? ['approve', 'reject', 'request_changes']
-                  : ['approve', 'reject'];
             return (
               <li key={task.id} className="space-y-2 rounded-lg border p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
@@ -217,6 +224,7 @@ export function RequestPage() {
                           />
                         )}
                         <span className="font-medium">{a.name}</span>
+                        {a.isMe ? <Badge variant="outline">{t('ops.wf.you')}</Badge> : null}
                         {a.decision ? (
                           <span className="text-muted-foreground">
                             {t(`ops.wf.said.${a.decision}`)}
@@ -230,34 +238,39 @@ export function RequestPage() {
                       </li>
                     ))}
                 </ul>
-                {me && open ? (
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {decisions.map((d) => (
-                      <Button
-                        key={d}
-                        size="sm"
-                        variant={d === 'approve' || d === 'complete' ? 'default' : 'outline'}
-                        onClick={() =>
-                          setDialog({
-                            kind: 'decide',
-                            taskId: task.id,
-                            decision: d,
-                            requireComment: task.requireComment,
-                          })
-                        }
-                        data-testid={`wf-${d}`}
-                      >
-                        {t(`ops.wf.do.${d}`)}
-                      </Button>
-                    ))}
-                  </div>
-                ) : null}
               </li>
             );
           })}
         </ol>
       </SectionCard>
 
+      {open && r.canMonitor ? (
+        <SectionCard
+          title={t('ops.wf.monitorTools')}
+          description={t('ops.wf.monitorToolsBody')}
+          data-testid="monitor-tools"
+        >
+          <div className="grid gap-2 sm:flex sm:flex-wrap">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDialog({ kind: 'force', decision: 'approve' })}
+            >
+              {t('ops.wf.forceApprove')}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDialog({ kind: 'force', decision: 'reject' })}
+            >
+              {t('ops.wf.forceReject')}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setDialog({ kind: 'cancel' })}>
+              {t('ops.wf.cancelRequest')}
+            </Button>
+          </div>
+        </SectionCard>
+      ) : null}
       <SectionCard title={t('ops.wf.history')}>
         <ol className="space-y-2 text-sm" data-testid="wf-history">
           {r.history.map((h) => (

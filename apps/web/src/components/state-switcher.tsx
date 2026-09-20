@@ -89,6 +89,9 @@ export function StateSwitcher({
             <TabsTrigger
               key={o.value}
               value={o.value}
+              // these tabs pick a view of the page and have no panel of their own to point at — an
+              // aria-controls that names a missing element is invalid, so it is left off
+              aria-controls={undefined}
               data-testid={testIdPrefix ? `${testIdPrefix}-${o.value}` : undefined}
               className={cn(
                 compact && 'min-h-10 truncate',

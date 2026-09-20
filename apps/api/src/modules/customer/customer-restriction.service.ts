@@ -45,7 +45,7 @@ export class CustomerRestrictionService implements OnModuleInit {
     this.workflows.register({
       key: 'customer.restriction.activate',
       subjectType: 'customer_restriction',
-      label: 'Put a customer restriction into force',
+      label: 'Activate a customer restriction',
       description: 'A review or block on a customer takes effect.',
       variables: ['category', 'scope', 'reasonCode'],
       fingerprint: async (id, tx) => {

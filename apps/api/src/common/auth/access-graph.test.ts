@@ -160,7 +160,9 @@ describe('computeEffective', () => {
       assignments: [assign('1', 's', 'r1'), assign('2', 's', 'r2')],
     });
     expect(
-      computeEffective(g, 's', NOW).sources['a.read']!.map((s) => (s.kind === 'role' ? s.code : '')),
+      computeEffective(g, 's', NOW).sources['a.read']!.map((s) =>
+        s.kind === 'role' ? s.code : '',
+      ),
     ).toEqual(['reader', 'also']);
   });
 });

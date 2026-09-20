@@ -142,17 +142,15 @@ describe('workflow isolation between organisations', () => {
       .where(eq(account.email, 'test-admin@example.test'));
     actorA = toActor(rowA!.acc, 'Test Admin', rowA!.id, rowA!.org);
     actorB = toActor(accB!.id, 'Org B Admin', profB!.id, orgB!.id);
-    app
-      .get(WorkflowPublic)
-      .register({
-        key: 'test.iso',
-        subjectType: 'test_subject',
-        label: 'Isolation',
-        description: 'test only',
-        variables: [],
-        fingerprint: async () => 'fixed',
-        execute: async () => ({ ok: true }),
-      });
+    app.get(WorkflowPublic).register({
+      key: 'test.iso',
+      subjectType: 'test_subject',
+      label: 'Isolation',
+      description: 'test only',
+      variables: [],
+      fingerprint: async () => 'fixed',
+      execute: async () => ({ ok: true }),
+    });
   });
   afterAll(async () => {
     if (ORIGINAL_STEP_UP === undefined) delete process.env.STEP_UP_MAX_AGE_SEC;

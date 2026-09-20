@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 
 import { ChoiceTabs } from '@/components/choice-tabs';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import type { WorkflowOptions } from '@/lib/workflow-hooks';
@@ -12,6 +13,8 @@ import type { WorkflowOptions } from '@/lib/workflow-hooks';
 type Kind = 'role' | 'user' | 'group' | 'dynamic';
 
 const same = (a: ActorSelector, b: ActorSelector) => JSON.stringify(a) === JSON.stringify(b);
+/** how many choices show before "show more" — long lists never turn into a scrolling box inside a scrolling panel */
+const PAGE = 24;
 
 /** A name for any selector — used for the chips here and the step cards. */
 export function useSelectorNames(options: WorkflowOptions | undefined) {
@@ -51,6 +54,7 @@ export function ActorsEditor({
   const names = useSelectorNames(options);
   const [kind, setKind] = useState<Kind>('role');
   const [q, setQ] = useState('');
+  const [limit, setLimit] = useState(PAGE);
   const has = (s: ActorSelector) => value.some((v) => same(v, s));
   const toggle = (s: ActorSelector) =>
     onChange(has(s) ? value.filter((v) => !same(v, s)) : [...value, s]);
@@ -127,6 +131,7 @@ export function ActorsEditor({
         onChange={(v) => {
           setKind(v as Kind);
           setQ('');
+          setLimit(PAGE);
         }}
         label={t('ops.wfb.addFrom')}
         testIdPrefix="actors-kind"
@@ -140,18 +145,18 @@ export function ActorsEditor({
           />
           <Input
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(e) => {
+              setQ(e.target.value);
+              setLimit(PAGE);
+            }}
             placeholder={t('ops.wfb.filter')}
             aria-label={t('ops.wfb.filter')}
             className="ps-9"
           />
         </div>
       ) : null}
-      <ul
-        className="grid max-h-56 gap-1.5 overflow-y-auto sm:grid-cols-2"
-        aria-label={t(`ops.wfb.kindTab.${kind}`)}
-      >
-        {shown.map((r) => {
+      <ul className="grid gap-1.5 sm:grid-cols-2" aria-label={t(`ops.wfb.kindTab.${kind}`)}>
+        {shown.slice(0, limit).map((r) => {
           const on = has(r.sel);
           return (
             <li key={JSON.stringify(r.sel)}>
@@ -173,6 +178,19 @@ export function ActorsEditor({
             </li>
           );
         })}
+        {shown.length > limit ? (
+          <li className="sm:col-span-2">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="w-full"
+              onClick={() => setLimit(limit + PAGE)}
+            >
+              {t('ops.wfb.showMore', { n: shown.length - limit })}
+            </Button>
+          </li>
+        ) : null}
         {!shown.length ? (
           <li className="text-sm text-muted-foreground">{t('ops.wfb.noMatches')}</li>
         ) : null}

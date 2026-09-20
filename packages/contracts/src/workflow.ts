@@ -363,6 +363,7 @@ export function twoPersonReviewSpec(reviewerRoleCode: string): WorkflowSpec {
         },
         allowChanges: true,
         requireRejectComment: true,
+        allowWithdraw: true,
         next: null,
       },
     },

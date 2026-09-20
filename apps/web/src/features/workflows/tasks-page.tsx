@@ -1,13 +1,13 @@
 import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
-import { CheckCheck, ChevronRight, Clock, Inbox } from 'lucide-react';
+import { CheckCheck, Clock, Inbox } from 'lucide-react';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { DecisionDialog } from './decision-dialog';
 import { OutOfOffice } from './out-of-office';
-import { WorkflowStatusBadge } from './workflow-status';
+import { RequestCard } from './request-card';
+import { WorkflowStatusBadge, waitingText } from './workflow-status';
 
 import { paths } from '@/app/paths';
 import { Page, PageHeader } from '@/components/page-header';
@@ -15,7 +15,6 @@ import { StateSwitcher } from '@/components/state-switcher';
 import { StateView } from '@/components/state-view';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useListParams } from '@/lib/use-list-params';
 import {
@@ -95,60 +94,48 @@ function Inbox_() {
       <ul className="space-y-3" data-testid="wf-inbox">
         {inbox.items.map((item) => (
           <li key={item.taskId}>
-            <Card className="p-4 sm:p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0 space-y-1">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {item.actionLabel}
-                  </p>
-                  <h3 className="font-semibold">{item.subjectLabel ?? item.actionLabel}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {t('ops.wf.requestedBy', { who: item.initiatorLabel ?? '—' })} ·{' '}
-                    {fmt.dateTime(item.requestedAt)}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <Badge variant="secondary">{item.title}</Badge>
-                    {item.dueAt ? (
-                      <Badge variant={item.overdue ? 'destructive' : 'outline'}>
-                        <Clock className="me-1 size-3" aria-hidden="true" />
-                        {item.overdue
-                          ? t('ops.wf.overdue')
-                          : t('ops.wf.due', { when: fmt.dateTime(item.dueAt) })}
-                      </Badge>
-                    ) : null}
-                    {item.onBehalfOfName ? (
-                      <Badge variant="outline">
-                        {t('ops.wfo.coveringFor', { name: item.onBehalfOfName })}
-                      </Badge>
-                    ) : null}
-                    {!item.canDecide ? (
-                      <Badge variant="outline">{t('ops.wf.notYourTurn')}</Badge>
-                    ) : null}
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button asChild size="sm" variant="ghost">
-                    <Link to={paths.request(item.instanceId)}>
-                      {t('ops.wf.open')}
-                      <ChevronRight aria-hidden="true" className="rtl:rotate-180" />
-                    </Link>
-                  </Button>
-                  {item.canDecide
-                    ? item.decisions.map((d) => (
-                        <Button
-                          key={d}
-                          size="sm"
-                          variant={d === 'approve' || d === 'complete' ? 'default' : 'outline'}
-                          onClick={() => setDialog({ item, decision: d })}
-                          data-testid={`wf-${d}-${item.taskId}`}
-                        >
-                          {t(`ops.wf.do.${d}`)}
-                        </Button>
-                      ))
-                    : null}
-                </div>
-              </div>
-            </Card>
+            <RequestCard
+              kicker={item.actionLabel}
+              title={item.subjectLabel ?? item.actionLabel}
+              byline={`${t('ops.wf.requestedBy', { who: item.initiatorLabel ?? '—' })} · ${fmt.dateTime(item.requestedAt)}`}
+              href={paths.request(item.instanceId)}
+              badges={
+                <>
+                  <Badge variant="secondary">{item.title}</Badge>
+                  {item.dueAt ? (
+                    <Badge variant={item.overdue ? 'destructive' : 'outline'}>
+                      <Clock className="me-1 size-3" aria-hidden="true" />
+                      {item.overdue
+                        ? t('ops.wf.overdue')
+                        : t('ops.wf.due', { when: fmt.dateTime(item.dueAt) })}
+                    </Badge>
+                  ) : null}
+                  {item.onBehalfOfName ? (
+                    <Badge variant="outline">
+                      {t('ops.wfo.coveringFor', { name: item.onBehalfOfName })}
+                    </Badge>
+                  ) : null}
+                  {!item.canDecide ? (
+                    <Badge variant="outline">{t('ops.wf.notYourTurn')}</Badge>
+                  ) : null}
+                </>
+              }
+            >
+              {item.canDecide
+                ? item.decisions.map((d) => (
+                    <Button
+                      key={d}
+                      size="sm"
+                      variant={d === 'approve' || d === 'complete' ? 'default' : 'outline'}
+                      className={d === 'request_changes' ? 'col-span-2 sm:col-span-1' : undefined}
+                      onClick={() => setDialog({ item, decision: d })}
+                      data-testid={`wf-${d}-${item.taskId}`}
+                    >
+                      {t(`ops.wf.do.${d}`)}
+                    </Button>
+                  ))
+                : null}
+            </RequestCard>
           </li>
         ))}
       </ul>
@@ -193,44 +180,20 @@ export function RequestList({ rows }: { rows: RequestRow[] }) {
     <ul className="space-y-3" data-testid="wf-requests">
       {rows.map((r) => (
         <li key={r.instanceId}>
-          <Card className="p-4 sm:p-5">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0 space-y-1">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {r.actionLabel}
-                </p>
-                <h3 className="font-semibold">{r.subjectLabel ?? r.actionLabel}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {t('ops.wf.requestedBy', { who: r.initiatorLabel ?? '—' })} ·{' '}
-                  {fmt.dateTime(r.createdAt)}
-                </p>
-                <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <WorkflowStatusBadge status={r.status} />
-                  {r.status === 'running' && r.stepName ? (
-                    <span className="text-sm text-muted-foreground">
-                      {t('ops.wf.waitingFor', {
-                        step: r.stepName,
-                        who:
-                          [
-                            ...r.waitingFor,
-                            ...(r.waitingForMore
-                              ? [t('ops.wf.andMore', { n: r.waitingForMore })]
-                              : []),
-                          ].join(', ') || '—',
-                      })}
-                    </span>
-                  ) : null}
-                </div>
-                {r.lastError ? <p className="text-sm text-destructive">{r.lastError}</p> : null}
-              </div>
-              <Button asChild size="sm" variant="ghost">
-                <Link to={paths.request(r.instanceId)}>
-                  {t('ops.wf.open')}
-                  <ChevronRight aria-hidden="true" className="rtl:rotate-180" />
-                </Link>
-              </Button>
-            </div>
-          </Card>
+          <RequestCard
+            kicker={r.actionLabel}
+            title={r.subjectLabel ?? r.actionLabel}
+            byline={`${t('ops.wf.requestedBy', { who: r.initiatorLabel ?? '—' })} · ${fmt.dateTime(r.createdAt)}`}
+            href={paths.request(r.instanceId)}
+            badges={<WorkflowStatusBadge status={r.status} />}
+            note={
+              r.status === 'running' && r.stepName ? (
+                waitingText(r, t)
+              ) : r.lastError ? (
+                <span className="text-destructive">{r.lastError}</span>
+              ) : null
+            }
+          />
         </li>
       ))}
     </ul>

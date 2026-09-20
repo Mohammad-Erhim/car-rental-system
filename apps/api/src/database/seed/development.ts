@@ -1,4 +1,3 @@
-import { setStaffRoles } from './staff-roles';
 import { hash } from '@node-rs/argon2';
 import { sql } from 'drizzle-orm';
 
@@ -9,6 +8,7 @@ import { account, staffProfile } from '../schema/iam';
 import { location, organization } from '../schema/org';
 
 import { seedDiscovery } from './discovery';
+import { setStaffRoles } from './staff-roles';
 
 /**
  * DEVELOPMENT seed — a small, obviously-synthetic operating set so the apps are usable locally.

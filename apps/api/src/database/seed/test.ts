@@ -1,4 +1,3 @@
-import { setStaffRoles } from './staff-roles';
 import { hash } from '@node-rs/argon2';
 import { and, eq, sql } from 'drizzle-orm';
 
@@ -9,6 +8,7 @@ import { account, role, staffProfile } from '../schema/iam';
 import { location, organization } from '../schema/org';
 
 import { seedDiscovery } from './discovery';
+import { setStaffRoles } from './staff-roles';
 
 /**
  * TEST seed — deterministic fixtures. Builders in the test suite state only meaningful

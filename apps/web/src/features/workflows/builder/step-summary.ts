@@ -1,7 +1,7 @@
 import type { Actors } from '@carrental/contracts';
 
 import { selectorLabel, type EditorStep } from './model';
-import { describeRule } from './rule';
+import { describeRule, type RuleWords } from './rule';
 
 type T = (key: string, params?: Record<string, string | number>) => string;
 type Names = Parameters<typeof selectorLabel>[1];
@@ -15,6 +15,7 @@ export function stepSummary(
   names: Names,
   t: T,
   nameOfStep: (id: string) => string,
+  words?: RuleWords,
 ): string[] {
   const lines: string[] = [];
   switch (step.type) {
@@ -52,7 +53,7 @@ export function stepSummary(
             ? t('ops.wfb.thenEnd')
             : nameOfStep(id);
       for (const b of step.branches)
-        lines.push(`${t('ops.wfb.if')} ${describeRule(b.when) || '…'} → ${to(b.next)}`);
+        lines.push(`${t('ops.wfb.if')} ${describeRule(b.when, words) || '…'} → ${to(b.next)}`);
       lines.push(`${t('ops.wfb.otherwise')} → ${to(step.else)}`);
       break;
     }

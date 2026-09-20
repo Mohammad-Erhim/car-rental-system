@@ -6,7 +6,7 @@ import type { Actor } from '../src/common/auth/types';
 import { DB } from '../src/database/database.module';
 import type { Database } from '../src/database/drizzle';
 import { configVersion } from '../src/database/schema/admin';
-import { account, role, staffProfile, staffRoleAssignment } from '../src/database/schema/iam';
+import { account, role, staffProfile } from '../src/database/schema/iam';
 import { template } from '../src/database/schema/notify';
 import {
   workflowBinding,

@@ -7,6 +7,7 @@ import { DB } from '../src/database/database.module';
 import type { Database } from '../src/database/drizzle';
 import { configVersion } from '../src/database/schema/admin';
 import { account, staffProfile } from '../src/database/schema/iam';
+import { notification } from '../src/database/schema/notify';
 import {
   workflowBinding,
   workflowInstance,
@@ -15,7 +16,6 @@ import {
 } from '../src/database/schema/workflow';
 import { WorkflowEngineService } from '../src/modules/workflow/workflow-engine.service';
 import { WorkflowNotifier } from '../src/modules/workflow/workflow-notifier.service';
-import { notification } from '../src/database/schema/notify';
 import { WorkflowPublic } from '../src/modules/workflow/workflow.public';
 
 import { closeTestApp, getTestApp, httpServer } from './helpers/app';

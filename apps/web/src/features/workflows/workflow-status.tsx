@@ -23,6 +23,19 @@ export function WorkflowStatusBadge({ status }: { status: WorkflowStatus }) {
   return <Badge variant={TONE[status] ?? 'secondary'}>{t(`ops.wf.status.${status}`)}</Badge>;
 }
 
+/** "Waiting for Ana, Ben and 2 more — Second-person review": who a request is waiting for. */
+export function waitingText(
+  summary: WorkflowSummary,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
+  const who = [
+    ...summary.waitingFor,
+    ...(summary.waitingForMore ? [t('ops.wf.andMore', { n: summary.waitingForMore })] : []),
+  ].join(', ');
+  const step = summary.stepName ?? summary.definitionName;
+  return who ? t('ops.wf.waitingFor', { step, who }) : t('ops.wf.waitingNoOne', { step });
+}
+
 /** "Waiting for Finance · step 2" — the pending request on a record, linking to it. */
 export function WorkflowBadge({ summary }: { summary: WorkflowSummary | null | undefined }) {
   const { t } = useI18n();
@@ -34,10 +47,6 @@ export function WorkflowBadge({ summary }: { summary: WorkflowSummary | null | u
   ) {
     return null;
   }
-  const who = [
-    ...summary.waitingFor,
-    ...(summary.waitingForMore ? [t('ops.wf.andMore', { n: summary.waitingForMore })] : []),
-  ].join(', ');
   return (
     <Link
       to={paths.request(summary.instanceId)}
@@ -46,11 +55,7 @@ export function WorkflowBadge({ summary }: { summary: WorkflowSummary | null | u
     >
       <Hourglass className="size-3 shrink-0" aria-hidden="true" />
       <span className="truncate">
-        {summary.status === 'apply_failed'
-          ? t('ops.wf.applyFailedShort')
-          : who
-            ? t('ops.wf.waitingFor', { step: summary.stepName ?? summary.definitionName, who })
-            : t('ops.wf.waitingNoOne', { step: summary.stepName ?? summary.definitionName })}
+        {summary.status === 'apply_failed' ? t('ops.wf.applyFailedShort') : waitingText(summary, t)}
       </span>
     </Link>
   );

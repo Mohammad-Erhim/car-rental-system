@@ -23,6 +23,15 @@ import { WorkflowPublic } from '../workflow/workflow.public';
 
 import { ConfigPublic } from './config.public';
 
+/** What each kind of setting is called on an approval request. */
+const KIND_TITLES: Record<string, string> = {
+  policy: 'Policy',
+  branding: 'Branding',
+  seo: 'SEO',
+  pages: 'Pages',
+  consent: 'Cookie consent',
+};
+
 /** Built-in policy defaults — used until a published `policy` config version overrides them. */
 interface PolicyDefaults {
   readonly [key: string]: Readonly<Record<string, number>>;
@@ -64,8 +73,9 @@ export class ConfigVersionService implements OnModuleInit {
     this.workflows.register({
       key: 'config.version.publish',
       subjectType: 'config_version',
-      label: 'Publish a setting (policies, branding, SEO, pages, consent…)',
-      description: 'Make a drafted revision of a setting live.',
+      label: 'Publish a setting',
+      description:
+        'Make a drafted revision of a setting live — policies, branding, SEO, pages, cookie consent.',
       variables: ['kind', 'key', 'revision'],
       fingerprint: async (id, tx) => {
         const [row] = await tx
@@ -318,7 +328,7 @@ export class ConfigVersionService implements OnModuleInit {
     const gate = await this.workflows.gate({
       actionKey: 'config.version.publish',
       subjectId: id,
-      subjectLabel: `${row.kind} · ${row.key} (revision ${row.revision})`,
+      subjectLabel: `${KIND_TITLES[row.kind] ?? row.kind} “${row.key}” — revision ${row.revision}`,
       context: { kind: row.kind, key: row.key, revision: row.revision },
       actor,
       submitKey: opts.submitKey,

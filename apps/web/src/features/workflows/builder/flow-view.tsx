@@ -36,7 +36,13 @@ export function FlowView({ spec }: { spec: WorkflowSpec }) {
   const height = PAD * 2 + flow.rows * H + (flow.rows - 1) * GY;
 
   return (
-    <div className="overflow-x-auto rounded-xl border bg-card p-2" data-testid="flow-view">
+    <div
+      className="overflow-x-auto rounded-xl border bg-card p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      data-testid="flow-view"
+      role="region"
+      aria-label={t('ops.wfb.flowLabel')}
+      tabIndex={0}
+    >
       <svg
         width={width}
         height={height}

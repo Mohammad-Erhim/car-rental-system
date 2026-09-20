@@ -1,11 +1,12 @@
 import { useI18n } from '@carrental/i18n/react';
-import { Check, Minus, Search, X } from 'lucide-react';
+import { Check, ChevronRight, Minus, Search, X } from 'lucide-react';
 import { Fragment, useMemo, useState } from 'react';
 
 import { UserAccessSheet } from './user-access-sheet';
 
 import { StateView } from '@/components/state-view';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -20,6 +21,9 @@ import {
 import { groupActions, useUsersMatrix } from '@/lib/access-hooks';
 import { cn } from '@/lib/utils';
 
+/** How many people show before "show more" — a large organisation never renders a thousand-row grid at once. */
+const PAGE = 50;
+
 /**
  * People × permissions: what each person can do RIGHT NOW (roles in force, minus denials, plus
  * one-off allows), and where each right comes from. Click a person to change their access.
@@ -29,9 +33,10 @@ export function PeopleTab() {
   const m = useUsersMatrix();
   const [q, setQ] = useState('');
   const [open, setOpen] = useState<string | null>(null);
+  const [limit, setLimit] = useState(PAGE);
 
   const groups = useMemo(() => groupActions(m.data?.permissionActions ?? []), [m.data]);
-  const staff = useMemo(() => {
+  const allStaff = useMemo(() => {
     const needle = q.trim().toLowerCase();
     return (m.data?.staff ?? []).filter(
       (s) =>
@@ -40,6 +45,7 @@ export function PeopleTab() {
         s.email.toLowerCase().includes(needle),
     );
   }, [m.data, q]);
+  const staff = allStaff.slice(0, limit);
 
   if (m.isLoading) return <Skeleton className="h-96 rounded-xl" />;
   if (m.isError || !m.data) {
@@ -62,14 +68,65 @@ export function PeopleTab() {
         />
         <Input
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setLimit(PAGE);
+          }}
           placeholder={t('ops.access.searchPeople')}
           aria-label={t('ops.access.searchPeople')}
           className="ps-9"
         />
       </div>
 
-      <Card className="overflow-hidden">
+      {/* phone and small tablet: a card per person — a 35-column grid cannot be read on a narrow screen */}
+      <ul className="space-y-2 md:hidden" data-testid="people-list">
+        {staff.map((s) => (
+          <li key={s.accountId}>
+            <button
+              type="button"
+              onClick={() => setOpen(s.accountId)}
+              className="flex w-full items-center justify-between gap-3 rounded-xl border bg-card p-4 text-start shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              data-testid={`person-card-${s.email}`}
+            >
+              <span className="min-w-0 space-y-1.5">
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">{s.displayName}</span>
+                  {s.status !== 'active' ? (
+                    <Badge variant="secondary">{t(`ops.staff.status.${s.status}`)}</Badge>
+                  ) : null}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">{s.email}</span>
+                <span className="flex flex-wrap gap-1.5">
+                  {s.roleCodes.length ? (
+                    s.roleCodes.map((code) => (
+                      <Badge key={code} variant="outline" className="font-mono text-[10px]">
+                        {code}
+                      </Badge>
+                    ))
+                  ) : (
+                    <span className="text-xs text-muted-foreground">{t('ops.access.noRoles')}</span>
+                  )}
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  {t('ops.access.permCount', {
+                    n: s.permissions.length,
+                    total: m.data.permissionActions.length,
+                  })}
+                  {s.denied.length
+                    ? ` · ${t('ops.access.deniedCount', { n: s.denied.length })}`
+                    : ''}
+                </span>
+              </span>
+              <ChevronRight
+                className="size-5 shrink-0 text-muted-foreground rtl:rotate-180"
+                aria-hidden="true"
+              />
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      <Card className="hidden overflow-hidden md:block">
         <Table data-testid="people-matrix">
           <TableHeader>
             <TableRow>
@@ -160,7 +217,23 @@ export function PeopleTab() {
           </TableBody>
         </Table>
       </Card>
-      <p className="text-xs text-muted-foreground">{t('ops.access.peopleLegend')}</p>
+      {allStaff.length > limit ? (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            onClick={() => setLimit(limit + PAGE)}
+            data-testid="people-more"
+          >
+            {t('ops.access.showMorePeople', { n: allStaff.length - limit })}
+          </Button>
+        </div>
+      ) : null}
+      {!allStaff.length ? (
+        <p className="text-sm text-muted-foreground">{t('ops.wfb.noMatches')}</p>
+      ) : null}
+      <p className="hidden text-xs text-muted-foreground md:block">
+        {t('ops.access.peopleLegend')}
+      </p>
 
       {open ? (
         <UserAccessSheet accountId={open} open onOpenChange={(o) => !o && setOpen(null)} />

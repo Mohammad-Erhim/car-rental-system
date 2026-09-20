@@ -87,6 +87,10 @@ export interface RequestDetail extends RequestRow {
     dueAt: string | null;
     requireComment: boolean;
     allowChanges: boolean;
+    /** what I may do on it, if I was asked */
+    decisions: WorkflowDecision[];
+    /** it is my turn to decide (asked, not decided, nobody earlier in an in-order step) */
+    canDecide: boolean;
     decidedAt: string | null;
     assignees: Array<{
       staffProfileId: string;

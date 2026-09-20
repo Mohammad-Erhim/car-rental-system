@@ -17,6 +17,8 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { ArrowDown, ArrowUp, GripVertical, Pencil, Trash2 } from 'lucide-react';
 
+import { ruleWords } from '../variables';
+
 import type { EditorDoc, EditorStep, selectorLabel } from './model';
 import { stepSummary } from './step-summary';
 
@@ -48,7 +50,9 @@ function StepCard({
   onDelete: () => void;
   onMove: (to: number) => void;
 }) {
-  const { t } = useI18n();
+  const i18n = useI18n();
+  const { t } = i18n;
+  const words = ruleWords(i18n);
   const {
     attributes,
     listeners,
@@ -91,7 +95,7 @@ function StepCard({
               <Badge variant="destructive">{t('ops.wfb.problems', { n: problems.length })}</Badge>
             ) : null}
           </div>
-          {stepSummary(step, names, t, nameOfStep).map((line, i) => (
+          {stepSummary(step, names, t, nameOfStep, words).map((line, i) => (
             <p key={i} className="text-sm text-muted-foreground">
               {line}
             </p>

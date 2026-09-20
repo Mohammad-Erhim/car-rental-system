@@ -2,10 +2,16 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils';
 
-/** Scrolls horizontally inside its own box, so a wide table never widens the page. */
+/**
+ * Scrolls horizontally inside its own box, so a wide table never widens the page. The box is
+ * focusable, so a keyboard user can scroll a table that is wider than the screen with the arrow keys.
+ */
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
-    <div className="relative w-full overflow-auto">
+    <div
+      className="relative w-full overflow-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+      tabIndex={0}
+    >
       <table ref={ref} className={cn('w-full caption-bottom text-sm', className)} {...props} />
     </div>
   ),

@@ -24,8 +24,8 @@ import {
   workflowTaskAssignee,
 } from '../../database/schema/workflow';
 
-import { WorkflowActorsService } from './workflow-actors.service';
 import { addBusinessHours, type Schedule } from './business-hours';
+import { WorkflowActorsService } from './workflow-actors.service';
 import { evaluateCondition } from './workflow-conditions';
 import { WorkflowDefinitionService } from './workflow-definition.service';
 import { WorkflowDelegationService } from './workflow-delegation.service';

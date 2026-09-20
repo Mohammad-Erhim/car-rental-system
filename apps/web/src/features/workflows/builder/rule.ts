@@ -81,11 +81,23 @@ export function fromJsonLogic(rule: Record<string, unknown>): RuleForm | null {
   return single ? { combinator: 'and', rows: [single] } : null;
 }
 
+/** The words a one-line rule description is made of, so it reads in the person's language. */
+export interface RuleWords {
+  label: (variable: string) => string;
+  and: string;
+  or: string;
+}
+
 /** One line of plain text for a card ("amount > 500 and location = LHR"). */
-export function describeRule(rule: Record<string, unknown>): string {
+export function describeRule(
+  rule: Record<string, unknown>,
+  words: RuleWords = { label: (v) => v, and: 'and', or: 'or' },
+): string {
   const form = fromJsonLogic(rule);
   if (!form) return '{…}';
   if (!form.rows.length || !form.rows[0]!.variable) return '';
-  const word = form.combinator === 'and' ? ' and ' : ' or ';
-  return form.rows.map((r) => `${r.variable} ${r.op === '==' ? '=' : r.op} ${r.value}`).join(word);
+  const word = ` ${form.combinator === 'and' ? words.and : words.or} `;
+  return form.rows
+    .map((r) => `${words.label(r.variable)} ${r.op === '==' ? '=' : r.op} ${r.value}`)
+    .join(word);
 }

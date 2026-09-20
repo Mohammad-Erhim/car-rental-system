@@ -366,7 +366,7 @@ export class TemplateService implements OnModuleInit {
     const gate = await this.workflows.gate({
       actionKey: 'template.publish',
       subjectId: id,
-      subjectLabel: `${row.key} · ${row.channel} · ${row.localeCode}`,
+      subjectLabel: `Message “${row.key}” (${row.channel}, ${row.localeCode})`,
       context: { key: row.key, channel: row.channel, localeCode: row.localeCode },
       actor,
     });

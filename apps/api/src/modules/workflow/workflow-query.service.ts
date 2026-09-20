@@ -19,6 +19,12 @@ import { WorkflowRegistry } from './workflow-registry.service';
 
 const MAX_LIMIT = 100;
 
+/** What a person asked to act on a step may do — the one place this rule lives (inbox and request page). */
+function decisionsOf(step: { stepType: string; allowChanges: boolean }): string[] {
+  if (step.stepType === 'task') return ['complete'];
+  return step.allowChanges ? ['approve', 'reject', 'request_changes'] : ['approve', 'reject'];
+}
+
 /** Read side: my tasks, requests I made, the monitor's view, and one request in full. */
 @Injectable()
 export class WorkflowQueryService {
@@ -111,12 +117,7 @@ export class WorkflowQueryService {
     const items = page.map((r) => ({
       ...r,
       canDecide: r.mode === 'sequence' ? turn.get(r.taskId) === me : true,
-      decisions:
-        r.stepType === 'task'
-          ? ['complete']
-          : r.allowChanges
-            ? ['approve', 'reject', 'request_changes']
-            : ['approve', 'reject'],
+      decisions: decisionsOf(r),
       actionLabel: this.registry.get(r.actionKey)?.label ?? r.actionKey,
       onBehalfOfName: r.onBehalfOf ? (covering.get(r.onBehalfOf) ?? null) : null,
     }));
@@ -156,6 +157,21 @@ export class WorkflowQueryService {
     } catch {
       throw AppError.validation([{ path: 'cursor', code: 'invalid' }]);
     }
+  }
+
+  private canDecideNow(
+    task: { status: string; mode: string },
+    asked: Array<{ staffProfileId: string; status: string; position: number }>,
+    me: string,
+  ): boolean {
+    if (task.status !== 'open') return false;
+    const mine = asked.find((a) => a.staffProfileId === me && a.status === 'pending');
+    if (!mine) return false;
+    if (task.mode !== 'sequence') return true;
+    return (
+      mine.position ===
+      Math.min(...asked.filter((a) => a.status === 'pending').map((a) => a.position))
+    );
   }
 
   async pendingCount(actor: Actor): Promise<{ pending: number; overdue: number }> {
@@ -297,6 +313,13 @@ export class WorkflowQueryService {
         dueAt: t.dueAt,
         requireComment: t.requireComment,
         allowChanges: t.allowChanges,
+        decisions: decisionsOf(t),
+        /** true when it is my turn: I was asked, I have not decided, and (in-order steps) nobody earlier is pending */
+        canDecide: this.canDecideNow(
+          t,
+          assignees.filter((a) => a.taskId === t.id),
+          me,
+        ),
         decidedAt: t.decidedAt,
         assignees: assignees
           .filter((a) => a.taskId === t.id)
