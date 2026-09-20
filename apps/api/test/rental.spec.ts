@@ -18,6 +18,17 @@ const isoIn = (days: number, hour = 15) => {
   return d.toISOString();
 };
 
+/**
+ * `days` from now, nudged forward to a Monday–Wednesday. TST2 is closed on Sundays, so a 3-day hire
+ * from a fixed offset lands on its closed day whenever the suite happens to run on a certain weekday
+ * (these two tests failed every Sunday). Mon–Wed pickups return Thu–Sat, always open.
+ */
+const midweekOffset = (days: number) => {
+  let n = days;
+  while (![1, 2, 3].includes(new Date(isoIn(n)).getUTCDay())) n++;
+  return n;
+};
+
 async function book(
   server: ReturnType<typeof httpServer>,
   token: string,
@@ -819,8 +830,9 @@ describe('rental lifecycle', () => {
     // reservation's pickupLocationCode — unlike the auto-pick query (joined on location.code) and
     // the customer-preferred-pin path (validated at hold time). A same-category car at the wrong
     // branch could silently be committed, leaving the customer with no matching vehicle on arrival.
-    const resRef = await book(server, customerToken, 'economy', 350, 3);
-    const win = { pickupLocationCode: 'TST2', pickupAt: isoIn(350), returnAt: isoIn(353) };
+    const day = midweekOffset(350);
+    const resRef = await book(server, customerToken, 'economy', day, 3);
+    const win = { pickupLocationCode: 'TST2', pickupAt: isoIn(day), returnAt: isoIn(day + 3) };
     const wrongLocationUnits = await request(server)
       .get('/api/v1/catalogue/categories/economy/units')
       .query({
@@ -844,7 +856,8 @@ describe('rental lifecycle', () => {
   it("when staff assigns a different car than the customer picked, the customer's original pick becomes available again (not a phantom lock)", async () => {
     // TST2, not TST1 — this file's shared TST1 economy pool is heavily drawn down by every
     // earlier test in it; TST2's own fleet is untouched here.
-    const win = { pickupLocationCode: 'TST2', pickupAt: isoIn(165), returnAt: isoIn(168) };
+    const day = midweekOffset(165);
+    const win = { pickupLocationCode: 'TST2', pickupAt: isoIn(day), returnAt: isoIn(day + 3) };
     const before = await request(server)
       .get('/api/v1/catalogue/categories/economy/units')
       .query({
