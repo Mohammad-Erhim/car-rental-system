@@ -6,6 +6,7 @@ import {
   columnLabel,
   csvName,
   isNumericColumn,
+  reportTitle,
   scopeText,
   visibleColumns,
 } from './report-columns';
@@ -16,6 +17,8 @@ const texts: Record<string, string> = {
   'ops.fleet.unitState.on_rent': 'On rent',
   'ops.rpt.scopeAll': 'All locations',
   'ops.rpt.scopeTo': 'Only {names}',
+  'ops.rpt.def.refunds.title': 'Synthèse',
+  'ops.dq.check.unit_orphan_location': 'Véhicules orphelins',
 };
 const i18n = {
   t: (k: string, p?: Record<string, unknown>) =>
@@ -75,5 +78,16 @@ describe('visible columns', () => {
 
   it('keeps every heading when there are no rows', () => {
     expect(visibleColumns(['id', 'title'], [])).toEqual(['id', 'title']);
+  });
+});
+
+describe('translated report text', () => {
+  it('uses the translation of a report or check name, else what the API sent', () => {
+    expect(reportTitle(i18n, { code: 'refunds', title: 'Refunds summary' })).toBe('Synthèse');
+    expect(reportTitle(i18n, { code: 'new_one', title: 'A new report' })).toBe('A new report');
+    expect(
+      cellText(i18n, 'title', { id: 'unit_orphan_location', title: 'Vehicles pointing…' }),
+    ).toBe('Véhicules orphelins');
+    expect(cellText(i18n, 'title', { id: 'other', title: 'As sent' })).toBe('As sent');
   });
 });

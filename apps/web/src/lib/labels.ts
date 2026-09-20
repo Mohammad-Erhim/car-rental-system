@@ -18,3 +18,8 @@ export function humanize(code: string): string {
 export function labelFor({ t, resolvedLocaleFor }: LabelI18n, key: string, code: string): string {
   return resolvedLocaleFor(key) === null ? humanize(code) : t(key);
 }
+
+/** Text the API sends in English (a report's title, a check's name): the translation when we have one, else as sent. */
+export function textOr({ t, resolvedLocaleFor }: LabelI18n, key: string, sent: string): string {
+  return resolvedLocaleFor(key) === null ? sent : t(key);
+}

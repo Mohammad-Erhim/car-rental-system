@@ -10,6 +10,8 @@ import {
   columnLabel,
   csvName,
   isNumericColumn,
+  reportDescription,
+  reportTitle,
   scopeText,
   visibleColumns,
 } from './report-columns';
@@ -71,7 +73,7 @@ export function ReportsPage() {
       (a, b) =>
         Number(b.available) - Number(a.available) ||
         Number(a.scope === 'org_wide') - Number(b.scope === 'org_wide') ||
-        a.title.localeCompare(b.title),
+        reportTitle(i18n, a).localeCompare(reportTitle(i18n, b), i18n.locale),
     );
     return { ...defsQuery, data: defsQuery.data ? list : undefined };
   }, [defsQuery]);
@@ -92,7 +94,11 @@ export function ReportsPage() {
   const [resultPage, setResultPage] = useState({ page: 1, pageSize: 25 });
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [sending, setSending] = useState<ReportSchedule | null>(null);
-  const titleOf = (c: string) => defs.data?.find((d) => d.code === c)?.title ?? humanize(c);
+  const defOf = (c: string) => defs.data?.find((d) => d.code === c);
+  const titleOf = (c: string) => {
+    const d = defOf(c);
+    return d ? reportTitle(i18n, d) : humanize(c);
+  };
   const code = selected || defs.data?.find((d) => d.available)?.code || defs.data?.[0]?.code || '';
   const def = defs.data?.find((d) => d.code === code);
 
@@ -324,13 +330,13 @@ export function ReportsPage() {
                     disabled: !d.available,
                     label: (
                       <span className="flex flex-wrap items-center gap-2">
-                        {d.title}
+                        {reportTitle(i18n, d)}
                         {d.scope === 'org_wide' ? (
                           <Badge variant="outline">{t('ops.rpt.orgWideTag')}</Badge>
                         ) : null}
                       </span>
                     ),
-                    description: d.description,
+                    description: reportDescription(i18n, d),
                   }))}
                 />
                 <Button
@@ -340,7 +346,9 @@ export function ReportsPage() {
                   data-testid="report-run"
                 >
                   <Play aria-hidden="true" />
-                  {def ? t('ops.rpt.runNamed', { name: def.title }) : t('ops.rpt.runAction')}
+                  {def
+                    ? t('ops.rpt.runNamed', { name: reportTitle(i18n, def) })
+                    : t('ops.rpt.runAction')}
                 </Button>
                 {def?.scope === 'org_wide' ? (
                   <p className="text-xs text-muted-foreground" data-testid="report-org-wide">
@@ -369,12 +377,12 @@ export function ReportsPage() {
             <section
               ref={resultRef}
               data-testid="report-result"
-              aria-label={result.title}
+              aria-label={titleOf(result.code)}
               className="scroll-mt-20 space-y-3"
             >
               <div className="flex flex-wrap items-center justify-between gap-2 px-1">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <h2 className="text-base font-semibold">{result.title}</h2>
+                  <h2 className="text-base font-semibold">{titleOf(result.code)}</h2>
                   <Badge variant="secondary" data-testid="report-scope-note">
                     {scopeText(i18n, result.scopeNote, nameOf)}
                   </Badge>
@@ -394,7 +402,7 @@ export function ReportsPage() {
                 </Button>
               </div>
               <DataTable
-                label={result.title}
+                label={titleOf(result.code)}
                 columns={resultColumns}
                 data={resultSlice}
                 renderCard={(r) => <ReportRowCard row={r} columns={cols} rows={resultRows} />}

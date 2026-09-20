@@ -31,6 +31,7 @@ import {
   useResolveFinding,
   type DataQualityCheck,
 } from '@/lib/admin-hooks';
+import { labelFor, textOr } from '@/lib/labels';
 import { useClientPage } from '@/lib/use-client-page';
 import { useListParams } from '@/lib/use-list-params';
 
@@ -56,7 +57,8 @@ type Modal = { kind: 'resolve' | 'falsePositive'; check: DataQualityCheck };
  * acknowledging or resolving only writes the finding's own tracking row.
  */
 export function DataQualityPage() {
-  const { t, fmt } = useI18n();
+  const i18n = useI18n();
+  const { t, fmt } = i18n;
   const { hasPermission } = useAuth();
   const canManage = hasPermission('audit.manage');
   const { state, update } = useListParams(['tab'] as const);
@@ -185,7 +187,9 @@ export function DataQualityPage() {
         header: t('ops.dq.check'),
         cell: ({ row: { original: c } }) => (
           <span>
-            <span className={c.ok ? '' : 'font-medium'}>{c.title}</span>
+            <span className={c.ok ? '' : 'font-medium'}>
+              {textOr(i18n, `ops.dq.check.${c.id}`, c.title)}
+            </span>
             <span className="bidi-isolate block font-mono text-xs text-muted-foreground">
               {c.id}
             </span>
@@ -196,7 +200,9 @@ export function DataQualityPage() {
         id: 'severity',
         header: t('ops.dq.severity'),
         cell: ({ row: { original: c } }) => (
-          <Badge variant={SEVERITY_TONE(c.severity)}>{c.severity}</Badge>
+          <Badge variant={SEVERITY_TONE(c.severity)}>
+            {labelFor(i18n, `ops.rpt.val.${c.severity}`, c.severity)}
+          </Badge>
         ),
       },
       { id: 'count', header: t('ops.dq.count'), cell: ({ row: { original: c } }) => countCell(c) },
@@ -219,7 +225,7 @@ export function DataQualityPage() {
       },
     ],
 
-    [t, fmt, canManage],
+    [t, fmt, canManage, i18n],
   );
 
   const close = (o: boolean) => {
@@ -302,11 +308,15 @@ export function DataQualityPage() {
             <div className="flex items-start gap-3 p-4" data-check={c.id} data-ok={String(c.ok)}>
               <div className="min-w-0 flex-1 space-y-2">
                 <div className="flex items-start justify-between gap-2">
-                  <span className="text-sm font-medium">{c.title}</span>
+                  <span className="text-sm font-medium">
+                    {textOr(i18n, `ops.dq.check.${c.id}`, c.title)}
+                  </span>
                   {countCell(c)}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant={SEVERITY_TONE(c.severity)}>{c.severity}</Badge>
+                  <Badge variant={SEVERITY_TONE(c.severity)}>
+                    {labelFor(i18n, `ops.rpt.val.${c.severity}`, c.severity)}
+                  </Badge>
                   {stateCell(c)}
                 </div>
                 {c.sample.length ? sampleCell(c) : null}

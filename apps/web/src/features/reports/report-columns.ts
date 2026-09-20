@@ -1,6 +1,6 @@
 import type { I18nContextValue } from '@carrental/i18n/react';
 
-import { humanize, labelFor } from '@/lib/labels';
+import { humanize, labelFor, textOr } from '@/lib/labels';
 
 type Tr = Pick<I18nContextValue, 't' | 'fmt' | 'resolvedLocaleFor'>;
 export type ReportRow = Record<string, unknown>;
@@ -27,9 +27,12 @@ export function cellText(i18n: Tr, key: string, row: ReportRow): string {
     return i18n.fmt.money({ amountMinor: v, currency: row.currency });
   if (typeof v === 'number') return i18n.fmt.number(v);
   const text = String(v);
+  // a data-quality check is named by its id; the API sends its English name
+  if (key === 'title' && typeof row.id === 'string')
+    return textOr(i18n, `ops.dq.check.${row.id}`, text);
   if (key === 'state') {
     // reservation states and vehicle states share the column name
-    const own = [`ops.status.${text}`, `ops.fleet.unitState.${text}`].find(
+    const own = [`ops.status.${text}`, `ops.fleet.unitState.${text}`, `ops.dq.state.${text}`].find(
       (k) => i18n.resolvedLocaleFor(k) !== null,
     );
     return own ? i18n.t(own) : humanize(text);
@@ -62,4 +65,20 @@ export function visibleColumns(keys: string[], rows: ReportRow[]): string[] {
     (k) => k !== 'id' && rows.some((r) => r[k] !== null && r[k] !== undefined && r[k] !== ''),
   );
   return shown.length ? shown : keys;
+}
+
+/** A report's name and description in the person's language (the API sends English). */
+export function reportTitle(
+  i18n: Pick<I18nContextValue, 't' | 'resolvedLocaleFor'>,
+  def: { code: string; title: string },
+) {
+  return textOr(i18n, `ops.rpt.def.${def.code}.title`, def.title);
+}
+export function reportDescription(
+  i18n: Pick<I18nContextValue, 't' | 'resolvedLocaleFor'>,
+  def: { code: string; description: string | null },
+) {
+  return def.description
+    ? textOr(i18n, `ops.rpt.def.${def.code}.description`, def.description)
+    : null;
 }

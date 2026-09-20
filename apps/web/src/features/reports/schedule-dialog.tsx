@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
+import { reportTitle } from './report-columns';
 import { CRON_PRESETS, parseRecipients, recipientsValid } from './report-model';
 
 import { FormDialog } from '@/components/form-dialog';
@@ -32,7 +33,8 @@ export function ScheduleDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { t } = useI18n();
+  const i18n = useI18n();
+  const { t } = i18n;
   const schedule = useScheduleReport();
 
   const schema = useMemo(
@@ -86,7 +88,7 @@ export function ScheduleDialog({
         control={form.control}
         name="definitionCode"
         label={t('ops.rpt.report')}
-        options={definitions.map((d) => ({ value: d.code, label: d.title }))}
+        options={definitions.map((d) => ({ value: d.code, label: reportTitle(i18n, d) }))}
         testIdPrefix="schedule-report"
       />
       <ChoiceField
