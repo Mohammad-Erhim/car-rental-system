@@ -8,12 +8,14 @@ import { z } from 'zod';
 
 import { sourceLabel } from './who-can-dialog';
 
+import { ChoiceTabs } from '@/components/choice-tabs';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { FormDialog } from '@/components/form-dialog';
-import { SelectField, TextField } from '@/components/form-fields';
+import { ChoiceField, TextField } from '@/components/form-fields';
 import { StateView } from '@/components/state-view';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
   Sheet,
@@ -358,15 +360,13 @@ function AddRoleDialog({
         toast.success(t('ops.access.roleAdded'));
       }}
     >
-      <SelectField
+      <ChoiceField
         control={form.control}
         name="roleCode"
         label={t('ops.access.role')}
-        noneLabel={t('ops.access.pickRole')}
         options={(roles.data?.roles ?? [])
           .filter((r) => !r.archived)
-          .map((r) => ({ value: r.code, label: r.name }))}
-        testId="ua-role-select"
+          .map((r) => ({ value: r.code, label: r.name, testId: `ua-role-${r.code}` }))}
       />
       <TextField
         control={form.control}
@@ -427,13 +427,21 @@ function OverrideDialog({
         toast.success(t('ops.access.overrideAdded'));
       }}
     >
-      <SelectField
+      <FormField
         control={form.control}
         name="action"
-        label={t('ops.access.permission')}
-        noneLabel={t('ops.access.pickAction')}
-        options={catalogue.map((c) => ({ value: c.code, label: c.code }))}
-        testId="ua-override-action"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>{t('ops.access.permission')}</FormLabel>
+            <PermissionPicker
+              catalogue={catalogue}
+              value={field.value}
+              onChange={field.onChange}
+              label={t('ops.access.permission')}
+            />
+            <FormMessage />
+          </FormItem>
+        )}
       />
       <RadioGroup
         value={effect}
@@ -462,5 +470,50 @@ function OverrideDialog({
       />
       <TextField control={form.control} name="reason" label={t('ops.access.reason')} />
     </FormDialog>
+  );
+}
+
+/**
+ * Picks one permission from the catalogue without a dropdown: the modules are tabs, and the chosen
+ * module's permissions are a list of described options — every choice visible, none hidden in a menu.
+ */
+function PermissionPicker({
+  catalogue,
+  value,
+  onChange,
+  label,
+}: {
+  catalogue: PermissionAction[];
+  value: string;
+  onChange: (value: string) => void;
+  label: string;
+}) {
+  const groups = useMemo(() => [...new Set(catalogue.map((c) => c.group))].sort(), [catalogue]);
+  const [group, setGroup] = useState(
+    () => catalogue.find((c) => c.code === value)?.group ?? groups[0] ?? '',
+  );
+  return (
+    <div className="space-y-2" data-testid="ua-override-picker">
+      <ChoiceTabs
+        value={group}
+        onChange={setGroup}
+        label={label}
+        options={groups.map((g) => ({ value: g, label: g, testId: `ua-group-${g}` }))}
+      />
+      <ChoiceTabs
+        layout="list"
+        value={value}
+        onChange={onChange}
+        label={`${label} · ${group}`}
+        options={catalogue
+          .filter((c) => c.group === group)
+          .map((c) => ({
+            value: c.code,
+            label: <span className="bidi-isolate font-mono text-xs">{c.code}</span>,
+            description: c.description,
+            testId: `ua-action-${c.code}`,
+          }))}
+      />
+    </div>
   );
 }

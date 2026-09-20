@@ -52,6 +52,7 @@ import { TemplatePage } from '../features/templates/template-page.js';
 import { TemplatesPage } from '../features/templates/templates-page.js';
 import { TranslationEditorPage } from '../features/translations/translation-editor-page.js';
 import { TranslationsPage } from '../features/translations/translations-page.js';
+import { BuilderPage } from '../features/workflows/builder-page.js';
 import { RequestPage } from '../features/workflows/request-page.js';
 import { TasksPage } from '../features/workflows/tasks-page.js';
 import { WorkflowsAdminPage } from '../features/workflows/workflows-admin-page.js';
@@ -158,6 +159,10 @@ function dashboardRoutes(): RouteObject[] {
     {
       path: 'admin/workflows',
       element: perm(['workflow.manage', 'workflow.monitor'], <WorkflowsAdminPage />),
+    },
+    {
+      path: 'admin/workflows/:id',
+      element: perm(['workflow.manage', 'workflow.monitor'], <BuilderPage />),
     },
     { path: 'tasks', element: <TasksPage /> },
     { path: 'tasks/:id', element: <RequestPage /> },

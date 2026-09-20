@@ -523,3 +523,38 @@ routing-payment.adapter,payment-config.controller,stripe-webhook.controller}.ts`
   `0031_workflow_engine.sql`, seeds (`workflow.manage`, `workflow.monitor`), worker `workflow-tick`,
   config/template/customer services, `packages/contracts/src/workflow.ts`, web
   `features/workflows/*` and `lib/workflow-hooks.ts`; tests `workflow.spec.ts`, `workflow.test.ts`.
+
+### DEC-033 — Workflow builder, and tabs instead of dropdowns (plan phase 4)
+
+- Context: phase 3 let an owner bind a built-in workflow to an action; changing who is asked, in what
+  mode, with what rule, still needed code. Separately, dropdowns were used to switch views on some
+  pages (`StateSwitcher` collapsed into a select on phones) and to pick values in forms — which hides
+  the choices and reads as a form field, not as navigation.
+- Decision:
+  - **Builder** (`Administration → Workflows → open a workflow`): the pipeline is an ordered list of
+    step cards. Where a step goes next follows the order unless the step says otherwise
+    (`editor model`: `next` absent = "the following step"), so dragging, inserting or deleting never
+    leaves a dangling pointer; `toSpec` / `fromSpec` convert to and from the saved graph and are
+    round-trip tested. Reorder by drag, by keyboard (dnd-kit), or by up/down buttons.
+  - **Editing** one step in a side panel: name, who (roles, named people, teams, requester / owner),
+    how many (any / all / N / in order), exclude the requester, location cover, send-back and comment
+    rules, deadline (reminders, escalate / wait / auto-approve / auto-reject), notify, wait, branch on a
+    rule (form for the common shape, read-only JSON for anything fancier — never silently rewritten),
+    parallel routes (join all / any).
+  - **Check & test**: graph rules run instantly in the browser (shared `validateWorkflowGraph`), the
+    server checks people and variables shortly after typing stops; publishing is blocked while anything
+    is wrong. The simulator runs the _unsaved_ pipeline against real people. **Versions**: every saved
+    version with a step-level diff; restore copies an old one into the editor as a new draft. **Import /
+    export** as JSON, all-or-nothing. **Templates** for a new workflow. Unsaved changes are guarded.
+  - **Tabs, not dropdowns.** `StateSwitcher` is now tabs everywhere (they scroll sideways on a phone; the
+    old collapse to a select is opt-in and unused). A new `ChoiceTabs` / `ChoiceField` picks one value as
+    a radio group styled as tabs (or as a described list) and replaces the selects in: assigning a role,
+    choosing a permission for an exception (module tabs → permission list), the phone role matrix, and
+    choosing which workflow governs an action. Panels are switched with tabs; values are chosen with
+    `ChoiceTabs`.
+- Not yet: a visual graph view (`@xyflow/react`), conditional-binding editor (several bindings per
+  action with rules — the API supports it), and the phase 5 / 6 items in DEC-032.
+- Consequences: web `features/workflows/builder/*`, `builder-page.tsx`, `clone-dialog.tsx`,
+  `new-workflow-dialog.tsx`, `components/choice-tabs.tsx`, `components/state-switcher.tsx`,
+  `features/access/*`; API `GET /admin/workflows/options`; new web dependency `@dnd-kit/*`; tests
+  `builder/model.test.ts`, `builder/builder-components.test.tsx`, `choice-tabs.test.tsx`.

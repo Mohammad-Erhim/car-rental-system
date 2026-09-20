@@ -26,6 +26,7 @@ import { ReviewMatrixDialog } from './review-matrix-dialog';
 import { CloneRoleDialog, RoleSheet } from './role-dialogs';
 import { WhoCanDialog } from './who-can-dialog';
 
+import { ChoiceTabs } from '@/components/choice-tabs';
 import { StateView } from '@/components/state-view';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -342,18 +343,13 @@ export function RolesTab() {
 
       {/* phone: one role at a time */}
       <div className="space-y-3 md:hidden">
-        <select
-          className="h-11 w-full rounded-md border bg-background px-3 text-sm"
-          value={activeMobile?.code}
-          onChange={(e) => setMobileRole(e.target.value)}
-          aria-label={t('ops.access.pickRole')}
-        >
-          {list.map((r) => (
-            <option key={r.code} value={r.code}>
-              {r.name}
-            </option>
-          ))}
-        </select>
+        <ChoiceTabs
+          value={activeMobile?.code ?? ''}
+          onChange={setMobileRole}
+          label={t('ops.access.pickRole')}
+          testIdPrefix="roles-mobile"
+          options={list.map((r) => ({ value: r.code, label: r.name }))}
+        />
         {activeMobile ? (
           <Card className="p-4">
             <div className="mb-3">{roleHeader(activeMobile)}</div>

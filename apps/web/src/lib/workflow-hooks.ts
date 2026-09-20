@@ -362,7 +362,8 @@ export interface SimulationStep {
 export function useSimulate() {
   return useMutation({
     mutationFn: (body: {
-      definitionId: string;
+      definitionId?: string;
+      spec?: unknown;
       actionKey?: string;
       context?: Record<string, unknown>;
     }) =>
@@ -373,5 +374,97 @@ export function useSimulate() {
           body,
         },
       ),
+  });
+}
+
+// ───────────── builder ─────────────
+
+export interface WorkflowOptions {
+  roles: Array<{ code: string; name: string; isSystem: boolean }>;
+  groups: Array<{ id: string; code: string; name: string }>;
+  people: Array<{ staffProfileId: string; name: string; email: string }>;
+}
+
+export function useWorkflowOptions() {
+  return useQuery({
+    queryKey: [...KEY, 'options'],
+    queryFn: ({ signal }) => apiFetch<WorkflowOptions>('/admin/workflows/options', { signal }),
+    staleTime: 60_000,
+  });
+}
+
+export interface WorkflowIssue {
+  code: string;
+  stepId?: string;
+  message: string;
+}
+
+/** Server-side check of a draft (actors resolve to real people, rules read known variables). */
+export function useValidateWorkflow() {
+  return useMutation({
+    mutationFn: (body: { spec: unknown; actionKeys?: string[] }) =>
+      apiFetch<{ issues: WorkflowIssue[] }>('/admin/workflows/definitions/validate', {
+        method: 'POST',
+        body,
+      }),
+  });
+}
+
+export function useCreateDefinition() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (body: {
+      code: string;
+      name: string;
+      description?: string;
+      spec: unknown;
+      note?: string;
+    }) => apiFetch<DefinitionDetail>('/admin/workflows/definitions', { method: 'POST', body }),
+    onSuccess: refresh,
+  });
+}
+
+export function useSaveDraft() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: ({
+      id,
+      ...body
+    }: {
+      id: string;
+      spec: unknown;
+      name?: string;
+      description?: string;
+      note?: string;
+    }) =>
+      apiFetch<DefinitionDetail>(`/admin/workflows/definitions/${id}/draft`, {
+        method: 'PUT',
+        body,
+      }),
+    onSuccess: refresh,
+  });
+}
+
+export function usePublishDefinition() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: ({ id, versionId }: { id: string; versionId?: string }) =>
+      apiFetch<DefinitionDetail>(`/admin/workflows/definitions/${id}/publish`, {
+        method: 'POST',
+        body: versionId ? { versionId } : {},
+      }),
+    onSuccess: refresh,
+  });
+}
+
+export function useArchiveDefinition() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<{ ok: true }>(`/admin/workflows/definitions/${id}/archive`, {
+        method: 'POST',
+        body: {},
+      }),
+    onSuccess: refresh,
   });
 }

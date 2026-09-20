@@ -6,6 +6,16 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### Workflow builder and tabs instead of dropdowns (2026-09)
+
+- **Builder:** build a workflow as reorderable step cards (drag, keyboard, or buttons); edit who is asked
+  (roles, people, teams, the requester), how many must decide, deadlines and escalation, branches on
+  rules, parallel routes; a live check blocks publishing while anything is wrong; a simulator shows who
+  would really be asked; version history with what changed and restore; JSON import / export; templates.
+- **Tabs, not dropdowns:** views switch with tabs on every page (scrolling sideways on a phone), and
+  values are chosen with tab-style options instead of selects — roles, permissions for an exception,
+  the phone role matrix, and the workflow for an action.
+
 ### Workflow engine — configurable approval pipelines (2026-09)
 
 An owner decides, per action, whether a change is applied directly or only after a pipeline of

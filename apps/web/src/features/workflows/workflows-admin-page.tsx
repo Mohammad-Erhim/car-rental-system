@@ -1,16 +1,16 @@
 import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Copy, Eye, ShieldAlert } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { Copy, Eye, Pencil, Plus, ShieldAlert } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
-import { z } from 'zod';
 
+import { CloneDialog } from './clone-dialog';
+import { NewWorkflowDialog } from './new-workflow-dialog';
 import { Requests } from './tasks-page';
 
-import { FormDialog } from '@/components/form-dialog';
-import { TextField } from '@/components/form-fields';
+import { paths } from '@/app/paths';
+import { ChoiceTabs } from '@/components/choice-tabs';
 import { Page, PageHeader } from '@/components/page-header';
 import { StateSwitcher } from '@/components/state-switcher';
 import { StateView } from '@/components/state-view';
@@ -24,18 +24,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useListParams } from '@/lib/use-list-params';
 import {
   useBindings,
-  useCloneDefinition,
   useDefinitions,
   useGovernedActions,
   useRemoveBinding,
@@ -149,31 +141,32 @@ function ActionsTab({ canManage }: { canManage: boolean }) {
                   </div>
                 ) : null}
               </div>
-              <div className="w-full sm:w-72">
-                <Select
-                  value={plain?.definitionId ?? DIRECT}
-                  onValueChange={(v) => void change(a, plain, v)}
-                  disabled={!canManage || save.isPending || remove.isPending}
-                >
-                  <SelectTrigger
-                    aria-label={t('ops.wf.pickWorkflow', { action: a.label })}
-                    data-testid={`wf-bind-${a.key}`}
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={DIRECT}>{t('ops.wf.direct')}</SelectItem>
-                    {usable
-                      .filter((d) => d.code !== 'direct')
-                      .map((d) => (
-                        <SelectItem key={d.id} value={d.id}>
-                          {d.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
+            <ChoiceTabs
+              layout="list"
+              className="mt-4"
+              value={plain?.definitionId ?? DIRECT}
+              onChange={(v) => void change(a, plain, v)}
+              disabled={!canManage || save.isPending || remove.isPending}
+              label={t('ops.wf.pickWorkflow', { action: a.label })}
+              testIdPrefix={`wf-bind-${a.key}`}
+              options={[
+                {
+                  value: DIRECT,
+                  label: t('ops.wf.direct'),
+                  description: t('ops.wf.directBody'),
+                  testId: `wf-bind-${a.key}-direct`,
+                },
+                ...usable
+                  .filter((d) => d.code !== 'direct')
+                  .map((d) => ({
+                    value: d.id,
+                    label: d.name,
+                    description: d.description ?? t('ops.wf.stepCount', { n: d.stepCount }),
+                    testId: `wf-bind-${a.key}-${d.code}`,
+                  })),
+              ]}
+            />
           </Card>
         );
       })}
@@ -187,6 +180,7 @@ function DefinitionsTab({ canManage }: { canManage: boolean }) {
   const defs = useDefinitions();
   const [preview, setPreview] = useState<DefinitionRow | null>(null);
   const [clone, setClone] = useState<DefinitionRow | null>(null);
+  const [creating, setCreating] = useState(false);
 
   if (defs.isLoading) return <Skeleton className="h-48 rounded-xl" />;
   if (defs.isError || !defs.data) {
@@ -201,6 +195,14 @@ function DefinitionsTab({ canManage }: { canManage: boolean }) {
   }
   return (
     <>
+      {canManage ? (
+        <div className="mb-4 flex justify-end">
+          <Button onClick={() => setCreating(true)} data-testid="wf-new">
+            <Plus aria-hidden="true" />
+            {t('ops.wfb.new')}
+          </Button>
+        </div>
+      ) : null}
       <div className="grid gap-4 md:grid-cols-2" data-testid="wf-definitions">
         {defs.data.map((d) => (
           <Card key={d.id} className="p-5">
@@ -220,6 +222,17 @@ function DefinitionsTab({ canManage }: { canManage: boolean }) {
                 </p>
               </div>
               <div className="flex gap-1">
+                <Button asChild size="icon-sm" variant="ghost">
+                  <Link
+                    to={paths.workflow(d.id)}
+                    aria-label={t(d.isSystem || !canManage ? 'ops.wfb.view' : 'ops.wfb.edit', {
+                      name: d.name,
+                    })}
+                    data-testid={`wf-open-${d.code}`}
+                  >
+                    <Pencil aria-hidden="true" />
+                  </Link>
+                </Button>
                 <Button
                   size="icon-sm"
                   variant="ghost"
@@ -245,6 +258,7 @@ function DefinitionsTab({ canManage }: { canManage: boolean }) {
       </div>
       {preview ? <PreviewDialog def={preview} onClose={() => setPreview(null)} /> : null}
       {clone ? <CloneDialog def={clone} onClose={() => setClone(null)} /> : null}
+      {creating ? <NewWorkflowDialog onClose={() => setCreating(false)} /> : null}
     </>
   );
 }
@@ -303,40 +317,5 @@ function PreviewDialog({ def, onClose }: { def: DefinitionRow; onClose: () => vo
         {isError ? <p className="text-sm text-destructive">{t('ops.wf.loadFail')}</p> : null}
       </DialogContent>
     </Dialog>
-  );
-}
-
-function CloneDialog({ def, onClose }: { def: DefinitionRow; onClose: () => void }) {
-  const { t } = useI18n();
-  const clone = useCloneDefinition();
-  const schema = useMemo(
-    () =>
-      z.object({
-        name: z.string().trim().min(1, t('ops.wf.commentRequired')).max(120),
-        code: z.string().regex(/^[a-z][a-z0-9_]{1,39}$/, t('ops.wf.codeInvalid')),
-      }),
-    [t],
-  );
-  const defaults = { name: `${def.name} (copy)`, code: `${def.code}_copy`.slice(0, 40) };
-  const form = useForm({ resolver: zodResolver(schema), defaultValues: defaults });
-  return (
-    <FormDialog
-      open
-      onOpenChange={(o) => {
-        if (!o) onClose();
-      }}
-      form={form}
-      defaultValues={defaults}
-      title={t('ops.wf.cloneTitle', { name: def.name })}
-      description={t('ops.wf.cloneBody')}
-      submitLabel={t('ops.wf.clone')}
-      onSubmit={async (v) => {
-        await clone.mutateAsync({ id: def.id, code: v.code, name: v.name.trim() });
-        toast.success(t('ops.wf.cloned'));
-      }}
-    >
-      <TextField control={form.control} name="name" label={t('ops.wf.nameLabel')} />
-      <TextField control={form.control} name="code" label={t('ops.wf.codeLabel')} />
-    </FormDialog>
   );
 }

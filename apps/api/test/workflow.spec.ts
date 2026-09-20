@@ -655,6 +655,16 @@ describe('workflow engine', () => {
     await post(`/api/v1/admin/workflows/definitions/${defId}/archive`).expect(201);
   });
 
+  it('offers the roles, teams and active people a step can address — to builders only', async () => {
+    const opts = (await get('/api/v1/admin/workflows/options').expect(200)).body;
+    expect(opts.roles.map((r: { code: string }) => r.code)).toEqual(
+      expect.arrayContaining(['administrator', 'manager']),
+    );
+    expect(opts.people.map((p: { name: string }) => p.name)).toContain('Test Manager');
+    expect(opts.people[0]).toHaveProperty('staffProfileId');
+    await get('/api/v1/admin/workflows/options', tok.manager).expect(403); // monitors can look, not build
+  });
+
   it('the simulator shows who would be asked without creating anything', async () => {
     const sim = await post('/api/v1/admin/workflows/simulate', {
       spec: spec('a', [

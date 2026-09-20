@@ -25,6 +25,7 @@ export function StateSwitcher({
   label,
   testIdPrefix,
   variant = 'pills',
+  collapse = false,
   className,
 }: {
   value: string;
@@ -34,33 +35,42 @@ export function StateSwitcher({
   label: string;
   testIdPrefix?: string;
   variant?: 'pills' | 'underline';
+  /**
+   * Off by default: switching a view is done with tabs everywhere, on a phone too (they scroll
+   * sideways when there are many) — a dropdown hides the choices behind a tap and reads as a form
+   * field, not as navigation. Only opt in where a screen truly cannot spare the width.
+   */
+  collapse?: boolean;
   className?: string;
 }) {
   // a few short choices fit as tabs even on a phone — a dropdown would hide them behind a tap
   const compact = options.length <= 3 && options.reduce((n, o) => n + o.label.length, 0) <= 36;
+  const asSelect = collapse && !compact;
   return (
     <div className={cn('min-w-0', className)}>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger
-          aria-label={label}
-          className={cn('h-11 sm:hidden', compact && 'hidden')}
-          data-testid={testIdPrefix ? `${testIdPrefix}-select` : undefined}
-        >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {asSelect ? (
+        <Select value={value} onValueChange={onChange}>
+          <SelectTrigger
+            aria-label={label}
+            className="h-11 sm:hidden"
+            data-testid={testIdPrefix ? `${testIdPrefix}-select` : undefined}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {options.map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : null}
 
       <Tabs
         value={value}
         onValueChange={onChange}
-        className={compact ? 'block' : 'hidden sm:block'}
+        className={asSelect ? 'hidden sm:block' : 'block'}
       >
         <TabsList
           aria-label={label}

@@ -2,6 +2,7 @@ import { useI18n } from '@carrental/i18n/react';
 import type { ReactNode } from 'react';
 import type { Control, FieldPath, FieldValues } from 'react-hook-form';
 
+import { ChoiceTabs, type ChoiceOption } from '@/components/choice-tabs';
 import { LookupSelect } from '@/components/lookup-select';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -145,6 +146,44 @@ export function SelectField<T extends FieldValues>({
               ))}
             </SelectContent>
           </Select>
+          {description ? <FormDescription>{description}</FormDescription> : null}
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  );
+}
+
+/** Picks one value as a row of tabs (or a list of described options) — the form's replacement for a dropdown. */
+export function ChoiceField<T extends FieldValues>({
+  control,
+  name,
+  label,
+  description,
+  className,
+  options,
+  layout,
+  testIdPrefix,
+}: BaseProps<T> & {
+  options: ChoiceOption[];
+  layout?: 'pills' | 'list';
+  testIdPrefix?: string;
+}) {
+  return (
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <FormItem className={className}>
+          <FormLabel>{label}</FormLabel>
+          <ChoiceTabs
+            value={field.value ?? ''}
+            onChange={field.onChange}
+            options={options}
+            label={label}
+            layout={layout}
+            testIdPrefix={testIdPrefix}
+          />
           {description ? <FormDescription>{description}</FormDescription> : null}
           <FormMessage />
         </FormItem>

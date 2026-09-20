@@ -57,6 +57,7 @@ export const paths = {
   staff: '/admin/staff',
   access: '/admin/access',
   workflows: '/admin/workflows',
+  workflow: (id: string) => `/admin/workflows/${enc(id)}`,
   audit: '/admin/audit',
   consentLog: '/admin/consent-log',
   dataQuality: '/admin/data-quality',

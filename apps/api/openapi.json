@@ -1082,6 +1082,21 @@
         ]
       }
     },
+    "/api/v1/admin/workflows/options": {
+      "get": {
+        "operationId": "workflowsAdmin_options",
+        "summary": "Roles, teams and people a step can address",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows-admin"
+        ]
+      }
+    },
     "/api/v1/admin/workflows/definitions": {
       "get": {
         "operationId": "workflowsAdmin_list",

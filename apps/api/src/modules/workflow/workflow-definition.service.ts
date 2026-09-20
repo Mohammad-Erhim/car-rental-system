@@ -16,7 +16,7 @@ import type { Actor } from '../../common/auth/types';
 import { isUniqueViolation } from '../../common/db-error';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
-import { role, staffGroup } from '../../database/schema/iam';
+import { account, role, staffGroup, staffProfile } from '../../database/schema/iam';
 import { organization } from '../../database/schema/org';
 import {
   workflowBinding,
@@ -488,16 +488,14 @@ export class WorkflowDefinitionService implements OnApplicationBootstrap {
           .where(eq(workflowDefinitionVersion.definitionId, id))
           .orderBy(desc(workflowDefinitionVersion.revision))
           .limit(1);
-        await tx
-          .insert(workflowDefinitionVersion)
-          .values({
-            definitionId: id,
-            revision: (last?.r ?? 0) + 1,
-            status: 'draft',
-            spec: spec.data as unknown as Record<string, unknown>,
-            note: input.note ?? null,
-            createdBy: actor.accountId,
-          });
+        await tx.insert(workflowDefinitionVersion).values({
+          definitionId: id,
+          revision: (last?.r ?? 0) + 1,
+          status: 'draft',
+          spec: spec.data as unknown as Record<string, unknown>,
+          note: input.note ?? null,
+          createdBy: actor.accountId,
+        });
       }
     });
     await this.audit.record({
@@ -616,6 +614,44 @@ export class WorkflowDefinitionService implements OnApplicationBootstrap {
       targetId: id,
       actor,
     });
+  }
+
+  /** Everyone and everything a step can address: the builder's pickers. Active people only. */
+  async options(orgId: string) {
+    const [roles, groups, people] = await Promise.all([
+      this.db
+        .select({ code: role.code, name: role.name, isSystem: role.isSystem })
+        .from(role)
+        .where(
+          and(
+            isNull(role.archivedAt),
+            or(isNull(role.organizationId), eq(role.organizationId, orgId)),
+          ),
+        )
+        .orderBy(asc(role.name)),
+      this.db
+        .select({ id: staffGroup.id, code: staffGroup.code, name: staffGroup.name })
+        .from(staffGroup)
+        .where(and(eq(staffGroup.organizationId, orgId), isNull(staffGroup.archivedAt)))
+        .orderBy(asc(staffGroup.name)),
+      this.db
+        .select({
+          staffProfileId: staffProfile.id,
+          name: account.displayName,
+          email: account.email,
+        })
+        .from(staffProfile)
+        .innerJoin(account, eq(account.id, staffProfile.accountId))
+        .where(
+          and(
+            eq(staffProfile.organizationId, orgId),
+            eq(staffProfile.status, 'active'),
+            eq(account.status, 'active'),
+          ),
+        )
+        .orderBy(asc(account.displayName)),
+    ]);
+    return { roles, groups, people };
   }
 
   // ───────────── bindings ─────────────
@@ -820,13 +856,11 @@ export class WorkflowDefinitionService implements OnApplicationBootstrap {
           mode: step.actors.mode,
           required,
           ...(step.due ? { dueHours: step.due.hours } : {}),
-          asks: who
-            .slice(0, 50)
-            .map((w) => ({
-              staffProfileId: w.staffProfileId,
-              name: names.get(w.staffProfileId) ?? '—',
-              source: fallback ? 'fallback' : w.source,
-            })),
+          asks: who.slice(0, 50).map((w) => ({
+            staffProfileId: w.staffProfileId,
+            name: names.get(w.staffProfileId) ?? '—',
+            source: fallback ? 'fallback' : w.source,
+          })),
         });
         hours += step.due?.hours ?? 0;
         next = step.next;
@@ -888,15 +922,13 @@ export class WorkflowDefinitionService implements OnApplicationBootstrap {
             isSystem: true,
           })
           .returning();
-        await tx
-          .insert(workflowDefinitionVersion)
-          .values({
-            definitionId: d!.id,
-            revision: 1,
-            status: 'published',
-            spec: s.spec as unknown as Record<string, unknown>,
-            publishedAt: sql`now()`,
-          });
+        await tx.insert(workflowDefinitionVersion).values({
+          definitionId: d!.id,
+          revision: 1,
+          status: 'published',
+          spec: s.spec as unknown as Record<string, unknown>,
+          publishedAt: sql`now()`,
+        });
       });
     }
   }

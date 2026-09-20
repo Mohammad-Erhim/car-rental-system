@@ -37,6 +37,7 @@ POST   /api/v1/admin/workflows/definitions/:id/clone
 PUT    /api/v1/admin/workflows/definitions/:id/draft
 POST   /api/v1/admin/workflows/definitions/:id/publish
 POST   /api/v1/admin/workflows/definitions/validate
+GET    /api/v1/admin/workflows/options
 POST   /api/v1/admin/workflows/simulate
 POST   /api/v1/auth/change-password
 GET    /api/v1/auth/data-requests

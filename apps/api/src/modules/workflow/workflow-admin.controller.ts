@@ -63,6 +63,16 @@ export class WorkflowAdminController {
     return this.defs.actions();
   }
 
+  @Get('options')
+  @Permissions('workflow.manage')
+  @ApiOperation({
+    operationId: 'workflowsAdmin_options',
+    summary: 'Roles, teams and people a step can address',
+  })
+  options(@CurrentActor() actor: Actor) {
+    return this.defs.options(actor.organizationId!);
+  }
+
   @Get('definitions')
   @Permissions('workflow.manage', 'workflow.monitor')
   @ApiOperation({ operationId: 'workflowsAdmin_list', summary: 'Workflow definitions' })
