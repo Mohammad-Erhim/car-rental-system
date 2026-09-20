@@ -454,7 +454,7 @@ reviewer", the gap fixes and the permission matrix.
 
 ### 7.3 Checks that were run
 
-- API integration: workflow engine 33, governed actions 12, delegation 9, isolation 5, load 4, edge cases 10, access admin; route manifest snapshot updated.
+- API integration: workflow engine 33, governed actions 12, delegation 9, isolation 5, load 4, edge cases 11, access admin; route manifest snapshot updated.
 - Unit: contracts 17, API 130, web 305.
 - Browser: Playwright workflow flow; axe-core on 19 screens × phone/tablet/laptop (0 issues) and the same laptop screens in Arabic (0 issues); every screenshot looked at.
 - Static: eslint, tsc, prettier, OpenAPI drift on all installed workspaces (the site and mobile apps are not installed on this machine).

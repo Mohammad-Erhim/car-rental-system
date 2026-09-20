@@ -1,3 +1,5 @@
+import { isDeepStrictEqual } from 'node:util';
+
 import {
   DIRECT_WORKFLOW,
   twoPersonReviewSpec,
@@ -747,6 +749,21 @@ export class WorkflowDefinitionService implements OnApplicationBootstrap {
       active: input.active ?? true,
     };
     let id = input.id;
+    if (!id) {
+      // the same route saved twice is still one route (a retry, a double click, a re-run script)
+      const same = await this.db
+        .select({ id: workflowBinding.id, condition: workflowBinding.condition })
+        .from(workflowBinding)
+        .where(
+          and(
+            eq(workflowBinding.organizationId, orgId),
+            eq(workflowBinding.actionKey, input.actionKey),
+            eq(workflowBinding.definitionId, def.id),
+            eq(workflowBinding.priority, values.priority),
+          ),
+        );
+      id = same.find((b) => isDeepStrictEqual(b.condition ?? null, values.condition))?.id;
+    }
     if (id) {
       const [b] = await this.db
         .update(workflowBinding)

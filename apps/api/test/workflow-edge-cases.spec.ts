@@ -431,4 +431,24 @@ describe('workflow edge cases (plan §4)', () => {
         .where(eq(staffProfile.id, sid.finance));
     }
   });
+
+  it('saving the same route twice keeps one route; a different condition is a second route', async () => {
+    const def = await publishDef(spec([step('a', [user('manager')])]));
+    const route = { actionKey: 'config.version.publish', definitionId: def };
+    const first = await put('/api/v1/admin/workflows/bindings', route).expect(200);
+    const again = await put('/api/v1/admin/workflows/bindings', route).expect(200);
+    expect(again.body.id).toBe(first.body.id);
+
+    const conditional = await put('/api/v1/admin/workflows/bindings', {
+      ...route,
+      condition: { '==': [{ var: 'kind' }, 'policy'] },
+    }).expect(200);
+    expect(conditional.body.id).not.toBe(first.body.id);
+
+    const mine = (await get('/api/v1/admin/workflows/bindings').expect(200)).body.filter(
+      (b: { definitionId: string }) => b.definitionId === def,
+    );
+    expect(mine).toHaveLength(2);
+    await db.delete(workflowBinding).where(eq(workflowBinding.definitionId, def));
+  });
 });
