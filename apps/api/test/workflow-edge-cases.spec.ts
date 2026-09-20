@@ -1,3 +1,4 @@
+import type { ActorSelector } from '@carrental/contracts';
 import { eq, sql } from 'drizzle-orm';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -15,6 +16,7 @@ import {
   workflowTask,
   workflowTaskAssignee,
 } from '../src/database/schema/workflow';
+import { WorkflowActorsService } from '../src/modules/workflow/workflow-actors.service';
 import { WorkflowPublic } from '../src/modules/workflow/workflow.public';
 
 import { closeTestApp, getTestApp, httpServer } from './helpers/app';
@@ -395,5 +397,38 @@ describe('workflow edge cases (plan §4)', () => {
     const [row] = await db.select().from(template).where(eq(template.id, id));
     expect(row!.status).toBe('published');
     expect(row!.bodyTemplate).toContain('second version'); // what went live is what was last approved
+  });
+
+  it('#14 a step can ask only people who work at the request’s location; the others are left out', async () => {
+    const actors = app.get(WorkflowActorsService);
+    const selectors = [user('manager'), user('finance')] as ActorSelector[];
+    const ctx = { organizationId: orgId, locationCode: 'TST1' };
+    const ids = async (requireLocationScope: boolean) =>
+      (await actors.resolve(selectors, ctx, { requireLocationScope })).map((a) => a.staffProfileId);
+
+    const [before] = await db
+      .select({ scope: staffProfile.locationScope })
+      .from(staffProfile)
+      .where(eq(staffProfile.id, sid.finance));
+    try {
+      await db
+        .update(staffProfile)
+        .set({ locationScope: ['TST2'] })
+        .where(eq(staffProfile.id, sid.finance));
+      expect(await ids(false)).toEqual(expect.arrayContaining([sid.manager, sid.finance]));
+      // finance is limited to another branch → left out; the manager (no limit) stays
+      expect(await ids(true)).toEqual([sid.manager]);
+
+      await db
+        .update(staffProfile)
+        .set({ locationScope: ['TST1', 'TST2'] })
+        .where(eq(staffProfile.id, sid.finance));
+      expect(await ids(true)).toEqual(expect.arrayContaining([sid.manager, sid.finance]));
+    } finally {
+      await db
+        .update(staffProfile)
+        .set({ locationScope: before!.scope })
+        .where(eq(staffProfile.id, sid.finance));
+    }
   });
 });

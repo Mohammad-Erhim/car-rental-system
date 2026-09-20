@@ -1,6 +1,6 @@
 # Plan — configurable workflows, roles, permissions and users
 
-Status: **phases 1–2 done (2026-09-20); phases 3–6 pending.** Requested 2026-09-19 (Telegram); all eight §6 recommendations accepted ("go"). Everything below is
+Status: **phases 1–6 built and pushed to `main` (2026-09-21); see §7 for what is done, how each edge case is covered, and what is deliberately deferred.** Requested 2026-09-19 (Telegram); all eight §6 recommendations accepted ("go"). Everything below is
 grounded in a read of the current code (file references in §1); numbers such as "about 30 actions" are
 counted from the seed.
 
@@ -398,3 +398,75 @@ reviewer", the gap fixes and the permission matrix.
 7. **Notifications** — in-app inbox + email for tasks in v1; SMS/push later? (Recommended: yes.)
 8. **Business hours** for due times — org-level calendar in v1, or calendar-hours only? (Recommended:
    calendar-hours in v1, business calendar in phase 6.)
+
+---
+
+## 7. Status — what shipped (2026-09-21)
+
+### 7.1 Phases
+
+| Phase                         | State                                                                                                                                                                                                                                                                              | Where                                                                                 |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| 1. Second-person rule removed | Done. Direct is the default everywhere; "Two-person review" is a one-click template.                                                                                                                                                                                               | DEC-032                                                                               |
+| 2. Authorization v2           | Done: roles CRUD (system roles locked, cloneable), assignments (time-bound), per-user allow/deny overrides, teams, approval limits, permission catalogue test, guard rails, `/auth/me/access`, permission matrix (roles × actions, people × actions, who-can), access history.     | `apps/api/src/modules/admin/access-admin.service.ts`, `apps/web/src/features/access/` |
+| 3. Workflow engine            | Done: versioned definitions, bindings with conditions and priority, gate/decide/apply, any/all/quorum/in-order, parallel and wait steps, escalation, timeouts, fallback actors, monitoring, delegation, notifications, keyset inbox, business-hours deadlines, retry with backoff. | `apps/api/src/modules/workflow/`                                                      |
+| 4. Builder                    | Done: step list + flow diagram, actor picker, rule builder, timing, validation panel, simulator, versions and diff, import/export, templates, bindings screen; tabs and option lists only (no dropdown to switch a view or a value).                                               | `apps/web/src/features/workflows/`                                                    |
+| 5. Remaining actions governed | Done: config versions, templates, customer restrictions, refunds (amount bands), cancellation with fee, recovery cases, rate plans, translations, location archive, customer merge, staff access, rental extension.                                                                | `workflow-actions.spec.ts`                                                            |
+| 6. Hardening                  | Done: concurrency, property tests, two-organisation isolation, inbox load test with an index-use assertion, edge-case specs, Playwright flow, axe audit of 57 screens (phone, tablet, laptop) plus an Arabic/RTL pass, admin guide, decisions.                                     | see §7.3                                                                              |
+
+### 7.2 The 34 edge cases of §4
+
+"Test" names the spec that proves it. Everything is in `apps/api/test/` unless noted.
+
+| #      | Covered by                                                                                                                                                                           |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1      | `workflow.spec` — a step nobody can act on falls back to the fallback actors; publish refuses a workflow nobody can act on                                                           |
+| 2, 3   | `workflow.spec` — the open task follows people who become eligible or stop being (reconciler); eligibility re-checked at decision time                                               |
+| 4      | `workflow-edge-cases` #4 — instances stay on the version they started on                                                                                                             |
+| 5      | `workflow.spec` — exclude-initiator with fallback; Direct default allows the author                                                                                                  |
+| 6, 7   | `workflow.spec` — racing ALL approvals advance once; first committed decision wins; different second decision is a conflict                                                          |
+| 8      | `workflow.spec` — a changed subject closes the request as stale                                                                                                                      |
+| 9      | unique open-instance index + `workflow-edge-cases` #28 (same key returns the same request)                                                                                           |
+| 10     | `workflow-edge-cases` #10 — editing a template restarts its request                                                                                                                  |
+| 11     | `workflow-edge-cases` #11 — a step can forbid withdrawing; a monitor can still cancel                                                                                                |
+| 12     | `workflow.spec` — reminders, escalation once, auto-reject on timeout                                                                                                                 |
+| 13     | `workflow-delegation.spec` (9 tests: not transitive, no loops, ≤ 90 days, counts once in ALL, revoked at once)                                                                       |
+| 14     | `workflow-edge-cases` #14 — a step can ask only people who work at the request's location. **Per-assignment location scope is deferred** — see 7.4                                   |
+| 15     | `workflow.spec` — failing executor retried with backoff, approvers not asked again                                                                                                   |
+| 16     | `workflow-edge-cases` #16                                                                                                                                                            |
+| 17     | `access-admin.spec` — cannot change your own access; last access manager and last workflow manager protected                                                                         |
+| 18     | `access-admin.spec` — nobody can hand out power they do not hold                                                                                                                     |
+| 19     | `access-admin.spec` — an in-use role cannot be archived                                                                                                                              |
+| 20     | Permissions are read from the database on every request, so a change is effective at once (`access-admin.spec` DENY override). **A Redis cache is deliberately not added** — see 7.4 |
+| 21, 22 | `access-admin.spec` — deny wins; scheduled and expired assignments                                                                                                                   |
+| 23     | `workflow-actions.spec` — executor runs with the requester's rights snapshot (`_requester`) and re-checks the subject                                                                |
+| 24     | `workflow-edge-cases` #24                                                                                                                                                            |
+| 25     | `packages/contracts/src/workflow.test.ts` and `workflow.property.test.ts` (random definitions), plus the builder property test in `apps/web`                                         |
+| 26     | `workflow-actions.spec` — the person an access change is about can never approve it                                                                                                  |
+| 27     | `workflow-isolation.spec` (5 tests, two organisations)                                                                                                                               |
+| 28     | `workflow-edge-cases` #28 — service and HTTP `Idempotency-Key`                                                                                                                       |
+| 29     | `apps/api/src/modules/workflow/business-hours.test.ts`, `workflow.spec` — deadlines in the location's opening hours, computed in UTC on the server                                   |
+| 30     | `apps/web` tests + `verify:i18n`; up/down buttons beside drag and drop; Arabic audit with no issues; axe audit 0 issues                                                              |
+| 31     | `workflow-edge-cases` #31 (≤ 200 resolved, and says so); `workflow-load.spec` (keyset inbox, index use); people list pages by 50                                                     |
+| 32     | `workflow.spec` — validation with per-step problems; import applies nothing on error                                                                                                 |
+| 33     | Same person + same request + same event is sent once (`workflow.spec`). **Digest and per-user preferences are deferred** — see 7.4                                                   |
+| 34     | `access-admin.spec` — access history; workflow events on every decision, reassignment, escalation, withdrawal and force-complete                                                     |
+
+### 7.3 Checks that were run
+
+- API integration: workflow engine 33, governed actions 12, delegation 9, isolation 5, load 4, edge cases 10, access admin; route manifest snapshot updated.
+- Unit: contracts 17, API 130, web 305.
+- Browser: Playwright workflow flow; axe-core on 19 screens × phone/tablet/laptop (0 issues) and the same laptop screens in Arabic (0 issues); every screenshot looked at.
+- Static: eslint, tsc, prettier, OpenAPI drift on all installed workspaces (the site and mobile apps are not installed on this machine).
+
+### 7.4 Deliberately deferred (with the reason)
+
+| Item                                                 | Why it can wait                                                                                                                            |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Redis cache of resolved permissions                  | Permissions are one indexed read per request; a cache adds an invalidation risk for no measured need. Revisit if request latency shows it. |
+| CASL on the front end                                | The web already gates from `/auth/me/access`; a library would only add a second evaluator to keep in sync.                                 |
+| Per-assignment location scope                        | Roles apply to the locations the account is limited to (DEC-029); a per-assignment scope needs its own UI and migration.                   |
+| Digest emails and per-user notification preferences  | Notifications are de-duplicated; a digest is a product decision (frequency, channels).                                                     |
+| Editing on the flow diagram (xyflow)                 | The diagram is read-only by design; steps are edited in the list, which is the accessible path.                                            |
+| One-click rollback of a role to an earlier state     | The access history shows every change with who and when; roles can be edited back.                                                         |
+| Splitting `config.publish` into per-kind permissions | Today one permission covers publishing settings; per-kind splits can be added to the catalogue without a data change.                      |
