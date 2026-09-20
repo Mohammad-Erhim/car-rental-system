@@ -584,7 +584,7 @@ describe('access administration', () => {
       await db
         .update(staffProfile)
         .set({ locationScope: ['TST2'] })
-        .where(eq(staffProfile.accountId, ids.manager));
+        .where(eq(staffProfile.accountId, ids.manager!));
       try {
         await get('/api/v1/admin/roles', manager).expect(200);
         for (const path of [
@@ -605,7 +605,7 @@ describe('access administration', () => {
         await db
           .update(staffProfile)
           .set({ locationScope: [] })
-          .where(eq(staffProfile.accountId, ids.manager));
+          .where(eq(staffProfile.accountId, ids.manager!));
       }
     });
   });

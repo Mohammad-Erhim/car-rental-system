@@ -1,10 +1,11 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
-import { inArray } from 'drizzle-orm';
+import { and, eq, gt, inArray, sql } from 'drizzle-orm';
 
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { account } from '../../database/schema/iam';
+import { notification } from '../../database/schema/notify';
 
 import type { StaffPerson } from './workflow-actors.service';
 import { WorkflowMessenger } from './workflow-messenger';
@@ -79,6 +80,7 @@ export class WorkflowNotifier {
         for (const p of people) {
           if (seen.has(p.accountId)) continue;
           seen.add(p.accountId);
+          if (await this.alreadySent(n, p.accountId)) continue;
           await messenger.sendMessage({
             event: EVENT[n.kind],
             recipient: p.email,
@@ -94,5 +96,28 @@ export class WorkflowNotifier {
         this.logger.warn(`notification "${n.kind}" failed: ${(err as Error).message}`);
       }
     }
+  }
+
+  /**
+   * The same message to the same person about the same request within a few minutes is sent once
+   * (a retried transaction, two paths that both notice the same thing) — never a flood. Reminders are
+   * spaced by hours, so they are never caught by this.
+   */
+  private async alreadySent(n: Notice, accountId: string): Promise<boolean> {
+    const rows = await this.db
+      .select({ id: notification.id })
+      .from(notification)
+      .where(
+        and(
+          eq(notification.event, EVENT[n.kind]),
+          eq(notification.recipientRef, accountId),
+          eq(notification.sourceId, n.instanceId),
+          gt(notification.createdAt, sql`now() - interval '10 minutes'`),
+          sql`${notification.variables}->>'title' = ${n.title}`,
+          sql`${notification.variables}->>'body' = ${n.body}`,
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
   }
 }

@@ -14,6 +14,8 @@ import {
   workflowTaskAssignee,
 } from '../src/database/schema/workflow';
 import { WorkflowEngineService } from '../src/modules/workflow/workflow-engine.service';
+import { WorkflowNotifier } from '../src/modules/workflow/workflow-notifier.service';
+import { notification } from '../src/database/schema/notify';
 import { WorkflowPublic } from '../src/modules/workflow/workflow.public';
 
 import { closeTestApp, getTestApp, httpServer } from './helpers/app';
@@ -793,6 +795,36 @@ describe('workflow engine', () => {
     expect(local.getHours() * 60 + local.getMinutes()).toBeGreaterThanOrEqual(6 * 60);
     expect(local.getHours() * 60 + local.getMinutes()).toBeLessThanOrEqual(20 * 60);
     expect(due.getTime() - Date.now()).toBeGreaterThan(30 * 3_600_000); // longer than 30 plain hours — the closed hours were skipped
+  });
+
+  it('the same notification to the same person about the same request is sent once, not twice', async () => {
+    const notifier = app.get(WorkflowNotifier);
+    const person = {
+      staffProfileId: sid.manager,
+      accountId: aid.manager,
+      displayName: 'Test Manager',
+      email: 'test-manager@example.test',
+      localeCode: 'en',
+      locationScope: [],
+    };
+    const notice = {
+      kind: 'assigned' as const,
+      recipients: [person],
+      title: 'Dedupe probe',
+      body: 'Waiting for you',
+      instanceId: 'dedupe-instance-1',
+    };
+    await notifier.deliver([notice]);
+    await notifier.deliver([notice]); // a retry, or a second path noticing the same thing
+    const rows = await db
+      .select()
+      .from(notification)
+      .where(eq(notification.sourceId, 'dedupe-instance-1'));
+    expect(rows).toHaveLength(1);
+    await notifier.deliver([{ ...notice, body: 'A different message' }]); // genuinely different → sent
+    expect(
+      await db.select().from(notification).where(eq(notification.sourceId, 'dedupe-instance-1')),
+    ).toHaveLength(2);
   });
 
   // ───────────────────────── executor failure ─────────────────────────
