@@ -1067,6 +1067,73 @@
         ]
       }
     },
+    "/api/v1/workflows/delegations": {
+      "get": {
+        "operationId": "workflows_delegations",
+        "summary": "Who I am covering for, and who covers for me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      },
+      "post": {
+        "operationId": "workflows_delegate",
+        "summary": "Let a colleague decide my tasks while I am away",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
+    "/api/v1/workflows/delegations/people": {
+      "get": {
+        "operationId": "workflows_delegationPeople",
+        "summary": "Colleagues I could hand my tasks to",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
+    "/api/v1/workflows/delegations/{id}": {
+      "delete": {
+        "operationId": "workflows_revokeDelegation",
+        "summary": "End a delegation now",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
     "/api/v1/admin/workflows/actions": {
       "get": {
         "operationId": "workflowsAdmin_actions",

@@ -3,6 +3,7 @@ import { Global, Module } from '@nestjs/common';
 import { WorkflowActorsService } from './workflow-actors.service';
 import { WorkflowAdminController } from './workflow-admin.controller';
 import { WorkflowDefinitionService } from './workflow-definition.service';
+import { WorkflowDelegationService } from './workflow-delegation.service';
 import { WorkflowEngineService } from './workflow-engine.service';
 import { WorkflowNotifier } from './workflow-notifier.service';
 import { WorkflowQueryService } from './workflow-query.service';
@@ -21,6 +22,7 @@ import { WorkflowPublic } from './workflow.public';
   providers: [
     WorkflowRegistry,
     WorkflowActorsService,
+    WorkflowDelegationService,
     WorkflowDefinitionService,
     WorkflowEngineService,
     WorkflowQueryService,

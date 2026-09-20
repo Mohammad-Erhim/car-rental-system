@@ -200,6 +200,8 @@ export const workflowTaskAssignee = pgTable(
     decidedByAccountId: uuid('decided_by_account_id'),
     /** the eligibility check ran and this person was the decider (vs. a monitor acting for them) */
     seenAt: timestamp('seen_at', { withTimezone: true, mode: 'string' }),
+    /** set on a delegate's row: the person (staff profile) they are deciding for */
+    onBehalfOf: uuid('on_behalf_of'),
   },
   (t) => ({
     taskStaffUnq: unique('workflow_task_assignee_unq').on(t.taskId, t.staffProfileId),
@@ -228,4 +230,30 @@ export const workflowEvent = pgTable(
       .default(sql`now()`),
   },
   (t) => ({ instanceIdx: index('workflow_event_instance_idx').on(t.instanceId, t.createdAt) }),
+);
+
+/**
+ * Out of office: while a delegation is active, the delegate may decide the delegator's open and new
+ * tasks. Not transitive (a delegate cannot pass it on), time-boxed, revocable, and always visible in
+ * the request's history as "decided by X on behalf of Y".
+ */
+export const workflowDelegation = pgTable(
+  'workflow_delegation',
+  {
+    ...auditColumns,
+    organizationId: uuid('organization_id').notNull(),
+    delegatorStaffId: uuid('delegator_staff_id').notNull(),
+    delegateStaffId: uuid('delegate_staff_id').notNull(),
+    validFrom: timestamp('valid_from', { withTimezone: true, mode: 'string' })
+      .notNull()
+      .default(sql`now()`),
+    validUntil: timestamp('valid_until', { withTimezone: true, mode: 'string' }).notNull(),
+    reason: text('reason'),
+    revokedAt: timestamp('revoked_at', { withTimezone: true, mode: 'string' }),
+    createdBy: uuid('created_by'),
+  },
+  (t) => ({
+    delegatorIdx: index('workflow_delegation_delegator_idx').on(t.delegatorStaffId, t.validUntil),
+    delegateIdx: index('workflow_delegation_delegate_idx').on(t.delegateStaffId, t.validUntil),
+  }),
 );

@@ -231,6 +231,10 @@ GET    /api/v1/reservations/:reference/invoices/:number
 POST   /api/v1/reservations/:reference/modify
 GET    /api/v1/reservations/mine
 POST   /api/v1/webhooks/stripe
+GET    /api/v1/workflows/delegations
+POST   /api/v1/workflows/delegations
+DELETE /api/v1/workflows/delegations/:id
+GET    /api/v1/workflows/delegations/people
 GET    /api/v1/workflows/inbox
 GET    /api/v1/workflows/inbox/count
 GET    /api/v1/workflows/instances

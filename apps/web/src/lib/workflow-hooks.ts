@@ -33,6 +33,8 @@ export type WorkflowStatus =
 export type WorkflowDecision = 'approve' | 'reject' | 'request_changes' | 'complete';
 
 export interface InboxItem {
+  /** set when I can decide this because I am covering for someone */
+  onBehalfOfName?: string | null;
   taskId: string;
   instanceId: string;
   stepId: string;
@@ -501,4 +503,59 @@ export function usePendingApproval() {
     void qc.invalidateQueries({ queryKey: KEY });
     return true;
   };
+}
+
+// ───────────── out of office ─────────────
+
+export interface DelegationRow {
+  id: string;
+  direction: 'outgoing' | 'incoming';
+  delegator: { staffProfileId: string; name: string };
+  delegate: { staffProfileId: string; name: string };
+  validFrom: string;
+  validUntil: string;
+  reason: string | null;
+  active: boolean;
+}
+
+export function useDelegations() {
+  return useQuery({
+    queryKey: [...KEY, 'delegations'],
+    queryFn: ({ signal }) => apiFetch<DelegationRow[]>('/workflows/delegations', { signal }),
+  });
+}
+
+export function useDelegationPeople() {
+  return useQuery({
+    queryKey: [...KEY, 'delegation-people'],
+    queryFn: ({ signal }) =>
+      apiFetch<Array<{ staffProfileId: string; name: string; email: string }>>(
+        '/workflows/delegations/people',
+        { signal },
+      ),
+    staleTime: 60_000,
+  });
+}
+
+export function useDelegate() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (body: {
+      delegateStaffProfileId: string;
+      validFrom?: string;
+      validUntil: string;
+      reason?: string;
+    }) => apiFetch<DelegationRow>('/workflows/delegations', { method: 'POST', body }),
+    onSuccess: refresh,
+  });
+}
+
+export function useRevokeDelegation() {
+  const refresh = useRefresh();
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<{ ok: true }>(`/workflows/delegations/${id}`, { method: 'DELETE' }),
+    onSuccess: refresh,
+    onError: failToast,
+  });
 }

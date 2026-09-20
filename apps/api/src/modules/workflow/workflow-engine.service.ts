@@ -5,7 +5,7 @@ import {
   type WorkflowStep,
 } from '@carrental/contracts';
 import { Inject, Injectable, Logger } from '@nestjs/common';
-import { and, asc, eq, inArray, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, lte, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
@@ -28,6 +28,7 @@ import { WorkflowActorsService } from './workflow-actors.service';
 import { addBusinessHours, type Schedule } from './business-hours';
 import { evaluateCondition } from './workflow-conditions';
 import { WorkflowDefinitionService } from './workflow-definition.service';
+import { WorkflowDelegationService } from './workflow-delegation.service';
 import { WorkflowNotifier, type Notice } from './workflow-notifier.service';
 import { WorkflowRegistry } from './workflow-registry.service';
 import type {
@@ -89,6 +90,7 @@ export class WorkflowEngineService {
     private readonly audit: AuditService,
     private readonly outbox: OutboxService,
     private readonly rbac: RbacService,
+    private readonly delegations: WorkflowDelegationService,
   ) {}
 
   // ───────────────────────────── gate: capture a request ─────────────────────────────
@@ -410,7 +412,11 @@ export class WorkflowEngineService {
           mode: 'any',
           required: 0,
           resumeAt: step.businessHours
-            ? addBusinessHours(new Date(), step.hours, await this.scheduleFor(tx, inst)).toISOString()
+            ? addBusinessHours(
+                new Date(),
+                step.hours,
+                await this.scheduleFor(tx, inst),
+              ).toISOString()
             : sql`now() + make_interval(secs => ${Math.round(step.hours * 3600)})`,
         })
         .returning();
@@ -471,7 +477,11 @@ export class WorkflowEngineService {
         selectors: step.actors.selectors,
         dueAt: due
           ? due.businessHours
-            ? addBusinessHours(new Date(), due.hours, await this.scheduleFor(tx, inst)).toISOString()
+            ? addBusinessHours(
+                new Date(),
+                due.hours,
+                await this.scheduleFor(tx, inst),
+              ).toISOString()
             : sql`now() + make_interval(secs => ${Math.round(due.hours * 3600)})`
           : null,
         remindEveryHours: due?.reminderEveryHours ? Math.round(due.reminderEveryHours) : null,
@@ -490,6 +500,7 @@ export class WorkflowEngineService {
         })),
       );
     }
+    if (n) await this.syncDelegates(r, inst, task!, excludeStaffIds);
     await this.event(tx, inst.id, task!.id, 'task.opened', null, {
       step: step.id,
       assignees: n,
@@ -624,9 +635,41 @@ export class WorkflowEngineService {
           updatedAt: sql`now()`,
         })
         .where(eq(workflowTaskAssignee.id, mine.id));
+      if (mine.onBehalfOf) {
+        // a delegate decided: it counts as the person they cover for (who stays on record as the principal)
+        await tx
+          .update(workflowTaskAssignee)
+          .set({
+            status: 'decided',
+            decision: input.decision,
+            comment: input.comment ?? null,
+            decidedAt: sql`now()`,
+            decidedByAccountId: actor.accountId,
+            updatedAt: sql`now()`,
+          })
+          .where(
+            and(
+              eq(workflowTaskAssignee.taskId, task.id),
+              eq(workflowTaskAssignee.staffProfileId, mine.onBehalfOf),
+            ),
+          );
+      } else {
+        // the person decided themselves: whoever was covering for them is no longer needed
+        await tx
+          .update(workflowTaskAssignee)
+          .set({ status: 'removed', updatedAt: sql`now()` })
+          .where(
+            and(
+              eq(workflowTaskAssignee.taskId, task.id),
+              eq(workflowTaskAssignee.onBehalfOf, actor.staffProfileId!),
+              eq(workflowTaskAssignee.status, 'pending'),
+            ),
+          );
+      }
       await this.event(tx, inst.id, task.id, `decision.${input.decision}`, actor, {
         step: task.stepId,
         comment: input.comment ?? null,
+        ...(mine.onBehalfOf ? { onBehalfOf: mine.onBehalfOf } : {}),
       });
       r.audits.push({
         action: `workflow.task.${input.decision}`,
@@ -654,10 +697,12 @@ export class WorkflowEngineService {
         .select()
         .from(workflowTaskAssignee)
         .where(eq(workflowTaskAssignee.taskId, task.id));
-      const approvals = mates.filter(
+      // a delegate's row mirrors the person they cover — count each asked person once
+      const principals = mates.filter((m) => !m.onBehalfOf);
+      const approvals = principals.filter(
         (m) => m.decision === 'approve' || m.decision === 'complete',
       ).length;
-      const pending = mates.filter((m) => m.status === 'pending').length;
+      const pending = principals.filter((m) => m.status === 'pending').length;
 
       if (input.decision === 'reject') {
         // a quorum step survives a "no" while enough people can still say yes; every other mode is final
@@ -700,7 +745,7 @@ export class WorkflowEngineService {
         await this.afterTask(r, inst, spec, task);
       } else if (task.mode === 'sequence') {
         // hand the baton to the next person in line
-        const nextUp = mates
+        const nextUp = principals
           .filter((m) => m.status === 'pending')
           .sort((a, b) => a.position - b.position)[0];
         if (nextUp) {
@@ -794,9 +839,37 @@ export class WorkflowEngineService {
     }
     // people added by fallback / escalation / a monitor are eligible by that act, not by selector
     // (and the "not the requester" filter belongs to the step's own actors, not to the safety net)
-    const byAct = ['fallback', 'escalation', 'manual'].includes(mine.source);
-    if (!byAct && task.excludeInitiator && inst.initiatorStaffId === actor.staffProfileId) {
+    const delegated = mine.source === 'delegate';
+    const byAct = delegated || ['fallback', 'escalation', 'manual'].includes(mine.source);
+    if (
+      (!byAct || delegated) &&
+      task.excludeInitiator &&
+      inst.initiatorStaffId === actor.staffProfileId
+    ) {
       throw deny('initiator_excluded', 'The person who made this request cannot decide it');
+    }
+    if (delegated) {
+      // covering for someone: only while that arrangement is in force, and while they still have it pending
+      const [principal] = mine.onBehalfOf
+        ? await tx
+            .select()
+            .from(workflowTaskAssignee)
+            .where(
+              and(
+                eq(workflowTaskAssignee.taskId, task.id),
+                eq(workflowTaskAssignee.staffProfileId, mine.onBehalfOf),
+              ),
+            )
+            .limit(1)
+        : [];
+      if (
+        !mine.onBehalfOf ||
+        !principal ||
+        principal.status !== 'pending' ||
+        !(await this.delegations.isActive(mine.onBehalfOf, actor.staffProfileId!, tx))
+      ) {
+        throw deny('delegation_ended', 'You are no longer covering for that person on this task');
+      }
     }
     if (!byAct) {
       const now = await this.actors.resolve(
@@ -820,7 +893,8 @@ export class WorkflowEngineService {
           and(eq(workflowTaskAssignee.taskId, task.id), eq(workflowTaskAssignee.status, 'pending')),
         )
         .orderBy(asc(workflowTaskAssignee.position));
-      if (pending[0]?.staffProfileId !== actor.staffProfileId) {
+      const turn = Math.min(...pending.map((p) => p.position));
+      if (pending.length && mine.position !== turn) {
         throw deny('not_your_turn', 'An earlier person in the order has not decided yet');
       }
     }
@@ -1276,7 +1350,7 @@ export class WorkflowEngineService {
     return {
       initiatorAccountId: inst.initiatorAccountId,
       initiatorLabel: inst.initiatorLabel,
-      approverAccountIds: approvals.map((a) => a.accountId!),
+      approverAccountIds: [...new Set(approvals.map((a) => a.accountId!))],
       finalDeciderAccountId: last?.accountId ?? null,
       finalDeciderLabel: label,
     };
@@ -1609,7 +1683,9 @@ export class WorkflowEngineService {
       // drop pending selector-derived people who are no longer eligible
       for (const row of rows) {
         if (row.status !== 'pending') continue;
-        const selectorBased = !['fallback', 'escalation', 'manual'].includes(row.source);
+        const selectorBased = !['fallback', 'escalation', 'manual', 'delegate'].includes(
+          row.source,
+        );
         if (
           (selectorBased && !liveIds.has(row.staffProfileId)) ||
           !activeNow.has(row.staffProfileId) ||
@@ -1660,6 +1736,7 @@ export class WorkflowEngineService {
         });
       }
 
+      if (await this.syncDelegates(run, inst, task, excludeStaffIds)) changed = true;
       // nobody left to answer → fall back (never a dead end), unless someone already decided enough
       const after = await tx
         .select()
@@ -1711,6 +1788,106 @@ export class WorkflowEngineService {
     return changed;
   }
 
+  /**
+   * Keep a task's cover in step with the delegations in force: whoever is covering for a person
+   * with this task pending can decide it too; when a delegation ends, is revoked, or the person has
+   * already decided, the cover row goes. Returns true if anything changed.
+   */
+  private async syncDelegates(
+    r: Run,
+    inst: InstanceRow,
+    task: TaskRow,
+    excludeStaffIds: string[],
+  ): Promise<boolean> {
+    const tx = r.tx;
+    const rows = await tx
+      .select()
+      .from(workflowTaskAssignee)
+      .where(eq(workflowTaskAssignee.taskId, task.id));
+    const principals = rows.filter((x) => !x.onBehalfOf && x.status === 'pending');
+    const cover = await this.delegations.activeDelegates(
+      principals.map((p) => p.staffProfileId),
+      tx,
+    );
+    let changed = false;
+
+    // drop cover that is no longer in force (or whose principal has decided / gone)
+    for (const row of rows.filter((x) => x.source === 'delegate' && x.status === 'pending')) {
+      const stillCovering =
+        principals.some((p) => p.staffProfileId === row.onBehalfOf) &&
+        (cover.get(row.onBehalfOf!) ?? []).includes(row.staffProfileId);
+      if (!stillCovering) {
+        await tx
+          .update(workflowTaskAssignee)
+          .set({ status: 'removed', updatedAt: sql`now()` })
+          .where(eq(workflowTaskAssignee.id, row.id));
+        await this.event(tx, inst.id, task.id, 'delegate.removed', null, {
+          staff: row.staffProfileId,
+          onBehalfOf: row.onBehalfOf,
+        });
+        changed = true;
+      }
+    }
+
+    // add cover that has started
+    const known = new Set(rows.map((x) => x.staffProfileId));
+    const wanted: Array<{ delegate: string; principal: AssigneeRow }> = [];
+    for (const p of principals) {
+      for (const d of cover.get(p.staffProfileId) ?? []) {
+        if (known.has(d) || excludeStaffIds.includes(d) || wanted.some((w) => w.delegate === d))
+          continue;
+        if (task.excludeInitiator && inst.initiatorStaffId === d) continue;
+        wanted.push({ delegate: d, principal: p });
+      }
+    }
+    if (wanted.length) {
+      const active = new Set(
+        (
+          await this.actors.people(
+            wanted.map((w) => w.delegate),
+            inst.organizationId,
+            tx,
+          )
+        ).map((x) => x.staffProfileId),
+      );
+      const add = wanted.filter((w) => active.has(w.delegate));
+      for (const w of add) {
+        await tx
+          .insert(workflowTaskAssignee)
+          .values({
+            taskId: task.id,
+            instanceId: inst.id,
+            staffProfileId: w.delegate,
+            source: 'delegate',
+            onBehalfOf: w.principal.staffProfileId,
+            position: w.principal.position,
+          })
+          .onConflictDoNothing();
+        await this.event(tx, inst.id, task.id, 'delegate.added', null, {
+          staff: w.delegate,
+          onBehalfOf: w.principal.staffProfileId,
+        });
+      }
+      if (add.length) {
+        const people = await this.actors.people(
+          add.map((a) => a.delegate),
+          inst.organizationId,
+          tx,
+        );
+        r.notices.push({
+          kind: 'assigned',
+          recipients: task.mode === 'sequence' ? [] : people,
+          title: task.title,
+          body: `You are covering an approval: ${inst.subjectLabel ?? inst.actionKey}`,
+          instanceId: inst.id,
+          taskId: task.id,
+        });
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
   // ───────────────────────────── reads ─────────────────────────────
 
   /** Live status of the requests attached to these subjects (for badges on the subject's own page). */
@@ -1754,6 +1931,8 @@ export class WorkflowEngineService {
                 tasks.map((t) => t.id),
               ),
               eq(workflowTaskAssignee.status, 'pending'),
+              // cover rows mirror the person they cover — the summary names the people asked
+              isNull(workflowTaskAssignee.onBehalfOf),
             ),
           )
       : [];
@@ -1808,14 +1987,24 @@ export class WorkflowEngineService {
     const [loc] = await tx
       .select()
       .from(location)
-      .where(and(eq(location.organizationId, inst.organizationId), eq(location.code, inst.locationCode)))
+      .where(
+        and(eq(location.organizationId, inst.organizationId), eq(location.code, inst.locationCode)),
+      )
       .limit(1);
     if (!loc) return null;
-    const exceptions = await tx.select().from(locationHoursException).where(eq(locationHoursException.locationId, loc.id));
+    const exceptions = await tx
+      .select()
+      .from(locationHoursException)
+      .where(eq(locationHoursException.locationId, loc.id));
     return {
       timezone: loc.timezone,
       regularHours: (loc.regularHours ?? []) as Schedule['regularHours'],
-      exceptions: exceptions.map((e) => ({ date: e.date, closed: e.closed, open: e.open, close: e.close })),
+      exceptions: exceptions.map((e) => ({
+        date: e.date,
+        closed: e.closed,
+        open: e.open,
+        close: e.close,
+      })),
     };
   }
 

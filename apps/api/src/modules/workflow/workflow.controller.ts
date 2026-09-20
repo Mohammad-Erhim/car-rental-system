@@ -1,5 +1,5 @@
 import { zWorkflowDecision } from '@carrental/contracts';
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 
@@ -9,6 +9,7 @@ import { Permissions } from '../../common/auth/permissions.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 
+import { WorkflowDelegationService } from './workflow-delegation.service';
 import { WorkflowEngineService } from './workflow-engine.service';
 import { WorkflowQueryService } from './workflow-query.service';
 
@@ -31,6 +32,12 @@ const zForce = z.object({
   decision: z.enum(['approve', 'reject']),
   reason: z.string().min(3).max(1000),
 });
+const zDelegation = z.object({
+  delegateStaffProfileId: z.string().uuid(),
+  validFrom: z.string().datetime().optional(),
+  validUntil: z.string().datetime(),
+  reason: z.string().max(500).optional(),
+});
 const zReassign = z.object({
   toStaffProfileId: z.string().uuid(),
   fromStaffProfileId: z.string().uuid().optional(),
@@ -49,6 +56,7 @@ export class WorkflowController {
   constructor(
     private readonly engine: WorkflowEngineService,
     private readonly query: WorkflowQueryService,
+    private readonly delegations: WorkflowDelegationService,
   ) {}
 
   @Get('inbox')
@@ -147,5 +155,44 @@ export class WorkflowController {
     @CurrentActor() actor: Actor,
   ) {
     return this.engine.reassign(actor, id, body);
+  }
+
+  // ---- out of office ----
+
+  @Get('delegations')
+  @ApiOperation({
+    operationId: 'workflows_delegations',
+    summary: 'Who I am covering for, and who covers for me',
+  })
+  delegationsList(@CurrentActor() actor: Actor) {
+    return this.delegations.listFor(actor);
+  }
+
+  @Get('delegations/people')
+  @ApiOperation({
+    operationId: 'workflows_delegationPeople',
+    summary: 'Colleagues I could hand my tasks to',
+  })
+  delegationPeople(@CurrentActor() actor: Actor) {
+    return this.delegations.people(actor);
+  }
+
+  @Post('delegations')
+  @ApiOperation({
+    operationId: 'workflows_delegate',
+    summary: 'Let a colleague decide my tasks while I am away',
+  })
+  delegate(
+    @Body(new ZodValidationPipe(zDelegation)) body: z.infer<typeof zDelegation>,
+    @CurrentActor() actor: Actor,
+  ) {
+    return this.delegations.create(actor, body);
+  }
+
+  @Delete('delegations/:id')
+  @ApiOperation({ operationId: 'workflows_revokeDelegation', summary: 'End a delegation now' })
+  async revokeDelegation(@Param('id', ParseUUIDPipe) id: string, @CurrentActor() actor: Actor) {
+    await this.delegations.revoke(actor, id, this.engine.isMonitor(actor));
+    return { ok: true };
   }
 }

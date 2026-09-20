@@ -6,6 +6,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
 import { DecisionDialog } from './decision-dialog';
+import { OutOfOffice } from './out-of-office';
 import { WorkflowStatusBadge } from './workflow-status';
 
 import { paths } from '@/app/paths';
@@ -26,7 +27,7 @@ import {
   type WorkflowDecision,
 } from '@/lib/workflow-hooks';
 
-type Tab = 'tasks' | 'requested' | 'all';
+type Tab = 'tasks' | 'requested' | 'away' | 'all';
 
 /**
  * Tasks — everything that is waiting on me (approve, reject, send back, mark done), the requests I
@@ -38,7 +39,9 @@ export function TasksPage() {
   const { hasPermission } = useAuth();
   const monitor = hasPermission('workflow.monitor');
   const { state, update } = useListParams(['tab'] as const);
-  const tabs: Tab[] = monitor ? ['tasks', 'requested', 'all'] : ['tasks', 'requested'];
+  const tabs: Tab[] = monitor
+    ? ['tasks', 'requested', 'away', 'all']
+    : ['tasks', 'requested', 'away'];
   const tab: Tab = (tabs as string[]).includes(state.tab) ? (state.tab as Tab) : 'tasks';
 
   return (
@@ -53,6 +56,7 @@ export function TasksPage() {
       />
       {tab === 'tasks' ? <Inbox_ /> : null}
       {tab === 'requested' ? <Requests scope="mine" /> : null}
+      {tab === 'away' ? <OutOfOffice /> : null}
       {tab === 'all' ? <Requests scope="all" /> : null}
     </Page>
   );
@@ -110,6 +114,11 @@ function Inbox_() {
                         {item.overdue
                           ? t('ops.wf.overdue')
                           : t('ops.wf.due', { when: fmt.dateTime(item.dueAt) })}
+                      </Badge>
+                    ) : null}
+                    {item.onBehalfOfName ? (
+                      <Badge variant="outline">
+                        {t('ops.wfo.coveringFor', { name: item.onBehalfOfName })}
                       </Badge>
                     ) : null}
                     {!item.canDecide ? (

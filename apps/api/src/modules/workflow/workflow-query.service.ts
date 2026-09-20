@@ -58,6 +58,7 @@ export class WorkflowQueryService {
         requireComment: workflowTask.requireComment,
         allowChanges: workflowTask.allowChanges,
         position: workflowTaskAssignee.position,
+        onBehalfOf: workflowTaskAssignee.onBehalfOf,
         createdAt: workflowTask.createdAt,
         actionKey: workflowInstance.actionKey,
         subjectType: workflowInstance.subjectType,
@@ -104,6 +105,9 @@ export class WorkflowQueryService {
         .orderBy(asc(workflowTaskAssignee.position));
       for (const p of pend) if (!turn.has(p.taskId)) turn.set(p.taskId, p.staffProfileId);
     }
+    const covering = await this.actors.labels([
+      ...new Set(page.flatMap((r) => (r.onBehalfOf ? [r.onBehalfOf] : []))),
+    ]);
     const items = page.map((r) => ({
       ...r,
       canDecide: r.mode === 'sequence' ? turn.get(r.taskId) === me : true,
@@ -114,6 +118,7 @@ export class WorkflowQueryService {
             ? ['approve', 'reject', 'request_changes']
             : ['approve', 'reject'],
       actionLabel: this.registry.get(r.actionKey)?.label ?? r.actionKey,
+      onBehalfOfName: r.onBehalfOf ? (covering.get(r.onBehalfOf) ?? null) : null,
     }));
     return {
       items,
@@ -246,7 +251,13 @@ export class WorkflowQueryService {
       this.engine.isMonitor(actor);
     if (!involved) throw AppError.notFound('request');
 
-    const names = await this.actors.labels([...new Set(assignees.map((a) => a.staffProfileId))]);
+    const names = await this.actors.labels([
+      ...new Set(
+        assignees.flatMap((a) =>
+          a.onBehalfOf ? [a.staffProfileId, a.onBehalfOf] : [a.staffProfileId],
+        ),
+      ),
+    ]);
     const events = await this.db
       .select()
       .from(workflowEvent)
@@ -298,6 +309,7 @@ export class WorkflowQueryService {
             comment: a.comment,
             decidedAt: a.decidedAt,
             source: a.source,
+            onBehalfOfName: a.onBehalfOf ? (names.get(a.onBehalfOf) ?? null) : null,
             isMe: a.staffProfileId === me,
           })),
       })),
