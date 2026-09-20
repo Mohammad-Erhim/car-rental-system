@@ -16,6 +16,10 @@ const zPage = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
   offset: z.coerce.number().int().min(0).max(100_000).optional(),
 });
+const zInboxPage = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  cursor: z.string().max(400).optional(),
+});
 const zInstances = zPage.extend({
   scope: z.enum(['mine', 'all']).default('mine'),
   status: z.string().max(30).optional(),
@@ -51,7 +55,7 @@ export class WorkflowController {
   @ApiOperation({ operationId: 'workflows_inbox', summary: 'My open tasks (overdue first)' })
   inbox(
     @CurrentActor() actor: Actor,
-    @Query(new ZodValidationPipe(zPage)) q: z.infer<typeof zPage>,
+    @Query(new ZodValidationPipe(zInboxPage)) q: z.infer<typeof zInboxPage>,
   ) {
     return this.query.inbox(actor, q);
   }

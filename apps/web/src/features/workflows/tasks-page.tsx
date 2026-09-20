@@ -67,7 +67,7 @@ function Inbox_() {
   );
 
   if (inbox.isLoading) return <Skeleton className="h-40 rounded-xl" />;
-  if (inbox.isError || !inbox.data) {
+  if (inbox.isError || !inbox.items) {
     return (
       <StateView
         kind="error"
@@ -77,7 +77,7 @@ function Inbox_() {
       />
     );
   }
-  if (!inbox.data.length) {
+  if (!inbox.items.length) {
     return (
       <StateView
         icon={CheckCheck}
@@ -89,7 +89,7 @@ function Inbox_() {
   return (
     <>
       <ul className="space-y-3" data-testid="wf-inbox">
-        {inbox.data.map((item) => (
+        {inbox.items.map((item) => (
           <li key={item.taskId}>
             <Card className="p-4 sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -143,6 +143,18 @@ function Inbox_() {
           </li>
         ))}
       </ul>
+      {inbox.hasNextPage ? (
+        <div className="flex justify-center">
+          <Button
+            variant="outline"
+            loading={inbox.isFetchingNextPage}
+            onClick={() => void inbox.fetchNextPage()}
+            data-testid="wf-load-more"
+          >
+            {t('ops.wf.loadMore')}
+          </Button>
+        </div>
+      ) : null}
       {dialog ? (
         <DecisionDialog
           open

@@ -133,8 +133,8 @@ describe('editor model ↔ saved spec', () => {
     const spec: WorkflowSpec = {
       start: 'a',
       steps: {
-        a: { id: 'a', name: 'A', type: 'wait', hours: 1, next: null },
-        z: { id: 'z', name: 'Z', type: 'wait', hours: 1, next: null },
+        a: { id: 'a', name: 'A', type: 'wait', hours: 1, businessHours: false, next: null },
+        z: { id: 'z', name: 'Z', type: 'wait', hours: 1, businessHours: false, next: null },
       },
       fallbackActors: [{ kind: 'role', roleCode: 'administrator' }],
       maxRevisions: 3,

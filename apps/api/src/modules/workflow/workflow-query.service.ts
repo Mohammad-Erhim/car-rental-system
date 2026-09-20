@@ -34,10 +34,18 @@ export class WorkflowQueryService {
     return actor.staffProfileId;
   }
 
-  /** My open tasks, overdue first. `canDecide` is false for someone waiting their turn in an in-order step. */
-  async inbox(actor: Actor, opts: { limit?: number; offset?: number } = {}) {
+  /**
+   * My open tasks: overdue first, then by deadline, then oldest first — the natural order of urgency,
+   * since an overdue task is simply one whose deadline is furthest in the past. Paged by KEYSET
+   * (`cursor` = the last row's deadline / created / id), so page 50 costs the same as page 1 and rows
+   * that appear or disappear while someone scrolls can never cause a skip or a repeat.
+   * `canDecide` is false for someone waiting their turn in an in-order step.
+   */
+  async inbox(actor: Actor, opts: { limit?: number; cursor?: string } = {}) {
     const me = this.staffId(actor);
     const limit = Math.min(opts.limit ?? 50, MAX_LIMIT);
+    const after = opts.cursor ? this.decodeCursor(opts.cursor) : null;
+    const dueKey = sql`coalesce(${workflowTask.dueAt}, 'infinity'::timestamptz)`;
     const rows = await this.db
       .select({
         taskId: workflowTask.id,
@@ -69,18 +77,19 @@ export class WorkflowQueryService {
           eq(workflowTask.status, 'open'),
           eq(workflowInstance.status, 'running'),
           eq(workflowInstance.organizationId, actor.organizationId!),
+          after
+            ? sql`(${dueKey}, ${workflowTask.createdAt}, ${workflowTask.id}) > (coalesce(${after.d}::timestamptz, 'infinity'::timestamptz), ${after.c}::timestamptz, ${after.i}::uuid)`
+            : undefined,
         ),
       )
-      .orderBy(
-        sql`(${workflowTask.dueAt} is not null and ${workflowTask.dueAt} < now()) desc`,
-        sql`${workflowTask.dueAt} asc nulls last`,
-        asc(workflowTask.createdAt),
-      )
-      .limit(limit)
-      .offset(opts.offset ?? 0);
+      .orderBy(asc(dueKey), asc(workflowTask.createdAt), asc(workflowTask.id))
+      .limit(limit + 1);
+    const hasMore = rows.length > limit;
+    const page = hasMore ? rows.slice(0, limit) : rows;
+    const last = page[page.length - 1];
 
     // in-order steps: only the first pending person may act
-    const seq = rows.filter((r) => r.mode === 'sequence').map((r) => r.taskId);
+    const seq = page.filter((r) => r.mode === 'sequence').map((r) => r.taskId);
     const turn = new Map<string, string>();
     if (seq.length) {
       const pend = await this.db
@@ -95,7 +104,7 @@ export class WorkflowQueryService {
         .orderBy(asc(workflowTaskAssignee.position));
       for (const p of pend) if (!turn.has(p.taskId)) turn.set(p.taskId, p.staffProfileId);
     }
-    return rows.map((r) => ({
+    const items = page.map((r) => ({
       ...r,
       canDecide: r.mode === 'sequence' ? turn.get(r.taskId) === me : true,
       decisions:
@@ -106,6 +115,42 @@ export class WorkflowQueryService {
             : ['approve', 'reject'],
       actionLabel: this.registry.get(r.actionKey)?.label ?? r.actionKey,
     }));
+    return {
+      items,
+      nextCursor:
+        hasMore && last
+          ? this.encodeCursor({ d: last.dueAt, c: last.createdAt, i: last.taskId })
+          : null,
+    };
+  }
+
+  private encodeCursor(c: { d: string | null; c: string; i: string }): string {
+    return Buffer.from(JSON.stringify(c)).toString('base64url');
+  }
+
+  private decodeCursor(raw: string): { d: string | null; c: string; i: string } {
+    try {
+      const v = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as {
+        d: string | null;
+        c: string;
+        i: string;
+      };
+      if (
+        typeof v.c !== 'string' ||
+        typeof v.i !== 'string' ||
+        (v.d !== null && typeof v.d !== 'string')
+      )
+        throw new Error('shape');
+      if (
+        Number.isNaN(Date.parse(v.c)) ||
+        (v.d !== null && Number.isNaN(Date.parse(v.d))) ||
+        !/^[0-9a-f-]{36}$/i.test(v.i)
+      )
+        throw new Error('value');
+      return v;
+    } catch {
+      throw AppError.validation([{ path: 'cursor', code: 'invalid' }]);
+    }
   }
 
   async pendingCount(actor: Actor): Promise<{ pending: number; overdue: number }> {

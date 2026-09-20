@@ -25,7 +25,12 @@ export function stepSummary(
       if (step.actors.mode === 'quorum')
         bits[0] = t('ops.wfb.quorumShort', { n: step.actors.quorum ?? 1 });
       if (step.actors.excludeInitiator) bits.push(t('ops.wfb.notRequester'));
-      if (step.due) bits.push(t('ops.wfb.withinHours', { n: step.due.hours }));
+      if (step.due)
+        bits.push(
+          t(step.due.businessHours ? 'ops.wfb.withinBusinessHours' : 'ops.wfb.withinHours', {
+            n: step.due.hours,
+          }),
+        );
       lines.push(bits.join(' · '));
       break;
     }
@@ -35,7 +40,9 @@ export function stepSummary(
       );
       break;
     case 'wait':
-      lines.push(t('ops.wfb.waits', { n: step.hours }));
+      lines.push(
+        t(step.businessHours ? 'ops.wfb.waitsBusiness' : 'ops.wfb.waits', { n: step.hours }),
+      );
       break;
     case 'condition': {
       const to = (id: string | null | undefined) =>

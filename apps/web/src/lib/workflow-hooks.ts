@@ -1,5 +1,5 @@
 import { useI18n } from '@carrental/i18n/react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import { ApiError, apiFetch } from './api.js';
@@ -189,12 +189,20 @@ export function useTaskCount(enabled = true) {
   });
 }
 
+/** My tasks, a page at a time (keyset paging — "Load more" never skips or repeats a task). */
 export function useInbox() {
-  return useQuery({
+  const q = useInfiniteQuery({
     queryKey: [...KEY, 'inbox'],
-    queryFn: ({ signal }) => apiFetch<InboxItem[]>('/workflows/inbox?limit=100', { signal }),
+    initialPageParam: null as string | null,
+    queryFn: ({ signal, pageParam }) =>
+      apiFetch<{ items: InboxItem[]; nextCursor: string | null }>(
+        `/workflows/inbox?limit=25${pageParam ? `&cursor=${encodeURIComponent(pageParam)}` : ''}`,
+        { signal },
+      ),
+    getNextPageParam: (last) => last.nextCursor,
     refetchOnWindowFocus: true,
   });
+  return { ...q, items: q.data?.pages.flatMap((p) => p.items) };
 }
 
 export function useRequests(scope: 'mine' | 'all', status?: string) {

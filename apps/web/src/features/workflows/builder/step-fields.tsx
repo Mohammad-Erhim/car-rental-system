@@ -202,7 +202,9 @@ function DueFields({
         type="button"
         variant="outline"
         size="sm"
-        onClick={() => onChange({ hours: 24, maxReminders: 3, onTimeout: 'escalate' })}
+        onClick={() =>
+          onChange({ hours: 24, maxReminders: 3, businessHours: false, onTimeout: 'escalate' })
+        }
       >
         <Plus aria-hidden="true" />
         {t('ops.wfb.addDeadline')}
@@ -222,6 +224,12 @@ function DueFields({
         min={1}
         value={due.hours}
         onChange={(v) => onChange({ ...due, hours: v ?? 24 })}
+      />
+      <Toggle
+        label={t('ops.wfb.businessHours')}
+        hint={t('ops.wfb.businessHoursHint')}
+        checked={due.businessHours}
+        onChange={(v) => onChange({ ...due, businessHours: v })}
       />
       <NumberField
         label={t('ops.wfb.remindEvery')}
@@ -342,13 +350,21 @@ export function StepFields({
       ) : null}
 
       {step.type === 'wait' ? (
-        <NumberField
-          label={t('ops.wfb.waitHours')}
-          min={1}
-          value={step.hours}
-          onChange={(v) => set({ hours: v ?? 1 })}
-          hint={t('ops.wfb.waitHint')}
-        />
+        <>
+          <NumberField
+            label={t('ops.wfb.waitHours')}
+            min={1}
+            value={step.hours}
+            onChange={(v) => set({ hours: v ?? 1 })}
+            hint={t('ops.wfb.waitHint')}
+          />
+          <Toggle
+            label={t('ops.wfb.businessHours')}
+            hint={t('ops.wfb.businessHoursHint')}
+            checked={step.businessHours}
+            onChange={(v) => set({ businessHours: v })}
+          />
+        </>
       ) : null}
 
       {step.type === 'condition' ? (

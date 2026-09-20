@@ -76,7 +76,7 @@ describe('governed actions (phase 5)', () => {
     }).expect(200);
   };
   const inbox = async (t: string) =>
-    (await get('/api/v1/workflows/inbox', t).expect(200)).body as Array<{
+    (await get('/api/v1/workflows/inbox', t).expect(200)).body.items as Array<{
       taskId: string;
       subjectId: string;
       actionKey: string;

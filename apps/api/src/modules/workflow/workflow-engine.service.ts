@@ -16,6 +16,7 @@ import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { account, staffProfile } from '../../database/schema/iam';
+import { location, locationHoursException } from '../../database/schema/org';
 import {
   workflowEvent,
   workflowInstance,
@@ -24,6 +25,7 @@ import {
 } from '../../database/schema/workflow';
 
 import { WorkflowActorsService } from './workflow-actors.service';
+import { addBusinessHours, type Schedule } from './business-hours';
 import { evaluateCondition } from './workflow-conditions';
 import { WorkflowDefinitionService } from './workflow-definition.service';
 import { WorkflowNotifier, type Notice } from './workflow-notifier.service';
@@ -407,7 +409,9 @@ export class WorkflowEngineService {
           branchRef,
           mode: 'any',
           required: 0,
-          resumeAt: sql`now() + make_interval(secs => ${Math.round(step.hours * 3600)})`,
+          resumeAt: step.businessHours
+            ? addBusinessHours(new Date(), step.hours, await this.scheduleFor(tx, inst)).toISOString()
+            : sql`now() + make_interval(secs => ${Math.round(step.hours * 3600)})`,
         })
         .returning();
       await this.event(tx, inst.id, task!.id, 'task.opened', null, {
@@ -465,7 +469,11 @@ export class WorkflowEngineService {
         requireComment: step.type === 'approval' ? step.requireRejectComment : step.requireNote,
         allowChanges: step.type === 'approval' ? step.allowChanges : false,
         selectors: step.actors.selectors,
-        dueAt: due ? sql`now() + make_interval(secs => ${Math.round(due.hours * 3600)})` : null,
+        dueAt: due
+          ? due.businessHours
+            ? addBusinessHours(new Date(), due.hours, await this.scheduleFor(tx, inst)).toISOString()
+            : sql`now() + make_interval(secs => ${Math.round(due.hours * 3600)})`
+          : null,
         remindEveryHours: due?.reminderEveryHours ? Math.round(due.reminderEveryHours) : null,
         maxReminders: due?.maxReminders ?? 0,
         onTimeout: due?.onTimeout ?? null,
@@ -1789,6 +1797,26 @@ export class WorkflowEngineService {
 
   isMonitor(actor: Actor): boolean {
     return this.rbac.has(actor, 'workflow.monitor');
+  }
+
+  /**
+   * The opening hours deadlines are counted in: the request's own location (with its one-off
+   * closures), or — when the request has no location — plain clock time.
+   */
+  private async scheduleFor(tx: Tx, inst: InstanceRow): Promise<Schedule | null> {
+    if (!inst.locationCode) return null;
+    const [loc] = await tx
+      .select()
+      .from(location)
+      .where(and(eq(location.organizationId, inst.organizationId), eq(location.code, inst.locationCode)))
+      .limit(1);
+    if (!loc) return null;
+    const exceptions = await tx.select().from(locationHoursException).where(eq(locationHoursException.locationId, loc.id));
+    return {
+      timezone: loc.timezone,
+      regularHours: (loc.regularHours ?? []) as Schedule['regularHours'],
+      exceptions: exceptions.map((e) => ({ date: e.date, closed: e.closed, open: e.open, close: e.close })),
+    };
   }
 
   private stateOf(inst: InstanceRow): InstanceState {

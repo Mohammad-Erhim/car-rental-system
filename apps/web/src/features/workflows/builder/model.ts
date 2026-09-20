@@ -230,7 +230,7 @@ export function newStep(
         message: '',
       };
     case 'wait':
-      return { id, name, type, hours: 24 };
+      return { id, name, type, hours: 24, businessHours: false };
     case 'condition':
       return { id, name, type, branches: [{ label: '', when: {} }], else: undefined };
     case 'parallel': {

@@ -104,7 +104,8 @@ describe('workflow engine', () => {
     const [row] = await db.select().from(configVersion).where(eq(configVersion.id, id));
     return row!;
   };
-  const inbox = async (t: string) => (await get('/api/v1/workflows/inbox', t).expect(200)).body;
+  const inbox = async (t: string) =>
+    (await get('/api/v1/workflows/inbox', t).expect(200)).body.items;
   const decide = (t: string, taskId: string, decision: string, comment?: string) =>
     post(`/api/v1/workflows/tasks/${taskId}/decide`, { decision, comment }, t);
   const taskFor = async (t: string, subjectId: string) => {
@@ -678,6 +679,50 @@ describe('workflow engine', () => {
     expect(sim.body.path[1].asks.map((a: { name: string }) => a.name)).toContain('Test Finance');
   });
 
+  it('the inbox pages by keyset: every task exactly once, urgent first, stable while others decide', async () => {
+    await bindNew(
+      spec('r', [approval('r', [user('manager')], { due: { hours: 1, onTimeout: 'wait' } })]),
+    );
+    const ids: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      const id = await draftPolicy();
+      await publish(id).expect(201);
+      ids.push(id);
+    }
+    // the fourth has the earliest deadline, so it must come first
+    await db
+      .update(workflowTask)
+      .set({ dueAt: new Date(Date.now() - 3_600_000).toISOString() })
+      .where(eq(workflowTask.instanceId, (await instanceOf(ids[3]!)).id));
+
+    const seen: string[] = [];
+    let cursor: string | null = null;
+    let pages = 0;
+    do {
+      const q: string = `limit=2${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`;
+      const page = (await get(`/api/v1/workflows/inbox?${q}`, tok.manager).expect(200)).body as {
+        items: Array<{ subjectId: string }>;
+        nextCursor: string | null;
+      };
+      expect(page.items.length).toBeLessThanOrEqual(2);
+      seen.push(...page.items.map((i) => i.subjectId));
+      // someone decides one of the tasks between pages — nothing may be skipped or repeated
+      if (pages === 0) {
+        const other = (await inbox(tok.manager)).find(
+          (i: { subjectId: string }) => i.subjectId === ids[4],
+        )!;
+        await decide(tok.manager, other.taskId, 'approve').expect(201);
+      }
+      cursor = page.nextCursor;
+      pages++;
+    } while (cursor && pages < 10);
+
+    expect(new Set(seen).size).toBe(seen.length); // no repeats
+    expect(seen[0]).toBe(ids[3]); // overdue first
+    for (const id of ids.slice(0, 3)) expect(seen).toContain(id); // nothing skipped
+    await get('/api/v1/workflows/inbox?cursor=not-a-cursor', tok.manager).expect(422);
+  });
+
   it('the inbox counts what is waiting, and “my requests” lists what I asked for', async () => {
     await bindNew(
       spec('r', [approval('r', [user('manager')], { due: { hours: 1, onTimeout: 'wait' } })]),
@@ -695,6 +740,59 @@ describe('workflow engine', () => {
     expect(detail.tasks[0].assignees[0].name).toBe('Test Manager');
     expect(detail.history.map((h: { type: string }) => h.type)).toContain('instance.created');
     await get(`/api/v1/workflows/instances/${(await instanceOf(id)).id}`, tok.agent).expect(404); // not involved
+  });
+
+  it('a business-hours deadline is counted in the request’s location opening hours', async () => {
+    const workflows = app.get(WorkflowPublic);
+    workflows.register({
+      key: 'test.hours',
+      subjectType: 'test_subject',
+      label: 'Hours',
+      description: 'test only',
+      variables: [],
+      fingerprint: async () => 'fixed',
+      execute: async () => ({ ok: true }),
+    });
+    await bindNew(
+      spec('r', [
+        approval('r', [user('manager')], {
+          due: { hours: 30, onTimeout: 'wait', businessHours: true },
+        }),
+      ]),
+      null,
+      'test.hours',
+    );
+    const [prof] = await db.select().from(staffProfile).where(eq(staffProfile.id, sid.admin));
+    const actor = {
+      accountId: aid.admin,
+      kind: 'staff',
+      audience: 'staff',
+      displayName: 'Test Admin',
+      localeCode: 'en',
+      staffProfileId: sid.admin,
+      organizationId: prof!.organizationId,
+      permissions: [],
+      roleCodes: ['administrator'],
+      locationScope: [],
+      permissionConditions: {},
+      tokenId: 't',
+    } as Actor;
+    // TST2: open 06:00–20:00 New York time, closed Sundays → 14h a day, so 30h spans three open days
+    const gate = await workflows.gate({
+      actionKey: 'test.hours',
+      subjectId: 'hours-1',
+      actor,
+      locationCode: 'TST2',
+    });
+    expect(gate.direct).toBe(false);
+    const inst = await instanceOf('hours-1');
+    const [task] = await db.select().from(workflowTask).where(eq(workflowTask.instanceId, inst.id));
+    const due = new Date(task!.dueAt!);
+    const local = new Date(due.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+    expect(local.getDay()).not.toBe(0); // never lands on a closed Sunday
+    expect(local.getHours() * 60 + local.getMinutes()).toBeGreaterThanOrEqual(6 * 60);
+    expect(local.getHours() * 60 + local.getMinutes()).toBeLessThanOrEqual(20 * 60);
+    expect(due.getTime() - Date.now()).toBeGreaterThan(30 * 3_600_000); // longer than 30 plain hours — the closed hours were skipped
   });
 
   // ───────────────────────── executor failure ─────────────────────────

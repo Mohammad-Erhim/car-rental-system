@@ -57,6 +57,8 @@ export const zDue = z.object({
     .max(24 * 30)
     .optional(),
   maxReminders: z.number().int().min(0).max(20).default(3),
+  /** count only the hours the request's location is open (its opening hours and closures) */
+  businessHours: z.boolean().default(false),
   /** what happens once the deadline passes */
   onTimeout: z.enum(TIMEOUT_ACTIONS).default('escalate'),
   /** who is also asked on escalation; defaults to the definition's fallback actors */
@@ -122,6 +124,8 @@ export const zWaitStep = z.object({
     .number()
     .positive()
     .max(24 * 90),
+  /** count only the hours the request's location is open */
+  businessHours: z.boolean().default(false),
   ...next,
 });
 export const zParallelStep = z.object({
