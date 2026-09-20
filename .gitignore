@@ -44,3 +44,4 @@ docs/ai-delivery/**/screenshots/
 apps/site/.next/
 e2e/test-results-qa/
 e2e/playwright-report-qa/
+e2e/test-results-workflows/

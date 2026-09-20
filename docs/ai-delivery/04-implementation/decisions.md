@@ -558,3 +558,35 @@ routing-payment.adapter,payment-config.controller,stripe-webhook.controller}.ts`
   `new-workflow-dialog.tsx`, `components/choice-tabs.tsx`, `components/state-switcher.tsx`,
   `features/access/*`; API `GET /admin/workflows/options`; new web dependency `@dnd-kit/*`; tests
   `builder/model.test.ts`, `builder/builder-components.test.tsx`, `choice-tabs.test.tsx`.
+
+### DEC-034 — Remaining actions, routes, delegation, business hours, paging (plan phases 5–6)
+
+- Decision:
+  - **More governed actions**: `payment.refund`, `reservation.cancel.withFee` (staff cancellations where a
+    late fee applies or is waived; a customer's own cancellation is never held), `rateplan.publish`,
+    `translation.publish`, `rental.extend` (staff), `location.archive`, `customer.merge`,
+    `staff.access.change` (security-critical: the subject can never approve) and
+    `recovery.case.resolve`. Each domain method splits into a request-time part (validation, refusing the
+    impossible up front) and an `…Now` part the executor calls; with no binding the request-time part
+    simply runs it (`WorkflowPublic.govern`).
+  - **Executor identity**: the executor acts with a snapshot of the requester's rights (taken when they
+    asked) under the final approver's name (`asActor`), so nothing is re-checked against today's rights and
+    nothing is granted beyond what the requester could do. Refund and rental effects are idempotent per
+    request (a retry after a failure never moves money twice).
+  - **Routes**: an action may have several bindings with conditions and priorities; the dashboard has a
+    routes editor. The per-role refund cap applies to direct refunds.
+  - **Delegation** (`workflow_delegation`, `assignee.on_behalf_of`, migration 0032): time-boxed (≤ 90 days),
+    revocable, never transitive, no loops; delegate rows mirror the person covered (counted once in ALL /
+    quorum) and are kept in step by the reconciler; the requester exclusion and the security rule still
+    apply to delegates; history records "decided by X on behalf of Y".
+  - **Business hours**: `due.businessHours` / `wait.businessHours` count the request's location hours,
+    closures and time zone (pure calculator, tested across weekends, half days and daylight saving).
+  - **Inbox** pages by keyset (deadline, created, id) — overdue first, stable while tasks change.
+  - **Diagram**: a read-only layered Flow view beside the editable list.
+- Tests: `workflow-actions.spec.ts`, `workflow-delegation.spec.ts`, `workflow-isolation.spec.ts` (two
+  organisations), `workflow-load.spec.ts` (6,000 open requests), `business-hours.test.ts`,
+  `flow-layout.test.ts`, property tests (`workflow.property.test.ts`, `model.property.test.ts`) and
+  Playwright flows (`e2e/tests/workflows.spec.ts`, phone + laptop + Arabic, run with the machine's own
+  Chrome via `playwright.workflows.config.ts`).
+- Not yet: digest emails / SMS / push, per-assignment location scope, editing by dragging connectors in
+  the diagram, and governing role / permission-matrix edits (they keep their own guard rails).

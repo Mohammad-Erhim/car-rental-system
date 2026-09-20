@@ -6,6 +6,16 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### Workflows: every action, routes, out of office, business hours (2026-09)
+
+- **More actions can be governed:** refunds, staff cancellations with a fee, rate plans, translations,
+  location archive, customer merge, recovery cases, staff rental extensions and staff access changes.
+- **Routes:** send only some requests through a workflow (e.g. refunds over 500 → Finance).
+- **Out of office:** hand approvals to a colleague for up to 90 days — visible, revocable, never passed on.
+- **Business-hours deadlines**, a **paged inbox**, a **flow diagram**, and an administrator guide.
+- **Fixed:** the password prompt for protected changes never appeared (a 401 was mistaken for an expired
+  login).
+
 ### Workflow builder and tabs instead of dropdowns (2026-09)
 
 - **Builder:** build a workflow as reorderable step cards (drag, keyboard, or buttons); edit who is asked
