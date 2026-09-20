@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { ActorsEditor, useSelectorNames } from './builder/actors-editor';
 import { SimulatorPanel, ValidationPanel } from './builder/check-panel';
 import { diffSpecs } from './builder/diff';
+import { FlowView } from './builder/flow-view';
 import { ImportExport } from './builder/import-export';
 import {
   canonical,
@@ -140,6 +141,7 @@ function Editor({
   const [doc, setDoc] = useState<EditorDoc>(start);
   const [meta, setMeta] = useState({ name: def.name, description: def.description ?? '' });
   const [editing, setEditing] = useState<string | null>(null);
+  const [view, setView] = useState<'list' | 'flow'>('list');
   const [confirm, setConfirm] = useState<null | 'publish' | { delete: string }>(null);
   const [cloning, setCloning] = useState(false);
   const save = useSaveDraft();
@@ -346,16 +348,32 @@ function Editor({
       />
 
       {tab === 'steps' ? (
-        <Pipeline
-          doc={doc}
-          names={names}
-          problemsByStep={problemsByStep}
-          onMove={(from, to) => editable && setDoc(moveStep(doc, from, to))}
-          onEdit={(sid) => editable && setEditing(sid)}
-          onDelete={(sid) => editable && setConfirm({ delete: sid })}
-          onAdd={add}
-          addTypes={editable ? ADD_TYPES : []}
-        />
+        <div className="space-y-4">
+          <StateSwitcher
+            label={t('ops.wfb.viewLabel')}
+            value={view}
+            onChange={(v) => setView(v as 'list' | 'flow')}
+            testIdPrefix="builder-view"
+            options={[
+              { value: 'list', label: t('ops.wfb.view.list') },
+              { value: 'flow', label: t('ops.wfb.view.flow') },
+            ]}
+          />
+          {view === 'flow' ? (
+            <FlowView spec={spec} />
+          ) : (
+            <Pipeline
+              doc={doc}
+              names={names}
+              problemsByStep={problemsByStep}
+              onMove={(from, to) => editable && setDoc(moveStep(doc, from, to))}
+              onEdit={(sid) => editable && setEditing(sid)}
+              onDelete={(sid) => editable && setConfirm({ delete: sid })}
+              onAdd={add}
+              addTypes={editable ? ADD_TYPES : []}
+            />
+          )}
+        </div>
       ) : null}
 
       {tab === 'check' ? (
