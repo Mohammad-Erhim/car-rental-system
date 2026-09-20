@@ -2419,6 +2419,8 @@
   "ops.wfb.allGood": "Aucun problème trouvé.",
   "ops.wfb.allowChanges": "Peut renvoyer pour modifications",
   "ops.wfb.allowChangesHint": "Le validateur peut renvoyer la demande au demandeur plutôt que la rejeter.",
+  "ops.wfb.allowWithdraw": "Le demandeur peut retirer sa demande pendant cette étape",
+  "ops.wfb.allowWithdrawHint": "Désactivez pour empêcher le retrait de la demande une fois cette étape atteinte. Un superviseur peut toujours l’annuler.",
   "ops.wfb.asks": "Sollicite",
   "ops.wfb.blocked": "{n} problème(s) à corriger avant de pouvoir publier. Ouvrez l’onglet Vérifier.",
   "ops.wfb.branchN": "Branche {n}",

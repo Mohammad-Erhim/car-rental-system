@@ -79,6 +79,8 @@ export const zApprovalStep = z.object({
   actors: zActors,
   /** may the approver send it back to the requester for changes */
   allowChanges: z.boolean().default(true),
+  /** may the requester withdraw the request while this step is open (a monitor can always cancel) */
+  allowWithdraw: z.boolean().default(true),
   requireRejectComment: z.boolean().default(true),
   due: zDue.optional(),
   ...next,
@@ -89,6 +91,7 @@ export const zTaskStep = z.object({
   actors: zActors,
   /** the person marking it done must leave a note */
   requireNote: z.boolean().default(false),
+  allowWithdraw: z.boolean().default(true),
   due: zDue.optional(),
   ...next,
 });

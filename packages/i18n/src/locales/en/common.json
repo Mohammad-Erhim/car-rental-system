@@ -2419,6 +2419,8 @@
   "ops.wfb.allGood": "No problems found.",
   "ops.wfb.allowChanges": "Can send back for changes",
   "ops.wfb.allowChangesHint": "The approver may return the request to the requester instead of rejecting.",
+  "ops.wfb.allowWithdraw": "The requester can withdraw while this step is open",
+  "ops.wfb.allowWithdrawHint": "Turn off to stop the request being pulled back once it reaches this step. A monitor can still cancel it.",
   "ops.wfb.asks": "Asks",
   "ops.wfb.blocked": "{n} problem(s) must be fixed before this can be published. Open the Check tab.",
   "ops.wfb.branchN": "Branch {n}",

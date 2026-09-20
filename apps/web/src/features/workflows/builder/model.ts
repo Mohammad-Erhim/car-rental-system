@@ -216,10 +216,18 @@ export function newStep(
         type,
         actors: DEFAULT_ACTORS(reviewerRole),
         allowChanges: true,
+        allowWithdraw: true,
         requireRejectComment: true,
       };
     case 'task':
-      return { id, name, type, actors: DEFAULT_ACTORS(reviewerRole), requireNote: false };
+      return {
+        id,
+        name,
+        type,
+        actors: DEFAULT_ACTORS(reviewerRole),
+        requireNote: false,
+        allowWithdraw: true,
+      };
     case 'auto':
       return {
         id,

@@ -149,12 +149,21 @@ export class AccessAdminService {
     }
   }
 
-  /** After a change, at least one active staff member must still be able to manage access. */
+  /**
+   * After a change, at least one active staff member must still be able to manage access AND to
+   * build workflows — otherwise nobody could ever fix either again (§4 #17).
+   */
   private async assertAccessManagersRemain(orgId: string, exec: Exec): Promise<void> {
     if ((await this.access.accessManagers(orgId, exec)).length === 0) {
       throw new AppError('business_rule_violation', {
         title: 'This change would leave nobody able to manage access',
         params: { reason: 'last_access_manager' },
+      });
+    }
+    if ((await this.access.holdersOf(orgId, 'workflow.manage', exec)).length === 0) {
+      throw new AppError('business_rule_violation', {
+        title: 'This change would leave nobody able to manage workflows',
+        params: { reason: 'last_workflow_manager' },
       });
     }
   }

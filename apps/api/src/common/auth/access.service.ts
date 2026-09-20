@@ -93,8 +93,17 @@ export class AccessService {
   }
 
   /** Active staff (invited/suspended/deactivated hold nothing) holding `staff.manage` right now. */
-  async accessManagers(
+  accessManagers(
     organizationId: string,
+    exec: Pick<Database, 'select'> = this.db,
+  ): Promise<string[]> {
+    return this.holdersOf(organizationId, 'staff.manage', exec);
+  }
+
+  /** Active staff who hold `action` right now (assignments in their window, overrides applied). */
+  async holdersOf(
+    organizationId: string,
+    action: string,
     exec: Pick<Database, 'select'> = this.db,
   ): Promise<string[]> {
     const profiles = await exec
@@ -108,7 +117,7 @@ export class AccessService {
       exec,
     );
     return profiles
-      .filter((p) => computeEffective(graph, p.id).permissions.includes('staff.manage'))
+      .filter((p) => computeEffective(graph, p.id).permissions.includes(action))
       .map((p) => p.id);
   }
 }

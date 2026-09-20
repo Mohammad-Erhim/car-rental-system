@@ -95,6 +95,38 @@ export class WorkflowPublic {
     };
   }
 
+  /**
+   * The item behind an open request was edited while it waited: close that request and start a new
+   * one for the edited content. `null` when nothing was waiting (or the new version needs no approval).
+   */
+  async restartOpen(input: {
+    actor: Actor;
+    actionKey: string;
+    subjectId: string;
+    subjectLabel?: string;
+    context?: Record<string, unknown>;
+    locationCode?: string | null;
+  }): Promise<WorkflowSummary | null> {
+    const closed = await this.engine.cancelForRestart(
+      input.actor,
+      input.actionKey,
+      input.subjectId,
+    );
+    if (!closed) return null;
+    const res = await this.govern(
+      {
+        actionKey: input.actionKey,
+        subjectId: input.subjectId,
+        subjectLabel: input.subjectLabel ?? closed.subjectLabel ?? undefined,
+        context: input.context ?? closed.context,
+        locationCode: input.locationCode ?? closed.locationCode,
+        actor: input.actor,
+      },
+      async () => null as never,
+    );
+    return res && typeof res === 'object' && 'pendingApproval' in res ? res.workflow : null;
+  }
+
   /** Act on the subject's open request (approve/reject) — `null` if there is none. */
   actOnOpen(input: {
     actor: Actor;

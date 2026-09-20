@@ -325,6 +325,12 @@ export function StepFields({
               onChange={(v) => set({ requireNote: v })}
             />
           )}
+          <Toggle
+            label={t('ops.wfb.allowWithdraw')}
+            hint={t('ops.wfb.allowWithdrawHint')}
+            checked={step.allowWithdraw}
+            onChange={(v) => set({ allowWithdraw: v })}
+          />
           <DueFields due={step.due} onChange={(due) => set({ due })} ctx={ctx} />
         </>
       ) : null}

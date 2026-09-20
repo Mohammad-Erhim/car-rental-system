@@ -47,6 +47,8 @@ type AssigneeRow = typeof workflowTaskAssignee.$inferSelect;
 type Decision = 'approve' | 'reject' | 'request_changes' | 'complete';
 
 const MAX_APPLY_ATTEMPTS = 8;
+/** A step never asks more people than this — a huge role would otherwise mean thousands of task rows. */
+const MAX_ASSIGNEES = 200;
 const MAX_STEPS_PER_ADVANCE = 100;
 
 /** Work collected inside a transaction and flushed only once it has committed. */
@@ -449,6 +451,8 @@ export class WorkflowEngineService {
       source = 'fallback';
     }
 
+    const capped = who.length > MAX_ASSIGNEES;
+    if (capped) who = who.slice(0, MAX_ASSIGNEES);
     const n = who.length;
     const mode = step.actors.mode;
     const required =
@@ -504,6 +508,7 @@ export class WorkflowEngineService {
     await this.event(tx, inst.id, task!.id, 'task.opened', null, {
       step: step.id,
       assignees: n,
+      ...(capped ? { capped: MAX_ASSIGNEES } : {}),
       mode,
       required,
       ...(source === 'fallback' ? { fallback: true } : {}),
@@ -780,6 +785,48 @@ export class WorkflowEngineService {
   }
 
   /**
+   * The subject of an open request was edited while it waited (§4 #10). The request as approved-so-far
+   * no longer describes what will be applied, so it is closed (the subject returns to draft) and the
+   * caller starts a fresh one — with the new content, routed by the rules that now apply.
+   * Returns the closed request, or `null` if there was none.
+   */
+  async cancelForRestart(
+    actor: Actor,
+    actionKey: string,
+    subjectId: string,
+  ): Promise<InstanceRow | null> {
+    if (actor.kind !== 'staff' || !actor.organizationId) return null;
+    const def = this.registry.require(actionKey);
+    const open = await this.openInstanceFor(actor.organizationId, def, subjectId);
+    if (!open) return null;
+    let run!: Run;
+    let closed: InstanceRow | null = null;
+    await this.tx(async (tx) => {
+      run = new Run(tx);
+      const inst = await this.lockInstance(tx, open.id);
+      if (!(OPEN_WORKFLOW_STATUSES as readonly string[]).includes(inst.status)) return;
+      await this.close(
+        run,
+        inst,
+        'cancelled',
+        'cancelled',
+        'Changed while waiting — restarted',
+        actor.accountId,
+      );
+      run.audits.push({
+        action: 'workflow.instance.restarted',
+        targetType: inst.subjectType,
+        targetId: inst.subjectId,
+        actor,
+        after: { instanceId: inst.id },
+      });
+      closed = inst;
+    });
+    await this.flushPost(run);
+    return closed;
+  }
+
+  /**
    * Legacy-friendly entry point: the subject's own "approve"/"reject" endpoint acts on the open
    * request if there is one. `null` = there is no open request (caller proceeds as if direct);
    * with `strict: false`, `null` is also returned when the caller is not one of the people asked.
@@ -978,14 +1025,43 @@ export class WorkflowEngineService {
   }
 
   async withdraw(actor: Actor, instanceId: string, reason?: string): Promise<WorkflowSummary> {
-    const run = await this.simpleClose(actor, instanceId, 'withdrawn', reason, (inst) => {
-      if (inst.initiatorAccountId !== actor.accountId && !this.isMonitor(actor)) {
+    // read outside the transaction: which steps are open, and does any of them forbid withdrawing?
+    const [inst] = await this.db
+      .select()
+      .from(workflowInstance)
+      .where(eq(workflowInstance.id, instanceId))
+      .limit(1);
+    const forbids = inst ? await this.openStepForbidsWithdraw(inst) : false;
+    return this.simpleClose(actor, instanceId, 'withdrawn', reason, (locked) => {
+      const monitor = this.isMonitor(actor);
+      if (locked.initiatorAccountId !== actor.accountId && !monitor) {
         throw new AppError('forbidden', {
           title: 'Only the requester or a monitor can withdraw this',
         });
       }
+      if (forbids && !monitor) {
+        throw new AppError('forbidden', {
+          title: 'This step cannot be withdrawn — ask a monitor to cancel it',
+          params: { reason: 'withdraw_not_allowed' },
+        });
+      }
     });
-    return run;
+  }
+
+  /** A step can say the requester may not pull the request back while it is being worked (§4 #11). */
+  private async openStepForbidsWithdraw(inst: InstanceRow): Promise<boolean> {
+    const open = await this.db
+      .select({ stepId: workflowTask.stepId })
+      .from(workflowTask)
+      .where(and(eq(workflowTask.instanceId, inst.id), eq(workflowTask.status, 'open')));
+    if (!open.length) return false;
+    const spec = (await this.definitions.loadVersion(inst.definitionVersionId)).spec;
+    return open.some((t) => {
+      const step = spec.steps[t.stepId];
+      return (
+        !!step && (step.type === 'approval' || step.type === 'task') && step.allowWithdraw === false
+      );
+    });
   }
 
   async cancel(actor: Actor, instanceId: string, reason: string): Promise<WorkflowSummary> {

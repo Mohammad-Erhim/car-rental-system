@@ -284,6 +284,16 @@ export class TemplateService implements OnModuleInit {
         })
         .where(eq(template.id, existing.id))
         .returning();
+      // edited while a request was waiting on it → that request no longer describes this content, so it
+      // is closed and a fresh one starts (with whatever route the new content now takes)
+      if (existing.status === 'in_review') {
+        await this.workflows.restartOpen({
+          actor,
+          actionKey: 'template.publish',
+          subjectId: existing.id,
+          context: { key: input.key, channel: input.channel, localeCode: input.localeCode },
+        });
+      }
     } else {
       [row] = await this.db
         .insert(template)
