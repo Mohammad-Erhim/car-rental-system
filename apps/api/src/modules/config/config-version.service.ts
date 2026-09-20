@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import {
   seoConfigSchema,
   zConsentConfig,
@@ -5,7 +7,7 @@ import {
   H1_CAPABLE_BLOCKS,
 } from '@carrental/contracts';
 import { brandConfigSchema, validateBrandConfig } from '@carrental/theme';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
@@ -17,6 +19,7 @@ import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { configVersion } from '../../database/schema/admin';
 import { organization } from '../../database/schema/org';
+import { WorkflowPublic } from '../workflow/workflow.public';
 
 import { ConfigPublic } from './config.public';
 
@@ -47,13 +50,115 @@ function normalizePagesAssets(payload: Record<string, unknown>): Record<string, 
 }
 
 @Injectable()
-export class ConfigVersionService {
+export class ConfigVersionService implements OnModuleInit {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
     private readonly outbox: OutboxService,
     private readonly config: ConfigPublic,
+    private readonly workflows: WorkflowPublic,
   ) {}
+
+  /** Publishing a setting is an action an owner can put a pipeline in front of. */
+  onModuleInit(): void {
+    this.workflows.register({
+      key: 'config.version.publish',
+      subjectType: 'config_version',
+      label: 'Publish a setting (policies, branding, SEO, pages, consent…)',
+      description: 'Make a drafted revision of a setting live.',
+      variables: ['kind', 'key', 'revision'],
+      fingerprint: async (id, tx) => {
+        const [row] = await tx
+          .select()
+          .from(configVersion)
+          .where(eq(configVersion.id, id))
+          .limit(1);
+        if (!row) return null;
+        return createHash('sha256')
+          .update(JSON.stringify([row.kind, row.key, row.revision, row.payload]))
+          .digest('hex');
+      },
+      subjectOwner: async (id, tx) => {
+        const [row] = await tx
+          .select({ by: configVersion.createdBy })
+          .from(configVersion)
+          .where(eq(configVersion.id, id))
+          .limit(1);
+        return row?.by ? { accountId: row.by } : null;
+      },
+      onCaptured: async ({ tx, subjectId }) => {
+        await tx
+          .update(configVersion)
+          .set({
+            state: 'in_review',
+            submittedAt: sql`coalesce(${configVersion.submittedAt}, now())`,
+            updatedAt: sql`now()`,
+          })
+          .where(and(eq(configVersion.id, subjectId), eq(configVersion.state, 'draft')));
+      },
+      execute: async ({ tx, subjectId, actors, audit }) => {
+        const [row] = await tx
+          .select()
+          .from(configVersion)
+          .where(eq(configVersion.id, subjectId))
+          .limit(1);
+        if (!row || (row.state !== 'in_review' && row.state !== 'draft')) {
+          throw new Error('The revision is no longer waiting to be published');
+        }
+        this.validate(row.kind, row.payload, row.key);
+        await this.publishRow(tx, row, actors.finalDeciderAccountId ?? actors.initiatorAccountId);
+        audit({
+          action: 'config.version.approved',
+          targetType: 'config_version',
+          targetId: subjectId,
+          actor: {
+            accountId: actors.finalDeciderAccountId ?? actors.initiatorAccountId,
+            displayName: actors.finalDeciderLabel ?? actors.initiatorLabel ?? undefined,
+            kind: 'staff',
+          },
+          after: {
+            approvedBy: actors.finalDeciderAccountId,
+            authoredBy: row.createdBy,
+            viaWorkflow: true,
+          },
+        });
+        return { state: 'published', revision: row.revision };
+      },
+      onClosed: async ({ tx, subjectId, reason, comment, audit }) => {
+        const [row] = await tx
+          .select()
+          .from(configVersion)
+          .where(eq(configVersion.id, subjectId))
+          .limit(1);
+        if (!row || row.state !== 'in_review') return;
+        if (reason === 'rejected' || reason === 'timed_out') {
+          const note = row.note
+            ? `${row.note}\n\n— Rejected: ${comment ?? 'no reason given'}`
+            : `Rejected: ${comment ?? 'no reason given'}`;
+          await tx
+            .update(configVersion)
+            .set({ state: 'rejected', note, updatedAt: sql`now()` })
+            .where(eq(configVersion.id, subjectId));
+        } else {
+          const note = comment
+            ? row.note
+              ? `${row.note}\n\n— Sent back: ${comment}`
+              : `Sent back: ${comment}`
+            : row.note;
+          await tx
+            .update(configVersion)
+            .set({ state: 'draft', note, updatedAt: sql`now()` })
+            .where(eq(configVersion.id, subjectId));
+        }
+        audit({
+          action: `config.version.${reason}`,
+          targetType: 'config_version',
+          targetId: subjectId,
+          reason: comment ?? undefined,
+        });
+      },
+    });
+  }
 
   /** Delegates to `ConfigPublic.defaultOrganization()` (deterministically ordered by
    *  `createdAt`) rather than repeating the raw, unordered `organization` query. */
@@ -63,7 +168,7 @@ export class ConfigVersionService {
     return org.id;
   }
 
-  async list(kind: string, key?: string) {
+  async list(kind: string, key?: string, actor?: Actor) {
     const where = [eq(configVersion.kind, kind)];
     if (key) where.push(eq(configVersion.key, key));
     const rows = await this.db
@@ -71,7 +176,14 @@ export class ConfigVersionService {
       .from(configVersion)
       .where(and(...where))
       .orderBy(asc(configVersion.key), desc(configVersion.revision));
-    return rows.map((r) => this.shape(r));
+    const open = actor
+      ? await this.workflows.summaryFor(
+          actor,
+          'config_version',
+          rows.map((r) => r.id),
+        )
+      : new Map();
+    return rows.map((r) => ({ ...this.shape(r), workflow: open.get(r.id) ?? null }));
   }
 
   async current(kind: string, key: string): Promise<Record<string, unknown> | null> {
@@ -178,13 +290,13 @@ export class ConfigVersionService {
   }
 
   /**
-   * Publish a revision. Allowed straight from `draft` (the default, "Direct" path — whoever holds
-   * `config.publish` may publish their own change) or from `in_review` (the optional review path).
-   * There is deliberately NO "author cannot approve" rule: a second person is something an owner
-   * opts into with a workflow step (see docs plan-workflows-roles-permissions.md), not a hard-coded
-   * requirement. The draft → publish transition still validates, previews and records who did what.
+   * Publish a revision. With no workflow bound to `config.version.publish` (the default — "Direct")
+   * whoever holds `config.publish` publishes their own change straight from `draft` or `in_review`.
+   * With a pipeline bound, the change is captured and goes through its steps; the response carries
+   * `workflow` (the open request) and the revision shows as `in_review` until it is applied.
+   * Nothing here hard-codes "a different person must approve" — that is a step an owner adds.
    */
-  async approve(actor: Actor, id: string) {
+  async approve(actor: Actor, id: string, opts: { submitKey?: string | null } = {}) {
     const row = await this.load(id);
     if (row.state !== 'in_review' && row.state !== 'draft') {
       throw AppError.businessRule(`A ${row.state} version cannot be published`, {
@@ -193,37 +305,31 @@ export class ConfigVersionService {
     }
     this.validate(row.kind, row.payload, row.key);
 
+    // someone asked to approve an open request approves it (their step), rather than starting another
+    const acted = await this.workflows.actOnOpen({
+      actor,
+      actionKey: 'config.version.publish',
+      subjectId: id,
+      decision: 'approve',
+      strict: false,
+    });
+    if (acted) return { ...this.shape(await this.load(id)), workflow: acted };
+
+    const gate = await this.workflows.gate({
+      actionKey: 'config.version.publish',
+      subjectId: id,
+      subjectLabel: `${row.kind} · ${row.key} (revision ${row.revision})`,
+      context: { kind: row.kind, key: row.key, revision: row.revision },
+      actor,
+      submitKey: opts.submitKey,
+    });
+    if (!gate.direct) {
+      return { ...this.shape(await this.load(id)), workflow: gate.summary };
+    }
+
     try {
       await this.db.transaction(async (tx) => {
-        await tx
-          .update(configVersion)
-          .set({ state: 'superseded', updatedAt: sql`now()` })
-          .where(
-            and(
-              eq(configVersion.kind, row.kind),
-              eq(configVersion.key, row.key),
-              eq(configVersion.state, 'published'),
-            ),
-          );
-        await tx
-          .update(configVersion)
-          .set({
-            state: 'published',
-            approvedAt: sql`now()`,
-            approvedBy: actor.accountId,
-            effectiveFrom: sql`now()`,
-            updatedAt: sql`now()`,
-          })
-          .where(eq(configVersion.id, id));
-        await this.outbox.emit(
-          {
-            type: 'config.version.published.v1',
-            aggregateType: 'config_version',
-            aggregateId: id,
-            payload: { kind: row.kind, key: row.key, revision: row.revision },
-          },
-          tx,
-        );
+        await this.publishRow(tx, row, actor.accountId);
       });
     } catch (err) {
       // the partial unique index (one published row per kind+key) — another reviewer published a
@@ -246,6 +352,43 @@ export class ConfigVersionService {
     return this.shape(await this.load(id));
   }
 
+  /** The publish itself: supersede the live revision, make this one live, announce it. Inside `tx`. */
+  private async publishRow(
+    tx: Database,
+    row: typeof configVersion.$inferSelect,
+    approvedBy: string,
+  ): Promise<void> {
+    await tx
+      .update(configVersion)
+      .set({ state: 'superseded', updatedAt: sql`now()` })
+      .where(
+        and(
+          eq(configVersion.kind, row.kind),
+          eq(configVersion.key, row.key),
+          eq(configVersion.state, 'published'),
+        ),
+      );
+    await tx
+      .update(configVersion)
+      .set({
+        state: 'published',
+        approvedAt: sql`now()`,
+        approvedBy,
+        effectiveFrom: sql`now()`,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(configVersion.id, row.id));
+    await this.outbox.emit(
+      {
+        type: 'config.version.published.v1',
+        aggregateType: 'config_version',
+        aggregateId: row.id,
+        payload: { kind: row.kind, key: row.key, revision: row.revision },
+      },
+      tx,
+    );
+  }
+
   async reject(actor: Actor, id: string, note: string) {
     const row = await this.load(id);
     if (row.state !== 'in_review') {
@@ -253,6 +396,14 @@ export class ConfigVersionService {
         reason: row.state,
       });
     }
+    const acted = await this.workflows.actOnOpen({
+      actor,
+      actionKey: 'config.version.publish',
+      subjectId: id,
+      decision: 'reject',
+      comment: note,
+    });
+    if (acted) return { ...this.shape(await this.load(id)), workflow: acted };
     // keep the author's own draft note — record the reviewer's reason alongside it, don't clobber it.
     const merged = row.note ? `${row.note}\n\n— Rejected: ${note}` : `Rejected: ${note}`;
     await this.db

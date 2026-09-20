@@ -24,6 +24,7 @@ export const API_MODULES = [
   'search',
   'consent',
   'media',
+  'workflow',
 ];
 
 export default [

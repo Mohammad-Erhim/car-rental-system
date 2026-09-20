@@ -54,17 +54,13 @@ describe('reversible customer merge (FR-ADM-001)', () => {
   });
 
   it('merge moves the duplicate’s restriction to the survivor; unmerge restores it', async () => {
-    // put an approved block restriction on the duplicate
-    const created = await request(server)
+    // put a block restriction on the duplicate (Direct: it is in force as soon as it is created)
+    await request(server)
       .post(`/api/v1/ops/customers/${dupId}/restrictions`)
       .set('Authorization', `Bearer ${manager}`)
       .send({ category: 'block', scope: 'all' })
-      .expect(201);
-    await request(server)
-      .post(`/api/v1/ops/customers/${dupId}/restrictions/${created.body.id}/approve`)
-      .set('Authorization', `Bearer ${admin}`)
-      .send({})
-      .expect(201);
+      .expect(201)
+      .expect((r) => expect(r.body.status).toBe('active'));
 
     const merged = await request(server)
       .post(`/api/v1/ops/customers/${dupId}/merge`)

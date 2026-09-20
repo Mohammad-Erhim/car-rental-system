@@ -26,7 +26,7 @@ describe('visibleNavGroups', () => {
   it('always keeps the un-gated dashboard entry', () => {
     const groups = visibleNavGroups(allowing());
     expect(groups).toHaveLength(1);
-    expect(pagePaths(groups)).toEqual(['/']);
+    expect(pagePaths(groups)).toEqual(['/', '/tasks']); // tasks: every signed-in staff member
   });
 
   it('shows only the entries the actor may open, dropping emptied groups', () => {
@@ -34,6 +34,7 @@ describe('visibleNavGroups', () => {
     // the media library also opens for `fleet.read`
     expect(pagePaths(groups)).toEqual([
       '/',
+      '/tasks',
       '/fleet',
       '/website/media',
       '/admin/staff',
@@ -115,6 +116,7 @@ describe('visibleNavGroups — location-limited accounts', () => {
     '/settings/organization',
     '/admin/audit',
     '/admin/access',
+    '/admin/workflows',
     '/admin/data-quality',
     '/catalogue/categories',
   ];

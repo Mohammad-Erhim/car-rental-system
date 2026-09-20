@@ -150,8 +150,12 @@ export class ReportController {
   @Get('config/versions')
   @OrgWide()
   @Permissions('config.read', 'config.publish')
-  listVersions(@Query('kind') kind: string, @Query('key') key?: string) {
-    return this.config.list(kind, key);
+  listVersions(
+    @CurrentActor() actor: Actor,
+    @Query('kind') kind: string,
+    @Query('key') key?: string,
+  ) {
+    return this.config.list(kind, key, actor);
   }
 
   @Post('config/versions')

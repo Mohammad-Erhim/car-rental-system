@@ -473,3 +473,53 @@ routing-payment.adapter,payment-config.controller,stripe-webhook.controller}.ts`
   `modules/admin/{access-admin,staff}.service.ts`, migration `0030_*`, seeds (`staff-roles.ts`),
   web `features/access/*`, `lib/access-hooks.ts`, `packages/client` auth provider; tests
   `access-graph.test.ts`, `access-admin.spec.ts`, web matrix/roles/user-sheet tests.
+
+### DEC-032 — Workflow engine core: configurable approval pipelines (plan phase 3)
+
+- Context: "another person must review" was hard-coded three times (config versions, templates,
+  customer restrictions); there was no way to ask a role or a named person, "all of these", or an
+  amount-based route, and nothing that reminded, escalated or timed out.
+- Decision (phase 3 of `plan-workflows-roles-permissions.md`):
+  - **Definitions are data.** `workflow_definition` + immutable `workflow_definition_version`
+    (`spec` JSON, shape and graph rules in `@carrental/contracts` `workflow.ts`, shared by API and
+    dashboard). Steps: `approval`, `task`, `auto` (notify), `condition` (JSON-logic), `wait`,
+    `parallel` (branches of inline steps, join all/any). Actors per step: roles (by code), named
+    people, teams, or dynamic (`initiator`, `subject_owner`), with modes any / all / quorum N / in
+    order, "exclude the requester" (off by default), "must be in the record's location". Every
+    definition has mandatory **fallback actors**. Built in: **Direct** (no steps) and **Two-person
+    review**; both are per-organisation, created at boot, and cannot be edited (clone them).
+  - **Bindings.** `workflow_binding` attaches a definition to a governed action, optionally with a
+    condition and priority; none = Direct. Highest matching priority wins.
+  - **Governed actions are declared in code** by the module that owns the change and registered at
+    boot (`WorkflowPublic.register`): key, variables, `fingerprint` (stale detection), `execute`
+    (idempotent), `onClosed`. Phase 3 wires `config.version.publish`, `template.publish` and
+    `customer.restriction.activate`.
+  - **Runtime.** `WorkflowEngineService.gate()` → Direct (caller applies inline, as before) or a
+    captured request (`workflow_instance`, one open per subject by a partial unique index). Every
+    decision is one transaction that locks instance → task → assignee, re-checks eligibility, and
+    settles the step by mode; the last step hands the change to the executor once, after commit
+    (`apply`, retried with backoff on failure, never asks approvers again). A subject that changed
+    after the request closes it as `stale` (409). Changes-requested returns the draft to its author
+    (bounded by `maxRevisions`). Security-critical actions can never be approved by their subject.
+  - **Time.** The worker ticks every 30 s (`engine.tick`): releases waits, reminds, escalates or
+    auto-approves/rejects overdue tasks, refreshes who is eligible (a suspended approver drops out, a
+    new role holder is added, nobody left → fallback), retries failed applies. Everything is derived
+    from rows, so a missed or doubled tick is harmless.
+  - **Notifications** are email only via a port (`WorkflowMessenger`, implemented by
+    `NotifyPublic`); the in-app side is the task list and the header bell.
+  - **Behaviour changes.** With nothing bound: publishing is direct (as after phase 1) and a new
+    customer restriction is now **active at once** instead of waiting for one "approve" click.
+    Legacy `approve` / `reject` endpoints act on the open request when the caller is one of the
+    people asked; restrictions still `pending_review` from before can be decided as before.
+  - **Permissions.** `workflow.manage` (administrator only; define, publish, bind — step-up) and
+    `workflow.monitor` (see all requests, cancel, force through, reassign — audited, reasons required).
+    Deciding needs no permission: it is by assignment.
+- Not yet (later phases): the visual pipeline builder, versions diff/rollback UI, import/export,
+  conditional-binding editor (phase 4); refunds with amount bands, rate plans, translations,
+  cancellations, extensions, merges, archives, staff access changes, recovery cases (phase 5);
+  delegation / out-of-office, business-hours due times, digest notifications, keyset pagination on
+  the inbox, property-based and two-organisation isolation tests (phase 6).
+- Consequences: `apps/api/src/modules/workflow/*`, `modules/notify/notify.public.ts`, migration
+  `0031_workflow_engine.sql`, seeds (`workflow.manage`, `workflow.monitor`), worker `workflow-tick`,
+  config/template/customer services, `packages/contracts/src/workflow.ts`, web
+  `features/workflows/*` and `lib/workflow-hooks.ts`; tests `workflow.spec.ts`, `workflow.test.ts`.

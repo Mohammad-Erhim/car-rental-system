@@ -18,3 +18,4 @@ export * from './payment';
 export * from './rental';
 export * from './admin';
 export * from './invoice';
+export * from './workflow';

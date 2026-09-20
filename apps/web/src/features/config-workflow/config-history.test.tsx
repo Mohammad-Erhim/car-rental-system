@@ -1,5 +1,6 @@
 import { I18nProvider } from '@carrental/i18n/react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ConfigHistory } from './config-history';
@@ -25,7 +26,9 @@ const show = (versions: ConfigVersion[], canPublish = true) => {
   const onAction = vi.fn().mockResolvedValue(undefined);
   render(
     <I18nProvider initialLocale="en">
-      <ConfigHistory versions={versions} canPublish={canPublish} onAction={onAction} />
+      <MemoryRouter>
+        <ConfigHistory versions={versions} canPublish={canPublish} onAction={onAction} />
+      </MemoryRouter>
     </I18nProvider>,
   );
   return onAction;
@@ -62,5 +65,34 @@ describe('ConfigHistory — publish without a second person', () => {
     show([version({})], false);
     expect(screen.queryByTestId('publish-3')).toBeNull();
     expect(screen.queryByRole('button', { name: /submit for review/i })).toBeNull();
+  });
+});
+
+describe('ConfigHistory — waiting on an approval pipeline', () => {
+  const pending = {
+    instanceId: 'wf-1',
+    actionKey: 'config.version.publish',
+    status: 'running' as const,
+    definitionName: 'Two-person review',
+    stepId: 'review',
+    stepName: 'Second-person review',
+    waitingFor: ['Test Manager'],
+    waitingForMore: 0,
+    dueAt: null,
+    revision: 1,
+  };
+
+  it('shows who it is waiting for and offers no publish / approve / reject controls', () => {
+    show([version({ state: 'in_review', workflow: pending })]);
+    expect(screen.getByTestId('workflow-badge')).toHaveTextContent(/Test Manager/);
+    expect(screen.getByTestId('workflow-badge')).toHaveAttribute('href', '/tasks/wf-1');
+    expect(screen.queryByRole('button', { name: /approve/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /reject/i })).toBeNull();
+    expect(screen.queryByTestId('publish-3')).toBeNull();
+  });
+
+  it('a revision in review with no request behind it keeps its approve / reject buttons', () => {
+    show([version({ state: 'in_review', workflow: null })]);
+    expect(screen.getByRole('button', { name: /approve/i })).toBeEnabled();
   });
 });

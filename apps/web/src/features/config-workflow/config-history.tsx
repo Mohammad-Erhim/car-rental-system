@@ -6,6 +6,8 @@ import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
+import { WorkflowBadge } from '../workflows/workflow-status';
+
 import { diffPayloads } from './payload-diff';
 
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -150,7 +152,14 @@ export function ConfigHistory({
   const [dialog, setDialog] = useState<Dialog>(null);
   // every action reports what it did to which revision
   const run = async (v: ConfigVersion, action: WorkflowAction, note?: string) => {
-    await onAction({ id: v.id, action, note });
+    const res = (await onAction({ id: v.id, action, note })) as
+      | { workflow?: { status?: string } | null }
+      | undefined;
+    // a pipeline is bound: the change was captured and now waits for its steps — say so plainly
+    if (action === 'approve' && res?.workflow && res.workflow.status !== 'completed') {
+      toast.info(t('ops.wf.sentForApproval', { n: v.revision }));
+      return;
+    }
     toast.success(
       t(
         action === 'submit'
@@ -193,6 +202,7 @@ export function ConfigHistory({
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 <span className="font-medium">{t('ops.cfg.rev', { n: v.revision })}</span>
                 <Badge variant={TONE[v.state]}>{t(`ops.cfg.state.${v.state}`)}</Badge>
+                <WorkflowBadge summary={v.workflow} />
               </div>
               <p className="text-xs text-muted-foreground">
                 {fmt.dateTime(v.createdAt)}
@@ -200,7 +210,8 @@ export function ConfigHistory({
               </p>
               {describe ? <p className="text-sm">{describe(v)}</p> : null}
             </div>
-            {canPublish || (onRevise && (v.state === 'rejected' || v.state === 'superseded')) ? (
+            {(canPublish && !v.workflow) ||
+            (onRevise && (v.state === 'rejected' || v.state === 'superseded')) ? (
               <div className="flex flex-wrap gap-2">
                 {onRevise && (v.state === 'rejected' || v.state === 'superseded') ? (
                   <Button

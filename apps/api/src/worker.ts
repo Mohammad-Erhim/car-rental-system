@@ -22,6 +22,7 @@ import { idempotencyKey, outboxMessage } from './database/schema/platform';
 import { rental } from './database/schema/rental';
 import { bootstrapEnvForScript } from './database/script-env';
 import { ReportService } from './modules/report/report.service';
+import { WorkflowEngineService } from './modules/workflow/workflow-engine.service';
 
 const log = pino({ name: 'carrental-worker', level: process.env.LOG_LEVEL ?? 'info' });
 
@@ -35,6 +36,7 @@ async function main() {
   const { db, close } = createDb(env.DATABASE_URL);
   const appCtx = await NestFactory.createApplicationContext(AppModule, { logger: false });
   const reportService = appCtx.get(ReportService);
+  const workflowEngine = appCtx.get(WorkflowEngineService);
 
   const housekeeping = new Queue('housekeeping', { connection });
   const deadLetter = new Queue('housekeeping-dlq', { connection });
@@ -78,6 +80,20 @@ async function main() {
     },
   );
 
+  // Workflows: every 30s release finished timers, remind / escalate / time out overdue tasks,
+  // refresh who is eligible, and retry executors that failed. Derived from the database each tick
+  // (the job is only a hint), so a missed or doubled tick is harmless.
+  await housekeeping.add(
+    'workflow-tick',
+    {},
+    {
+      repeat: { every: 30 * 1000 },
+      jobId: 'workflow-tick',
+      removeOnComplete: 20,
+      removeOnFail: 20,
+    },
+  );
+
   const worker = new Worker(
     'housekeeping',
     async (job: Job) => {
@@ -95,6 +111,11 @@ async function main() {
         if (r.delivered || r.failed || r.deadLettered || r.pruned) {
           log.info(r, 'outbox relay tick');
         }
+        return r;
+      }
+      if (job.name === 'workflow-tick') {
+        const r = await workflowEngine.tick(new Date());
+        if (Object.values(r).some((n) => n > 0)) log.info(r, 'workflow tick');
         return r;
       }
       if (job.name === 'report-dispatch') {

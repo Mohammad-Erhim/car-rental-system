@@ -365,6 +365,18 @@ const PERMISSION_ACTIONS: Array<[string, string, string, string]> = [
   ['config.publish', 'config', 'high', 'Publish pricing / policy / product / template versions'],
   ['lookup.manage', 'config', 'elevated', 'Manage reference data values'],
   ['staff.manage', 'admin', 'high', 'Manage staff accounts, roles, scopes'],
+  [
+    'workflow.manage',
+    'admin',
+    'high',
+    'Create, edit and publish approval workflows and choose which action each one governs',
+  ],
+  [
+    'workflow.monitor',
+    'admin',
+    'elevated',
+    'See every approval request, reassign a task, cancel or force a request through (audited)',
+  ],
   ['report.read', 'report', 'normal', 'View reports'],
   ['report.export', 'report', 'elevated', 'Export / schedule reports'],
   ['audit.read', 'audit', 'elevated', 'View audit and data-quality'],
@@ -397,6 +409,7 @@ const PERMISSION_ACTIONS: Array<[string, string, string, string]> = [
 const ADMIN_ONLY_ACTIONS: Record<string, string[]> = {
   'payment.manage': ['administrator'],
   'email.manage': ['administrator'],
+  'workflow.manage': ['administrator'],
 };
 
 /** `ALL` = every action except the admin-only ones; `WILDCARD` = the `*` grant (everything, always). */

@@ -6,6 +6,23 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### Workflow engine — configurable approval pipelines (2026-09)
+
+An owner decides, per action, whether a change is applied directly or only after a pipeline of
+approvals; nothing about who reviews is fixed in code any more. See DEC-032.
+
+- **Pipelines as data:** approval, task, notify, condition (rules), wait and parallel steps; actors are
+  roles, named people, teams or "the requester"; any one / all / N of M / in order; fallback approvers
+  so a step is never a dead end; reminders, escalation and auto-approve/reject on timeout.
+- **Applied exactly once:** race-safe decisions, eligibility re-checked at decision time, stale
+  requests closed, failed applies retried with backoff.
+- **Wired to** config versions (policies, branding, SEO, pages, consent), message templates and
+  customer restrictions. Default is Direct. A new customer restriction is now active immediately.
+- **Dashboard:** header bell, Tasks (waiting for me / requested by me / all), request detail with
+  approve, reject, send back and withdraw, and Administration → Workflows (bind a workflow to each
+  action, preview who would be asked, copy a workflow). New permissions `workflow.manage`,
+  `workflow.monitor`.
+
 ### Operations dashboard redesign (2026-09)
 
 `apps/web` was rebuilt on shadcn/Radix + Tailwind. Every screen follows the same shape: the page

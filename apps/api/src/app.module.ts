@@ -21,6 +21,7 @@ import { NotifyModule } from './modules/notify/notify.module';
 import { RentalModule } from './modules/rental/rental.module';
 import { ReportModule } from './modules/report/report.module';
 import { SearchModule } from './modules/search/search.module';
+import { WorkflowModule } from './modules/workflow/workflow.module';
 import { buildLoggerParams } from './observability/logger';
 import { ObservabilityModule } from './observability/observability.module';
 
@@ -33,6 +34,7 @@ import { ObservabilityModule } from './observability/observability.module';
     CommonModule,
     AuthModule,
     NotifyModule,
+    WorkflowModule,
     IamModule,
     DomainConfigModule,
     AdminModule,

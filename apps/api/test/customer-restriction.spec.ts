@@ -1,13 +1,19 @@
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
+import { DB } from '../src/database/database.module';
+import type { Database } from '../src/database/drizzle';
+import { customerRestriction } from '../src/database/schema/customer';
+
 import { closeTestApp, getTestApp, httpServer } from './helpers/app';
 import { signIn } from './helpers/auth';
 
 /**
- * FR-ADM-002 — customer eligibility restrictions, write side + enforcement. A `block` restriction
- * is created `pending_review`, approved by a *different* user, then denies the customer's booking
- * until it is lifted. `review` restrictions never block. `customer.manage` gates every write.
+ * FR-ADM-002 — customer eligibility restrictions, write side + enforcement. With no workflow bound
+ * to `customer.restriction.activate` (the default) a restriction takes effect the moment it is
+ * created; a `block` then denies the customer's booking until it is lifted. `review` restrictions
+ * never block. `customer.manage` gates every write. Restrictions still `pending_review` from before
+ * workflows existed can be approved / rejected directly; the pipeline path is in workflow.spec.ts.
  */
 const isoIn = (days: number) => {
   const d = new Date();
@@ -23,6 +29,7 @@ describe('customer eligibility restrictions (FR-ADM-002)', () => {
   let agent: string;
   let customerTok: string;
   let customerId: string;
+  let db: Database;
 
   let dayCursor = 14;
   const book = async (category: string) => {
@@ -51,6 +58,7 @@ describe('customer eligibility restrictions (FR-ADM-002)', () => {
   beforeAll(async () => {
     const app = await getTestApp();
     server = httpServer(app);
+    db = app.get<Database>(DB);
     admin = (await signIn(app, 'test-admin@example.test', 'Test-Passw0rd!', 'staff')).accessToken;
     manager = (await signIn(app, 'test-manager@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
@@ -78,7 +86,7 @@ describe('customer eligibility restrictions (FR-ADM-002)', () => {
       .expect(403);
   });
 
-  it('create → a manager approves → enforced → lifted', async () => {
+  it('create → in force at once (Direct) → enforced → lifted', async () => {
     // a clean booking works first
     await book('economy').then((r) => expect(r.status).toBe(201));
 
@@ -87,20 +95,10 @@ describe('customer eligibility restrictions (FR-ADM-002)', () => {
       .set('Authorization', `Bearer ${manager}`)
       .send({ category: 'block', scope: 'all', reasonCode: 'complaint', evidenceRef: 'CASE-99' })
       .expect(201);
-    expect(created.body.status).toBe('pending_review');
-    expect(created.body.isActive).toBe(false);
+    expect(created.body.status).toBe('active');
+    expect(created.body.isActive).toBe(true);
+    expect(created.body.approvedBy).toBeTruthy();
     const rid = created.body.id as string;
-
-    // still pending → still not enforced
-    await book('economy').then((r) => expect(r.status).toBe(201));
-
-    const approved = await request(server)
-      .post(`/api/v1/ops/customers/${customerId}/restrictions/${rid}/approve`)
-      .set('Authorization', `Bearer ${admin}`)
-      .send({ notes: 'confirmed with the customer' })
-      .expect(201);
-    expect(approved.body.status).toBe('active');
-    expect(approved.body.isActive).toBe(true);
 
     // now the customer's booking is denied
     const denied = await book('economy');
@@ -117,21 +115,15 @@ describe('customer eligibility restrictions (FR-ADM-002)', () => {
     await book('economy').then((r) => expect(r.status).toBe(201));
   });
 
-  it('the author may approve and lift their own restriction (no hard-coded second person)', async () => {
+  it('the author may lift their own restriction (no hard-coded second person)', async () => {
     const created = await request(server)
       .post(`/api/v1/ops/customers/${customerId}/restrictions`)
       .set('Authorization', `Bearer ${manager}`)
       .send({ category: 'block', scope: 'all', reasonCode: 'complaint' })
       .expect(201);
-    const rid = created.body.id as string;
-    const approved = await request(server)
-      .post(`/api/v1/ops/customers/${customerId}/restrictions/${rid}/approve`)
-      .set('Authorization', `Bearer ${manager}`)
-      .send({ notes: 'self-approved' })
-      .expect(201);
-    expect(approved.body.status).toBe('active');
+    expect(created.body.status).toBe('active');
     await request(server)
-      .post(`/api/v1/ops/customers/${customerId}/restrictions/${rid}/lift`)
+      .post(`/api/v1/ops/customers/${customerId}/restrictions/${created.body.id}/lift`)
       .set('Authorization', `Bearer ${manager}`)
       .send({ notes: 'done' })
       .expect(201);
@@ -146,13 +138,21 @@ describe('customer eligibility restrictions (FR-ADM-002)', () => {
       .expect((r) => expect(r.body.fieldErrors?.[0]?.path).toBe('reasonCode'));
   });
 
-  it('a rejected restriction never becomes active and cannot be re-decided', async () => {
-    const created = await request(server)
-      .post(`/api/v1/ops/customers/${customerId}/restrictions`)
-      .set('Authorization', `Bearer ${manager}`)
-      .send({ category: 'block', scope: 'all' })
-      .expect(201);
-    const rid = created.body.id as string;
+  it('a legacy pending_review restriction can still be rejected or approved; a decided one cannot be re-decided', async () => {
+    const legacy = async () => {
+      const [row] = await db
+        .insert(customerRestriction)
+        .values({
+          customerId,
+          category: 'block',
+          scope: 'all',
+          status: 'pending_review',
+          isActive: false,
+        })
+        .returning();
+      return row!.id;
+    };
+    const rid = await legacy();
 
     const rejected = await request(server)
       .post(`/api/v1/ops/customers/${customerId}/restrictions/${rid}/reject`)
@@ -178,6 +178,20 @@ describe('customer eligibility restrictions (FR-ADM-002)', () => {
       .send({})
       .expect(422)
       .expect((r) => expect(r.body.params?.reason).toBe('restriction_not_active'));
+
+    // a legacy pending row the author approves is enforced, then lifted
+    const rid2 = await legacy();
+    const approved = await request(server)
+      .post(`/api/v1/ops/customers/${customerId}/restrictions/${rid2}/approve`)
+      .set('Authorization', `Bearer ${manager}`)
+      .send({ notes: 'ok' })
+      .expect(201);
+    expect(approved.body.status).toBe('active');
+    await request(server)
+      .post(`/api/v1/ops/customers/${customerId}/restrictions/${rid2}/lift`)
+      .set('Authorization', `Bearer ${manager}`)
+      .send({})
+      .expect(201);
   });
 
   it('a scoped restriction only blocks bookings in that scope; review restrictions never block', async () => {
@@ -190,28 +204,18 @@ describe('customer eligibility restrictions (FR-ADM-002)', () => {
     await book('economy').then((r) => expect(r.status).toBe(201));
 
     // an active block scoped to a *different* location does not touch a TST1 booking
-    const otherLoc = await request(server)
+    await request(server)
       .post(`/api/v1/ops/customers/${customerId}/restrictions`)
       .set('Authorization', `Bearer ${manager}`)
       .send({ category: 'block', scope: 'location:TST2' })
       .expect(201);
-    await request(server)
-      .post(`/api/v1/ops/customers/${customerId}/restrictions/${otherLoc.body.id}/approve`)
-      .set('Authorization', `Bearer ${admin}`)
-      .send({})
-      .expect(201);
     await book('economy').then((r) => expect(r.status).toBe(201)); // TST1 booking, out of scope
 
     // an active block scoped to the economy class now denies the TST1 economy booking
-    const scoped = await request(server)
+    await request(server)
       .post(`/api/v1/ops/customers/${customerId}/restrictions`)
       .set('Authorization', `Bearer ${manager}`)
       .send({ category: 'block', scope: 'category:economy' })
-      .expect(201);
-    await request(server)
-      .post(`/api/v1/ops/customers/${customerId}/restrictions/${scoped.body.id}/approve`)
-      .set('Authorization', `Bearer ${admin}`)
-      .send({})
       .expect(201);
     const denied = await book('economy');
     expect(denied.status).toBe(422);

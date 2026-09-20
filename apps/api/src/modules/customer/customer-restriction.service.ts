@@ -1,4 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { createHash } from 'node:crypto';
+
+import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { and, desc, eq, gte, isNull, lte, or } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
@@ -8,11 +10,14 @@ import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { customer, customerRestriction } from '../../database/schema/customer';
 import { ConfigPublic } from '../config/config.public';
+import { WorkflowPublic } from '../workflow/workflow.public';
 
 /**
  * FR-ADM-002 — customer eligibility restrictions, write side + enforcement. A free-text note
  * cannot deny service; a `customer_restriction` row does. Lifecycle:
- * `pending_review` → (a user with `customer.manage` approves — the author may) → `active` → `lifted`; or → `rejected`.
+ * created → (`customer.restriction.activate` workflow — Direct by default, so it is active at once)
+ * → `active` → `lifted`. With a pipeline bound, it waits as `pending_review` until the steps pass, or
+ * ends `rejected`. Rows created before workflows existed can still be approved / rejected directly.
  * `assertCanTransact()` is the enforcement point called by booking + rental pickup.
  */
 export type RestrictionScope = 'all' | `category:${string}` | `location:${string}`;
@@ -27,12 +32,106 @@ export interface CreateRestrictionInput {
 }
 
 @Injectable()
-export class CustomerRestrictionService {
+export class CustomerRestrictionService implements OnModuleInit {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
     private readonly refData: ConfigPublic,
+    private readonly workflows: WorkflowPublic,
   ) {}
+
+  /** Putting a restriction into force is an action an owner can put a pipeline in front of. */
+  onModuleInit(): void {
+    this.workflows.register({
+      key: 'customer.restriction.activate',
+      subjectType: 'customer_restriction',
+      label: 'Put a customer restriction into force',
+      description: 'A review or block on a customer takes effect.',
+      variables: ['category', 'scope', 'reasonCode'],
+      fingerprint: async (id, tx) => {
+        const [r] = await tx
+          .select()
+          .from(customerRestriction)
+          .where(eq(customerRestriction.id, id))
+          .limit(1);
+        if (!r) return null;
+        return createHash('sha256')
+          .update(
+            JSON.stringify([
+              r.customerId,
+              r.category,
+              r.scope,
+              r.reasonCode,
+              r.evidenceRef,
+              r.effectiveFrom,
+              r.effectiveTo,
+            ]),
+          )
+          .digest('hex');
+      },
+      subjectOwner: async (id, tx) => {
+        const [r] = await tx
+          .select({ by: customerRestriction.createdBy })
+          .from(customerRestriction)
+          .where(eq(customerRestriction.id, id))
+          .limit(1);
+        return r?.by ? { accountId: r.by } : null;
+      },
+      execute: async ({ tx, subjectId, actors, audit }) => {
+        const [r] = await tx
+          .select()
+          .from(customerRestriction)
+          .where(eq(customerRestriction.id, subjectId))
+          .limit(1);
+        if (!r || r.status !== 'pending_review')
+          throw new Error('The restriction is no longer waiting for approval');
+        await tx
+          .update(customerRestriction)
+          .set({
+            status: 'active',
+            isActive: true,
+            approvedBy: actors.finalDeciderAccountId ?? actors.initiatorAccountId,
+            updatedAt: new Date().toISOString(),
+          })
+          .where(eq(customerRestriction.id, subjectId));
+        audit({
+          action: 'customer.restriction.approved',
+          targetType: 'customer_restriction',
+          targetId: subjectId,
+          actor: {
+            accountId: actors.finalDeciderAccountId ?? actors.initiatorAccountId,
+            displayName: actors.finalDeciderLabel ?? actors.initiatorLabel ?? undefined,
+            kind: 'staff',
+          },
+          after: { customerId: r.customerId, viaWorkflow: true },
+        });
+        return { status: 'active' };
+      },
+      // a restriction has no draft to return to: any outcome other than "applied" ends it as rejected
+      onClosed: async ({ tx, subjectId, reason, comment, audit }) => {
+        await tx
+          .update(customerRestriction)
+          .set({
+            status: 'rejected',
+            isActive: false,
+            reviewNotes: comment ?? reason.replace(/_/g, ' '),
+            updatedAt: new Date().toISOString(),
+          })
+          .where(
+            and(
+              eq(customerRestriction.id, subjectId),
+              eq(customerRestriction.status, 'pending_review'),
+            ),
+          );
+        audit({
+          action: 'customer.restriction.rejected',
+          targetType: 'customer_restriction',
+          targetId: subjectId,
+          reason: comment ?? reason,
+        });
+      },
+    });
+  }
 
   private async customerRow(customerId: string) {
     const [row] = await this.db.select().from(customer).where(eq(customer.id, customerId)).limit(1);
@@ -86,7 +185,37 @@ export class CustomerRestrictionService {
       actor,
       after: { customerId, category: input.category, scope },
     });
-    return this.shape(row!);
+
+    const gate = await this.workflows.gate({
+      actionKey: 'customer.restriction.activate',
+      subjectId: row!.id,
+      subjectLabel: `${input.category} restriction · ${scope}`,
+      context: { category: input.category, scope, reasonCode: input.reasonCode ?? null },
+      actor,
+    });
+    if (!gate.direct)
+      return { ...this.shape(await this.load(customerId, row!.id)), workflow: gate.summary };
+
+    // Direct: no pipeline is bound, so it takes effect at once (nobody else has to click "approve")
+    const [active] = await this.db
+      .update(customerRestriction)
+      .set({
+        status: 'active',
+        isActive: true,
+        approvedBy: actor.accountId,
+        updatedBy: actor.accountId,
+        updatedAt: new Date().toISOString(),
+      })
+      .where(eq(customerRestriction.id, row!.id))
+      .returning();
+    await this.audit.record({
+      action: 'customer.restriction.approved',
+      targetType: 'customer_restriction',
+      targetId: row!.id,
+      actor,
+      after: { customerId, direct: true },
+    });
+    return this.shape(active!);
   }
 
   async decide(
@@ -102,6 +231,16 @@ export class CustomerRestrictionService {
         reason: 'restriction_not_pending',
       });
     }
+    // waiting on a pipeline → this is the caller's step; otherwise it predates workflows (legacy)
+    const acted = await this.workflows.actOnOpen({
+      actor,
+      actionKey: 'customer.restriction.activate',
+      subjectId: restrictionId,
+      decision,
+      comment: notes,
+    });
+    if (acted)
+      return { ...this.shape(await this.load(customerId, restrictionId)), workflow: acted };
     const [updated] = await this.db
       .update(customerRestriction)
       .set(

@@ -25,6 +25,19 @@ GET    /api/v1/admin/staff/:accountId/explain
 POST   /api/v1/admin/staff/:accountId/overrides
 DELETE /api/v1/admin/staff/:accountId/overrides/:id
 POST   /api/v1/admin/staff/invite
+GET    /api/v1/admin/workflows/actions
+GET    /api/v1/admin/workflows/bindings
+PUT    /api/v1/admin/workflows/bindings
+DELETE /api/v1/admin/workflows/bindings/:id
+GET    /api/v1/admin/workflows/definitions
+POST   /api/v1/admin/workflows/definitions
+GET    /api/v1/admin/workflows/definitions/:id
+POST   /api/v1/admin/workflows/definitions/:id/archive
+POST   /api/v1/admin/workflows/definitions/:id/clone
+PUT    /api/v1/admin/workflows/definitions/:id/draft
+POST   /api/v1/admin/workflows/definitions/:id/publish
+POST   /api/v1/admin/workflows/definitions/validate
+POST   /api/v1/admin/workflows/simulate
 POST   /api/v1/auth/change-password
 GET    /api/v1/auth/data-requests
 POST   /api/v1/auth/data-requests
@@ -216,5 +229,14 @@ GET    /api/v1/reservations/:reference/invoices
 GET    /api/v1/reservations/:reference/invoices/:number
 POST   /api/v1/reservations/:reference/modify
 GET    /api/v1/reservations/mine
-POST   /api/v1/webhooks/stripe"
+POST   /api/v1/webhooks/stripe
+GET    /api/v1/workflows/inbox
+GET    /api/v1/workflows/inbox/count
+GET    /api/v1/workflows/instances
+GET    /api/v1/workflows/instances/:id
+POST   /api/v1/workflows/instances/:id/cancel
+POST   /api/v1/workflows/instances/:id/force
+POST   /api/v1/workflows/instances/:id/withdraw
+POST   /api/v1/workflows/tasks/:id/decide
+POST   /api/v1/workflows/tasks/:id/reassign"
 `;

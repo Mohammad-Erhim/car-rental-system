@@ -2,6 +2,8 @@ import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
 import { Menu } from 'lucide-react';
 
+import { TasksBell } from '../features/workflows/tasks-bell';
+
 import { Breadcrumbs } from './breadcrumbs';
 import { CommandMenu } from './command-menu';
 import { LanguageMenu } from './language-menu';
@@ -45,6 +47,7 @@ export function AppHeader({ groups }: { groups: NavGroup[] }) {
         <CommandMenu groups={groups} />
         <LocationSwitcher />
         <SystemStatus />
+        {actor ? <TasksBell /> : null}
         <ThemeMenu />
         <LanguageMenu />
         {isMobile && actor ? <UserMenu /> : null}

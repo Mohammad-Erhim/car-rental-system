@@ -3,6 +3,7 @@ import {
   Building2,
   Car,
   CarFront,
+  Bell,
   ClipboardList,
   Cookie,
   CreditCard,
@@ -29,6 +30,7 @@ import {
   UserSearch,
   Users,
   Wallet,
+  Workflow,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -73,7 +75,10 @@ const CATALOGUE = ['catalogue.read', 'catalogue.manage'];
 
 export const NAV_GROUPS: NavGroup[] = [
   {
-    items: [{ to: paths.dashboard, label: 'ops.nav.dashboard', icon: LayoutDashboard, end: true }],
+    items: [
+      { to: paths.dashboard, label: 'ops.nav.dashboard', icon: LayoutDashboard, end: true },
+      { to: paths.tasks, label: 'ops.nav.tasks', icon: Bell },
+    ],
   },
   {
     titleKey: 'ops.navGroup.operations',
@@ -208,6 +213,12 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: paths.staff, label: 'ops.nav.staff', icon: Users, anyOf: ['staff.manage'] },
       { to: paths.access, label: 'ops.nav.access', icon: LockKeyhole, anyOf: ['staff.manage'] },
+      {
+        to: paths.workflows,
+        label: 'ops.nav.workflows',
+        icon: Workflow,
+        anyOf: ['workflow.manage', 'workflow.monitor'],
+      },
       {
         to: paths.audit,
         label: 'ops.nav.audit',

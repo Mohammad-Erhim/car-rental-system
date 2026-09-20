@@ -9,6 +9,7 @@ import {
 import { apiFetch, getAccessToken, getRefreshHandler } from './api.js';
 import { useInvalidateLocations } from './location-hooks.js';
 import { useWorkflowError } from './use-workflow-error.js';
+import type { WorkflowSummary } from './workflow-hooks.js';
 
 const BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api/v1';
 
@@ -28,6 +29,8 @@ export interface ConfigVersion {
   approvedBy: string | null;
   effectiveFrom: string | null;
   createdAt: string;
+  /** set while the revision waits on an approval pipeline (or the response that just started one) */
+  workflow?: WorkflowSummary | null;
 }
 
 export function useConfigVersions(kind: string, key?: string) {

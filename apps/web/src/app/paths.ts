@@ -7,6 +7,8 @@ const enc = encodeURIComponent;
 
 export const paths = {
   dashboard: '/',
+  tasks: '/tasks',
+  request: (id: string) => `/tasks/${enc(id)}`,
   search: '/search',
 
   // operations
@@ -54,6 +56,7 @@ export const paths = {
   // administration
   staff: '/admin/staff',
   access: '/admin/access',
+  workflows: '/admin/workflows',
   audit: '/admin/audit',
   consentLog: '/admin/consent-log',
   dataQuality: '/admin/data-quality',
@@ -135,6 +138,7 @@ const ORG_WIDE_PREFIXES: readonly string[] = [
   '/settings',
   '/admin/audit',
   paths.access,
+  paths.workflows,
   paths.consentLog,
   paths.dataQuality,
 ];

@@ -1,4 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { createHash } from 'node:crypto';
+
+import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
@@ -9,6 +11,7 @@ import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { template } from '../../database/schema/notify';
 import { LocaleRepo } from '../config/locale.repo';
+import { WorkflowPublic } from '../workflow/workflow.public';
 
 import { referencedVars, renderTemplate } from './render';
 
@@ -45,13 +48,92 @@ export interface TemplateDraftInput {
 }
 
 @Injectable()
-export class TemplateService {
+export class TemplateService implements OnModuleInit {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
     private readonly outbox: OutboxService,
     private readonly localeRepo: LocaleRepo,
+    private readonly workflows: WorkflowPublic,
   ) {}
+
+  /** Publishing a message template is an action an owner can put a pipeline in front of. */
+  onModuleInit(): void {
+    this.workflows.register({
+      key: 'template.publish',
+      subjectType: 'template',
+      label: 'Publish a message template',
+      description: 'Make a drafted email/SMS template live for one language.',
+      variables: ['key', 'channel', 'localeCode'],
+      fingerprint: async (id, tx) => {
+        const [row] = await tx.select().from(template).where(eq(template.id, id)).limit(1);
+        if (!row) return null;
+        return createHash('sha256')
+          .update(
+            JSON.stringify([
+              row.key,
+              row.channel,
+              row.localeCode,
+              row.subject,
+              row.bodyTemplate,
+              row.variables,
+            ]),
+          )
+          .digest('hex');
+      },
+      subjectOwner: async (id, tx) => {
+        const [row] = await tx
+          .select({ by: template.createdBy })
+          .from(template)
+          .where(eq(template.id, id))
+          .limit(1);
+        return row?.by ? { accountId: row.by } : null;
+      },
+      onCaptured: async ({ tx, subjectId }) => {
+        await tx
+          .update(template)
+          .set({ status: 'in_review', updatedAt: sql`now()` })
+          .where(and(eq(template.id, subjectId), eq(template.status, 'draft')));
+      },
+      execute: async ({ tx, subjectId, actors, audit }) => {
+        const [row] = await tx.select().from(template).where(eq(template.id, subjectId)).limit(1);
+        if (!row || (row.status !== 'in_review' && row.status !== 'draft')) {
+          throw new Error('The template is no longer waiting to be published');
+        }
+        this.assertPublishable(row);
+        const done = await this.publishRow(
+          tx,
+          row,
+          actors.finalDeciderAccountId ?? actors.initiatorAccountId,
+        );
+        audit({
+          action: 'notify.template.published',
+          targetType: 'template',
+          targetId: subjectId,
+          actor: {
+            accountId: actors.finalDeciderAccountId ?? actors.initiatorAccountId,
+            displayName: actors.finalDeciderLabel ?? actors.initiatorLabel ?? undefined,
+            kind: 'staff',
+          },
+          after: {
+            version: done.version,
+            key: row.key,
+            localeCode: row.localeCode,
+            viaWorkflow: true,
+          },
+        });
+        return { version: done.version };
+      },
+      // a template has no "rejected" state: whatever the outcome, it goes back to its author as a draft
+      onClosed: async ({ tx, subjectId, reason, audit }) => {
+        await tx
+          .update(template)
+          .set({ status: 'draft', updatedAt: sql`now()` })
+          .where(and(eq(template.id, subjectId), eq(template.status, 'in_review')));
+        audit({ action: `notify.template.${reason}`, targetType: 'template', targetId: subjectId });
+      },
+    });
+  }
 
   private activeLocaleCodes(): Promise<string[]> {
     return this.localeRepo.activeCodes();
@@ -248,6 +330,10 @@ export class TemplateService {
     return this.get(row.key, row.channel, row.localeCode);
   }
 
+  /**
+   * Publish a template revision. Direct by default (whoever holds `config.publish` publishes their
+   * own draft); with a workflow bound to `template.publish` it goes through the pipeline first.
+   */
   async publish(actor: Actor, id: string) {
     const row = await this.load(id);
     if (row.status !== 'in_review' && row.status !== 'draft') {
@@ -255,6 +341,44 @@ export class TemplateService {
         reason: row.status,
       });
     }
+    this.assertPublishable(row);
+
+    const acted = await this.workflows.actOnOpen({
+      actor,
+      actionKey: 'template.publish',
+      subjectId: id,
+      decision: 'approve',
+      strict: false,
+    });
+    if (acted)
+      return { ...(await this.get(row.key, row.channel, row.localeCode)), workflow: acted };
+
+    const gate = await this.workflows.gate({
+      actionKey: 'template.publish',
+      subjectId: id,
+      subjectLabel: `${row.key} · ${row.channel} · ${row.localeCode}`,
+      context: { key: row.key, channel: row.channel, localeCode: row.localeCode },
+      actor,
+    });
+    if (!gate.direct) {
+      return { ...(await this.get(row.key, row.channel, row.localeCode)), workflow: gate.summary };
+    }
+
+    const done = await this.db.transaction((tx) =>
+      this.publishRow(tx as unknown as Database, row, actor.accountId),
+    );
+    await this.audit.record({
+      action: 'notify.template.published',
+      targetType: 'template',
+      targetId: id,
+      actor,
+      before: done.previousVersion ? { version: done.previousVersion } : undefined,
+      after: { version: done.version, key: row.key, localeCode: row.localeCode },
+    });
+    return this.get(row.key, row.channel, row.localeCode);
+  }
+
+  private assertPublishable(row: typeof template.$inferSelect): void {
     const contentIssues = this.publishIssues(
       row.subject ?? '',
       row.bodyTemplate,
@@ -265,8 +389,15 @@ export class TemplateService {
         reason: 'content_invalid',
       });
     }
+  }
 
-    const [prevPublished] = await this.db
+  /** The publish itself, inside `tx`: retire the live version, make this one live, announce it. */
+  private async publishRow(
+    tx: Database,
+    row: typeof template.$inferSelect,
+    publishedBy: string,
+  ): Promise<{ version: string; previousVersion: string | null }> {
+    const [prevPublished] = await tx
       .select()
       .from(template)
       .where(
@@ -282,7 +413,7 @@ export class TemplateService {
 
     // bump past the highest existing version for this (key, channel, locale) — including retired
     // rows — so `(key,channel,locale,version)` never collides.
-    const allVersions = await this.db
+    const allVersions = await tx
       .select({ version: template.version })
       .from(template)
       .where(
@@ -299,48 +430,37 @@ export class TemplateService {
       .at(-1);
     const nextVersion = bumpVersion(maxVersion ?? prevPublished?.version ?? '0.0');
 
-    await this.db.transaction(async (tx) => {
-      if (prevPublished) {
-        await tx
-          .update(template)
-          .set({ status: 'retired', updatedAt: sql`now()` })
-          .where(eq(template.id, prevPublished.id));
-      }
+    if (prevPublished) {
       await tx
         .update(template)
-        .set({
-          status: 'published',
+        .set({ status: 'retired', updatedAt: sql`now()` })
+        .where(eq(template.id, prevPublished.id));
+    }
+    await tx
+      .update(template)
+      .set({
+        status: 'published',
+        version: nextVersion,
+        publishedAt: sql`now()`,
+        publishedBy,
+        updatedAt: sql`now()`,
+      })
+      .where(eq(template.id, row.id));
+    await this.outbox.emit(
+      {
+        type: 'notify.template.published.v1',
+        aggregateType: 'template',
+        aggregateId: row.id,
+        payload: {
+          key: row.key,
+          channel: row.channel,
+          localeCode: row.localeCode,
           version: nextVersion,
-          publishedAt: sql`now()`,
-          publishedBy: actor.accountId,
-          updatedAt: sql`now()`,
-        })
-        .where(eq(template.id, id));
-      await this.outbox.emit(
-        {
-          type: 'notify.template.published.v1',
-          aggregateType: 'template',
-          aggregateId: id,
-          payload: {
-            key: row.key,
-            channel: row.channel,
-            localeCode: row.localeCode,
-            version: nextVersion,
-          },
         },
-        tx,
-      );
-    });
-
-    await this.audit.record({
-      action: 'notify.template.published',
-      targetType: 'template',
-      targetId: id,
-      actor,
-      before: prevPublished ? { version: prevPublished.version } : undefined,
-      after: { version: nextVersion, key: row.key, localeCode: row.localeCode },
-    });
-    return this.get(row.key, row.channel, row.localeCode);
+      },
+      tx,
+    );
+    return { version: nextVersion, previousVersion: prevPublished?.version ?? null };
   }
 
   /** Render a preview with sample values; report any unresolved variable. */

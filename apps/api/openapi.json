@@ -878,6 +878,440 @@
         ]
       }
     },
+    "/api/v1/workflows/inbox": {
+      "get": {
+        "operationId": "workflows_inbox",
+        "summary": "My open tasks (overdue first)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
+    "/api/v1/workflows/inbox/count": {
+      "get": {
+        "operationId": "workflows_inboxCount",
+        "summary": "How many tasks are waiting for me",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
+    "/api/v1/workflows/tasks/{id}/decide": {
+      "post": {
+        "operationId": "workflows_decide",
+        "summary": "Approve, reject, send back, or complete a task",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
+    "/api/v1/workflows/instances": {
+      "get": {
+        "operationId": "workflows_listInstances",
+        "summary": "Requests I made — or all of them, for a monitor",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
+    "/api/v1/workflows/instances/{id}": {
+      "get": {
+        "operationId": "workflows_getInstance",
+        "summary": "One request: steps, decisions, proposed change, history",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
+    "/api/v1/workflows/instances/{id}/withdraw": {
+      "post": {
+        "operationId": "workflows_withdraw",
+        "summary": "Withdraw my request",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
+    "/api/v1/workflows/instances/{id}/cancel": {
+      "post": {
+        "operationId": "workflows_cancel",
+        "summary": "Cancel any open request (audited)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
+    "/api/v1/workflows/instances/{id}/force": {
+      "post": {
+        "operationId": "workflows_force",
+        "summary": "Push the current step through, or reject the request (audited)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
+    "/api/v1/workflows/tasks/{id}/reassign": {
+      "post": {
+        "operationId": "workflows_reassign",
+        "summary": "Ask someone else to take a task",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows"
+        ]
+      }
+    },
+    "/api/v1/admin/workflows/actions": {
+      "get": {
+        "operationId": "workflowsAdmin_actions",
+        "summary": "Actions a workflow can govern, with their variables",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/workflows/definitions": {
+      "get": {
+        "operationId": "workflowsAdmin_list",
+        "summary": "Workflow definitions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows-admin"
+        ]
+      },
+      "post": {
+        "operationId": "workflowsAdmin_create",
+        "summary": "Create a workflow (as a draft)",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/workflows/definitions/validate": {
+      "post": {
+        "operationId": "workflowsAdmin_validate",
+        "summary": "Check a definition without saving it",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/workflows/simulate": {
+      "post": {
+        "operationId": "workflowsAdmin_simulate",
+        "summary": "Who would be asked, for a sample request",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/workflows/definitions/{id}": {
+      "get": {
+        "operationId": "workflowsAdmin_get",
+        "summary": "A definition with all its versions",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/workflows/definitions/{id}/draft": {
+      "put": {
+        "operationId": "workflowsAdmin_saveDraft",
+        "summary": "Save the working draft",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/workflows/definitions/{id}/publish": {
+      "post": {
+        "operationId": "workflowsAdmin_publish",
+        "summary": "Publish the draft (blocked while it has problems)",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/workflows/definitions/{id}/clone": {
+      "post": {
+        "operationId": "workflowsAdmin_clone",
+        "summary": "Copy a workflow as a new draft",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/workflows/definitions/{id}/archive": {
+      "post": {
+        "operationId": "workflowsAdmin_archive",
+        "summary": "Archive a workflow that is not bound",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/workflows/bindings": {
+      "get": {
+        "operationId": "workflowsAdmin_bindings",
+        "summary": "Which workflow governs which action",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows-admin"
+        ]
+      },
+      "put": {
+        "operationId": "workflowsAdmin_saveBinding",
+        "summary": "Bind (or rebind) a workflow to an action",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/workflows/bindings/{id}": {
+      "delete": {
+        "operationId": "workflowsAdmin_removeBinding",
+        "summary": "Unbind — the action goes back to direct",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "workflows-admin"
+        ]
+      }
+    },
     "/api/v1/auth/register": {
       "post": {
         "operationId": "auth_register",

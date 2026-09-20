@@ -316,6 +316,14 @@ export const REFERENCE_TRANSLATIONS: Namespaces = {
       'Gérer les comptes du personnel, les rôles et les périmètres',
       'إدارة حسابات الموظفين والأدوار ونطاقات الوصول',
     ],
+    'workflow.manage': [
+      'Créer, modifier et publier les workflows de validation, et choisir l’action que chacun encadre',
+      'إنشاء مسارات الموافقة وتعديلها ونشرها واختيار الإجراء الذي يحكمه كل مسار',
+    ],
+    'workflow.monitor': [
+      'Voir toutes les demandes de validation, réaffecter une tâche, annuler ou forcer une demande (audité)',
+      'عرض كل طلبات الموافقة وإعادة إسناد المهام وإلغاء الطلب أو تمريره قسرًا (مع التدقيق)',
+    ],
   },
   'lookup:readiness_outcome': {
     needs_review: ['À vérifier', 'تحتاج مراجعة'],
