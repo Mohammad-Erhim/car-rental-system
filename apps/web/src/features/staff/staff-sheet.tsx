@@ -23,6 +23,7 @@ import {
   type StaffRow,
 } from '@/lib/admin-hooks';
 import { useLocationScope } from '@/lib/location-scope';
+import { usePendingApproval } from '@/lib/workflow-hooks';
 
 interface Values {
   fullName: string;
@@ -53,6 +54,7 @@ export function StaffSheet({
   const roles = useStaffRoles();
   const { options, restricted } = useLocationScope();
   const invite = useInviteStaff();
+  const pending = usePendingApproval();
   const change = useStaffAccessChange();
 
   const schema = useMemo(
@@ -107,7 +109,7 @@ export function StaffSheet({
       submitLabel={editing ? t('ops.staff.saveAccess') : t('ops.staff.inviteAction')}
       onSubmit={async (v) => {
         if (editing) {
-          await change.mutateAsync({
+          const res = await change.mutateAsync({
             accountId: staff.accountId,
             body: {
               roleCodes: v.roleCodes,
@@ -115,6 +117,7 @@ export function StaffSheet({
             },
             successKey: 'ops.staff.changeSaved',
           });
+          if (pending(res)) return;
           toast.success(t('ops.staff.changeSaved'));
         } else {
           await invite.mutateAsync({

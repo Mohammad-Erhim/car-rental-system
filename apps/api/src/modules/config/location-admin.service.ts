@@ -1,4 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { createHash } from 'node:crypto';
+
+import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { and, asc, eq, gte, inArray, or, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
@@ -17,6 +19,7 @@ import { location, locationHoursException, organization } from '../../database/s
 import { ratePlan } from '../../database/schema/pricing';
 import { rental } from '../../database/schema/rental';
 import { reservation } from '../../database/schema/reservation';
+import { WorkflowPublic } from '../workflow/workflow.public';
 
 import { ConfigPublic } from './config.public';
 
@@ -65,14 +68,50 @@ function isValidTimeZone(tz: string): boolean {
 }
 
 @Injectable()
-export class LocationAdminService {
+export class LocationAdminService implements OnModuleInit {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
     private readonly outbox: OutboxService,
     private readonly cache: CacheBus,
     private readonly config: ConfigPublic,
+    private readonly workflows: WorkflowPublic,
   ) {}
+
+  /** Retiring a location is an action an owner can put a pipeline in front of. */
+  onModuleInit(): void {
+    this.workflows.register<{ force?: boolean }>({
+      key: 'location.archive',
+      subjectType: 'location',
+      label: 'Archive a location',
+      description: 'Retire a branch so it no longer takes bookings (its history is kept).',
+      variables: ['code'],
+      fingerprint: async (code, tx) => {
+        const [l] = await tx
+          .select({ s: location.status, u: location.version })
+          .from(location)
+          .where(eq(location.code, code))
+          .limit(1);
+        return l
+          ? createHash('sha256')
+              .update(JSON.stringify([l.s, l.u]))
+              .digest('hex')
+          : null;
+      },
+      execute: async ({ subjectId, payload, instance, actors, audit }) => {
+        const actor = this.workflows.asActor(actors, instance.organizationId, payload);
+        await this.setStatusNow(actor, subjectId, 'archived', { force: payload.force });
+        audit({
+          action: 'config.location.archive_approved',
+          targetType: 'location',
+          targetId: subjectId,
+          actor,
+          after: { viaWorkflow: true },
+        });
+        return { archived: true };
+      },
+    });
+  }
 
   /** Delegates to `ConfigPublic.defaultOrganization()` (deterministically ordered by
    *  `createdAt`) rather than repeating the raw, unordered `organization` query. */
@@ -382,6 +421,53 @@ export class LocationAdminService {
   }
 
   async setStatus(
+    actor: Actor,
+    code: string,
+    status: 'active' | 'archived',
+    opts: { force?: boolean } = {},
+  ) {
+    if (status === 'archived') {
+      const row = await this.load(code);
+      if (row.status !== 'archived') {
+        // refuse what would fail anyway before anyone is asked to approve it
+        await this.assertArchivable(code, opts.force);
+        return this.workflows.govern(
+          {
+            actionKey: 'location.archive',
+            subjectId: code,
+            subjectLabel: `Archive location ${code}`,
+            payload: { force: !!opts.force },
+            context: { code },
+            locationCode: code,
+            actor,
+          },
+          () => this.setStatusNow(actor, code, status, opts),
+        );
+      }
+    }
+    return this.setStatusNow(actor, code, status, opts);
+  }
+
+  private async assertArchivable(code: string, force?: boolean) {
+    if (force) return;
+    const impact = await this.impact(code);
+    if (this.impactTotal(impact) > 0) {
+      throw AppError.businessRule(
+        'This location still has upcoming reservations, cars, staff or pricing tied to it — confirm to archive it',
+        {
+          reason: 'location_has_future_reservations',
+          futureReservations: impact.futureReservations,
+          openRentals: impact.openRentals,
+          units: impact.units,
+          staff: impact.staff,
+          ratePlans: impact.ratePlans,
+          products: impact.products,
+        },
+      );
+    }
+  }
+
+  private async setStatusNow(
     actor: Actor,
     code: string,
     status: 'active' | 'archived',

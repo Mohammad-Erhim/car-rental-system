@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 
+import { RoutesEditor } from './bindings-editor';
 import { CloneDialog } from './clone-dialog';
 import { NewWorkflowDialog } from './new-workflow-dialog';
 import { Requests } from './tasks-page';
@@ -131,15 +132,6 @@ function ActionsTab({ canManage }: { canManage: boolean }) {
                 </h3>
                 <p className="text-sm text-muted-foreground">{a.description}</p>
                 <p className="bidi-isolate font-mono text-xs text-muted-foreground">{a.key}</p>
-                {conditional.length ? (
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {conditional.map((b) => (
-                      <Badge key={b.id} variant="outline">
-                        {b.label ?? t('ops.wf.conditional')} → {b.definitionName}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : null}
               </div>
             </div>
             <ChoiceTabs
@@ -166,6 +158,12 @@ function ActionsTab({ canManage }: { canManage: boolean }) {
                     testId: `wf-bind-${a.key}-${d.code}`,
                   })),
               ]}
+            />
+            <RoutesEditor
+              action={a}
+              routes={conditional}
+              workflows={defs.data}
+              canManage={canManage}
             />
           </Card>
         );

@@ -49,6 +49,7 @@ import { useLocationScope } from '@/lib/location-scope';
 import { useClientPage } from '@/lib/use-client-page';
 import { useListParams } from '@/lib/use-list-params';
 import { useSearchBox } from '@/lib/use-search-box';
+import { usePendingApproval } from '@/lib/workflow-hooks';
 
 const PARAMS = ['status', 'q'] as const;
 const STATUSES = ['all', 'active', 'invited', 'suspended', 'deactivated'] as const;
@@ -80,6 +81,7 @@ export function StaffPage() {
   const roles = useStaffRoles();
   const { nameOf: locationName } = useLocationScope();
   const resend = useResendStaffInvite();
+  const pending = usePendingApproval();
   const access = useStaffAccessChange();
   const all = useMemo(() => staff.data ?? [], [staff.data]);
 
@@ -104,7 +106,8 @@ export function StaffPage() {
     input: Parameters<typeof access.mutateAsync>[0],
     okKey: string,
   ): Promise<void> => {
-    await access.mutateAsync(input);
+    const res = await access.mutateAsync(input);
+    if (pending(res)) return;
     toast.success(t(okKey));
   };
   const reactivate = async (s: StaffRow) => {

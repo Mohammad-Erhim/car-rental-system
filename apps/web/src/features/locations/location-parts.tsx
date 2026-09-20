@@ -9,6 +9,7 @@ import {
   type LocationImpact,
   type OpsLocation,
 } from '@/lib/admin-hooks';
+import { usePendingApproval } from '@/lib/workflow-hooks';
 
 const TONE = { active: 'success', draft: 'warning', archived: 'secondary' } as const;
 
@@ -47,6 +48,7 @@ export function ArchiveDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useI18n();
+  const pending = usePendingApproval();
   const status = useLocationStatus();
   const impact = useOpsLocationImpact(open ? location.code : null);
   const items = impact.data ? impactItems(impact.data, t) : [];
@@ -67,7 +69,12 @@ export function ArchiveDialog({
       }
       confirmLabel={t('ops.loc.archive')}
       onConfirm={async () => {
-        await status.mutateAsync({ code: location.code, action: 'archive', force: n > 0 });
+        const res = await status.mutateAsync({
+          code: location.code,
+          action: 'archive',
+          force: n > 0,
+        });
+        if (pending(res)) return;
         toast.success(t('ops.loc.archived', { name: location.name }));
       }}
     />

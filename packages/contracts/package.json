@@ -28,6 +28,7 @@
   "devDependencies": {
     "@carrental/config": "workspace:*",
     "eslint": "9.9.0",
+    "fast-check": "^4.10.2",
     "globals": "15.9.0",
     "typescript": "5.5.4",
     "vitest": "2.0.5"

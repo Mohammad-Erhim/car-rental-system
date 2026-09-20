@@ -6,6 +6,7 @@ import { wouldReplace } from './plan-model';
 
 import { FormDialog } from '@/components/form-dialog';
 import { useDeleteRatePlan, usePublishRatePlan, type RatePlan } from '@/lib/ops-discovery-hooks';
+import { usePendingApproval } from '@/lib/workflow-hooks';
 
 interface DialogProps {
   open: boolean;
@@ -24,6 +25,7 @@ export function PublishDialog({
   onOpenChange,
 }: DialogProps & { plan: RatePlan; all: RatePlan[]; scopeName: string }) {
   const { t, fmt } = useI18n();
+  const pending = usePendingApproval();
   const publish = usePublishRatePlan();
   const form = useForm<Record<string, never>>({ defaultValues: {} });
   const replaced = wouldReplace(plan, all);
@@ -37,7 +39,8 @@ export function PublishDialog({
       title={t('ops.rp.publishTitle')}
       submitLabel={t('ops.rp.publish')}
       onSubmit={async () => {
-        await publish.mutateAsync(plan.id);
+        const res = await publish.mutateAsync(plan.id);
+        if (pending(res)) return;
         toast.success(t('ops.rp.published', { name: plan.name }));
       }}
     >

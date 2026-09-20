@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { FormDialog } from '@/components/form-dialog';
 import { TextareaField } from '@/components/form-fields';
 import { useResolveCase, useResolveException } from '@/lib/finance-hooks';
+import { usePendingApproval } from '@/lib/workflow-hooks';
 
 export type ResolveTarget = { type: 'case' | 'exception'; id: string };
 
@@ -25,6 +26,7 @@ export function ResolveDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useI18n();
+  const pending = usePendingApproval();
   const resolveCase = useResolveCase();
   const resolveException = useResolveException();
   const schema = useMemo(
@@ -46,8 +48,11 @@ export function ResolveDialog({
       submitLabel={t('ops.fin.resolve')}
       onSubmit={async ({ note }) => {
         const input = { id: target.id, note: note.trim() };
-        if (target.type === 'case') await resolveCase.mutateAsync(input);
-        else await resolveException.mutateAsync(input);
+        const res =
+          target.type === 'case'
+            ? await resolveCase.mutateAsync(input)
+            : await resolveException.mutateAsync(input);
+        if (pending(res)) return;
         toast.success(t('ops.fin.resolved'));
       }}
     >

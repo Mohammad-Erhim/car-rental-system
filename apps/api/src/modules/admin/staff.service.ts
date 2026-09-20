@@ -1,6 +1,6 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
@@ -22,9 +22,10 @@ import {
 } from '../../database/schema/iam';
 import { ConfigPublic } from '../config/config.public';
 import { IamPublic } from '../iam/iam.public';
+import { WorkflowPublic } from '../workflow/workflow.public';
 
 @Injectable()
-export class StaffService {
+export class StaffService implements OnModuleInit {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly passwords: PasswordService,
@@ -33,7 +34,58 @@ export class StaffService {
     private readonly sessions: SessionService,
     private readonly config: ConfigPublic,
     private readonly access: AccessService,
+    private readonly workflows: WorkflowPublic,
   ) {}
+
+  /**
+   * Changing a person's roles, location scope or status is an action an owner can put a pipeline in
+   * front of. It is security-critical: the person the change is *about* can never be the one who
+   * approves it, whatever the workflow says.
+   */
+  onModuleInit(): void {
+    type Input = {
+      roleCodes?: string[];
+      locationScope?: string[];
+      status?: 'active' | 'suspended' | 'deactivated';
+    };
+    this.workflows.register<Input>({
+      key: 'staff.access.change',
+      subjectType: 'staff_access',
+      label: 'Change a staff member’s access',
+      description: 'Change the roles, location scope or status of a staff account.',
+      variables: ['status', 'roles'],
+      securityCritical: true,
+      fingerprint: async (accountId, tx) => {
+        const [p] = await tx
+          .select({
+            s: staffProfile.status,
+            u: staffProfile.version,
+            scope: staffProfile.locationScope,
+          })
+          .from(staffProfile)
+          .where(eq(staffProfile.accountId, accountId))
+          .limit(1);
+        return p
+          ? createHash('sha256')
+              .update(JSON.stringify([p.s, p.u, p.scope]))
+              .digest('hex')
+          : null;
+      },
+      subjectOwner: async (accountId) => ({ accountId }),
+      execute: async ({ subjectId, payload, instance, actors, audit }) => {
+        const actor = this.workflows.asActor(actors, instance.organizationId, payload);
+        await this.changeAccessNow(actor, subjectId, payload);
+        audit({
+          action: 'staff.access_change_approved',
+          targetType: 'staff_access',
+          targetId: subjectId,
+          actor,
+          after: { viaWorkflow: true },
+        });
+        return { changed: true };
+      },
+    });
+  }
 
   async listStaff(actor: Actor) {
     const rows = await this.db
@@ -158,6 +210,34 @@ export class StaffService {
   }
 
   async changeAccess(
+    actor: Actor,
+    accountId: string,
+    input: {
+      roleCodes?: string[];
+      locationScope?: string[];
+      status?: 'active' | 'suspended' | 'deactivated';
+    },
+  ) {
+    const [target] = await this.db
+      .select({ id: staffProfile.id })
+      .from(staffProfile)
+      .where(eq(staffProfile.accountId, accountId))
+      .limit(1);
+    if (!target) throw AppError.notFound('staff member');
+    return this.workflows.govern(
+      {
+        actionKey: 'staff.access.change',
+        subjectId: accountId,
+        subjectLabel: `Access change for ${(await this.db.select({ n: account.displayName }).from(account).where(eq(account.id, accountId)).limit(1))[0]?.n ?? accountId}`,
+        payload: input,
+        context: { status: input.status ?? null, roles: input.roleCodes ?? null },
+        actor,
+      },
+      () => this.changeAccessNow(actor, accountId, input),
+    );
+  }
+
+  private async changeAccessNow(
     actor: Actor,
     accountId: string,
     input: {

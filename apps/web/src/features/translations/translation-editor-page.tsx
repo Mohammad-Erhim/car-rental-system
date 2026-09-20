@@ -36,6 +36,7 @@ import {
 import { useClientPage } from '@/lib/use-client-page';
 import { useListParams } from '@/lib/use-list-params';
 import { useSearchBox } from '@/lib/use-search-box';
+import { usePendingApproval } from '@/lib/workflow-hooks';
 
 const PARAMS = ['tab', 'q'] as const;
 const TABS: Bucket[] = ['todo', 'review', 'published', 'all'];
@@ -78,6 +79,7 @@ export function TranslationEditorPage() {
 
   const completeness = useTranslationCompleteness();
   const entries = useTranslationList(namespace, locale);
+  const pending = usePendingApproval();
   const publish = usePublishTranslations();
   const all = useMemo(() => entries.data ?? [], [entries.data]);
 
@@ -312,6 +314,7 @@ export function TranslationEditorPage() {
           confirmLabel={t('ops.trans.publish')}
           onConfirm={async () => {
             const res = await publish.mutateAsync({ namespace, locale });
+            if (pending(res)) return;
             toast.success(t('ops.trans.published', { n: res.published }));
           }}
         />

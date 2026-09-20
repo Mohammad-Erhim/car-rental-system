@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { and, asc, desc, eq, gte, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
@@ -21,13 +21,14 @@ import { ConfigVersionService } from '../config/config-version.service';
 import { CustomerRestrictionService } from '../customer/customer-restriction.service';
 import { PaymentService } from '../payment/payment.service';
 import { PricingService } from '../pricing/pricing.service';
+import { WorkflowPublic } from '../workflow/workflow.public';
 
 const AGREEMENT_VERSION = '1.0';
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
 
 @Injectable()
-export class RentalService {
+export class RentalService implements OnModuleInit {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly pricing: PricingService,
@@ -36,7 +37,44 @@ export class RentalService {
     private readonly outbox: OutboxService,
     private readonly config: ConfigVersionService,
     private readonly restrictions: CustomerRestrictionService,
+    private readonly workflows: WorkflowPublic,
   ) {}
+
+  /** A staff-made rental extension is an action an owner can put a pipeline in front of. */
+  onModuleInit(): void {
+    this.workflows.register<{ newReturnAt: string; paymentToken?: string }>({
+      key: 'rental.extend',
+      subjectType: 'rental',
+      label: 'Extend a rental (by staff)',
+      description: 'Move a rental’s return to a later time, charging the difference.',
+      variables: ['extraHours', 'state'],
+      fingerprint: async (reference, tx) => {
+        const [r] = await tx
+          .select({ s: rental.state, ret: rental.scheduledReturnAt, v: rental.version })
+          .from(rental)
+          .where(eq(rental.reference, reference))
+          .limit(1);
+        return r
+          ? createHash('sha256')
+              .update(JSON.stringify([r.s, r.ret, r.v]))
+              .digest('hex')
+          : null;
+      },
+      execute: async ({ subjectId, payload, instance, actors, audit }) => {
+        const actor = this.workflows.asActor(actors, instance.organizationId, payload);
+        const r = await this.extendNow(subjectId, actor, payload);
+        audit({
+          action: 'rental.extend_approved',
+          targetType: 'rental',
+          targetId: subjectId,
+          actor,
+          after: { viaWorkflow: true },
+        });
+        void r;
+        return { newReturnAt: payload.newReturnAt };
+      },
+    });
+  }
 
   private async orgId(): Promise<string> {
     const [org] = await this.db.select({ id: organization.id }).from(organization).limit(1);
@@ -362,6 +400,48 @@ export class RentalService {
   // ------------------------------------------------------------------- extend
 
   async extend(
+    reference: string,
+    actor: Actor,
+    input: { newReturnAt: string; paymentToken?: string },
+  ) {
+    // Only a STAFF extension can be held for approval — a customer extending their own hire is
+    // charged on the spot under the published terms.
+    if (actor.kind === 'staff') {
+      const row = await this.load(reference);
+      this.assertInScope(actor, row, 'any');
+      if (!['active', 'overdue'].includes(row.state)) {
+        throw AppError.businessRule(`A ${row.state} rental cannot be extended`, {
+          reason: row.state,
+        });
+      }
+      const newReturn = new Date(input.newReturnAt);
+      const current = new Date(row.scheduledReturnAt);
+      if (newReturn.getTime() <= current.getTime()) {
+        throw AppError.businessRule('The new return must be later than the current one', {
+          reason: 'not_later',
+        });
+      }
+      return this.workflows.govern(
+        {
+          actionKey: 'rental.extend',
+          subjectId: reference,
+          subjectLabel: `Extend rental ${reference} to ${newReturn.toISOString().slice(0, 16).replace('T', ' ')}`,
+          payload: input,
+          context: {
+            extraHours:
+              Math.round(((newReturn.getTime() - current.getTime()) / 3_600_000) * 10) / 10,
+            state: row.state,
+          },
+          locationCode: row.pickupLocationCode,
+          actor,
+        },
+        () => this.extendNow(reference, actor, input),
+      );
+    }
+    return this.extendNow(reference, actor, input);
+  }
+
+  private async extendNow(
     reference: string,
     actor: Actor,
     input: { newReturnAt: string; paymentToken?: string },

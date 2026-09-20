@@ -1,4 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { createHash } from 'node:crypto';
+
+import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { desc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
@@ -13,6 +15,7 @@ import {
   driver,
 } from '../../database/schema/customer';
 import { reservation } from '../../database/schema/reservation';
+import { WorkflowPublic } from '../workflow/workflow.public';
 
 /**
  * FR-ADM-001 — duplicate review + **reversible** merge. `merge()` moves the duplicate's saved
@@ -21,11 +24,48 @@ import { reservation } from '../../database/schema/reservation';
  * is deleted; history stays resolvable through `mergedIntoId`.
  */
 @Injectable()
-export class CustomerMergeService {
+export class CustomerMergeService implements OnModuleInit {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
+    private readonly workflows: WorkflowPublic,
   ) {}
+
+  /** Merging two customer records is an action an owner can put a pipeline in front of. */
+  onModuleInit(): void {
+    this.workflows.register<{ survivorId: string; reason?: string }>({
+      key: 'customer.merge',
+      subjectType: 'customer',
+      label: 'Merge two customer records',
+      description:
+        'Combine a duplicate customer into another; the duplicate is kept but marked merged.',
+      variables: ['reason'],
+      fingerprint: async (mergedId, tx) => {
+        const [d] = await tx
+          .select({ s: customer.status, v: customer.version })
+          .from(customer)
+          .where(eq(customer.id, mergedId))
+          .limit(1);
+        return d
+          ? createHash('sha256')
+              .update(JSON.stringify([d.s, d.v]))
+              .digest('hex')
+          : null;
+      },
+      execute: async ({ subjectId, payload, instance, actors, audit }) => {
+        const actor = this.workflows.asActor(actors, instance.organizationId, payload);
+        const r = await this.mergeNow(actor, payload.survivorId, subjectId, payload.reason);
+        audit({
+          action: 'customer.merge_approved',
+          targetType: 'customer',
+          targetId: subjectId,
+          actor,
+          after: { viaWorkflow: true },
+        });
+        return { merged: true, ...(r as object) };
+      },
+    });
+  }
 
   private async load(id: string) {
     const [row] = await this.db.select().from(customer).where(eq(customer.id, id)).limit(1);
@@ -35,6 +75,35 @@ export class CustomerMergeService {
 
   /** merge `mergedId` into `survivorId` */
   async merge(actor: Actor, survivorId: string, mergedId: string, reason?: string) {
+    if (survivorId === mergedId) {
+      throw AppError.businessRule('A customer cannot be merged into itself', {
+        reason: 'same_customer',
+      });
+    }
+    const survivor = await this.load(survivorId);
+    const dup = await this.load(mergedId);
+    if (survivor.status !== 'active') {
+      throw AppError.businessRule('The surviving record must be active', {
+        reason: 'survivor_not_active',
+      });
+    }
+    if (dup.status === 'merged') {
+      throw AppError.businessRule('That record is already merged', { reason: 'already_merged' });
+    }
+    return this.workflows.govern(
+      {
+        actionKey: 'customer.merge',
+        subjectId: mergedId,
+        subjectLabel: `Merge ${dup.fullName ?? mergedId} into ${survivor.fullName ?? survivorId}`,
+        payload: { survivorId, reason },
+        context: { reason: reason ?? null },
+        actor,
+      },
+      () => this.mergeNow(actor, survivorId, mergedId, reason),
+    );
+  }
+
+  private async mergeNow(actor: Actor, survivorId: string, mergedId: string, reason?: string) {
     if (survivorId === mergedId) {
       throw AppError.businessRule('A customer cannot be merged into itself', {
         reason: 'same_customer',

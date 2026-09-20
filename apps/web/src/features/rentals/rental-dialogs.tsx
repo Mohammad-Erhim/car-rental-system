@@ -20,6 +20,7 @@ import {
   useReturnRental,
 } from '@/lib/rental-hooks';
 import { cn } from '@/lib/utils';
+import { usePendingApproval } from '@/lib/workflow-hooks';
 
 interface DialogProps {
   reference: string;
@@ -505,6 +506,7 @@ export function ExtendDialog({
   onOpenChange,
 }: DialogProps & { currency: string; currentReturnAt: string }) {
   const { t, fmt } = useI18n();
+  const pending = usePendingApproval();
   const extend = useExtendRental(reference);
   const schema = useMemo(
     () =>
@@ -531,6 +533,7 @@ export function ExtendDialog({
       submitLabel={t('ops.rentd.extend')}
       onSubmit={async ({ newReturnAt }) => {
         const res = await extend.mutateAsync({ newReturnAt: new Date(newReturnAt).toISOString() });
+        if (pending(res)) return;
         toast.success(
           t('ops.rentd.extended', {
             delta: fmt.money({ amountMinor: res.deltaMinor, currency }),

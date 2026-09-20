@@ -37,8 +37,8 @@ describe('workflow engine', () => {
   let db: Database;
   let engine: WorkflowEngineService;
   let tok: Record<'admin' | 'manager' | 'finance' | 'agent', string>;
-  const sid: Record<string, string> = {}; // staff profile ids by short name
-  const aid: Record<string, string> = {}; // account ids
+  const sid = {} as Record<'admin' | 'manager' | 'finance' | 'agent', string>; // staff profile ids by short name
+  const aid = {} as Record<'admin' | 'manager' | 'finance' | 'agent', string>; // account ids
   let n = 0;
   const auth = (t: string) => ({ Authorization: `Bearer ${t}` });
   const get = (path: string, t = tok.admin) => request(server).get(path).set(auth(t));
@@ -48,7 +48,7 @@ describe('workflow engine', () => {
     request(server).put(path).set(auth(t)).send(body);
 
   const role = (roleCode: string) => ({ kind: 'role', roleCode });
-  const user = (name: string) => ({ kind: 'user', staffProfileId: sid[name] });
+  const user = (name: keyof typeof sid) => ({ kind: 'user', staffProfileId: sid[name] });
   const approval = (
     id: string,
     selectors: object[],
@@ -133,7 +133,7 @@ describe('workflow engine', () => {
       finance: await login('test-finance@example.test'),
       agent: await login('test-agent@example.test'),
     };
-    for (const name of ['admin', 'manager', 'finance', 'agent']) {
+    for (const name of ['admin', 'manager', 'finance', 'agent'] as const) {
       const [row] = await db
         .select({ sid: staffProfile.id, aid: account.id })
         .from(account)

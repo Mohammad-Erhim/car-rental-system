@@ -22,6 +22,7 @@ import {
   useManualRefund,
   useNoShowReservation,
 } from '@/lib/reservation-hooks';
+import { usePendingApproval } from '@/lib/workflow-hooks';
 
 interface DialogProps {
   reference: string;
@@ -89,6 +90,7 @@ export function CancelDialog({
   onOpenChange,
 }: DialogProps & { currency: string }) {
   const { t, fmt } = useI18n();
+  const pending = usePendingApproval();
   const cancel = useCancelReservation(reference);
   const schema = useMemo(
     () =>
@@ -115,6 +117,7 @@ export function CancelDialog({
       submitLabel={t('ops.resv.cancel')}
       onSubmit={async ({ reasonCode, note }) => {
         const res = await cancel.mutateAsync({ reasonCode, note: note.trim() || undefined });
+        if (pending(res)) return;
         toast.success(
           t('ops.resv.cancelDone', { refund: money(res.refundMinor), fee: money(res.feeMinor) }),
         );
@@ -164,6 +167,7 @@ export function RefundDialog({
   onOpenChange,
 }: DialogProps & { currency: string; refundableMinor: number }) {
   const { t, fmt } = useI18n();
+  const pending = usePendingApproval();
   const refund = useManualRefund(reference);
   const max = refundableMinor / 100;
   const schema = useMemo(
@@ -199,7 +203,8 @@ export function RefundDialog({
       submitLabel={t('ops.resv.refund')}
       onSubmit={async ({ amount, note }) => {
         const amountMinor = Math.round(Number(amount) * 100);
-        await refund.mutateAsync({ amountMinor, note: note.trim() });
+        const res = await refund.mutateAsync({ amountMinor, note: note.trim() });
+        if (pending(res)) return;
         toast.success(t('ops.resv.refundDone', { amount: fmt.money({ amountMinor, currency }) }));
       }}
     >

@@ -217,7 +217,8 @@ export class WorkflowQueryService {
       actionLabel: def?.label ?? inst.actionKey,
       actionDescription: def?.description ?? null,
       initiator: { accountId: inst.initiatorAccountId, label: inst.initiatorLabel },
-      payload: inst.payload,
+      // the requester's rights snapshot is for the executor only — never sent to the browser
+      payload: Object.fromEntries(Object.entries(inst.payload).filter(([k]) => k !== '_requester')),
       context: inst.context,
       createdAt: inst.createdAt,
       closedAt: inst.closedAt,

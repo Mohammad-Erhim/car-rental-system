@@ -22,6 +22,7 @@ import {
   type CustomerRestriction,
 } from '@/lib/admin-hooks';
 import { cn } from '@/lib/utils';
+import { usePendingApproval } from '@/lib/workflow-hooks';
 
 interface DialogProps {
   open: boolean;
@@ -209,6 +210,7 @@ export function MergeDialog({
   onOpenChange,
 }: DialogProps & { record: CustomerRecord }) {
   const { t } = useI18n();
+  const pending = usePendingApproval();
   const merge = useMergeCustomer(record.id);
   const [query, setQuery] = useState('');
   const debounced = useDebounced(query.trim(), 350);
@@ -245,7 +247,8 @@ export function MergeDialog({
       description={t('ops.cust.mergeBody', { name: record.fullName })}
       submitLabel={t('ops.cust.mergeSubmit')}
       onSubmit={async ({ intoId, reason }) => {
-        await merge.mutateAsync({ intoId, reason: reason.trim() || undefined });
+        const res = await merge.mutateAsync({ intoId, reason: reason.trim() || undefined });
+        if (pending(res)) return;
         toast.success(t('ops.cust.mergeDone'));
       }}
     >

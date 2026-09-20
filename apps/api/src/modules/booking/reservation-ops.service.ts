@@ -1,4 +1,6 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import { createHash } from 'node:crypto';
+
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { and, asc, desc, eq, gte, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
@@ -13,6 +15,7 @@ import type { Database } from '../../database/drizzle';
 import { vehicleUnit } from '../../database/schema/fleet';
 import { account } from '../../database/schema/iam';
 import { location, organization } from '../../database/schema/org';
+import { recoveryCase } from '../../database/schema/payment';
 import { rental } from '../../database/schema/rental';
 import {
   reconciliationException,
@@ -28,12 +31,13 @@ import { InvoicePublic } from '../invoice/invoice.public';
 import { NotifyService } from '../notify/notify.service';
 import { PaymentService } from '../payment/payment.service';
 import { PricingService } from '../pricing/pricing.service';
+import { WorkflowPublic } from '../workflow/workflow.public';
 
 const DEFAULT_PAGE_SIZE = 25;
 const MAX_PAGE_SIZE = 100;
 
 @Injectable()
-export class ReservationOpsService {
+export class ReservationOpsService implements OnModuleInit {
   private readonly logger = new Logger(ReservationOpsService.name);
 
   constructor(
@@ -48,7 +52,99 @@ export class ReservationOpsService {
     private readonly config: ConfigVersionService,
     private readonly refData: ConfigPublic,
     private readonly invoices: InvoicePublic,
+    private readonly workflows: WorkflowPublic,
   ) {}
+
+  /** Refunds, staff cancellations that carry a fee, and closing recovery cases can each be put behind an approval pipeline. */
+  onModuleInit(): void {
+    const reservationFingerprint = async (reference: string, tx: Database) => {
+      const [r] = await tx
+        .select()
+        .from(reservation)
+        .where(eq(reservation.reference, reference))
+        .limit(1);
+      if (!r) return null;
+      return createHash('sha256')
+        .update(JSON.stringify([r.state, r.paidMinor, r.version, r.totalMinor]))
+        .digest('hex');
+    };
+    this.workflows.register<{ amountMinor: number; note: string }>({
+      key: 'payment.refund',
+      subjectType: 'reservation',
+      label: 'Refund a payment',
+      description: 'Give money back to a customer for a reservation.',
+      variables: ['amount', 'currency', 'reservationState'],
+      fingerprint: reservationFingerprint,
+      subjectOwner: async () => null,
+      execute: async ({ subjectId, payload, instance, actors }) => {
+        if (await this.appliedByRequest(subjectId, instance.id)) return { alreadyApplied: true };
+        await this.refundNow(
+          subjectId,
+          this.workflows.asActor(actors, instance.organizationId, payload),
+          payload,
+          instance.id,
+        );
+        return { refundedMinor: payload.amountMinor };
+      },
+    });
+    this.workflows.register<{ reasonCode?: string; note?: string }>({
+      key: 'reservation.cancel.withFee',
+      subjectType: 'reservation',
+      label: 'Cancel a reservation that carries a fee (or waive it)',
+      description:
+        'Staff cancel a reservation inside its free-cancellation window closing, where a late fee would apply or is being waived.',
+      variables: ['fee', 'refund', 'total', 'goodwill', 'hoursToPickup'],
+      fingerprint: reservationFingerprint,
+      execute: async ({ subjectId, payload, instance, actors }) => {
+        const r = await this.cancelNow(
+          subjectId,
+          this.workflows.asActor(actors, instance.organizationId, payload),
+          payload,
+        );
+        return {
+          refundMinor: r.refundMinor,
+          feeMinor: (r as { feeMinor?: number }).feeMinor ?? null,
+        };
+      },
+    });
+    this.workflows.register<{ note: string }>({
+      key: 'recovery.case.resolve',
+      subjectType: 'recovery_case',
+      label: 'Close a payment recovery case',
+      description: 'Mark a payment / reconciliation exception as resolved.',
+      variables: ['kind', 'severity'],
+      fingerprint: async (id, tx) => {
+        const [c] = await tx.select().from(recoveryCase).where(eq(recoveryCase.id, id)).limit(1);
+        return c
+          ? createHash('sha256')
+              .update(JSON.stringify([c.state, c.kind, c.summary]))
+              .digest('hex')
+          : null;
+      },
+      execute: async ({ subjectId, payload, instance, actors }) => {
+        await this.resolveCaseNow(
+          this.workflows.asActor(actors, instance.organizationId, payload),
+          subjectId,
+          payload.note,
+        );
+      },
+    });
+  }
+
+  /** Has this approved request already moved the money? (a retry after a failure must not do it twice) */
+  private async appliedByRequest(reference: string, instanceId: string): Promise<boolean> {
+    const rows = await this.db
+      .select({ id: reservationEvent.id })
+      .from(reservationEvent)
+      .where(
+        and(
+          eq(reservationEvent.reference, reference),
+          sql`${reservationEvent.after}->>'workflowInstanceId' = ${instanceId}`,
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
+  }
 
   private async orgId(): Promise<string> {
     const [org] = await this.db.select({ id: organization.id }).from(organization).limit(1);
@@ -254,6 +350,52 @@ export class ReservationOpsService {
   // ------------------------------------------------------------------- cancel
 
   async cancel(reference: string, actor: Actor, input: { reasonCode?: string; note?: string }) {
+    const row = await this.load(reference);
+    this.assertOwnerOrStaff(row, actor);
+    // Only a STAFF cancellation where a late fee applies (charged, or being waived) can be governed —
+    // a customer cancelling their own booking under the published terms is never held for approval.
+    if (actor.kind === 'staff' && ['pending', 'confirmed'].includes(row.state)) {
+      const snap = row.cancelPolicy;
+      const freeCancelHours =
+        snap?.freeCancelHours ?? (await this.config.policy('cancellation', 'freeCancelHours'));
+      const lateFeeBps =
+        snap?.lateFeeBps ?? (await this.config.policy('cancellation', 'lateFeeBps'));
+      const hoursToPickup = (new Date(row.pickupAt).getTime() - Date.now()) / 3_600_000;
+      const policyFee =
+        hoursToPickup >= freeCancelHours ? 0 : Math.round((row.totalMinor * lateFeeBps) / 10_000);
+      if (policyFee > 0) {
+        const goodwill = input.reasonCode === 'goodwill';
+        const fee = goodwill ? 0 : policyFee;
+        const governed = await this.workflows.govern(
+          {
+            actionKey: 'reservation.cancel.withFee',
+            subjectId: reference,
+            subjectLabel: `Cancel ${reference}${goodwill ? ' (fee waived)' : ` (fee ${(fee / 100).toFixed(2)} ${row.currency})`}`,
+            payload: { reasonCode: input.reasonCode, note: input.note },
+            context: {
+              fee,
+              refund: Math.max(0, row.paidMinor - fee),
+              total: row.totalMinor,
+              goodwill,
+              hoursToPickup: Math.round(hoursToPickup * 10) / 10,
+            },
+            locationCode: row.pickupLocationCode,
+            actor,
+          },
+          () => this.cancelNow(reference, actor, input),
+        );
+        return governed;
+      }
+    }
+    return this.cancelNow(reference, actor, input);
+  }
+
+  /** The cancellation itself. Idempotent: cancelling an already-cancelled reservation returns the same result. */
+  private async cancelNow(
+    reference: string,
+    actor: Actor,
+    input: { reasonCode?: string; note?: string },
+  ) {
     const row = await this.load(reference);
     this.assertOwnerOrStaff(row, actor);
 
@@ -649,14 +791,51 @@ export class ReservationOpsService {
         'Refund amount must be a positive integer',
       );
     }
-    // a role can cap how much its holders may refund (per-role condition `amountMinorMax`)
-    const cap = actor.permissionConditions?.['payment.refund']?.amountMinorMax;
-    if (cap !== undefined && input.amountMinor > cap) {
-      throw new AppError('forbidden', {
-        title: `Your role can refund up to ${(cap / 100).toFixed(2)} — this needs someone with a higher limit`,
-        params: { reason: 'over_limit', limitMinor: cap },
+    // refuse what could never succeed before anyone is asked to approve it
+    const intent = await this.payments.intentFor(reference, 'booking');
+    if (!intent || !['captured', 'partially_refunded'].includes(intent.state)) {
+      throw AppError.businessRule('Nothing captured to refund', { reason: 'not_captured' });
+    }
+    const remaining = intent.amountMinor - intent.refundedMinor;
+    if (input.amountMinor > remaining) {
+      throw AppError.businessRule('Refund amount exceeds the remaining captured amount', {
+        reason: 'over_refund',
+        remainingMinor: remaining,
       });
     }
+    return this.workflows.govern(
+      {
+        actionKey: 'payment.refund',
+        subjectId: reference,
+        subjectLabel: `Refund ${(input.amountMinor / 100).toFixed(2)} ${row.currency} · ${reference}`,
+        payload: { amountMinor: input.amountMinor, note: input.note },
+        context: { amount: input.amountMinor, currency: row.currency, reservationState: row.state },
+        locationCode: row.pickupLocationCode,
+        actor,
+      },
+      async () => {
+        // No workflow governs this refund, so the person's own role limit decides (a per-role condition
+        // `amountMinorMax`). A pipeline is how a request over someone's limit reaches someone above it.
+        const cap = actor.permissionConditions?.['payment.refund']?.amountMinorMax;
+        if (cap !== undefined && input.amountMinor > cap) {
+          throw new AppError('forbidden', {
+            title: `Your role can refund up to ${(cap / 100).toFixed(2)} — this needs someone with a higher limit`,
+            params: { reason: 'over_limit', limitMinor: cap },
+          });
+        }
+        return this.refundNow(reference, actor, input);
+      },
+    );
+  }
+
+  /** The refund itself: money back through the provider, then the reservation's bookkeeping. */
+  private async refundNow(
+    reference: string,
+    actor: Actor,
+    input: { amountMinor: number; note: string },
+    workflowInstanceId?: string,
+  ) {
+    const row = await this.load(reference);
     await this.payments.refund(actor, reference, input.amountMinor, 'booking');
     const newPaidMinor = Math.max(0, row.paidMinor - input.amountMinor);
     await this.db.transaction(async (tx) => {
@@ -676,7 +855,7 @@ export class ReservationOpsService {
         note: input.note,
         amountDeltaMinor: -input.amountMinor,
         before: { paidMinor: row.paidMinor },
-        after: { paidMinor: newPaidMinor },
+        after: { paidMinor: newPaidMinor, ...(workflowInstanceId ? { workflowInstanceId } : {}) },
         actorType: 'staff',
         actorId: actor.accountId,
         actorLabel: actor.displayName,
@@ -687,7 +866,11 @@ export class ReservationOpsService {
       targetType: 'reservation',
       targetId: row.id,
       actor,
-      after: { amountMinor: input.amountMinor, note: input.note },
+      after: {
+        amountMinor: input.amountMinor,
+        note: input.note,
+        ...(workflowInstanceId ? { workflowInstanceId } : {}),
+      },
     });
     this.invoices
       .issueCreditNote(reference, input.amountMinor, input.note)
@@ -917,6 +1100,20 @@ export class ReservationOpsService {
     if (kase.state === 'resolved') {
       throw new AppError('validation_failed', { title: 'This case is already resolved' });
     }
+    return this.workflows.govern(
+      {
+        actionKey: 'recovery.case.resolve',
+        subjectId: id,
+        subjectLabel: `Close case: ${kase.summary}`,
+        payload: { note },
+        context: { kind: kase.kind, severity: kase.severity },
+        actor,
+      },
+      () => this.resolveCaseNow(actor, id, note),
+    );
+  }
+
+  private async resolveCaseNow(actor: Actor, id: string, note: string) {
     await this.payments.resolveCase(actor, id, note);
     await this.audit.record({
       action: 'recovery_case.resolved',

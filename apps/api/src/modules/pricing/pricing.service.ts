@@ -1,4 +1,6 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { createHash } from 'node:crypto';
+
+import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { and, asc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
@@ -11,6 +13,7 @@ import { organization } from '../../database/schema/org';
 import { quote, quoteLine, ratePlan, rateTier } from '../../database/schema/pricing';
 import { CatalogueService } from '../catalogue/catalogue.service';
 import { ConfigPublic } from '../config/config.public';
+import { WorkflowPublic } from '../workflow/workflow.public';
 
 import { computeQuote, isQuoteError, type QuoteComputation } from './quote.calculator';
 
@@ -37,14 +40,74 @@ export interface PricedQuote {
 // verification. Follow-up: add pricing.public.ts (+ the other four) re-exporting only what's
 // actually consumed cross-module, then migrate every call site listed above in one pass.
 @Injectable()
-export class PricingService {
+export class PricingService implements OnModuleInit {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
     private readonly outbox: OutboxService,
     private readonly catalogue: CatalogueService,
     private readonly config: ConfigPublic,
+    private readonly workflows: WorkflowPublic,
   ) {}
+
+  /** Publishing a rate plan is an action an owner can put a pipeline in front of. */
+  onModuleInit(): void {
+    this.workflows.register({
+      key: 'rateplan.publish',
+      subjectType: 'rate_plan',
+      label: 'Publish a rate plan',
+      description:
+        'Make a drafted rate plan (its prices and tiers) live for a category and location.',
+      variables: ['category', 'locationCode', 'name'],
+      fingerprint: async (id, tx) => {
+        const [p] = await tx.select().from(ratePlan).where(eq(ratePlan.id, id)).limit(1);
+        if (!p) return null;
+        const tiers = await tx.select().from(rateTier).where(eq(rateTier.ratePlanId, id));
+        const { status: _s, updatedAt: _u, version: _v, updatedBy: _b, ...content } = p;
+        void [_s, _u, _v, _b];
+        return createHash('sha256')
+          .update(JSON.stringify([content, tiers.map(({ updatedAt: _t, ...t }) => t)]))
+          .digest('hex');
+      },
+      subjectOwner: async (id, tx) => {
+        const [p] = await tx
+          .select({ by: ratePlan.createdBy })
+          .from(ratePlan)
+          .where(eq(ratePlan.id, id))
+          .limit(1);
+        return p?.by ? { accountId: p.by } : null;
+      },
+      onCaptured: async ({ tx, subjectId }) => {
+        await tx
+          .update(ratePlan)
+          .set({ status: 'in_review', updatedAt: sql`now()` })
+          .where(and(eq(ratePlan.id, subjectId), eq(ratePlan.status, 'draft')));
+      },
+      execute: async ({ subjectId, payload, instance, actors, audit }) => {
+        const actor = this.workflows.asActor(actors, instance.organizationId, payload);
+        await this.publishPlanNow(actor, subjectId);
+        audit({
+          action: 'pricing.rate_plan.approved',
+          targetType: 'rate_plan',
+          targetId: subjectId,
+          actor,
+          after: { viaWorkflow: true },
+        });
+        return { published: true };
+      },
+      onClosed: async ({ tx, subjectId, reason, audit }) => {
+        await tx
+          .update(ratePlan)
+          .set({ status: 'draft', updatedAt: sql`now()` })
+          .where(and(eq(ratePlan.id, subjectId), eq(ratePlan.status, 'in_review')));
+        audit({
+          action: `pricing.rate_plan.${reason}`,
+          targetType: 'rate_plan',
+          targetId: subjectId,
+        });
+      },
+    });
+  }
 
   private async orgId(): Promise<string> {
     const [org] = await this.db.select({ id: organization.id }).from(organization).limit(1);
@@ -507,6 +570,46 @@ export class PricingService {
   }
 
   async publishPlan(actor: Actor, id: string) {
+    const [existing] = await this.db.select().from(ratePlan).where(eq(ratePlan.id, id)).limit(1);
+    if (!existing) throw AppError.notFound('rate plan');
+    this.assertPlanWritable(actor, existing.locationCode);
+    if (existing.status === 'published') return existing;
+    if (existing.status === 'retired') {
+      throw AppError.businessRule('A retired rate plan cannot be published — clone it', {
+        reason: 'retired_immutable',
+      });
+    }
+    this.validatePlan(existing);
+    await this.assertScope(existing);
+
+    // someone asked to approve an open request approves it, rather than starting another
+    const acted = await this.workflows.actOnOpen({
+      actor,
+      actionKey: 'rateplan.publish',
+      subjectId: id,
+      decision: 'approve',
+      strict: false,
+    });
+    if (acted) return { pendingApproval: true as const, workflow: acted, existing: true };
+    return this.workflows.govern(
+      {
+        actionKey: 'rateplan.publish',
+        subjectId: id,
+        subjectLabel: `Rate plan · ${existing.name}`,
+        context: {
+          category: existing.categoryCode,
+          locationCode: existing.locationCode,
+          name: existing.name,
+        },
+        locationCode: existing.locationCode ?? undefined,
+        actor,
+      },
+      () => this.publishPlanNow(actor, id),
+    );
+  }
+
+  /** The publish itself (validation and scope were checked when it was requested and are checked again here). */
+  async publishPlanNow(actor: Actor, id: string) {
     const [existing] = await this.db.select().from(ratePlan).where(eq(ratePlan.id, id)).limit(1);
     if (!existing) throw AppError.notFound('rate plan');
     this.assertPlanWritable(actor, existing.locationCode);

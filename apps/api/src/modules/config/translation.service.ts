@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto';
+
 import { NAMESPACED_RESOURCES, SUPPORTED_LOCALE_CODES } from '@carrental/i18n';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { and, asc, eq, isNotNull, ne, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
@@ -15,6 +17,7 @@ import { customer } from '../../database/schema/customer';
 import { locale, translation } from '../../database/schema/i18n';
 import { account } from '../../database/schema/iam';
 import { lookupValue } from '../../database/schema/lookup';
+import { WorkflowPublic } from '../workflow/workflow.public';
 
 const LOOKUP_NS = 'lookup:';
 /** Kept in sync with `CatalogueService`'s own constants by literal value (not an import — that
@@ -33,12 +36,56 @@ const DESCRIPTION_SUFFIX = '.description';
  * to be in the `translation` table, so a string added in code shows up here with no re-seed.
  */
 @Injectable()
-export class TranslationService {
+export class TranslationService implements OnModuleInit {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
     private readonly cache: CacheBus,
+    private readonly workflows: WorkflowPublic,
   ) {}
+
+  /** Publishing a language's reviewed strings is an action an owner can put a pipeline in front of. */
+  onModuleInit(): void {
+    const split = (id: string) => {
+      const i = id.lastIndexOf(':');
+      return [id.slice(0, i), id.slice(i + 1)] as const;
+    };
+    this.workflows.register({
+      key: 'translation.publish',
+      subjectType: 'translation_namespace',
+      label: 'Publish translated text',
+      description: 'Make the reviewed strings of one language and area live.',
+      variables: ['namespace', 'localeCode', 'count'],
+      fingerprint: async (id, tx) => {
+        const [namespace, localeCode] = split(id);
+        const rows = await tx
+          .select({ key: translation.key, value: translation.value })
+          .from(translation)
+          .where(
+            and(
+              eq(translation.namespace, namespace),
+              eq(translation.localeCode, localeCode),
+              eq(translation.status, 'in_review'),
+            ),
+          )
+          .orderBy(asc(translation.key));
+        return createHash('sha256').update(JSON.stringify(rows)).digest('hex');
+      },
+      execute: async ({ subjectId, payload, instance, actors, audit }) => {
+        const [namespace, localeCode] = split(subjectId);
+        const actor = this.workflows.asActor(actors, instance.organizationId, payload);
+        const r = await this.publishNow(actor, namespace, localeCode);
+        audit({
+          action: 'config.translation.approved',
+          targetType: 'translation_namespace',
+          targetId: subjectId,
+          actor,
+          after: { viaWorkflow: true },
+        });
+        return { published: r.published };
+      },
+    });
+  }
 
   /**
    * The `en` source for a namespace: `{ key: value }`.
@@ -595,6 +642,29 @@ export class TranslationService {
   }
 
   async publish(actor: Actor, namespace: string, localeCode: string) {
+    const rows = await this.list(namespace, localeCode);
+    const inReview = rows.filter((r) => r.status === 'in_review').length;
+    const acted = await this.workflows.actOnOpen({
+      actor,
+      actionKey: 'translation.publish',
+      subjectId: `${namespace}:${localeCode}`,
+      decision: 'approve',
+      strict: false,
+    });
+    if (acted) return { pendingApproval: true as const, workflow: acted, existing: true };
+    return this.workflows.govern(
+      {
+        actionKey: 'translation.publish',
+        subjectId: `${namespace}:${localeCode}`,
+        subjectLabel: `Translations · ${namespace} · ${localeCode} (${inReview} string(s))`,
+        context: { namespace, localeCode, count: inReview },
+        actor,
+      },
+      () => this.publishNow(actor, namespace, localeCode),
+    );
+  }
+
+  private async publishNow(actor: Actor, namespace: string, localeCode: string) {
     const rows = await this.list(namespace, localeCode);
     // block if any mandatory (legal) key is still missing — modelled: keys prefixed 'legal.'
     const missingLegal = rows.filter((r) => r.key.startsWith('legal.') && !r.translation);

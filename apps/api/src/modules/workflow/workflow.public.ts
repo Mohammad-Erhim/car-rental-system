@@ -4,7 +4,21 @@ import type { Actor } from '../../common/auth/types';
 
 import { WorkflowEngineService } from './workflow-engine.service';
 import { WorkflowRegistry } from './workflow-registry.service';
-import type { GateInput, GateResult, WorkflowActionDef, WorkflowSummary } from './workflow.types';
+import type {
+  ActorsOfRecord,
+  GateInput,
+  GateResult,
+  WorkflowActionDef,
+  WorkflowSummary,
+} from './workflow.types';
+
+/** What a governed endpoint returns while its change waits for approval. */
+export interface PendingApproval {
+  pendingApproval: true;
+  workflow: WorkflowSummary;
+  /** a request for this subject was already open — nothing new was started */
+  existing: boolean;
+}
 
 export { WorkflowMessenger } from './workflow-messenger';
 export type {
@@ -34,6 +48,51 @@ export class WorkflowPublic {
 
   gate(input: GateInput): Promise<GateResult> {
     return this.engine.gate(input);
+  }
+
+  /**
+   * The one call a domain method makes: run `direct` when nothing governs this action (today's
+   * behaviour, unchanged), otherwise capture the request and answer `PendingApproval`. The change is
+   * then applied by the action's registered executor once every step has passed.
+   */
+  async govern<T>(input: GateInput, direct: () => Promise<T>): Promise<T | PendingApproval> {
+    // Remember what the requester was allowed to do. Their rights were checked when they asked; the
+    // executor acts with THAT snapshot (under the approver's name), so nothing is re-checked against
+    // today's rights and nothing is granted beyond what the requester could do themselves.
+    const requester = {
+      permissions: input.actor.permissions,
+      roleCodes: input.actor.roleCodes,
+      locationScope: input.actor.locationScope,
+      permissionConditions: input.actor.permissionConditions,
+    };
+    const gate = await this.engine.gate({
+      ...input,
+      payload: { ...(input.payload ?? {}), _requester: requester },
+    });
+    if (gate.direct) return direct();
+    return { pendingApproval: true, workflow: gate.summary, existing: gate.existing };
+  }
+
+  /**
+   * An `Actor` for the executor to act as: the person who made the final decision (or, for an
+   * automatic step, the requester) — attribution and audit stay truthful, and the executor does not
+   * re-check the requester's permissions (they were checked when the request was made).
+   */
+  asActor(actors: ActorsOfRecord, organizationId?: string, payload?: unknown): Actor {
+    const snap = (payload as { _requester?: Partial<Actor> } | undefined)?._requester;
+    return {
+      accountId: actors.finalDeciderAccountId ?? actors.initiatorAccountId,
+      kind: 'staff',
+      audience: 'staff',
+      displayName: actors.finalDeciderLabel ?? actors.initiatorLabel ?? 'Workflow',
+      localeCode: 'en',
+      organizationId,
+      permissions: snap?.permissions ?? [],
+      roleCodes: snap?.roleCodes ?? [],
+      locationScope: snap?.locationScope ?? [],
+      permissionConditions: snap?.permissionConditions ?? {},
+      tokenId: 'workflow',
+    };
   }
 
   /** Act on the subject's open request (approve/reject) — `null` if there is none. */

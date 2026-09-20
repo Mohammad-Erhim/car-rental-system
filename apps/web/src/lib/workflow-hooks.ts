@@ -1,3 +1,4 @@
+import { useI18n } from '@carrental/i18n/react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
@@ -149,6 +150,15 @@ export interface BindingRow {
   priority: number;
   active: boolean;
   label: string | null;
+}
+
+/** What a governed action returns while its change waits for approval instead of being applied. */
+export function isPendingApproval(
+  v: unknown,
+): v is { pendingApproval: true; workflow: WorkflowSummary } {
+  return (
+    !!v && typeof v === 'object' && (v as { pendingApproval?: unknown }).pendingApproval === true
+  );
 }
 
 const KEY = ['ops', 'workflows'] as const;
@@ -467,4 +477,20 @@ export function useArchiveDefinition() {
       }),
     onSuccess: refresh,
   });
+}
+
+/**
+ * Call on the result of any governed action (refund, cancellation, publish, archive, merge…): when
+ * a workflow holds the change for approval it tells the person so and returns `true` — the caller
+ * then skips its own "done" message, because nothing has been done yet.
+ */
+export function usePendingApproval() {
+  const { t } = useI18n();
+  const qc = useQueryClient();
+  return (res: unknown): boolean => {
+    if (!isPendingApproval(res)) return false;
+    toast.info(t('ops.wf.sentForApprovalGeneric'));
+    void qc.invalidateQueries({ queryKey: KEY });
+    return true;
+  };
 }
