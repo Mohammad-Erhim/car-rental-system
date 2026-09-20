@@ -6,6 +6,20 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### Clearer requests, reports and audit log (2026-09)
+
+- **A request opens on your decision:** a "Waiting for your decision" card with Approve / Reject / Send
+  back sits at the top of the request; monitor tools moved below the details; variables read as words
+  ("Cancellation fee", money in the request's currency) in the request, the rules and the step cards.
+- **Reports:** pick a report from a visible list (no dropdown); column headings in words, money with its
+  currency, states in words, empty columns hidden, cards on a phone, a sensible CSV file name. Money
+  reports are grouped by currency and never added across currencies. Report and data-quality check
+  names are available in English, French and Arabic.
+- **Audit log:** each event says what happened in words (the code stays underneath), outcomes and record
+  types are translated, and sign-ins are attributed to the person instead of "system".
+- **Fixed:** the contracts package did not build (a missing `allowWithdraw` on the two-person template);
+  tabs on the dashboard and elsewhere emitted an invalid `aria-controls`.
+
 ### Workflows: every action, routes, out of office, business hours (2026-09)
 
 - **More actions can be governed:** refunds, staff cancellations with a fee, rate plans, translations,
