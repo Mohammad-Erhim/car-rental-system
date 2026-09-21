@@ -702,6 +702,13 @@ routing-payment.adapter,payment-config.controller,stripe-webhook.controller}.ts`
     (`reference-i18n.ts`, checked by `reference-i18n.spec.ts`); and every currency in the reference
     data is named in French and Arabic from ICU data, so a currency enabled from the dashboard is not
     "missing" either.
+  - **The public bundle always carries the app's own strings.** `GET /meta/translations` now returns the
+    bundled text for the language with the published database overrides on top (an override wins). A
+    build that adds strings is therefore translated the moment it runs — before the seed catches up,
+    and on a database seeded by an older build — instead of showing raw key names ("Title",
+    "Subtitle") on the dashboard. The seed still writes the rows so the Translations screen shows
+    them; deploy runs it automatically.
+  - Currency names are seeded from ICU for every **active** language, not only fr/ar.
 - Known limit: an extra's name on an already-made reservation is the English snapshot taken at
   booking, by design (a booking keeps the terms it accepted).
 - Tests: `entity-translations.spec.ts` (served per language, English fallback, drafts unserved, a new

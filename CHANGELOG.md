@@ -12,6 +12,7 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
   screen; the website and the app show them in the visitor's language (English where nothing is
   translated yet). A branch or extra you add later shows up there to translate straight away.
 - French and Arabic are provided for the demo branches and extras, and for the name of every currency.
+- A new build is translated as soon as it runs: the app's own text is served even before the seed has been re-run, so a dashboard page never shows raw key names.
 
 ### Currencies you manage, and a better trail in Stripe (2026-09)
 

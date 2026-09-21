@@ -4,7 +4,7 @@ import { LOCATION_PICKUP_SUFFIX, LOCATION_RETURN_SUFFIX } from '../../common/i18
 import { revOf } from '../../common/i18n-source-rev';
 import type { Database } from '../drizzle';
 import { product, vehicleCategory, vehicleFeature } from '../schema/catalogue';
-import { translation } from '../schema/i18n';
+import { locale, translation } from '../schema/i18n';
 import { lookupValue } from '../schema/lookup';
 import { location } from '../schema/org';
 
@@ -582,7 +582,7 @@ export async function seedReferenceTranslations(db: Database): Promise<number> {
 }
 
 /**
- * The name of every currency an operator can enable, in French and Arabic, from the runtime's own
+ * The name of every currency in the reference data, in every active language, from the runtime's own
  * ICU data — so a currency added from the dashboard is already named in every language and shows
  * as translated (not missing) on the Translations screen. Only fills gaps: the five starter
  * currencies keep their hand-written names above, and an operator's own wording is never replaced.
@@ -592,8 +592,14 @@ async function seedCurrencyNames(db: Database): Promise<number> {
     .select({ code: lookupValue.code, label: lookupValue.defaultLabel })
     .from(lookupValue)
     .where(eq(lookupValue.typeCode, 'currency'));
+  // every language that is switched on, not only the launch three — a dashboard-added one too
+  const localeCodes = (
+    await db.select({ code: locale.code }).from(locale).where(eq(locale.isActive, true))
+  )
+    .map((l) => l.code)
+    .filter((c) => c !== 'en');
   let written = 0;
-  for (const localeCode of ['fr', 'ar'] as const) {
+  for (const localeCode of localeCodes) {
     let names: Intl.DisplayNames;
     try {
       names = new Intl.DisplayNames([localeCode], { type: 'currency' });

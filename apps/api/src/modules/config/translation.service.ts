@@ -310,7 +310,12 @@ export class TranslationService implements OnModuleInit {
           isNotNull(translation.publishedValue),
         ),
       );
-    const out: Record<string, string> = {};
+    // The app's own strings for this language ship with the code; the database holds what an
+    // operator published on top. Serving both means a build that adds strings is fully translated
+    // the moment it runs — before anyone re-seeds, and on a database that was seeded by an older
+    // version — instead of showing raw key names until the seed catches up. A published row always
+    // wins over the bundled text.
+    const out: Record<string, string> = { ...NAMESPACED_RESOURCES[localeCode]?.[namespace] };
     for (const r of rows) if (r.value != null) out[r.key] = r.value;
     return out;
   }
