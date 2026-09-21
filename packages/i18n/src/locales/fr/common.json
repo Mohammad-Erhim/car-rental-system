@@ -1452,6 +1452,7 @@
   "ops.pages.announce.enable": "Afficher la barre d’annonce",
   "ops.pages.announce.hint": "Un bandeau au-dessus de l’en-tête sur toutes les pages publiques — maintenance, offres ou avis.",
   "ops.pages.announce.message": "Message",
+  "ops.pages.announce.sticky": "Rester fixée en haut de la page pendant le défilement",
   "ops.pages.announce.title": "Barre d’annonce",
   "ops.pages.announce.variant": "Style",
   "ops.pages.announce.variant.critical": "Critique",

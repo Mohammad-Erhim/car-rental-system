@@ -4,7 +4,7 @@ import { pickText, zAnnouncement, type Announcement } from '@carrental/contracts
 import { useI18n } from '@carrental/i18n/react';
 import { X } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { isAllowedPreviewOrigin } from '../lib/preview-origin';
 
@@ -39,6 +39,7 @@ export function SiteAnnouncement({
   const [ann, setAnn] = useState<Announcement | null>(initial);
   const [dismissed, setDismissed] = useState(false);
   const preview = isPreview();
+  const barRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!preview) return;
@@ -63,6 +64,26 @@ export function SiteAnnouncement({
     }
   }, [ann, preview]);
 
+  // The header is independently sticky at `top-0`; when this bar is also sticky, publish its
+  // rendered height as a CSS var so the header offsets below it instead of overlapping. Cleared
+  // whenever the bar isn't actually stuck to the top, so the header falls back to its own top-0.
+  useEffect(() => {
+    const stuck = !!(ann && ann.enabled && !dismissed && ann.sticky && pickText(ann.message, locale));
+    if (!stuck || !barRef.current) {
+      document.documentElement.style.setProperty('--announcement-h', '0px');
+      return;
+    }
+    const el = barRef.current;
+    const update = () => document.documentElement.style.setProperty('--announcement-h', `${el.offsetHeight}px`);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      document.documentElement.style.setProperty('--announcement-h', '0px');
+    };
+  }, [ann, dismissed, locale]);
+
   if (!ann || !ann.enabled || dismissed) return null;
   const text = pickText(ann.message, locale);
   if (!text) return null;
@@ -78,7 +99,12 @@ export function SiteAnnouncement({
   }
 
   return (
-    <div className={VARIANT_CLASS[ann.variant]} role="region" aria-label={text}>
+    <div
+      ref={barRef}
+      className={`${ann.sticky ? 'sticky top-0 z-50' : ''} ${VARIANT_CLASS[ann.variant]}`}
+      role="region"
+      aria-label={text}
+    >
       <div className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 py-2 text-sm sm:px-6 lg:px-8">
         <p className="min-w-0 flex-1 text-center sm:text-start">
           {text}

@@ -1452,6 +1452,7 @@
   "ops.pages.announce.enable": "إظهار شريط الإعلان",
   "ops.pages.announce.hint": "شريط أعلى الترويسة في كل الصفحات العامة — لفترات الصيانة أو العروض أو التنبيهات.",
   "ops.pages.announce.message": "الرسالة",
+  "ops.pages.announce.sticky": "يبقى ثابتًا أعلى الصفحة أثناء التمرير",
   "ops.pages.announce.title": "شريط الإعلان",
   "ops.pages.announce.variant": "النمط",
   "ops.pages.announce.variant.critical": "حرج",

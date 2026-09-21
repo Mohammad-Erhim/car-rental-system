@@ -1452,6 +1452,7 @@
   "ops.pages.announce.enable": "Show the announcement bar",
   "ops.pages.announce.hint": "A strip above the header on every public page — for maintenance windows, offers or notices.",
   "ops.pages.announce.message": "Message",
+  "ops.pages.announce.sticky": "Stick to the top of the page while scrolling",
   "ops.pages.announce.title": "Announcement bar",
   "ops.pages.announce.variant": "Style",
   "ops.pages.announce.variant.critical": "Critical",
