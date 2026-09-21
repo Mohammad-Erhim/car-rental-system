@@ -3240,6 +3240,7 @@
   "reservation.state.cancelled": "ملغى",
   "reservation.state.completed": "مكتمل",
   "reservation.state.confirmed": "مؤكد",
+  "reservation.state.fulfilled": "منجز",
   "reservation.state.modified": "معدّل",
   "reservation.state.no_show": "لم يحضر",
   "reservation.state.overdue": "متأخر",

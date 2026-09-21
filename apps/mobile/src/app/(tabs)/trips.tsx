@@ -27,13 +27,18 @@ export default function TripsScreen() {
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now();
   const list = reservationsQuery.data ?? [];
+  // reservation.state only ever holds pending|confirmed|cancelled|no_show|fulfilled — 'fulfilled'
+  // is set once, at pickup, and never changes again, so it covers both an ongoing rental and one
+  // already returned. Split those two by returnAt the same way pending/confirmed are split by
+  // pickupAt.
   const grouped = {
-    upcoming: list.filter((r) => ['pending', 'confirmed', 'modified'].includes(r.state) && new Date(r.pickupAt).getTime() >= now),
-    active: list.filter((r) => r.state === 'active' || r.state === 'overdue'),
+    upcoming: list.filter((r) => ['pending', 'confirmed'].includes(r.state) && new Date(r.pickupAt).getTime() >= now),
+    active: list.filter((r) => r.state === 'fulfilled' && new Date(r.returnAt).getTime() >= now),
     past: list.filter(
       (r) =>
-        ['completed', 'cancelled', 'no_show'].includes(r.state) ||
-        (['pending', 'confirmed', 'modified'].includes(r.state) && new Date(r.pickupAt).getTime() < now),
+        ['cancelled', 'no_show'].includes(r.state) ||
+        (r.state === 'fulfilled' && new Date(r.returnAt).getTime() < now) ||
+        (['pending', 'confirmed'].includes(r.state) && new Date(r.pickupAt).getTime() < now),
     ),
   };
 

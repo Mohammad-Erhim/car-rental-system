@@ -3240,6 +3240,7 @@
   "reservation.state.cancelled": "cancelled",
   "reservation.state.completed": "completed",
   "reservation.state.confirmed": "confirmed",
+  "reservation.state.fulfilled": "fulfilled",
   "reservation.state.modified": "modified",
   "reservation.state.no_show": "no-show",
   "reservation.state.overdue": "overdue",
