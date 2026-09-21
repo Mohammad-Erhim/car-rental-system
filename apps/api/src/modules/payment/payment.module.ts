@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { PaymentConfigController } from './payment-config.controller';
 import { PaymentConfigService } from './payment-config.service';
 import { PaymentPort } from './payment.port';
+import { PaymentPublic } from './payment.public';
 import { PaymentService } from './payment.service';
 import { RoutingPaymentAdapter } from './routing-payment.adapter';
 import { StripeWebhookController } from './stripe-webhook.controller';
@@ -20,9 +21,10 @@ import { StripeWebhookController } from './stripe-webhook.controller';
   providers: [
     PaymentService,
     PaymentConfigService,
+    PaymentPublic,
     RoutingPaymentAdapter,
     { provide: PaymentPort, useExisting: RoutingPaymentAdapter },
   ],
-  exports: [PaymentService, PaymentConfigService],
+  exports: [PaymentService, PaymentConfigService, PaymentPublic],
 })
 export class PaymentModule {}

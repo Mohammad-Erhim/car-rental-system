@@ -48,6 +48,9 @@ export const ERROR_CODE = {
   QUOTE_EXPIRED: 'quote_expired',
   ELIGIBILITY_FAILED: 'eligibility_failed',
   POLICY_NOT_CONFIGURED: 'policy_not_configured',
+  /** the customer's bank wants them to authenticate the payment (3-D Secure) — `params.clientSecret`
+   *  is what the client hands the processor's SDK; then it submits the same request again (DEC-040) */
+  PAYMENT_ACTION_REQUIRED: 'payment_action_required',
   // internal
   INTERNAL_ERROR: 'internal_error',
 } as const;
@@ -77,6 +80,7 @@ export const ERROR_CODE_CATEGORY: Record<ErrorCode, ErrorCategory> = {
   quote_expired: ERROR_CATEGORY.BUSINESS_RULE,
   eligibility_failed: ERROR_CATEGORY.BUSINESS_RULE,
   policy_not_configured: ERROR_CATEGORY.BUSINESS_RULE,
+  payment_action_required: ERROR_CATEGORY.BUSINESS_RULE,
   internal_error: ERROR_CATEGORY.INTERNAL,
 };
 
@@ -104,6 +108,7 @@ export const ERROR_CODE_HTTP_STATUS: Record<ErrorCode, number> = {
   quote_expired: 409,
   eligibility_failed: 422,
   policy_not_configured: 503,
+  payment_action_required: 402,
   internal_error: 500,
 };
 

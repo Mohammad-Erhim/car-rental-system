@@ -19,6 +19,7 @@ export {
   useRemoveDriver,
   useDataRequests,
   useCreateDataRequest,
+  useDataRequestExport,
   useCancelDataRequest,
 } from './react/use-account';
 export {

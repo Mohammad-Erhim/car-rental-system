@@ -6,6 +6,7 @@ import {
   type AuthorizeInput,
   type PaymentResult,
   type RefundContext,
+  type ResumeOutcome,
 } from './payment.port';
 
 /**
@@ -34,9 +35,19 @@ export class RoutingPaymentAdapter extends PaymentPort {
     return adapter.capture(providerRef, amountMinor, idempotencyKey);
   }
 
+  async resume(providerRef: string, token?: string): Promise<ResumeOutcome> {
+    const adapter = await this.config.resolveActiveAdapter();
+    return adapter.resume(providerRef, token);
+  }
+
   async void(providerRef: string): Promise<void> {
     const adapter = await this.config.resolveActiveAdapter();
     return adapter.void(providerRef);
+  }
+
+  async forgetCustomer(customerRef: string): Promise<void> {
+    const adapter = await this.config.resolveActiveAdapter();
+    return adapter.forgetCustomer(customerRef);
   }
 
   async refund(

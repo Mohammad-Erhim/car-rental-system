@@ -31,6 +31,16 @@ const RECONCILE_EVENTS = new Set([
   'charge.refunded',
 ]);
 
+/** A chargeback's life at the card network (FR-PAY-008, DEC-039). Subscribe the webhook endpoint to
+ *  these in the Stripe dashboard — an event Stripe is never asked to send cannot be handled. */
+const DISPUTE_EVENTS = new Set([
+  'charge.dispute.created',
+  'charge.dispute.updated',
+  'charge.dispute.funds_withdrawn',
+  'charge.dispute.funds_reinstated',
+  'charge.dispute.closed',
+]);
+
 /**
  * The async half of a real Stripe integration (DEC-006's named scenarios: duplicate/out-of-order
  * webhook, signature failure, outage/recovery). This app's own authorize→capture flow is
@@ -85,17 +95,71 @@ export class StripeWebhookController {
       operation: 'stripe.event',
       key: event.id,
       body: { type: event.type },
+      // Stripe re-sends an event we answered 5xx to. Without this, that retry found our own stored
+      // failure, was answered "replay" (200) and the event was lost for good (DEC-039).
+      retryFailed: true,
     });
     if (idem.status === 'replay') return { received: true, handled: false, replay: true };
 
     try {
       if (RECONCILE_EVENTS.has(event.type)) await this.reconcile(event);
+      else if (DISPUTE_EVENTS.has(event.type)) await this.recordDispute(event);
       await idem.finalize(200, { handled: true });
       return { received: true, handled: true };
     } catch (err) {
       await idem.finalize(500, { handled: false, error: String(err) });
       throw err;
     }
+  }
+
+  /** `charge.dispute.*` — the object is a Dispute, not a PaymentIntent, so it is matched to our
+   *  ledger through the `payment_intent` it names. */
+  private async recordDispute(event: Stripe.Event): Promise<void> {
+    const obj = event.data.object as {
+      id: string;
+      charge?: string | null;
+      payment_intent?: string | null;
+      amount?: number;
+      currency?: string;
+      reason?: string;
+      status?: string;
+      evidence_details?: { due_by?: number | null } | null;
+    };
+    if (!obj.payment_intent) {
+      // a charge that was never part of a PaymentIntent — nothing of ours to attach it to
+      this.logger.warn(
+        { disputeId: obj.id, eventType: event.type },
+        'stripe dispute names no payment intent — ignored',
+      );
+      return;
+    }
+    const [local] = await this.db
+      .select()
+      .from(paymentIntent)
+      .where(eq(paymentIntent.providerRef, obj.payment_intent))
+      .limit(1);
+    if (!local) return; // an intent we have no record of — same rule as `reconcile`
+
+    const { created } = await this.payments.recordDispute({
+      organizationId: local.organizationId,
+      reservationReference: local.reservationReference,
+      intentId: local.id,
+      disputeId: obj.id,
+      chargeId: obj.charge ?? null,
+      amountMinor: fromStripeAmount(obj.amount ?? 0, local.currency),
+      reason: obj.reason ?? null,
+      status: obj.status ?? null,
+      dueBy: obj.evidence_details?.due_by
+        ? new Date(obj.evidence_details.due_by * 1000).toISOString()
+        : null,
+      eventType: event.type,
+    });
+    this.logger.warn(
+      { disputeId: obj.id, eventType: event.type, status: obj.status, created },
+      created
+        ? 'stripe dispute opened — reconciliation exception raised for finance'
+        : 'stripe dispute updated — its reconciliation exception refreshed',
+    );
   }
 
   private async reconcile(event: Stripe.Event): Promise<void> {
@@ -117,10 +181,13 @@ export class StripeWebhookController {
       .limit(1);
     if (!local) return; // an intent we have no record of at all is out of scope here — nothing local to reconcile against
 
+    // `requires_action` is a legitimate place for a failed / cancelled payment to still be: a
+    // customer who fails or abandons their bank challenge (DEC-040), or a provider timeout, leaves
+    // the ledger there until the retry resolves it — that is not a disagreement worth a human's time.
     const expected: Record<string, string[]> = {
       'payment_intent.succeeded': ['captured'],
-      'payment_intent.payment_failed': ['failed', 'voided'],
-      'payment_intent.canceled': ['voided'],
+      'payment_intent.payment_failed': ['failed', 'voided', 'requires_action'],
+      'payment_intent.canceled': ['voided', 'requires_action'],
       'charge.refunded': ['refunded', 'partially_refunded'],
     };
     const okStates = expected[event.type];

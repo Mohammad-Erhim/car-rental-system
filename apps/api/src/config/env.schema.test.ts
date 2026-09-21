@@ -31,6 +31,56 @@ describe('env schema', () => {
     expect(env.CORS_ALLOWED_ORIGINS).toEqual(['http://a.test', 'http://b.test']);
   });
 
+  describe('on/off flags say what they mean', () => {
+    // `z.coerce.boolean()` made every non-empty string true — RATE_LIMIT_ENABLED=0 (the runbook's
+    // own emergency switch) left the limiter running.
+    const flag = (name: string, value: string) =>
+      (envSchema.parse({ ...BASE, [name]: value }) as Record<string, unknown>)[name];
+
+    it.each(['1', 'true', 'TRUE', 'yes', 'on', ' On '])('reads %j as on', (v) => {
+      expect(flag('RATE_LIMIT_ENABLED', v)).toBe(true);
+      expect(flag('MAPS_ENABLED', v)).toBe(true);
+    });
+
+    it.each(['0', 'false', 'False', 'no', 'off', ' OFF '])('reads %j as off', (v) => {
+      expect(flag('RATE_LIMIT_ENABLED', v)).toBe(false);
+      expect(flag('METRICS_ENABLED', v)).toBe(false);
+      expect(flag('MAPS_ENABLED', v)).toBe(false);
+    });
+
+    it('falls back to the default for each flag when it is unset or empty', () => {
+      const env = envSchema.parse(BASE);
+      expect(env.RATE_LIMIT_ENABLED).toBe(true);
+      expect(env.METRICS_ENABLED).toBe(true);
+      expect(env.MAPS_ENABLED).toBe(false);
+      const blank = envSchema.parse({ ...BASE, RATE_LIMIT_ENABLED: '', MAPS_ENABLED: '' });
+      expect(blank.RATE_LIMIT_ENABLED).toBe(true);
+      expect(blank.MAPS_ENABLED).toBe(false);
+    });
+
+    it('fails the boot on a value it cannot read, instead of guessing', () => {
+      const r = envSchema.safeParse({ ...BASE, RATE_LIMIT_ENABLED: 'maybe' });
+      expect(r.success).toBe(false);
+      if (!r.success)
+        expect(r.error.issues.map((i) => i.path.join('.'))).toContain('RATE_LIMIT_ENABLED');
+    });
+  });
+
+  it('the checkout payment step has its own limiter: 20 per 60 s per client by default, tunable', () => {
+    const env = envSchema.parse(BASE);
+    expect(env.RATE_LIMIT_BOOKING_CONFIRM_MAX).toBe(20);
+    expect(env.RATE_LIMIT_BOOKING_CONFIRM_WINDOW_SEC).toBe(60);
+    const tuned = envSchema.parse({
+      ...BASE,
+      RATE_LIMIT_BOOKING_CONFIRM_MAX: '5',
+      RATE_LIMIT_BOOKING_CONFIRM_WINDOW_SEC: '30',
+    });
+    expect([
+      tuned.RATE_LIMIT_BOOKING_CONFIRM_MAX,
+      tuned.RATE_LIMIT_BOOKING_CONFIRM_WINDOW_SEC,
+    ]).toEqual([5, 30]);
+  });
+
   describe('production must override the dev-only secret placeholders', () => {
     it('accepts the dev placeholders outside production (a fresh checkout still boots)', () => {
       expect(envSchema.safeParse({ ...BASE, NODE_ENV: 'development' }).success).toBe(true);

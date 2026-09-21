@@ -37,9 +37,19 @@ export const zPrivacyRequest = z.object({
   id: zId,
   kind: z.enum(['access', 'correction', 'closure']),
   status: z.enum(['received', 'in_review', 'completed', 'rejected', 'cancelled', 'blocked']),
-  blockers: z.array(z.object({ code: z.string(), detail: z.string() })).default([]),
+  /** what stops a closure right now — `code` picks the translated line, `count` fills it in */
+  blockers: z
+    .array(z.object({ code: z.string(), detail: z.string(), count: z.number().int().optional() }))
+    .default([]),
   detail: z.string().nullable(),
   createdAt: zInstant,
+  /** the day a reply is due — one month from filing (DEC-041) */
+  dueAt: zInstant.optional(),
+  /** staff's reply: what was done, or why not */
+  resolutionNote: z.string().nullable().optional(),
+  resolvedAt: zInstant.nullable().optional(),
+  /** an access request whose download is ready (`GET /auth/data-requests/:id/export`) */
+  exportReady: z.boolean().optional(),
 });
 export type PrivacyRequest = z.infer<typeof zPrivacyRequest>;
 

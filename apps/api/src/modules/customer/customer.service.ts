@@ -4,6 +4,7 @@ import { and, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
 import type { Actor } from '../../common/auth/types';
+import { maskEmail, maskPhone } from '../../common/mask';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import {
@@ -25,16 +26,6 @@ import { reservation } from '../../database/schema/reservation';
  * `customer-merge.service`. Both `search` and `detail` are PII accesses on the audit trail
  * (SRS-SEC-016).
  */
-function maskEmail(e: string | null): string | null {
-  if (!e || !e.includes('@')) return e;
-  const [u = '', d = ''] = e.split('@');
-  return `${u.slice(0, 2)}***@${d}`;
-}
-function maskPhone(p: string | null): string | null {
-  if (!p) return p;
-  return p.length <= 4 ? '***' : `***${p.slice(-3)}`;
-}
-
 @Injectable()
 export class CustomerService {
   constructor(

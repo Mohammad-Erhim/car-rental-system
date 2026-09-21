@@ -37,6 +37,20 @@ malformed — check the first lines of the api log if it will not start.
 TLS terminates in front of nginx (a load balancer or another proxy). Never expose Postgres,
 Redis, or `/metrics` to the internet.
 
+**Stripe webhook** (live card payments). In the Stripe dashboard add an endpoint
+`https://<your host>/api/v1/webhooks/stripe` and subscribe it to these events — one Stripe is never
+asked to send cannot be handled:
+
+- `payment_intent.succeeded`, `payment_intent.payment_failed`, `payment_intent.canceled`,
+  `charge.refunded` — Stripe's record is compared with the ledger; a difference opens a
+  reconciliation exception.
+- `charge.dispute.created`, `charge.dispute.updated`, `charge.dispute.funds_withdrawn`,
+  `charge.dispute.funds_reinstated`, `charge.dispute.closed` — a chargeback reaches Finance as a
+  "Card dispute" exception with its reason, status and evidence deadline (DEC-039).
+
+The endpoint's signing secret is entered in the ops console (Integrations → Payment provider) and
+stored encrypted; a wrong one shows as 400s on every delivery.
+
 ---
 
 > **Compose files** (repo root — run every `docker compose` command from there so the
@@ -165,7 +179,40 @@ usually after a partial seed. Re-run `... run --rm migrate` (idempotent).
 **Sign-ins returning 429** — the SRS-SEC-015 auth rate limiter tripped. Expected under a
 credential-stuffing burst. If it is a false positive (a NAT'd office behind one IP), raise
 `RATE_LIMIT_AUTH_MAX` / widen `RATE_LIMIT_AUTH_WINDOW_SEC` and redeploy the api, or set
-`RATE_LIMIT_ENABLED=0` temporarily. Counters live in Redis (`ratelimit:*`), TTL'd.
+`RATE_LIMIT_ENABLED=0` temporarily (1/true/yes/on and 0/false/no/off are all honoured). Counters
+live in Redis (`ratelimit:*`), TTL'd.
+
+**Checkout returning 429 at the payment step** — `POST /bookings/confirm` has its own limiter
+(`RATE_LIMIT_BOOKING_CONFIRM_MAX` per `RATE_LIMIT_BOOKING_CONFIRM_WINDOW_SEC`, default 20 / 60 s per
+client IP, DEC-040). It exists to stop card-testing; a burst of 429s from one address is that
+working. If real customers are throttled, first check that the api sees the _customer's_ address
+and not your load balancer's — `trust proxy` counts one hop, so a TLS terminator in front of the
+edge makes every visitor share one bucket — before raising the limit.
+
+**A card dispute (chargeback) appears in Payments & recovery** — an exception of kind "Card
+dispute" showing the reason, Stripe's status and the date the evidence is due. A dispute never edits
+the ledger. Submit the evidence in the Stripe dashboard before that date (the app does not send it),
+then resolve the exception here with what happened. Later events on the same dispute (funds
+withdrawn, closed) refresh the same exception; if it was already resolved and Stripe then reverses
+the outcome, a new one opens. If a dispute you know about never shows up, the endpoint is not
+subscribed to `charge.dispute.*` (§1) or the payment was not taken through this system.
+
+**Stripe webhook deliveries failing** — the endpoint's recent attempts are listed in the Stripe
+dashboard. 400 = wrong signing secret (Integrations → Payment provider); 500 = the handler threw and
+the api logs say why. Stripe retries a failed delivery (up to three days in live mode) and the api
+takes it over on the next attempt — also one whose first attempt died half-way (a claim older than
+five minutes is reclaimed) — so fix the cause and let the retries land, or press "Resend" in Stripe.
+Nothing needs re-entering by hand.
+
+**A data request is overdue, or "Close account" will not complete** — Data requests, in the same
+menu group as Customers (`customer.manage` to act). A reply is due one month after filing and shows
+_Overdue_ past that. A closure is refused, with the reason on the screen, while the customer has a
+current or upcoming reservation, an open rental or an unresolved payment issue — there is nothing to
+force; it unblocks itself when those end. If completing says the saved cards could not be removed,
+Stripe was unreachable: nothing was changed, so try again. Erasure removes the sign-in and contact
+details, saved drivers and their documents and redacts messages sent to the person; reservations,
+rentals, invoices, payments and the audit trail are kept on purpose for their legal retention period
+(DEC-041). The completed-access download is available to the customer for 30 days.
 
 **Payments stuck / `recovery_case` piling up** — a step failed after money moved. Work the
 queue in the ops console (Finance → cases). The worker re-drives the outbox; if a provider is
@@ -188,3 +235,7 @@ Mobile app frontend (APP-CMOB) — the REST/OpenAPI contract it consumes is serv
 (`/api/v1/openapi.json`). Live payment / mail / SMS / push adapters are configured but default
 to the simulator/outbox drivers; switch via `PAYMENT_DRIVER` / `MAIL_DRIVER` / etc. with the
 matching provider secrets.
+
+Erasing reservations, rentals, invoices and payments once their legal retention period ends (a
+scheduled purge) — a closed account keeps them today (DEC-041). The mobile app does not yet run the
+bank's 3-D Secure challenge at checkout; it shows "your bank needs to confirm this payment" (DEC-040).

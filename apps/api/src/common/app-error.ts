@@ -15,7 +15,10 @@ export interface FieldIssue {
 export interface AppErrorOptions {
   /** Non-localized developer summary. */
   title?: string;
-  /** Safe interpolation params for the client's localized message. No secrets, no record existence. */
+  /** Safe interpolation params for the client's localized message. No secrets, no record existence.
+   *  (One deliberate exception: `payment_action_required` carries the processor's `clientSecret` —
+   *  the customer's own single-use handle for completing their bank challenge. It is redacted from
+   *  logs, and this filter never logs params.) */
   params?: Record<string, string | number | boolean | null>;
   fieldErrors?: FieldIssue[];
   /** Current authoritative version for conflict recovery (SRS-API-007). */

@@ -12,12 +12,13 @@ import {
   RadioGroup,
   Textarea,
 } from '@carrental/ui';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Download } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
 import {
   useCancelDataRequest,
   useCreateDataRequest,
+  useDataRequestExport,
   useDataRequests,
 } from '../../../../lib/customer-hooks';
 
@@ -32,17 +33,47 @@ const STATUS_VARIANT: Record<string, 'neutral' | 'success' | 'warning' | 'destru
   blocked: 'warning',
 };
 
-/** SCREEN-CUS-024 — data requests & closure (FR-IAM-008); closure surfaces its blockers. */
+/** Hand the browser a JSON document as a file. */
+function saveJson(data: unknown, filename: string) {
+  const url = URL.createObjectURL(
+    new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }),
+  );
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * SCREEN-CUS-024 — data requests & closure (FR-IAM-008, DEC-041). Each request shows when we reply
+ * by, what blocks a closure (right now — it clears itself when the trip ends), our reply once it
+ * is finished, and — for a completed copy-of-my-data request — the download.
+ */
 export default function DataRequestsPage() {
-  const { t } = useI18n();
+  const { t, fmt } = useI18n();
   const { actor } = useAuth();
   const list = useDataRequests(!!actor);
   const create = useCreateDataRequest();
   const cancel = useCancelDataRequest();
+  const exportData = useDataRequestExport();
 
   const [kind, setKind] = useState<Kind>('access');
   const [detail, setDetail] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  async function download(id: string) {
+    setDownloadError(null);
+    try {
+      const data = await exportData.mutateAsync(id);
+      saveJson(data, `my-data-${new Date().toISOString().slice(0, 10)}.json`);
+    } catch {
+      setDownloadError(t('privacy.downloadErr'));
+    }
+  }
 
   const kinds: Array<{ value: Kind; label: string; hint: string }> = [
     { value: 'access', label: t('privacy.kind.access'), hint: t('privacy.kind.accessHint') },
@@ -114,6 +145,14 @@ export default function DataRequestsPage() {
 
       <section className="surface-card rounded-2xl p-5 sm:p-6">
         <h2 className="mb-4 text-lg font-semibold text-ink">{t('privacy.yourRequests')}</h2>
+        {downloadError ? (
+          <p
+            className="mb-3 text-sm font-medium text-destructive"
+            data-testid="data-request-download-error"
+          >
+            {downloadError}
+          </p>
+        ) : null}
         {list.isLoading ? (
           <AppStateView kind="loading" title={t('state.loading.title')} inline />
         ) : list.isError ? (
@@ -147,6 +186,11 @@ export default function DataRequestsPage() {
                     ) : null}
                   </div>
                 </div>
+                {r.dueAt && ['received', 'in_review', 'blocked'].includes(r.status) ? (
+                  <p className="text-xs text-ink-muted" data-testid="data-request-due">
+                    {t('privacy.dueBy', { date: fmt.date(r.dueAt) })}
+                  </p>
+                ) : null}
                 {r.blockers?.length ? (
                   <div
                     className="rounded-xl border border-warning/40 bg-warning/10 p-3 text-xs"
@@ -158,9 +202,32 @@ export default function DataRequestsPage() {
                     </p>
                     <ul className="mt-1 list-disc ps-5 text-ink-muted">
                       {r.blockers.map((b) => (
-                        <li key={b.code}>{b.detail}</li>
+                        <li key={b.code}>
+                          {t(`privacy.blocker.${b.code}`, { count: b.count ?? 0 })}
+                        </li>
                       ))}
                     </ul>
+                  </div>
+                ) : null}
+                {r.resolutionNote ? (
+                  <p className="text-sm text-ink" data-testid="data-request-outcome">
+                    <span className="font-medium">{t('privacy.outcome')}: </span>
+                    {r.resolutionNote}
+                  </p>
+                ) : null}
+                {r.exportReady ? (
+                  <div className="space-y-1">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      loading={exportData.isPending}
+                      onClick={() => void download(r.id)}
+                      data-testid="data-request-download"
+                    >
+                      <Download aria-hidden="true" />
+                      {t('privacy.download')}
+                    </Button>
+                    <p className="text-xs text-ink-muted">{t('privacy.downloadHint')}</p>
                   </div>
                 ) : null}
               </li>

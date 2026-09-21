@@ -22,6 +22,7 @@ export const paths = {
 
   // money
   finance: '/finance',
+  privacy: '/privacy',
   reports: '/reports',
 
   // catalogue & pricing
@@ -129,6 +130,7 @@ export function isLocationScopedPath(pathname: string): boolean {
  */
 const ORG_WIDE_PREFIXES: readonly string[] = [
   paths.finance,
+  paths.privacy, // erasing or releasing a person's data is not a branch decision
   paths.categories, // also covers /catalogue/categories/features
   '/website/pages',
   paths.branding,

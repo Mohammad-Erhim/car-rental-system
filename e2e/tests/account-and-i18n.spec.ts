@@ -51,7 +51,7 @@ test.describe('customer account (APP-CWEB)', () => {
     guards.assertClean();
   });
 
-  test('SCREEN-CUS-024: a closure request is accepted with its retention blocker shown', async ({
+  test('SCREEN-CUS-024: a closure request with nothing open is received with a reply date, and can be withdrawn', async ({
     page,
   }, testInfo) => {
     const guards = attachConsoleGuards(page);
@@ -63,9 +63,14 @@ test.describe('customer account (APP-CWEB)', () => {
     await page.locator('#data-kind-closure').check();
     await page.getByTestId('data-request-submit').click();
 
+    // DEC-041: a closure is blocked only by what is really open (a current or upcoming reservation
+    // or rental, an unresolved payment issue) — the dev customer has none, so it is simply received,
+    // with the day a reply is due. (It used to be "blocked" by a placeholder retention line, always.)
     const item = page.getByTestId('data-request-closure').first();
     await expect(item).toBeVisible();
-    await expect(item.getByTestId('data-request-blockers')).toContainText(/retain|retention/i);
+    await expect(item).toContainText(/received/i);
+    await expect(item.getByTestId('data-request-due')).toBeVisible();
+    await expect(item.getByTestId('data-request-blockers')).toHaveCount(0);
     await shot(page, testInfo, 'cweb-data-requests');
 
     // clean up so reruns against the shared dev DB stay tidy

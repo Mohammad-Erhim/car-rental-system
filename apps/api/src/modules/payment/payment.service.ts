@@ -38,6 +38,11 @@ export interface AuthorizeAndCaptureInput {
   customerId?: string | null;
   channel?: string | null;
   quoteReference?: string | null;
+  /** the caller can send the customer through a bank (3-D Secure) challenge and be called again —
+   *  only the checkout's confirm can. Then a challenge is the `payment_action_required` error
+   *  (nothing charged or held) and the retry picks the authenticated payment up; without it a
+   *  challenge is a decline, exactly as before (DEC-040). */
+  allowAction?: boolean;
 }
 
 @Injectable()
@@ -86,7 +91,11 @@ export class PaymentService {
    * Idempotent authorize + capture for a reservation. A duplicate call (same reservation +
    * purpose) returns the existing captured intent instead of charging again (FR-PAY-002).
    * A provider timeout leaves the intent `requires_action` and throws `provider_timeout` — the
-   * caller must not create a reservation. A decline throws `business_rule_violation`.
+   * caller must not create a reservation. A decline throws `business_rule_violation`. With
+   * `allowAction`, a bank challenge leaves the intent `requires_action` (no failure code, a
+   * provider ref) and throws `payment_action_required`; calling again once the customer has
+   * authenticated captures it — or, if they since offered another card or a different amount,
+   * drops the old attempt and starts afresh.
    */
   async authorizeAndCapture(input: AuthorizeAndCaptureInput): Promise<{
     intentId: string;
@@ -184,6 +193,39 @@ export class PaymentService {
       });
     }
 
+    // A bank challenge may already be waiting on this reservation's payment: pick it up rather than
+    // charge again. Only a caller that can run one (`allowAction`) ever starts one, so only its
+    // retries arrive here. A timeout also leaves `requires_action`, but with a failure code.
+    let pendingRef =
+      input.allowAction &&
+      existing?.state === 'requires_action' &&
+      existing.providerRef &&
+      !existing.failureCode
+        ? existing.providerRef
+        : null;
+    // the attempt we drop, if any — a restart needs its own idempotency key at the processor
+    let supersededRef: string | null = null;
+    if (
+      pendingRef &&
+      existing &&
+      (existing.amountMinor !== input.amountMinor || existing.currency !== input.currency)
+    ) {
+      // what is being paid changed since the challenge began: the authenticated payment is for
+      // the wrong amount, so it can never be captured for this one
+      await this.port.void(pendingRef).catch(() => undefined);
+      await this.db
+        .update(paymentIntent)
+        .set({
+          amountMinor: input.amountMinor,
+          currency: input.currency,
+          providerRef: null,
+          updatedAt: sql`now()`,
+        })
+        .where(eq(paymentIntent.id, intentId));
+      supersededRef = pendingRef;
+      pendingRef = null;
+    }
+
     let auth: {
       providerRef: string;
       brand: string;
@@ -193,22 +235,58 @@ export class PaymentService {
       provider?: string;
     };
     try {
-      auth = await this.port.authorize({
-        // Keyed on the specific payment method, not just reservation+purpose: a genuine retry of
-        // the *same* card (double-click, network hiccup) reuses the same Stripe idempotency key
-        // and is safely deduped, but a customer retrying with a *different* card after a decline
-        // must get a fresh key — Stripe itself rejects a reused key whose request body differs
-        // (StripeIdempotencyError), which is exactly what a fixed `reservationReference:purpose`
-        // key caused on every retry-with-a-different-card.
-        idempotencyKey: `${input.reservationReference}:${purpose}:${input.token ?? saved?.methodRef ?? 'off-session'}`,
-        amountMinor: input.amountMinor,
-        currency: input.currency,
-        token: input.token,
-        reference: input.reservationReference,
-        reuse: saved ?? undefined,
-        saveForReuse: !saved,
-        context: await this.contextFor(input, intentId, purpose),
-      });
+      const resumed = pendingRef ? await this.port.resume(pendingRef, input.token) : null;
+      if (resumed?.kind === 'action_required') throw this.actionRequired(resumed.clientSecret);
+      if (resumed?.kind === 'authorized') {
+        auth = resumed.result;
+      } else {
+        // no challenge pending — or the pending one was for another card / is gone
+        if (resumed?.kind === 'superseded') supersededRef = pendingRef;
+        const fresh = await this.port.authorize({
+          // Keyed on the specific payment method, not just reservation+purpose: a genuine retry of
+          // the *same* card (double-click, network hiccup) reuses the same Stripe idempotency key
+          // and is safely deduped, but a customer retrying with a *different* card after a decline
+          // must get a fresh key — Stripe itself rejects a reused key whose request body differs
+          // (StripeIdempotencyError), which is exactly what a fixed `reservationReference:purpose`
+          // key caused on every retry-with-a-different-card. Restarting after a dropped challenge
+          // gets its own key too: the same card + amount would otherwise replay the cancelled one.
+          idempotencyKey:
+            `${input.reservationReference}:${purpose}:${input.token ?? saved?.methodRef ?? 'off-session'}` +
+            (supersededRef ? `:restart:${supersededRef}:${input.amountMinor}` : ''),
+          amountMinor: input.amountMinor,
+          currency: input.currency,
+          token: input.token,
+          reference: input.reservationReference,
+          reuse: saved ?? undefined,
+          saveForReuse: !saved,
+          context: await this.contextFor(input, intentId, purpose),
+          allowAction: input.allowAction,
+        });
+        if (fresh.actionRequired) {
+          // the bank wants the customer to authenticate — nothing is held or charged yet. Keep the
+          // provider ref so the retry can resume it; the reservation is NOT created.
+          await this.recordLedger(
+            intentId,
+            input.reservationReference,
+            'authorize',
+            input,
+            'pending',
+            undefined,
+            fresh.providerRef,
+          );
+          await this.db
+            .update(paymentIntent)
+            .set({
+              ...(fresh.provider ? { provider: fresh.provider } : {}),
+              providerRef: fresh.providerRef,
+              failureCode: null,
+              updatedAt: sql`now()`,
+            })
+            .where(eq(paymentIntent.id, intentId));
+          throw this.actionRequired(fresh.actionRequired.clientSecret);
+        }
+        auth = fresh;
+      }
     } catch (err) {
       if (err instanceof PaymentTimeoutError) {
         await this.recordLedger(
@@ -600,6 +678,8 @@ export class PaymentService {
     kind: string;
     ledgerAmountMinor?: number | null;
     providerAmountMinor?: number | null;
+    /** what a person needs to act on it (a dispute's reason and evidence deadline, …) */
+    detail?: Record<string, unknown> | null;
   }): Promise<string> {
     const [row] = await this.db
       .insert(reconciliationException)
@@ -610,6 +690,7 @@ export class PaymentService {
         kind: input.kind,
         ledgerAmountMinor: input.ledgerAmountMinor ?? null,
         providerAmountMinor: input.providerAmountMinor ?? null,
+        detail: input.detail ?? null,
       })
       .returning({ id: reconciliationException.id });
     await this.outbox.emit({
@@ -619,6 +700,75 @@ export class PaymentService {
       payload: { kind: input.kind, reservationReference: input.reservationReference },
     });
     return row!.id;
+  }
+
+  /** The customer's bank wants them to authenticate (3-D Secure). `clientSecret` is the customer's
+   *  own single-use handle for completing it in the browser / app; it is redacted from logs. */
+  private actionRequired(clientSecret: string): AppError {
+    return new AppError('payment_action_required', {
+      title: 'Your bank needs to confirm this payment',
+      params: { reason: 'authentication_required', clientSecret },
+    });
+  }
+
+  /**
+   * A chargeback / dispute raised at the card network (FR-PAY-008). Like every other disagreement
+   * with the provider this NEVER edits the ledger — money is moved by a person, not by a webhook —
+   * it puts the dispute in front of finance: ONE open `dispute` exception per dispute, carrying the
+   * reason and the evidence deadline (after which the provider decides against us by default).
+   * Later events for the same dispute (updated / funds withdrawn / closed) refresh that same
+   * exception instead of piling up new ones; once finance has resolved it, a further event is new
+   * information (e.g. a closed-as-lost) and opens a fresh one.
+   */
+  async recordDispute(input: {
+    organizationId: string;
+    reservationReference: string | null;
+    intentId: string;
+    disputeId: string;
+    chargeId: string | null;
+    amountMinor: number;
+    reason: string | null;
+    status: string | null;
+    /** the last day evidence can be submitted, ISO-8601 */
+    dueBy: string | null;
+    eventType: string;
+  }): Promise<{ id: string; created: boolean }> {
+    const detail = {
+      disputeId: input.disputeId,
+      chargeId: input.chargeId,
+      reason: input.reason,
+      status: input.status,
+      dueBy: input.dueBy,
+      lastEvent: input.eventType,
+    };
+    const [open] = await this.db
+      .select({ id: reconciliationException.id })
+      .from(reconciliationException)
+      .where(
+        and(
+          eq(reconciliationException.kind, 'dispute'),
+          eq(reconciliationException.state, 'open'),
+          eq(reconciliationException.intentId, input.intentId),
+          sql`${reconciliationException.detail}->>'disputeId' = ${input.disputeId}`,
+        ),
+      )
+      .limit(1);
+    if (open) {
+      await this.db
+        .update(reconciliationException)
+        .set({ providerAmountMinor: input.amountMinor, detail, updatedAt: sql`now()` })
+        .where(eq(reconciliationException.id, open.id));
+      return { id: open.id, created: false };
+    }
+    const id = await this.openReconciliationException({
+      organizationId: input.organizationId,
+      reservationReference: input.reservationReference,
+      intentId: input.intentId,
+      kind: 'dispute',
+      providerAmountMinor: input.amountMinor,
+      detail,
+    });
+    return { id, created: true };
   }
 
   async listReconciliationExceptions() {

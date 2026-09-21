@@ -261,6 +261,9 @@ export class BookingService {
       customerId: input.actor?.kind === 'customer' ? input.actor.accountId : null,
       channel: input.actor?.kind === 'staff' ? 'staff' : input.actor ? 'customer' : 'guest',
       quoteReference: input.quoteReference,
+      // the checkout can take the customer through their bank's challenge and be submitted again
+      // (DEC-040); no reservation exists until the payment is captured, and the hold stays live
+      allowAction: true,
     });
 
     // ---- fault injection: money moved but the write fails → owned recovery case ----

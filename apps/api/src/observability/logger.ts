@@ -21,6 +21,7 @@ const REDACT_PATHS = [
   '*.password',
   '*.passwordHash',
   '*.secret',
+  '*.clientSecret',
   '*.accessToken',
   '*.refreshToken',
   '*.cardNumber',

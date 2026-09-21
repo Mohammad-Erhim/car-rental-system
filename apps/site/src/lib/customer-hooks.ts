@@ -18,6 +18,7 @@ export {
   useRemoveDriver,
   useDataRequests,
   useCreateDataRequest,
+  useDataRequestExport,
   useCancelDataRequest,
   useLocations,
   useCategory,

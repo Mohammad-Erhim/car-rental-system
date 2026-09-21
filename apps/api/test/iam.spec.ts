@@ -279,15 +279,25 @@ describe('IAM / auth', () => {
     expect(after.body.version).toBe(p0.body.version + 1);
   });
 
-  it('TEST-IAM-008 closure request is created blocked with a retention blocker', async () => {
+  it('TEST-IAM-008 a closure request with nothing open is received, not blocked — and asking twice is one request', async () => {
+    // DEC-041: closure used to be created "blocked" by a placeholder retention blocker, always, and
+    // nothing could ever complete it. Now it is blocked only by what is really open (a current or
+    // upcoming reservation or rental, an unresolved payment issue) — see privacy.spec.ts for those.
     const s = await signIn(await getTestApp(), 'test-customer@example.test', 'Test-Passw0rd!');
     const res = await request(server)
       .post('/api/v1/auth/data-requests')
       .set('Authorization', `Bearer ${s.accessToken}`)
       .send({ kind: 'closure' })
       .expect(201);
-    expect(res.body.status).toBe('blocked');
-    expect(res.body.blockers.map((b: { code: string }) => b.code)).toContain('retention_period');
+    expect(res.body.status).toBe('received');
+    expect(res.body.blockers).toEqual([]);
+    expect(res.body.dueAt).toBeTruthy();
+    const again = await request(server)
+      .post('/api/v1/auth/data-requests')
+      .set('Authorization', `Bearer ${s.accessToken}`)
+      .send({ kind: 'closure' })
+      .expect(201);
+    expect(again.body.id).toBe(res.body.id);
   });
 
   it('permission denial: an unauthenticated request to a protected route is 401; a customer hitting staff routes is 403', async () => {

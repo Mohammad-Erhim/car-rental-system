@@ -1,254 +1,254 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`HTTP route manifest > matches the committed manifest 1`] = `
-"GET    /api/v1/admin/access/history
-GET    /api/v1/admin/access/users-matrix
-GET    /api/v1/admin/access/who-can
-GET    /api/v1/admin/groups
-POST   /api/v1/admin/groups
-PUT    /api/v1/admin/groups/:code
-POST   /api/v1/admin/groups/:code/archive
-POST   /api/v1/admin/groups/:code/restore
-PUT    /api/v1/admin/permissions/matrix
-GET    /api/v1/admin/roles
-POST   /api/v1/admin/roles
-PATCH  /api/v1/admin/roles/:code
-POST   /api/v1/admin/roles/:code/archive
-POST   /api/v1/admin/roles/:code/clone
-POST   /api/v1/admin/roles/:code/restore
-GET    /api/v1/admin/staff
-GET    /api/v1/admin/staff/:accountId/access
-POST   /api/v1/admin/staff/:accountId/access
-POST   /api/v1/admin/staff/:accountId/assignments
-DELETE /api/v1/admin/staff/:accountId/assignments/:id
-GET    /api/v1/admin/staff/:accountId/explain
-POST   /api/v1/admin/staff/:accountId/overrides
-DELETE /api/v1/admin/staff/:accountId/overrides/:id
-POST   /api/v1/admin/staff/invite
-GET    /api/v1/admin/workflows/actions
-GET    /api/v1/admin/workflows/bindings
-PUT    /api/v1/admin/workflows/bindings
-DELETE /api/v1/admin/workflows/bindings/:id
-GET    /api/v1/admin/workflows/definitions
-POST   /api/v1/admin/workflows/definitions
-GET    /api/v1/admin/workflows/definitions/:id
-POST   /api/v1/admin/workflows/definitions/:id/archive
-POST   /api/v1/admin/workflows/definitions/:id/clone
-PUT    /api/v1/admin/workflows/definitions/:id/draft
-POST   /api/v1/admin/workflows/definitions/:id/publish
-POST   /api/v1/admin/workflows/definitions/validate
-GET    /api/v1/admin/workflows/options
-POST   /api/v1/admin/workflows/simulate
-POST   /api/v1/auth/change-password
-GET    /api/v1/auth/data-requests
-POST   /api/v1/auth/data-requests
-POST   /api/v1/auth/data-requests/:id/cancel
-GET    /api/v1/auth/drivers
-POST   /api/v1/auth/drivers
-POST   /api/v1/auth/drivers/:id/remove
-GET    /api/v1/auth/me
-GET    /api/v1/auth/me/access
-GET    /api/v1/auth/profile
-POST   /api/v1/auth/profile
-POST   /api/v1/auth/recovery/complete
-POST   /api/v1/auth/recovery/start
-POST   /api/v1/auth/refresh
-POST   /api/v1/auth/register
-POST   /api/v1/auth/resend-verification
-POST   /api/v1/auth/sign-in
-POST   /api/v1/auth/sign-out
-POST   /api/v1/auth/step-up
-POST   /api/v1/auth/verify-contact
-GET    /api/v1/bookings/:reference
-POST   /api/v1/bookings/:reference/claim
-POST   /api/v1/bookings/confirm
-GET    /api/v1/bookings/mine
-GET    /api/v1/catalogue/categories
-GET    /api/v1/catalogue/categories/:code
-GET    /api/v1/catalogue/categories/:code/units
-GET    /api/v1/catalogue/products
-POST   /api/v1/config/branding/assets
-GET    /api/v1/config/locales
-POST   /api/v1/config/locales
-DELETE /api/v1/config/locales/:code
-POST   /api/v1/config/locales/:code/activate
-POST   /api/v1/config/locales/:code/deactivate
-POST   /api/v1/config/locales/:code/default
-GET    /api/v1/config/locations
-GET    /api/v1/config/organization
-GET    /api/v1/config/translations
-POST   /api/v1/config/translations
-POST   /api/v1/config/translations/:namespace/:locale/publish
-GET    /api/v1/config/translations/completeness
-POST   /api/v1/consent
-GET    /api/v1/dev/mail
-GET    /api/v1/discovery/currencies
-POST   /api/v1/discovery/quote
-GET    /api/v1/discovery/quotes/:reference
-POST   /api/v1/discovery/search
-GET    /api/v1/docs
-GET    /api/v1/docs-yaml
-GET    /api/v1/docs/
-GET    /api/v1/docs/docs/swagger-ui-init.js
-GET    /api/v1/docs/swagger-ui-init.js
-GET    /api/v1/meta/branding
-GET    /api/v1/meta/branding.css
-GET    /api/v1/meta/build
-GET    /api/v1/meta/consent
-GET    /api/v1/meta/health-summary
-GET    /api/v1/meta/icon.svg
-GET    /api/v1/meta/locales
-GET    /api/v1/meta/pages
-GET    /api/v1/meta/seo
-GET    /api/v1/meta/translations
-GET    /api/v1/openapi.json
-GET    /api/v1/ops/audit
-GET    /api/v1/ops/audit/actors
-GET    /api/v1/ops/availability/holds
-POST   /api/v1/ops/availability/holds/:id/release
-GET    /api/v1/ops/cases
-POST   /api/v1/ops/cases/:id/resolve
-POST   /api/v1/ops/cases/:id/retry
-GET    /api/v1/ops/catalogue/categories
-POST   /api/v1/ops/catalogue/categories
-POST   /api/v1/ops/catalogue/categories/:code/deactivate
-POST   /api/v1/ops/catalogue/categories/:code/restore
-GET    /api/v1/ops/catalogue/features
-POST   /api/v1/ops/catalogue/features
-POST   /api/v1/ops/catalogue/features/:code/deactivate
-POST   /api/v1/ops/catalogue/features/:code/restore
-GET    /api/v1/ops/catalogue/products
-POST   /api/v1/ops/catalogue/products
-POST   /api/v1/ops/catalogue/products/:code/deactivate
-POST   /api/v1/ops/catalogue/products/:code/restore
-GET    /api/v1/ops/config/currencies
-POST   /api/v1/ops/config/currencies
-POST   /api/v1/ops/config/currencies/:code/default
-POST   /api/v1/ops/config/currencies/:code/disable
-GET    /api/v1/ops/config/versions
-POST   /api/v1/ops/config/versions
-DELETE /api/v1/ops/config/versions/:id
-POST   /api/v1/ops/config/versions/:id/approve
-POST   /api/v1/ops/config/versions/:id/reject
-POST   /api/v1/ops/config/versions/:id/submit
-POST   /api/v1/ops/config/versions/preview
-GET    /api/v1/ops/consent/log
-GET    /api/v1/ops/customers
-GET    /api/v1/ops/customers/:id
-POST   /api/v1/ops/customers/:id/merge
-GET    /api/v1/ops/customers/:id/restrictions
-POST   /api/v1/ops/customers/:id/restrictions
-POST   /api/v1/ops/customers/:id/restrictions/:rid/approve
-POST   /api/v1/ops/customers/:id/restrictions/:rid/lift
-POST   /api/v1/ops/customers/:id/restrictions/:rid/reject
-POST   /api/v1/ops/customers/:id/unmerge
-GET    /api/v1/ops/dashboard
-GET    /api/v1/ops/dashboard/analytics
-GET    /api/v1/ops/data-quality
-POST   /api/v1/ops/data-quality/:checkId/acknowledge
-POST   /api/v1/ops/data-quality/:checkId/false-positive
-POST   /api/v1/ops/data-quality/:checkId/resolve
-GET    /api/v1/ops/email/config
-PUT    /api/v1/ops/email/config
-GET    /api/v1/ops/fleet/blocks
-POST   /api/v1/ops/fleet/blocks
-POST   /api/v1/ops/fleet/blocks/:id/release
-GET    /api/v1/ops/fleet/units
-POST   /api/v1/ops/fleet/units
-POST   /api/v1/ops/fleet/units/:id
-POST   /api/v1/ops/fleet/units/:id/restore
-POST   /api/v1/ops/fleet/units/:id/retire
-POST   /api/v1/ops/fleet/units/:id/transfer
-POST   /api/v1/ops/fleet/units/import
-GET    /api/v1/ops/locations
-POST   /api/v1/ops/locations
-GET    /api/v1/ops/locations/:code
-POST   /api/v1/ops/locations/:code/archive
-POST   /api/v1/ops/locations/:code/hours-exceptions
-POST   /api/v1/ops/locations/:code/hours-exceptions/:id/remove
-GET    /api/v1/ops/locations/:code/impact
-POST   /api/v1/ops/locations/:code/restore
-GET    /api/v1/ops/locations/options
-GET    /api/v1/ops/media
-POST   /api/v1/ops/media
-DELETE /api/v1/ops/media/:id
-GET    /api/v1/ops/media/browse
-GET    /api/v1/ops/notification-rules
-POST   /api/v1/ops/notification-rules
-GET    /api/v1/ops/notification-rules/:event/:channel
-POST   /api/v1/ops/notification-rules/:event/:channel/disable
-POST   /api/v1/ops/notification-rules/:event/:channel/enable
-GET    /api/v1/ops/organization/legal
-POST   /api/v1/ops/organization/legal
-GET    /api/v1/ops/payments/config
-PUT    /api/v1/ops/payments/config
-GET    /api/v1/ops/payments/mode
-GET    /api/v1/ops/payments/reconciliation
-POST   /api/v1/ops/payments/reconciliation/:id/resolve
-POST   /api/v1/ops/payments/reconciliation/run
-GET    /api/v1/ops/pricing/rate-plans
-POST   /api/v1/ops/pricing/rate-plans
-DELETE /api/v1/ops/pricing/rate-plans/:id
-POST   /api/v1/ops/pricing/rate-plans/:id/publish
-GET    /api/v1/ops/rentals
-POST   /api/v1/ops/rentals/:reference/incident
-POST   /api/v1/ops/rentals/:reference/pickup
-POST   /api/v1/ops/rentals/:reference/readiness
-POST   /api/v1/ops/rentals/:reference/return
-POST   /api/v1/ops/rentals/overdue-sweep
-GET    /api/v1/ops/reports
-POST   /api/v1/ops/reports/:code/preview
-POST   /api/v1/ops/reports/:code/run
-GET    /api/v1/ops/reports/runs
-GET    /api/v1/ops/reports/runs/:runId
-GET    /api/v1/ops/reports/runs/:runId/export
-GET    /api/v1/ops/reports/schedules
-POST   /api/v1/ops/reports/schedules
-POST   /api/v1/ops/reports/schedules/:id/send
-GET    /api/v1/ops/reservations
-GET    /api/v1/ops/reservations/:reference/invoices
-POST   /api/v1/ops/reservations/:reference/no-show
-POST   /api/v1/ops/reservations/:reference/refund
-POST   /api/v1/ops/reservations/:reservationReference/assign
-GET    /api/v1/ops/search
-GET    /api/v1/ops/templates
-POST   /api/v1/ops/templates/:id/publish
-POST   /api/v1/ops/templates/:id/submit
-GET    /api/v1/ops/templates/:key/:channel/:locale
-GET    /api/v1/ops/templates/:key/:channel/readiness
-POST   /api/v1/ops/templates/draft
-POST   /api/v1/ops/templates/preview
-GET    /api/v1/reference-data/types
-GET    /api/v1/reference-data/types/:code
-POST   /api/v1/reference-data/types/:code/reorder
-GET    /api/v1/reference-data/types/:code/values
-POST   /api/v1/reference-data/types/:code/values
-GET    /api/v1/reference-data/types/:code/values/:valueCode/usage
-POST   /api/v1/reference-data/types/:code/values/:valueId
-POST   /api/v1/reference-data/types/:code/values/:valueId/deactivate
-POST   /api/v1/reference-data/types/:code/values/:valueId/restore
-GET    /api/v1/rentals/:reference
-POST   /api/v1/rentals/:reference/extend
-GET    /api/v1/rentals/mine
-GET    /api/v1/reservations/:reference
-POST   /api/v1/reservations/:reference/cancel
-GET    /api/v1/reservations/:reference/history
-GET    /api/v1/reservations/:reference/invoices
-GET    /api/v1/reservations/:reference/invoices/:number
-POST   /api/v1/reservations/:reference/modify
-GET    /api/v1/reservations/mine
-POST   /api/v1/webhooks/stripe
-GET    /api/v1/workflows/delegations
-POST   /api/v1/workflows/delegations
-DELETE /api/v1/workflows/delegations/:id
-GET    /api/v1/workflows/delegations/people
-GET    /api/v1/workflows/inbox
-GET    /api/v1/workflows/inbox/count
-GET    /api/v1/workflows/instances
-GET    /api/v1/workflows/instances/:id
-POST   /api/v1/workflows/instances/:id/cancel
-POST   /api/v1/workflows/instances/:id/force
-POST   /api/v1/workflows/instances/:id/withdraw
-POST   /api/v1/workflows/tasks/:id/decide
-POST   /api/v1/workflows/tasks/:id/reassign"
+"GET    /api/v1/admin/access/history  ::  auth permissions(any)=staff.manage org-wide
+GET    /api/v1/admin/access/users-matrix  ::  auth permissions(any)=staff.manage org-wide
+GET    /api/v1/admin/access/who-can  ::  auth permissions(any)=staff.manage org-wide
+GET    /api/v1/admin/groups  ::  auth permissions(any)=staff.manage org-wide
+POST   /api/v1/admin/groups  ::  auth permissions(any)=staff.manage org-wide
+PUT    /api/v1/admin/groups/:code  ::  auth permissions(any)=staff.manage org-wide
+POST   /api/v1/admin/groups/:code/archive  ::  auth permissions(any)=staff.manage org-wide
+POST   /api/v1/admin/groups/:code/restore  ::  auth permissions(any)=staff.manage org-wide
+PUT    /api/v1/admin/permissions/matrix  ::  auth permissions(any)=staff.manage org-wide step-up
+GET    /api/v1/admin/roles  ::  auth permissions(any)=staff.manage
+POST   /api/v1/admin/roles  ::  auth permissions(any)=staff.manage org-wide step-up
+PATCH  /api/v1/admin/roles/:code  ::  auth permissions(any)=staff.manage org-wide step-up
+POST   /api/v1/admin/roles/:code/archive  ::  auth permissions(any)=staff.manage org-wide step-up
+POST   /api/v1/admin/roles/:code/clone  ::  auth permissions(any)=staff.manage org-wide step-up
+POST   /api/v1/admin/roles/:code/restore  ::  auth permissions(any)=staff.manage org-wide step-up
+GET    /api/v1/admin/staff  ::  auth permissions(any)=staff.manage
+GET    /api/v1/admin/staff/:accountId/access  ::  auth permissions(any)=staff.manage org-wide
+POST   /api/v1/admin/staff/:accountId/access  ::  auth permissions(any)=staff.manage org-wide
+POST   /api/v1/admin/staff/:accountId/assignments  ::  auth permissions(any)=staff.manage org-wide step-up
+DELETE /api/v1/admin/staff/:accountId/assignments/:id  ::  auth permissions(any)=staff.manage org-wide step-up
+GET    /api/v1/admin/staff/:accountId/explain  ::  auth permissions(any)=staff.manage org-wide
+POST   /api/v1/admin/staff/:accountId/overrides  ::  auth permissions(any)=staff.manage org-wide step-up
+DELETE /api/v1/admin/staff/:accountId/overrides/:id  ::  auth permissions(any)=staff.manage org-wide step-up
+POST   /api/v1/admin/staff/invite  ::  auth permissions(any)=staff.manage
+GET    /api/v1/admin/workflows/actions  ::  auth permissions(any)=workflow.manage,workflow.monitor org-wide
+GET    /api/v1/admin/workflows/bindings  ::  auth permissions(any)=workflow.manage,workflow.monitor org-wide
+PUT    /api/v1/admin/workflows/bindings  ::  auth permissions(any)=workflow.manage org-wide step-up
+DELETE /api/v1/admin/workflows/bindings/:id  ::  auth permissions(any)=workflow.manage org-wide step-up
+GET    /api/v1/admin/workflows/definitions  ::  auth permissions(any)=workflow.manage,workflow.monitor org-wide
+POST   /api/v1/admin/workflows/definitions  ::  auth permissions(any)=workflow.manage org-wide step-up
+GET    /api/v1/admin/workflows/definitions/:id  ::  auth permissions(any)=workflow.manage,workflow.monitor org-wide
+POST   /api/v1/admin/workflows/definitions/:id/archive  ::  auth permissions(any)=workflow.manage org-wide step-up
+POST   /api/v1/admin/workflows/definitions/:id/clone  ::  auth permissions(any)=workflow.manage org-wide
+PUT    /api/v1/admin/workflows/definitions/:id/draft  ::  auth permissions(any)=workflow.manage org-wide
+POST   /api/v1/admin/workflows/definitions/:id/publish  ::  auth permissions(any)=workflow.manage org-wide step-up
+POST   /api/v1/admin/workflows/definitions/validate  ::  auth permissions(any)=workflow.manage org-wide
+GET    /api/v1/admin/workflows/options  ::  auth permissions(any)=workflow.manage org-wide
+POST   /api/v1/admin/workflows/simulate  ::  auth permissions(any)=workflow.manage org-wide
+POST   /api/v1/auth/change-password  ::  auth rate-limit=auth
+GET    /api/v1/auth/data-requests  ::  auth audience=customer
+POST   /api/v1/auth/data-requests  ::  auth audience=customer
+POST   /api/v1/auth/data-requests/:id/cancel  ::  auth audience=customer
+GET    /api/v1/auth/data-requests/:id/export  ::  auth audience=customer rate-limit=10/3600s
+GET    /api/v1/auth/drivers  ::  auth audience=customer
+POST   /api/v1/auth/drivers  ::  auth audience=customer
+POST   /api/v1/auth/drivers/:id/remove  ::  auth audience=customer
+GET    /api/v1/auth/me  ::  auth
+GET    /api/v1/auth/me/access  ::  auth
+GET    /api/v1/auth/profile  ::  auth audience=customer
+POST   /api/v1/auth/profile  ::  auth audience=customer
+POST   /api/v1/auth/recovery/complete  ::  public rate-limit=auth
+POST   /api/v1/auth/recovery/start  ::  public rate-limit=auth
+POST   /api/v1/auth/refresh  ::  public
+POST   /api/v1/auth/register  ::  public rate-limit=auth
+POST   /api/v1/auth/resend-verification  ::  public rate-limit=auth
+POST   /api/v1/auth/sign-in  ::  public rate-limit=auth
+POST   /api/v1/auth/sign-out  ::  public
+POST   /api/v1/auth/step-up  ::  auth rate-limit=auth
+POST   /api/v1/auth/verify-contact  ::  public rate-limit=auth
+GET    /api/v1/bookings/:reference  ::  optional-auth staff-permissions=reservation.read,reservation.modify,reservation.cancel
+POST   /api/v1/bookings/:reference/claim  ::  auth
+POST   /api/v1/bookings/confirm  ::  optional-auth rate-limit=booking-confirm
+GET    /api/v1/bookings/mine  ::  auth
+GET    /api/v1/catalogue/categories  ::  optional-auth
+GET    /api/v1/catalogue/categories/:code  ::  optional-auth
+GET    /api/v1/catalogue/categories/:code/units  ::  optional-auth
+GET    /api/v1/catalogue/products  ::  optional-auth
+POST   /api/v1/config/branding/assets  ::  auth permissions(any)=config.publish org-wide
+GET    /api/v1/config/locales  ::  auth permissions(any)=config.read,config.publish org-wide
+POST   /api/v1/config/locales  ::  auth permissions(any)=config.publish org-wide
+DELETE /api/v1/config/locales/:code  ::  auth permissions(any)=config.publish org-wide
+POST   /api/v1/config/locales/:code/activate  ::  auth permissions(any)=config.publish org-wide
+POST   /api/v1/config/locales/:code/deactivate  ::  auth permissions(any)=config.publish org-wide
+POST   /api/v1/config/locales/:code/default  ::  auth permissions(any)=config.publish org-wide
+GET    /api/v1/config/locations  ::  optional-auth
+GET    /api/v1/config/organization  ::  optional-auth
+GET    /api/v1/config/translations  ::  auth permissions(any)=config.read,config.publish,lookup.manage org-wide
+POST   /api/v1/config/translations  ::  auth permissions(any)=config.publish,lookup.manage org-wide
+POST   /api/v1/config/translations/:namespace/:locale/publish  ::  auth permissions(any)=config.publish org-wide
+GET    /api/v1/config/translations/completeness  ::  auth permissions(any)=config.read,config.publish,lookup.manage org-wide
+POST   /api/v1/consent  ::  public rate-limit=20/60s
+GET    /api/v1/dev/mail  ::  public
+GET    /api/v1/discovery/currencies  ::  optional-auth
+POST   /api/v1/discovery/quote  ::  optional-auth rate-limit=discovery-quote
+GET    /api/v1/discovery/quotes/:reference  ::  optional-auth
+POST   /api/v1/discovery/search  ::  optional-auth
+GET    /api/v1/meta/branding  ::  public
+GET    /api/v1/meta/branding.css  ::  public
+GET    /api/v1/meta/build  ::  public
+GET    /api/v1/meta/consent  ::  public
+GET    /api/v1/meta/health-summary  ::  public
+GET    /api/v1/meta/icon.svg  ::  public
+GET    /api/v1/meta/locales  ::  public
+GET    /api/v1/meta/pages  ::  public
+GET    /api/v1/meta/seo  ::  public
+GET    /api/v1/meta/translations  ::  public
+GET    /api/v1/ops/audit  ::  auth permissions(any)=audit.read org-wide
+GET    /api/v1/ops/audit/actors  ::  auth permissions(any)=audit.read org-wide
+GET    /api/v1/ops/availability/holds  ::  auth permissions(any)=reservation.read,config.read
+POST   /api/v1/ops/availability/holds/:id/release  ::  auth permissions(any)=reservation.cancel,config.publish
+GET    /api/v1/ops/cases  ::  auth permissions(any)=payment.reconcile,payment.read org-wide
+POST   /api/v1/ops/cases/:id/resolve  ::  auth permissions(any)=payment.reconcile org-wide
+POST   /api/v1/ops/cases/:id/retry  ::  auth permissions(any)=payment.reconcile org-wide
+GET    /api/v1/ops/catalogue/categories  ::  auth permissions(any)=catalogue.read,config.read
+POST   /api/v1/ops/catalogue/categories  ::  auth permissions(any)=catalogue.manage org-wide
+POST   /api/v1/ops/catalogue/categories/:code/deactivate  ::  auth permissions(any)=catalogue.manage org-wide
+POST   /api/v1/ops/catalogue/categories/:code/restore  ::  auth permissions(any)=catalogue.manage org-wide
+GET    /api/v1/ops/catalogue/features  ::  auth permissions(any)=catalogue.read,config.read
+POST   /api/v1/ops/catalogue/features  ::  auth permissions(any)=catalogue.manage org-wide
+POST   /api/v1/ops/catalogue/features/:code/deactivate  ::  auth permissions(any)=catalogue.manage org-wide
+POST   /api/v1/ops/catalogue/features/:code/restore  ::  auth permissions(any)=catalogue.manage org-wide
+GET    /api/v1/ops/catalogue/products  ::  auth permissions(any)=catalogue.read,config.read
+POST   /api/v1/ops/catalogue/products  ::  auth permissions(any)=catalogue.manage
+POST   /api/v1/ops/catalogue/products/:code/deactivate  ::  auth permissions(any)=catalogue.manage
+POST   /api/v1/ops/catalogue/products/:code/restore  ::  auth permissions(any)=catalogue.manage
+GET    /api/v1/ops/config/currencies  ::  auth permissions(any)=lookup.manage,config.read org-wide
+POST   /api/v1/ops/config/currencies  ::  auth permissions(any)=lookup.manage org-wide
+POST   /api/v1/ops/config/currencies/:code/default  ::  auth permissions(any)=lookup.manage org-wide
+POST   /api/v1/ops/config/currencies/:code/disable  ::  auth permissions(any)=lookup.manage org-wide
+GET    /api/v1/ops/config/versions  ::  auth permissions(any)=config.read,config.publish org-wide
+POST   /api/v1/ops/config/versions  ::  auth permissions(any)=config.publish org-wide
+DELETE /api/v1/ops/config/versions/:id  ::  auth permissions(any)=config.publish
+POST   /api/v1/ops/config/versions/:id/approve  ::  auth permissions(any)=config.publish org-wide
+POST   /api/v1/ops/config/versions/:id/reject  ::  auth permissions(any)=config.publish org-wide
+POST   /api/v1/ops/config/versions/:id/submit  ::  auth permissions(any)=config.publish org-wide
+POST   /api/v1/ops/config/versions/preview  ::  auth permissions(any)=config.read,config.publish org-wide
+GET    /api/v1/ops/consent/log  ::  auth permissions(any)=audit.read org-wide
+GET    /api/v1/ops/customers  ::  auth permissions(any)=customer.read
+GET    /api/v1/ops/customers/:id  ::  auth permissions(any)=customer.read
+POST   /api/v1/ops/customers/:id/merge  ::  auth permissions(any)=customer.manage org-wide
+GET    /api/v1/ops/customers/:id/restrictions  ::  auth permissions(any)=customer.read
+POST   /api/v1/ops/customers/:id/restrictions  ::  auth permissions(any)=customer.manage
+POST   /api/v1/ops/customers/:id/restrictions/:rid/approve  ::  auth permissions(any)=customer.manage
+POST   /api/v1/ops/customers/:id/restrictions/:rid/lift  ::  auth permissions(any)=customer.manage
+POST   /api/v1/ops/customers/:id/restrictions/:rid/reject  ::  auth permissions(any)=customer.manage
+POST   /api/v1/ops/customers/:id/unmerge  ::  auth permissions(any)=customer.manage org-wide
+GET    /api/v1/ops/dashboard  ::  auth permissions(any)=reservation.read
+GET    /api/v1/ops/dashboard/analytics  ::  auth permissions(any)=reservation.read
+GET    /api/v1/ops/data-quality  ::  auth permissions(any)=audit.read,config.read org-wide
+POST   /api/v1/ops/data-quality/:checkId/acknowledge  ::  auth permissions(any)=audit.manage org-wide
+POST   /api/v1/ops/data-quality/:checkId/false-positive  ::  auth permissions(any)=audit.manage
+POST   /api/v1/ops/data-quality/:checkId/resolve  ::  auth permissions(any)=audit.manage org-wide
+GET    /api/v1/ops/email/config  ::  auth permissions(any)=email.manage org-wide
+PUT    /api/v1/ops/email/config  ::  auth permissions(any)=email.manage org-wide step-up
+GET    /api/v1/ops/fleet/blocks  ::  auth permissions(any)=fleet.read,fleet.manage
+POST   /api/v1/ops/fleet/blocks  ::  auth permissions(any)=fleet.manage
+POST   /api/v1/ops/fleet/blocks/:id/release  ::  auth permissions(any)=fleet.manage
+GET    /api/v1/ops/fleet/units  ::  auth permissions(any)=fleet.read,fleet.manage
+POST   /api/v1/ops/fleet/units  ::  auth permissions(any)=fleet.manage
+POST   /api/v1/ops/fleet/units/:id  ::  auth permissions(any)=fleet.manage
+POST   /api/v1/ops/fleet/units/:id/restore  ::  auth permissions(any)=fleet.manage
+POST   /api/v1/ops/fleet/units/:id/retire  ::  auth permissions(any)=fleet.manage
+POST   /api/v1/ops/fleet/units/:id/transfer  ::  auth permissions(any)=fleet.manage
+POST   /api/v1/ops/fleet/units/import  ::  auth permissions(any)=fleet.manage
+GET    /api/v1/ops/locations  ::  auth permissions(any)=config.read,config.publish
+POST   /api/v1/ops/locations  ::  auth permissions(any)=config.publish org-wide
+GET    /api/v1/ops/locations/:code  ::  auth permissions(any)=config.read,config.publish
+POST   /api/v1/ops/locations/:code/archive  ::  auth permissions(any)=config.publish org-wide
+POST   /api/v1/ops/locations/:code/hours-exceptions  ::  auth permissions(any)=config.publish org-wide
+POST   /api/v1/ops/locations/:code/hours-exceptions/:id/remove  ::  auth permissions(any)=config.publish org-wide
+GET    /api/v1/ops/locations/:code/impact  ::  auth permissions(any)=config.read,config.publish
+POST   /api/v1/ops/locations/:code/restore  ::  auth permissions(any)=config.publish org-wide
+GET    /api/v1/ops/locations/options  ::  auth audience=staff
+GET    /api/v1/ops/media  ::  auth permissions(any)=catalogue.read,fleet.read,config.read
+POST   /api/v1/ops/media  ::  auth permissions(any)=catalogue.manage,fleet.manage
+DELETE /api/v1/ops/media/:id  ::  auth permissions(any)=catalogue.manage,fleet.manage
+GET    /api/v1/ops/media/browse  ::  auth permissions(any)=catalogue.read,fleet.read,config.read
+GET    /api/v1/ops/notification-rules  ::  auth permissions(any)=config.read,config.publish org-wide
+POST   /api/v1/ops/notification-rules  ::  auth permissions(any)=config.publish org-wide
+GET    /api/v1/ops/notification-rules/:event/:channel  ::  auth permissions(any)=config.read,config.publish org-wide
+POST   /api/v1/ops/notification-rules/:event/:channel/disable  ::  auth permissions(any)=config.publish org-wide
+POST   /api/v1/ops/notification-rules/:event/:channel/enable  ::  auth permissions(any)=config.publish org-wide
+GET    /api/v1/ops/organization/legal  ::  auth permissions(any)=config.read,config.publish org-wide
+POST   /api/v1/ops/organization/legal  ::  auth permissions(any)=config.publish org-wide
+GET    /api/v1/ops/payments/config  ::  auth permissions(any)=payment.manage org-wide
+PUT    /api/v1/ops/payments/config  ::  auth permissions(any)=payment.manage org-wide step-up
+GET    /api/v1/ops/payments/mode  ::  optional-auth org-wide
+GET    /api/v1/ops/payments/reconciliation  ::  auth permissions(any)=payment.reconcile,payment.read org-wide
+POST   /api/v1/ops/payments/reconciliation/:id/resolve  ::  auth permissions(any)=payment.reconcile org-wide
+POST   /api/v1/ops/payments/reconciliation/run  ::  auth permissions(any)=payment.reconcile org-wide
+GET    /api/v1/ops/pricing/rate-plans  ::  auth permissions(any)=config.read,config.publish
+POST   /api/v1/ops/pricing/rate-plans  ::  auth permissions(any)=config.publish
+DELETE /api/v1/ops/pricing/rate-plans/:id  ::  auth permissions(any)=config.publish
+POST   /api/v1/ops/pricing/rate-plans/:id/publish  ::  auth permissions(any)=config.publish
+GET    /api/v1/ops/privacy-requests  ::  auth permissions(any)=customer.read,customer.manage org-wide
+GET    /api/v1/ops/privacy-requests/:id  ::  auth permissions(any)=customer.read,customer.manage org-wide
+POST   /api/v1/ops/privacy-requests/:id/complete  ::  auth permissions(any)=customer.manage org-wide step-up
+POST   /api/v1/ops/privacy-requests/:id/reject  ::  auth permissions(any)=customer.manage org-wide
+POST   /api/v1/ops/privacy-requests/:id/review  ::  auth permissions(any)=customer.manage org-wide
+GET    /api/v1/ops/rentals  ::  auth permissions(any)=rental.read,rental.pickup,rental.return
+POST   /api/v1/ops/rentals/:reference/incident  ::  auth permissions(any)=rental.pickup,rental.return
+POST   /api/v1/ops/rentals/:reference/pickup  ::  auth permissions(any)=rental.pickup
+POST   /api/v1/ops/rentals/:reference/readiness  ::  auth permissions(any)=fleet.manage,rental.return
+POST   /api/v1/ops/rentals/:reference/return  ::  auth permissions(any)=rental.return
+POST   /api/v1/ops/rentals/overdue-sweep  ::  auth permissions(any)=rental.return
+GET    /api/v1/ops/reports  ::  auth permissions(any)=report.read
+POST   /api/v1/ops/reports/:code/preview  ::  auth permissions(any)=report.read
+POST   /api/v1/ops/reports/:code/run  ::  auth permissions(any)=report.read
+GET    /api/v1/ops/reports/runs  ::  auth permissions(any)=report.read
+GET    /api/v1/ops/reports/runs/:runId  ::  auth permissions(any)=report.read
+GET    /api/v1/ops/reports/runs/:runId/export  ::  auth permissions(any)=report.export,report.read
+GET    /api/v1/ops/reports/schedules  ::  auth permissions(any)=report.export,report.read
+POST   /api/v1/ops/reports/schedules  ::  auth permissions(any)=report.export
+POST   /api/v1/ops/reports/schedules/:id/send  ::  auth permissions(any)=report.export step-up
+GET    /api/v1/ops/reservations  ::  auth permissions(any)=reservation.read,reservation.modify
+GET    /api/v1/ops/reservations/:reference/invoices  ::  auth permissions(any)=payment.read,payment.reconcile,reservation.read
+POST   /api/v1/ops/reservations/:reference/no-show  ::  auth permissions(any)=reservation.modify,reservation.cancel
+POST   /api/v1/ops/reservations/:reference/refund  ::  auth permissions(any)=payment.refund
+POST   /api/v1/ops/reservations/:reservationReference/assign  ::  auth permissions(any)=rental.pickup,fleet.manage
+GET    /api/v1/ops/search  ::  auth permissions(any)=reservation.read,rental.read
+GET    /api/v1/ops/templates  ::  auth permissions(any)=config.read,config.publish org-wide
+POST   /api/v1/ops/templates/:id/publish  ::  auth permissions(any)=config.publish org-wide
+POST   /api/v1/ops/templates/:id/submit  ::  auth permissions(any)=config.publish org-wide
+GET    /api/v1/ops/templates/:key/:channel/:locale  ::  auth permissions(any)=config.read,config.publish org-wide
+GET    /api/v1/ops/templates/:key/:channel/readiness  ::  auth permissions(any)=config.read,config.publish org-wide
+POST   /api/v1/ops/templates/draft  ::  auth permissions(any)=config.publish org-wide
+POST   /api/v1/ops/templates/preview  ::  auth permissions(any)=config.read,config.publish org-wide
+GET    /api/v1/reference-data/types  ::  optional-auth
+GET    /api/v1/reference-data/types/:code  ::  optional-auth
+POST   /api/v1/reference-data/types/:code/reorder  ::  auth permissions(any)=lookup.manage org-wide
+GET    /api/v1/reference-data/types/:code/values  ::  optional-auth
+POST   /api/v1/reference-data/types/:code/values  ::  auth permissions(any)=lookup.manage org-wide
+GET    /api/v1/reference-data/types/:code/values/:valueCode/usage  ::  auth permissions(any)=lookup.manage,config.read,audit.read
+POST   /api/v1/reference-data/types/:code/values/:valueId  ::  auth permissions(any)=lookup.manage org-wide
+POST   /api/v1/reference-data/types/:code/values/:valueId/deactivate  ::  auth permissions(any)=lookup.manage org-wide
+POST   /api/v1/reference-data/types/:code/values/:valueId/restore  ::  auth permissions(any)=lookup.manage org-wide
+GET    /api/v1/rentals/:reference  ::  auth staff-permissions=rental.read,rental.pickup,rental.return
+POST   /api/v1/rentals/:reference/extend  ::  auth staff-permissions=rental.pickup,rental.return
+GET    /api/v1/rentals/mine  ::  auth
+GET    /api/v1/reservations/:reference  ::  auth staff-permissions=reservation.read,reservation.modify,reservation.cancel
+POST   /api/v1/reservations/:reference/cancel  ::  auth staff-permissions=reservation.cancel,reservation.modify
+GET    /api/v1/reservations/:reference/history  ::  auth staff-permissions=reservation.read,reservation.modify,reservation.cancel
+GET    /api/v1/reservations/:reference/invoices  ::  auth staff-permissions=reservation.read,payment.read,payment.reconcile
+GET    /api/v1/reservations/:reference/invoices/:number  ::  auth staff-permissions=reservation.read,payment.read,payment.reconcile
+POST   /api/v1/reservations/:reference/modify  ::  auth staff-permissions=reservation.modify
+GET    /api/v1/reservations/mine  ::  auth
+POST   /api/v1/webhooks/stripe  ::  public
+GET    /api/v1/workflows/delegations  ::  auth audience=staff
+POST   /api/v1/workflows/delegations  ::  auth audience=staff
+DELETE /api/v1/workflows/delegations/:id  ::  auth audience=staff
+GET    /api/v1/workflows/delegations/people  ::  auth audience=staff
+GET    /api/v1/workflows/inbox  ::  auth audience=staff
+GET    /api/v1/workflows/inbox/count  ::  auth audience=staff
+GET    /api/v1/workflows/instances  ::  auth audience=staff
+GET    /api/v1/workflows/instances/:id  ::  auth audience=staff
+POST   /api/v1/workflows/instances/:id/cancel  ::  auth audience=staff permissions(any)=workflow.monitor
+POST   /api/v1/workflows/instances/:id/force  ::  auth audience=staff permissions(any)=workflow.monitor
+POST   /api/v1/workflows/instances/:id/withdraw  ::  auth audience=staff
+POST   /api/v1/workflows/tasks/:id/decide  ::  auth audience=staff
+POST   /api/v1/workflows/tasks/:id/reassign  ::  auth audience=staff permissions(any)=workflow.monitor"
 `;

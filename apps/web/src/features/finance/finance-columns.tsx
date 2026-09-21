@@ -178,6 +178,33 @@ export function CaseCard({ c, handlers }: { c: RecoveryCase; handlers: CaseHandl
   );
 }
 
+/** The exception's kind — and, for a card dispute, what finance needs in order to act on it: why it
+ *  was raised, where it stands, and the day the evidence is due. */
+function ExceptionKind({ e }: { e: ReconciliationException }) {
+  const { t, fmt } = useI18n();
+  const d = e.kind === 'dispute' ? e.detail : null;
+  return (
+    <div className="space-y-1">
+      <Badge variant="warning">{t(`ops.fin.excKind.${e.kind}`)}</Badge>
+      {d?.dueBy ? (
+        <p className="text-xs font-medium text-destructive">
+          {t('ops.fin.disputeDue', { date: fmt.dateTime(d.dueBy) })}
+        </p>
+      ) : null}
+      {d?.status ? (
+        <p className="text-xs text-muted-foreground">
+          {t('ops.fin.disputeStatus', { status: d.status.replaceAll('_', ' ') })}
+        </p>
+      ) : null}
+      {d?.reason ? (
+        <p className="text-xs text-muted-foreground">
+          {t('ops.fin.disputeReason', { reason: d.reason.replaceAll('_', ' ') })}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function useExceptionColumns(
   onResolve: (e: ReconciliationException) => void,
 ): ColumnDef<ReconciliationException, unknown>[] {
@@ -202,9 +229,7 @@ export function useExceptionColumns(
       {
         id: 'kind',
         header: t('ops.fin.kind'),
-        cell: ({ row: { original: e } }) => (
-          <Badge variant="warning">{t(`ops.fin.excKind.${e.kind}`)}</Badge>
-        ),
+        cell: ({ row: { original: e } }) => <ExceptionKind e={e} />,
       },
       {
         id: 'ledger',
@@ -273,7 +298,7 @@ export function ExceptionCard({
         ) : (
           <span>—</span>
         )}
-        <Badge variant="warning">{t(`ops.fin.excKind.${e.kind}`)}</Badge>
+        <ExceptionKind e={e} />
       </div>
       <dl className="grid grid-cols-3 gap-2 text-sm">
         <div>

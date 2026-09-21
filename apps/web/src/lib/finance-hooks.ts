@@ -27,6 +27,16 @@ export interface RecoveryCase {
   resolutionNote: string | null;
 }
 
+/** What the provider told us about a card dispute (`kind: 'dispute'`, DEC-039). */
+export interface DisputeDetail {
+  disputeId?: string;
+  reason?: string | null;
+  /** the provider's own status, e.g. `needs_response`, `under_review`, `won`, `lost` */
+  status?: string | null;
+  /** the last day evidence can be submitted — after it the provider rules against us */
+  dueBy?: string | null;
+}
+
 export interface ReconciliationException {
   id: string;
   reservationReference: string | null;
@@ -34,6 +44,7 @@ export interface ReconciliationException {
   kind: string;
   ledgerAmountMinor: number | null;
   providerAmountMinor: number | null;
+  detail?: DisputeDetail | null;
   /** ledger − provider, when both are known */
   deltaMinor: number | null;
   currency: string;

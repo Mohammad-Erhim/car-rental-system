@@ -8,10 +8,13 @@ import { z } from 'zod';
 
 import { AppError } from '../../common/app-error';
 import { CurrentActor, MaybeCurrentActor, OptionalAuth } from '../../common/auth/auth.guard';
+import { StaffPermissions } from '../../common/auth/permissions.guard';
 import type { Actor } from '../../common/auth/types';
+import { RateLimit } from '../../common/security/rate-limit.decorator';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 
 import { BookingService } from './booking.service';
+import { RESERVATION_VIEW } from './reservation-permissions';
 
 // Every route here declares its own full 'bookings/*' path already — `path: ''` makes the
 // controller's own path explicit rather than an implicit default (CLAUDE.md: every controller
@@ -23,6 +26,8 @@ export class BookingController {
 
   @Post('bookings/confirm')
   @OptionalAuth()
+  // a guest reaches this with no account and every call is a card authorisation — DEC-040
+  @RateLimit({ preset: 'booking-confirm' })
   @ApiOperation({
     operationId: 'booking_confirm',
     summary: 'Confirm a held quote into a reservation',
@@ -54,6 +59,8 @@ export class BookingController {
 
   @Get('bookings/:reference')
   @OptionalAuth()
+  // a guest reads with their link token; a customer their own; STAFF need a reservation permission
+  @StaffPermissions(...RESERVATION_VIEW)
   async get(
     @Param('reference') reference: string,
     @Query('token') token: string | undefined,

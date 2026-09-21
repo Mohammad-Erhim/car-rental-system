@@ -713,3 +713,105 @@ routing-payment.adapter,payment-config.controller,stripe-webhook.controller}.ts`
   booking, by design (a booking keeps the terms it accepted).
 - Tests: `entity-translations.spec.ts` (served per language, English fallback, drafts unserved, a new
   branch appears to translate and is served once published, completeness of both namespaces).
+
+### DEC-038 — Routes customers and staff both use need a staff permission
+
+- Context: the routes a customer uses on their own reservation or rental (`GET /reservations/:ref`,
+  `…/cancel`, `…/modify`, `GET /rentals/:ref`, `…/extend`, `GET /bookings/:ref`) are the ones the
+  dashboard calls too. The ownership check (`assertOwnerOrStaff`) only asked "is this staff?", and
+  `PermissionsGuard` lets a signed-in user through any route that declares no permission — so a role
+  holding NO reservation or payment permission (an audit used `config.read` only) could read, cancel and
+  fully refund any booking. The route-manifest test that CLAUDE.md said guarded this snapshotted only
+  method and path.
+- Decisions:
+  - `@StaffPermissions(...actions)`: customers pass straight through to the service's ownership check; a
+    staff actor needs one of the actions. Applied at the controller, not in the service — the deferred
+    (workflow-approved) executions and the services' own internal calls are untouched.
+  - The sets mirror what the dashboard and the matching `/ops` route already require: view =
+    reservation.read | modify | cancel; invoices = reservation.read | payment.read | payment.reconcile;
+    cancel = reservation.cancel | modify; modify = reservation.modify; rental view = rental.read | pickup |
+    return; extend = rental.pickup | return. **Cancel deliberately accepts `reservation.modify`** — the
+    dashboard's own Cancel button and `/ops/.../no-show` do, and `support_staff` cancels today.
+  - The route manifest now records each route's guards (public / optional / audience / permissions /
+    staff-permissions / org-wide / step-up / rate-limit), read from the same Nest metadata the guards read.
+    It fails on a dropped guard, requires `@Permissions` on every `/ops` and `/admin` route (two named
+    exceptions) and makes every signed-in route without a permission choose: one audience, or own-data-only.
+- Known limit: a modify-only role can still cancel (as the dashboard already lets it). Tightening that is
+  one decorator plus the dashboard's `canCancel`. Authenticated routes still default to "allow"; the
+  manifest census is what stops a new one slipping through.
+- Tests: `staff-permission-gate.spec.ts` (role matrix, no side effects on refusal, owner / stranger /
+  guest), `route-manifest.spec.ts`.
+
+### DEC-039 — Stripe webhooks: a failed delivery is retried, and disputes reach finance
+
+- Context: a delivery that failed was stored `failed`; Stripe's retry then found that row and was answered
+  `200 handled:false, replay:true` — the event was lost for good after one transient error. Chargebacks
+  (`charge.dispute.*`) were not handled at all.
+- Decisions:
+  - `IdempotencyService.begin({ retryFailed: true })` takes over a `failed` claim — or an `in_progress` one
+    older than five minutes (its owner died) — in one atomic statement, so of several concurrent retries
+    exactly one runs. Only the webhook opts in; client commands still replay their stored result.
+  - The five `charge.dispute.*` events open ONE `dispute` reconciliation exception per dispute, carrying the
+    reason, status and evidence deadline (`detail`); later events refresh it; once finance has resolved it, a
+    further event (a loss, say) opens a fresh one. The ledger is never edited by a dispute.
+  - A payment still `requires_action` is a legitimate place for a failed / cancelled payment to be (a
+    customer who fails or abandons a bank challenge), so it no longer raises "missing in ledger".
+  - The dashboard labels the new kind and shows the deadline; `missing_in_ledger` / `missing_in_provider`
+    had no label (a raw key) and now do.
+- Operator step: subscribe the webhook endpoint in the Stripe dashboard to `charge.dispute.created`,
+  `.updated`, `.funds_withdrawn`, `.funds_reinstated`, `.closed` — an event Stripe is not asked to send
+  cannot be handled (deploy/RUNBOOK.md).
+- Known limit: evidence is still submitted in Stripe's dashboard; the exception queue is how finance learns
+  of a dispute and its deadline.
+- Tests: `stripe-webhook.spec.ts` (retry after failure, concurrent retries, abandoned claim, the dispute
+  lifecycle, pending-challenge intents).
+
+### DEC-040 — Card payments: 3-D Secure, and a throttled guest checkout
+
+- Context: (1) a card whose bank asked the customer to authenticate was a flat decline, so SCA-mandated
+  cards (most European cards) could not pay; (2) `POST /bookings/confirm` — reachable with no account, every
+  call a card authorisation — had no rate limit (80 of 80 rapid calls went through: a card-testing vector).
+- Decisions:
+  - Only the checkout can run a challenge (`allowAction`). It answers `payment_action_required` (402) with
+    the processor's client secret — nothing charged, no reservation, the hold still live. The client runs the
+    bank's challenge (`stripe.handleNextAction`) and submits the SAME request again; `PaymentPort.resume`
+    finds the authenticated payment and it is captured. A different card, or a changed total, since the
+    challenge began drops that attempt and starts afresh (its own idempotency key). Modify, extend and
+    off-session charges have no customer in the loop, so a challenge there is still a decline.
+  - `packages/client` `submitWithBankChallenge` is that round trip, DOM-free so the app can reuse it.
+  - `POST /bookings/confirm` has its own limiter (`RATE_LIMIT_BOOKING_CONFIRM_MAX` / `_WINDOW_SEC`, default 20
+    per 60 s per client IP). The env flags now really honour `0` / `false` / `off` (`z.coerce.boolean()` made
+    every string true, so the runbook's `RATE_LIMIT_ENABLED=0` emergency switch did nothing).
+- Known limits: the mobile app does not run the challenge yet (`handleNextAction` from
+  `@stripe/stripe-react-native` with the same helper — it could not be built or run where this was made), so
+  it shows "your bank needs to confirm this payment". Verified with the simulator, a mocked Stripe client and
+  unit tests; not against live Stripe. `trust proxy` counts one hop — behind a TLS terminator every visitor
+  shares one bucket (deploy/RUNBOOK.md).
+- Tests: `payment-sca.spec.ts`, `stripe-payment.adapter.test.ts`, `bank-challenge.test.ts`,
+  `security.spec.ts` (checkout burst), `env.schema.test.ts`.
+
+### DEC-041 — Data requests are fulfilled
+
+- Context: FR-IAM-008 requests were only recorded. A closure was always "blocked" by a placeholder retention
+  line, nothing moved a request past `received`, and there was no export, no erasure and no screen for staff.
+- Decisions:
+  - The whole feature lives in IAM (`privacy.service.ts`). A customer files; staff with `customer.manage`
+    work the queue (`/ops/privacy-requests`, org-wide); a reply is due one month after filing.
+  - **Access**: completing it releases a download built when the customer asks (current, never stored as a
+    second copy), available 30 days, audited. **Correction**: completed with a note of what was fixed.
+    **Rejection** needs a reason the customer can read. The customer is emailed (templated en / fr / ar).
+  - **Closure** is blocked by what is really open — a current or upcoming reservation, an open rental, an
+    unresolved payment issue — recomputed on every look, so it unblocks itself when the trip ends. Past
+    records being retained is NOT a blocker. Completing it (fresh password required): the payment processor
+    is asked to drop the saved cards FIRST (if it cannot, nothing changes and staff retry); then in one
+    transaction the login is retired (sessions revoked, password and contact removed, the address freed), the
+    profile, saved drivers and their documents are erased and messages sent to the person are redacted; the
+    document files are deleted afterwards.
+  - **Kept, on purpose**: reservations, rentals, invoices, payments, the per-reservation driver details on
+    them, and the audit trail — financial and contractual records with a legal retention period. Erasing
+    those is a separate, scheduled retention decision.
+- Known limits: nothing yet erases the retained records when their retention period ends; the closure
+  confirmation email is the one message that keeps the address (proof that we replied); audit events keep the
+  display name the account had at the time.
+- Tests: `privacy.spec.ts`, `iam.spec.ts` (TEST-IAM-008 rewritten — it asserted the stub), the web
+  `privacy-page.test.tsx`.

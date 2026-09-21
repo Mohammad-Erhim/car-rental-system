@@ -100,6 +100,36 @@ describe('STAGE-007 security', () => {
     expect(limited.length).toBeGreaterThan(0);
   }, 60_000);
 
+  it('TEST-SEC-015 guest checkout (POST /bookings/confirm — every call is a card authorisation) is throttled per client', async () => {
+    // Card-testing runs stolen numbers through a merchant's checkout in bulk. Before DEC-040 this
+    // route had no limiter at all (80 of 80 rapid calls went straight through). The test env's
+    // ceiling is RATE_LIMIT_BOOKING_CONFIRM_MAX=100 per 2 s window; 260 in flight puts one window
+    // over it even if a slow host splits the burst across two.
+    const ip = `198.51.100.${1 + Math.floor(Math.random() * 200)}`;
+    if (!server.listening) {
+      await new Promise<void>((res) => server.listen(0, () => res()));
+    }
+    const attempt = (forwardedFor: string) =>
+      request(server)
+        .post('/api/v1/bookings/confirm')
+        .set('X-Forwarded-For', forwardedFor)
+        .send({
+          quoteReference: 'Q-NO-SUCH-QUOTE',
+          drivers: [{ role: 'primary_renter', fullName: 'Card Tester', email: 'ct@example.test' }],
+          acceptTerms: true,
+          paymentToken: 'tok_ok',
+        });
+    const results = await Promise.all(Array.from({ length: 260 }, () => attempt(ip)));
+    const limited = results.filter((r) => r.status === 429);
+    expect(limited.length).toBeGreaterThan(0);
+    expect(limited[0]!.headers['retry-after']).toBeTruthy();
+    expect(limited[0]!.body.code).toBe('rate_limited');
+    // the calls under the ceiling still reached the booking logic (a made-up quote is refused there)
+    expect(results.some((r) => r.status !== 429)).toBe(true);
+    // a different client is unaffected
+    await attempt('203.0.113.55').then((r) => expect(r.status).not.toBe(429));
+  }, 90_000);
+
   it('TEST-SEC-015 the public consent-capture route has its own burst limit, independent of the auth bucket', async () => {
     const ip = `198.51.100.${1 + Math.floor(Math.random() * 200)}`;
     if (!server.listening) {

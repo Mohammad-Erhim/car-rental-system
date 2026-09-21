@@ -6,7 +6,7 @@ import { AuditService } from '../../common/audit/audit.service';
 import type { Actor } from '../../common/auth/types';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
-import { customer, driver, privacyRequest } from '../../database/schema/customer';
+import { customer, driver } from '../../database/schema/customer';
 
 import { AccountRepo } from './account.repo';
 import { VerificationService } from './verification.service';
@@ -191,67 +191,5 @@ export class ProfileService {
       targetId: driverId,
       actor,
     });
-  }
-
-  // ------------------------------------------------------- data access / closure
-
-  async listDataRequests(actor: Actor) {
-    return this.db
-      .select()
-      .from(privacyRequest)
-      .where(eq(privacyRequest.accountId, actor.accountId))
-      .orderBy(sql`${privacyRequest.createdAt} desc`);
-  }
-
-  async createDataRequest(
-    actor: Actor,
-    kind: 'access' | 'correction' | 'closure',
-    detail?: string,
-  ) {
-    const blockers: Array<{ code: string; detail: string }> = [];
-    // Closure blockers (FR-IAM-008): active rentals / unpaid balance / disputes / retention.
-    // Rentals/payments land in later stages; the structure + a retention note are modelled now.
-    if (kind === 'closure') {
-      blockers.push({
-        code: 'retention_period',
-        detail: 'Some records must be retained for a legally required period after closure.',
-      });
-    }
-    const [row] = await this.db
-      .insert(privacyRequest)
-      .values({
-        accountId: actor.accountId,
-        kind,
-        detail: detail ?? null,
-        status: blockers.length && kind === 'closure' ? 'blocked' : 'received',
-        blockers,
-        createdBy: actor.accountId,
-      })
-      .returning();
-    await this.audit.record({
-      action: `iam.data_request.${kind}`,
-      targetType: 'privacy_request',
-      targetId: row!.id,
-      actor,
-      after: { kind, status: row!.status },
-    });
-    return row;
-  }
-
-  async cancelDataRequest(actor: Actor, id: string) {
-    const [row] = await this.db
-      .select()
-      .from(privacyRequest)
-      .where(and(eq(privacyRequest.id, id), eq(privacyRequest.accountId, actor.accountId)))
-      .limit(1);
-    if (!row) throw AppError.notFound('request');
-    if (['completed', 'rejected', 'cancelled'].includes(row.status)) {
-      throw new AppError('business_rule_violation', { title: 'This request is already finalised' });
-    }
-    await this.db
-      .update(privacyRequest)
-      .set({ status: 'cancelled', updatedAt: sql`now()` })
-      .where(eq(privacyRequest.id, id));
-    return { ...row, status: 'cancelled' };
   }
 }

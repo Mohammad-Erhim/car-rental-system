@@ -3,7 +3,7 @@ import { ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 
 import { CurrentActor } from '../../common/auth/auth.guard';
-import { Permissions } from '../../common/auth/permissions.guard';
+import { Permissions, StaffPermissions } from '../../common/auth/permissions.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 
@@ -43,6 +43,12 @@ const zReturn = z.object({
     .optional(),
 });
 
+/** Staff actions that may open a rental / extend one through the routes customers also use
+ *  (`@StaffPermissions`, DEC-038) — the sets `GET /ops/rentals` and the dashboard's Extend button
+ *  already require. */
+const RENTAL_VIEW = ['rental.read', 'rental.pickup', 'rental.return'] as const;
+const RENTAL_EXTEND = ['rental.pickup', 'rental.return'] as const;
+
 // Serves both customer-facing 'rentals/*' routes and staff 'ops/*' routes, each declared in
 // full on its own method — `path: ''` makes that explicit rather than an implicit default
 // (CLAUDE.md: every controller sets an explicit path).
@@ -51,7 +57,7 @@ const zReturn = z.object({
 export class RentalController {
   constructor(private readonly rentals: RentalService) {}
 
-  // ---- customer ----
+  // ---- customer (staff reach these too — `@StaffPermissions`, DEC-038) ----
 
   @Get('rentals/mine')
   mine(@CurrentActor() actor: Actor) {
@@ -59,11 +65,13 @@ export class RentalController {
   }
 
   @Get('rentals/:reference')
+  @StaffPermissions(...RENTAL_VIEW)
   detail(@Param('reference') reference: string, @CurrentActor() actor: Actor) {
     return this.rentals.detailForActor(reference, actor);
   }
 
   @Post('rentals/:reference/extend')
+  @StaffPermissions(...RENTAL_EXTEND)
   extend(
     @Param('reference') reference: string,
     @Body(new ZodValidationPipe(zExtend)) body: z.infer<typeof zExtend>,

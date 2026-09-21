@@ -1,6 +1,6 @@
 'use client';
 
-import { ApiError } from '@carrental/client';
+import { ApiError, BankChallengeFailedError, submitWithBankChallenge } from '@carrental/client';
 import { useAuth } from '@carrental/client/react';
 import { stripeCurrency } from '@carrental/i18n';
 import { useI18n } from '@carrental/i18n/react';
@@ -128,26 +128,42 @@ function CheckoutInner() {
   // The one call that actually books & charges, regardless of where `token` came from — the
   // simulator's fixed test tokens, or a real Stripe PaymentMethod id created client-side by
   // `StripePaymentForm` below. Card data itself never reaches our servers either way.
-  async function doConfirm(token: string) {
+  //
+  // A card whose bank wants the customer to authenticate (3-D Secure) is answered
+  // `payment_action_required` with nothing charged or booked (DEC-040): `authenticate` runs the
+  // bank's challenge, then the SAME request is submitted again. The simulator has no bank, so its
+  // test tokens (`tok_3ds`, …) are treated as authenticated straight away.
+  async function doConfirm(
+    token: string,
+    authenticate: (clientSecret: string) => Promise<string | null> = async () => null,
+  ) {
     setLocalError(null);
     try {
-      const r = await confirm.mutateAsync({
-        quoteReference: ref!,
-        drivers: [
-          {
-            role: 'primary_renter',
-            fullName: fullName.trim(),
-            email: email || undefined,
-            licenceNumber: licence || undefined,
-          },
-        ],
-        acceptTerms: true,
-        paymentToken: token,
-        extraCodes: extraCodes.length ? extraCodes : undefined,
-      });
+      const r = await submitWithBankChallenge(
+        () =>
+          confirm.mutateAsync({
+            quoteReference: ref!,
+            drivers: [
+              {
+                role: 'primary_renter',
+                fullName: fullName.trim(),
+                email: email || undefined,
+                licenceNumber: licence || undefined,
+              },
+            ],
+            acceptTerms: true,
+            paymentToken: token,
+            extraCodes: extraCodes.length ? extraCodes : undefined,
+          }),
+        authenticate,
+      );
       setResult(r);
     } catch (err) {
-      setLocalError(err instanceof ApiError ? err.message : t('checkout.genericError'));
+      setLocalError(
+        err instanceof ApiError || err instanceof BankChallengeFailedError
+          ? err.message
+          : t('checkout.genericError'),
+      );
     }
   }
 
@@ -458,8 +474,10 @@ function CheckoutInner() {
  * Lives inside `<Elements>` — `useStripe`/`useElements` only resolve there. Uses the "deferred"
  * Payment Element pattern (no `clientSecret` passed to `<Elements>`): `stripe.createPaymentMethod`
  * hands back a `pm_...` id without our ever creating a PaymentIntent client-side, matching this
- * system's existing single-request confirm flow — the backend creates *and* confirms the
- * PaymentIntent itself (see `StripePaymentAdapter.authorize`).
+ * system's single-request confirm flow — the backend creates *and* confirms the PaymentIntent
+ * itself (see `StripePaymentAdapter.authorize`). If the card's bank wants the customer to
+ * authenticate (3-D Secure), the backend says so and `stripe.handleNextAction` runs the challenge
+ * before the same request is submitted again (DEC-040).
  */
 function StripePaymentForm({
   onToken,
@@ -469,7 +487,12 @@ function StripePaymentForm({
   payLabel,
   extra,
 }: {
-  onToken: (token: string) => Promise<void>;
+  /** `authenticate` runs the bank's 3-D Secure challenge for a client secret (DEC-040): null once
+   *  the customer has authenticated, else the processor's message for why they did not. */
+  onToken: (
+    token: string,
+    authenticate: (clientSecret: string) => Promise<string | null>,
+  ) => Promise<void>;
   validate: () => boolean;
   disabled: boolean;
   loading: boolean;
@@ -499,7 +522,10 @@ function StripePaymentForm({
         setStripeError(error?.message ?? t('checkout.stripeError'));
         return;
       }
-      await onToken(paymentMethod.id);
+      await onToken(paymentMethod.id, async (clientSecret) => {
+        const { error: challengeError } = await stripe.handleNextAction({ clientSecret });
+        return challengeError ? (challengeError.message ?? t('checkout.stripeError')) : null;
+      });
     } finally {
       setSubmitting(false);
     }
