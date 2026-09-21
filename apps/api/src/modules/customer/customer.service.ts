@@ -11,6 +11,7 @@ import {
   customerMerge,
   customerRestriction,
   driver,
+  privacyRequest,
 } from '../../database/schema/customer';
 import { recoveryCase } from '../../database/schema/payment';
 import { rental } from '../../database/schema/rental';
@@ -166,6 +167,14 @@ export class CustomerService {
       .where(eq(customerRestriction.customerId, id))
       .orderBy(desc(customerRestriction.createdAt));
 
+    const dataRequests = c.accountId
+      ? await this.db
+          .select()
+          .from(privacyRequest)
+          .where(eq(privacyRequest.accountId, c.accountId))
+          .orderBy(desc(privacyRequest.createdAt))
+      : [];
+
     // reversible-merge history: records where this customer absorbed a duplicate (FR-ADM-001)
     const merges = await this.db
       .select()
@@ -255,6 +264,17 @@ export class CustomerService {
         isActive: r.isActive,
       })),
       openCases,
+      dataRequests: dataRequests.map((r) => ({
+        id: r.id,
+        kind: r.kind,
+        status: r.status,
+        blockers: r.blockers,
+        detail: r.detail,
+        resolutionNote: r.resolutionNote,
+        resolvedBy: r.resolvedBy,
+        resolvedAt: r.resolvedAt,
+        createdAt: r.createdAt,
+      })),
       balance: { currency: balanceCurrency, minor: balanceMinor },
     };
   }

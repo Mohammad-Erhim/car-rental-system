@@ -16,10 +16,12 @@ import {
   useCreateRestriction,
   useCustomerSearch,
   useMergeCustomer,
+  usePrivacyRequestDecision,
   useRestrictionDecision,
   useUnmergeCustomer,
   type CustomerRecord,
   type CustomerRestriction,
+  type PrivacyRequest,
 } from '@/lib/admin-hooks';
 import { cn } from '@/lib/utils';
 import { usePendingApproval } from '@/lib/workflow-hooks';
@@ -195,6 +197,69 @@ export function RestrictionDecisionDialog({
         name="notes"
         label={t('ops.cust.decisionNotes')}
         data-testid="rstr-notes"
+      />
+    </FormDialog>
+  );
+}
+
+/** Review, complete or reject a customer's access/correction/closure request (FR-IAM-008). */
+export function PrivacyRequestDecisionDialog({
+  customerId,
+  action,
+  request,
+  open,
+  onOpenChange,
+}: DialogProps & {
+  customerId: string;
+  action: 'review' | 'complete' | 'reject';
+  request: PrivacyRequest;
+}) {
+  const { t } = useI18n();
+  const decide = usePrivacyRequestDecision(customerId);
+  const defaults = { notes: '' };
+  const form = useForm<typeof defaults>({ defaultValues: defaults });
+
+  const copy = {
+    review: {
+      title: t('ops.cust.dreqReviewTitle'),
+      body: t('ops.cust.dreqReviewBody'),
+      cta: t('ops.cust.dreqReview'),
+      done: t('ops.cust.dreqReviewed'),
+    },
+    complete: {
+      title: t('ops.cust.dreqCompleteTitle'),
+      body: t('ops.cust.dreqCompleteBody'),
+      cta: t('ops.cust.dreqComplete'),
+      done: t('ops.cust.dreqCompleted'),
+    },
+    reject: {
+      title: t('ops.cust.dreqRejectTitle'),
+      body: t('ops.cust.dreqRejectBody'),
+      cta: t('ops.cust.dreqReject'),
+      done: t('ops.cust.dreqRejected'),
+    },
+  }[action];
+
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      form={form}
+      defaultValues={defaults}
+      destructive={action === 'reject'}
+      title={copy.title}
+      description={copy.body}
+      submitLabel={copy.cta}
+      onSubmit={async ({ notes }) => {
+        await decide.mutateAsync({ rid: request.id, action, notes: notes.trim() || undefined });
+        toast.success(copy.done);
+      }}
+    >
+      <TextareaField
+        control={form.control}
+        name="notes"
+        label={t('ops.cust.decisionNotes')}
+        data-testid="dreq-notes"
       />
     </FormDialog>
   );

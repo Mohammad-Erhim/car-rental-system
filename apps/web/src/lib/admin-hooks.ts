@@ -683,7 +683,20 @@ export interface CustomerRecord {
   rentals: Array<{ reference: string; reservationReference: string; state: string }>;
   restrictions: CustomerRestriction[];
   openCases: Array<{ id: string; kind: string; state: string; subjectRef: string | null }>;
+  dataRequests: PrivacyRequest[];
   balance: { currency: string; minor: number };
+}
+
+export interface PrivacyRequest {
+  id: string;
+  kind: 'access' | 'correction' | 'closure';
+  status: 'received' | 'in_review' | 'completed' | 'rejected' | 'cancelled' | 'blocked';
+  blockers: Array<{ code: string; detail: string }>;
+  detail: string | null;
+  resolutionNote: string | null;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
 }
 
 export interface CustomerRestriction {
@@ -733,6 +746,26 @@ export function useRestrictionDecision(customerId: string) {
       notes?: string;
     }) =>
       apiFetch<CustomerRestriction>(`/ops/customers/${customerId}/restrictions/${rid}/${action}`, {
+        method: 'POST',
+        body: { notes },
+      }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['ops', 'customer', customerId] }),
+  });
+}
+
+export function usePrivacyRequestDecision(customerId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      rid,
+      action,
+      notes,
+    }: {
+      rid: string;
+      action: 'review' | 'complete' | 'reject';
+      notes?: string;
+    }) =>
+      apiFetch<PrivacyRequest>(`/ops/customers/${customerId}/data-requests/${rid}/${action}`, {
         method: 'POST',
         body: { notes },
       }),

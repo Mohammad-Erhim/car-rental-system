@@ -7,6 +7,7 @@ import { OrgWide, Permissions } from '../../common/auth/permissions.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 
+import { CustomerDataRequestService } from './customer-data-request.service';
 import { CustomerMergeService } from './customer-merge.service';
 import { CustomerRestrictionService } from './customer-restriction.service';
 import { CustomerService } from './customer.service';
@@ -39,6 +40,7 @@ export class CustomerController {
     private readonly customers: CustomerService,
     private readonly restrictions: CustomerRestrictionService,
     private readonly merges: CustomerMergeService,
+    private readonly dataRequests: CustomerDataRequestService,
   ) {}
 
   @Get('customers')
@@ -102,6 +104,47 @@ export class CustomerController {
     @CurrentActor() actor: Actor,
   ) {
     return this.restrictions.lift(actor, id, rid, body.notes);
+  }
+
+  // --- privacy (access/correction/closure) requests, staff side (FR-IAM-008) ---
+
+  @Get('customers/:id/data-requests')
+  @Permissions('customer.read')
+  listDataRequests(@Param('id') id: string) {
+    return this.dataRequests.list(id);
+  }
+
+  @Post('customers/:id/data-requests/:rid/review')
+  @Permissions('customer.manage')
+  reviewDataRequest(
+    @Param('id') id: string,
+    @Param('rid') rid: string,
+    @Body(new ZodValidationPipe(zDecision)) body: z.infer<typeof zDecision>,
+    @CurrentActor() actor: Actor,
+  ) {
+    return this.dataRequests.review(actor, id, rid, body.notes);
+  }
+
+  @Post('customers/:id/data-requests/:rid/complete')
+  @Permissions('customer.manage')
+  completeDataRequest(
+    @Param('id') id: string,
+    @Param('rid') rid: string,
+    @Body(new ZodValidationPipe(zDecision)) body: z.infer<typeof zDecision>,
+    @CurrentActor() actor: Actor,
+  ) {
+    return this.dataRequests.complete(actor, id, rid, body.notes);
+  }
+
+  @Post('customers/:id/data-requests/:rid/reject')
+  @Permissions('customer.manage')
+  rejectDataRequest(
+    @Param('id') id: string,
+    @Param('rid') rid: string,
+    @Body(new ZodValidationPipe(zDecision)) body: z.infer<typeof zDecision>,
+    @CurrentActor() actor: Actor,
+  ) {
+    return this.dataRequests.reject(actor, id, rid, body.notes);
   }
 
   // --- duplicate review + reversible merge (FR-ADM-001) ---

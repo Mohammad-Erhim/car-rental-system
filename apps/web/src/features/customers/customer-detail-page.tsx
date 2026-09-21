@@ -7,6 +7,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   AddRestrictionDialog,
   MergeDialog,
+  PrivacyRequestDecisionDialog,
   RestrictionDecisionDialog,
   UnmergeDialog,
 } from './customer-dialogs';
@@ -15,9 +16,11 @@ import {
   BalanceCard,
   DriversCard,
   MergeHistoryCard,
+  PrivacyRequestsCard,
   ProfileCard,
   ReservationsCard,
   RestrictionsCard,
+  type PrivacyRequestAction,
   type RestrictionAction,
 } from './customer-sections';
 import { CustomerStatus } from './customer-status';
@@ -34,12 +37,17 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BreadcrumbLabelSetter } from '@/layouts/breadcrumb-label';
-import { useCustomerRecord, type CustomerRestriction } from '@/lib/admin-hooks';
+import {
+  useCustomerRecord,
+  type CustomerRestriction,
+  type PrivacyRequest,
+} from '@/lib/admin-hooks';
 import { ApiError } from '@/lib/api';
 
 type Modal =
   | { kind: 'addRestriction' }
   | { kind: 'decision'; action: RestrictionAction; restriction: CustomerRestriction }
+  | { kind: 'privacyDecision'; action: PrivacyRequestAction; request: PrivacyRequest }
   | { kind: 'merge' }
   | { kind: 'unmerge' };
 
@@ -165,6 +173,10 @@ export function CustomerDetailPage() {
             r={r}
             onAction={(restriction, action) => setModal({ kind: 'decision', restriction, action })}
           />
+          <PrivacyRequestsCard
+            r={r}
+            onAction={(request, action) => setModal({ kind: 'privacyDecision', request, action })}
+          />
           <ReservationsCard r={r} money={money} />
         </div>
         <div className="space-y-4">
@@ -183,6 +195,15 @@ export function CustomerDetailPage() {
           customerId={r.id}
           action={modal.action}
           restriction={modal.restriction}
+          open
+          onOpenChange={close}
+        />
+      ) : null}
+      {modal?.kind === 'privacyDecision' ? (
+        <PrivacyRequestDecisionDialog
+          customerId={r.id}
+          action={modal.action}
+          request={modal.request}
           open
           onOpenChange={close}
         />

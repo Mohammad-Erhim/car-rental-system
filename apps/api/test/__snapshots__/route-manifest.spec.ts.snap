@@ -135,6 +135,10 @@ POST   /api/v1/ops/config/versions/preview
 GET    /api/v1/ops/consent/log
 GET    /api/v1/ops/customers
 GET    /api/v1/ops/customers/:id
+GET    /api/v1/ops/customers/:id/data-requests
+POST   /api/v1/ops/customers/:id/data-requests/:rid/complete
+POST   /api/v1/ops/customers/:id/data-requests/:rid/reject
+POST   /api/v1/ops/customers/:id/data-requests/:rid/review
 POST   /api/v1/ops/customers/:id/merge
 GET    /api/v1/ops/customers/:id/restrictions
 POST   /api/v1/ops/customers/:id/restrictions

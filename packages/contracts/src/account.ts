@@ -39,6 +39,9 @@ export const zPrivacyRequest = z.object({
   status: z.enum(['received', 'in_review', 'completed', 'rejected', 'cancelled', 'blocked']),
   blockers: z.array(z.object({ code: z.string(), detail: z.string() })).default([]),
   detail: z.string().nullable(),
+  resolutionNote: z.string().nullable(),
+  resolvedBy: zId.nullable(),
+  resolvedAt: zInstant.nullable(),
   createdAt: zInstant,
 });
 export type PrivacyRequest = z.infer<typeof zPrivacyRequest>;
