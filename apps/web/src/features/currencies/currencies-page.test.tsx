@@ -35,6 +35,26 @@ vi.mock('@/lib/currency-hooks', () => {
             usage: { ratePlans: 3, products: 1 },
           },
           {
+            id: '3',
+            code: 'EUR',
+            label: 'Euro',
+            digits: 2,
+            isDefault: false,
+            isActive: true,
+            version: 1,
+            usage: { ratePlans: 0, products: 0 },
+          },
+          {
+            id: '4',
+            code: 'GBP',
+            label: 'Pound Sterling',
+            digits: 2,
+            isDefault: false,
+            isActive: true,
+            version: 1,
+            usage: { ratePlans: 2, products: 0 },
+          },
+          {
             id: '2',
             code: 'JPY',
             label: 'Japanese Yen',
@@ -46,8 +66,8 @@ vi.mock('@/lib/currency-hooks', () => {
           },
         ],
         available: [
-          { code: 'EUR', name: 'Euro', digits: 2 },
-          { code: 'GBP', name: 'Pound Sterling', digits: 2 },
+          { code: 'CHF', name: 'Swiss Franc', digits: 2 },
+          { code: 'SEK', name: 'Swedish Krona', digits: 2 },
         ],
       },
     }),
@@ -71,18 +91,30 @@ describe('CurrenciesPage', () => {
     state.canManage = true;
   });
 
-  it('lists each currency with its state, decimals and what depends on it', () => {
+  it('says in one sentence what each currency means for customers', () => {
     show();
     const usd = screen.getByTestId('ccy-row-USD');
+    expect(usd).toHaveTextContent('US Dollar');
     expect(usd).toHaveTextContent('Default');
-    expect(usd).toHaveTextContent('2 decimal places');
-    expect(usd).toHaveTextContent('3 price lists');
-    expect(usd).toHaveTextContent('1 extra');
+    expect(screen.getByTestId('ccy-state-USD')).toHaveTextContent(
+      'Used when a customer hasn’t chosen a currency',
+    );
+    expect(screen.getByTestId('ccy-state-USD')).toHaveTextContent('3 price lists');
+    expect(screen.getByTestId('ccy-state-USD')).toHaveTextContent('1 extra');
+    // a two-decimal currency needs no note about decimals
+    expect(usd).not.toHaveTextContent('decimal');
 
     const jpy = screen.getByTestId('ccy-row-JPY');
     expect(jpy).toHaveTextContent('Off');
+    expect(screen.getByTestId('ccy-state-JPY')).toHaveTextContent('Turned off');
     expect(jpy).toHaveTextContent('0 decimal places');
     expect(jpy).not.toHaveTextContent('Default');
+  });
+
+  it('warns when a turned-on currency has no price lists, so customers would never see it', () => {
+    show();
+    expect(screen.getByTestId('ccy-state-EUR')).toHaveTextContent('No price lists yet');
+    expect(screen.getByTestId('ccy-state-GBP')).toHaveTextContent('Customers can switch to it');
   });
 
   it('offers only what an administrator may do', () => {
@@ -104,7 +136,7 @@ describe('CurrenciesPage', () => {
     show();
     fireEvent.click(screen.getByTestId('ccy-new'));
     expect(await screen.findByText('Add a currency')).toBeInTheDocument();
-    // the picker is a listbox of the not-yet-added ones; USD and JPY are already in the list
-    expect(screen.getByTestId('ccy-select')).toHaveTextContent('EUR');
+    // the picker offers only what is not already in the list
+    expect(screen.getByTestId('ccy-select')).toHaveTextContent('CHF');
   });
 });

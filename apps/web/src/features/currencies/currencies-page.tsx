@@ -112,10 +112,6 @@ export function CurrenciesPage() {
         }
       />
 
-      <Alert>
-        <AlertDescription>{t('ops.ccy.howItWorks')}</AlertDescription>
-      </Alert>
-
       {overview.isError ? (
         <StateView
           kind="error"
@@ -140,26 +136,39 @@ export function CurrenciesPage() {
               className="flex items-start gap-3 p-4"
               data-testid={`ccy-row-${c.code}`}
             >
-              <div className="min-w-0 flex-1 space-y-1.5">
+              <div className="min-w-0 flex-1 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <code className="bidi-isolate rounded bg-muted px-1.5 py-0.5 text-sm font-semibold">
+                  <bdi className="font-medium">{c.label}</bdi>
+                  <code className="bidi-isolate rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
                     {c.code}
                   </code>
-                  <bdi className="font-medium">{c.label}</bdi>
                   {c.isDefault ? (
                     <Badge variant="default">
                       <Star className="me-1 size-3" aria-hidden="true" />
                       {t('ops.ccy.default')}
                     </Badge>
                   ) : null}
-                  <Badge variant={c.isActive ? 'success' : 'secondary'}>
-                    {t(c.isActive ? 'ops.ccy.on' : 'ops.ccy.off')}
-                  </Badge>
+                  {!c.isActive ? <Badge variant="secondary">{t('ops.ccy.off')}</Badge> : null}
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  {t('ops.ccy.decimals', { n: c.digits })}
+                {/* one plain sentence: what this currency means for customers right now */}
+                <p
+                  className={
+                    c.isActive && !c.isDefault && c.usage.ratePlans === 0
+                      ? 'text-xs text-warning'
+                      : 'text-xs text-muted-foreground'
+                  }
+                  data-testid={`ccy-state-${c.code}`}
+                >
+                  {!c.isActive
+                    ? t('ops.ccy.stateOff')
+                    : c.isDefault
+                      ? t('ops.ccy.stateDefault')
+                      : c.usage.ratePlans === 0
+                        ? t('ops.ccy.stateNoPrices')
+                        : t('ops.ccy.stateLive')}
                   {' · '}
                   {t('ops.ccy.usage', { plans: c.usage.ratePlans, extras: c.usage.products })}
+                  {c.digits !== 2 ? ` · ${t('ops.ccy.decimals', { n: c.digits })}` : ''}
                 </p>
               </div>
               {menu(c)}
