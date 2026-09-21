@@ -680,3 +680,29 @@ routing-payment.adapter,payment-config.controller,stripe-webhook.controller}.ts`
 - Tests: `currency.test.ts` (catalogue agrees with ICU, integer-only parsing/formatting, Stripe gate),
   `stripe-payment.adapter.test.ts` (what Stripe is sent, and not), `currency.spec.ts` (which currencies can
   exist, price lists coexisting, the customer's choice, a EUR booking, disabling without stranding anything).
+
+### DEC-037 — Text typed on the dashboard is translatable like categories and features
+
+- Context: category and feature names were translatable on the Translations screen and seeded in
+  French and Arabic, but the other text a customer reads that a dashboard user types — a branch's name
+  and its pickup / return instructions, the name of an extra — was English only, in every language.
+- Decisions:
+  - Two more database-backed translation namespaces, `catalogue:location` (key = branch code; the
+    instructions are `<code>.pickup` and `<code>.return`) and `catalogue:product` (key = product code).
+    The English stays on the row; every other language is a `translation` row. They appear on the
+    Translations screen with no code change, and a branch or extra added later shows up as "missing" for
+    each language straight away — the same machinery as `lookup:*`, categories and features.
+  - `GET /config/locations` and `GET /catalogue/products` take an optional `locale` and return the
+    published translation where there is one, else the English as typed (the language's own fallback
+    chain applies). Drafts are never served. Staff endpoints are unchanged: the dashboard shows the
+    text as typed.
+  - The published-text lookup that `CatalogueService` had privately now lives in `LocaleRepo` and is
+    shared by all of these.
+  - Seeds: French and Arabic for every seeded branch, its instructions, and every seeded extra
+    (`reference-i18n.ts`, checked by `reference-i18n.spec.ts`); and every currency in the reference
+    data is named in French and Arabic from ICU data, so a currency enabled from the dashboard is not
+    "missing" either.
+- Known limit: an extra's name on an already-made reservation is the English snapshot taken at
+  booking, by design (a booking keeps the terms it accepted).
+- Tests: `entity-translations.spec.ts` (served per language, English fallback, drafts unserved, a new
+  branch appears to translate and is served once published, completeness of both namespaces).

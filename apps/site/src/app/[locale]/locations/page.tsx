@@ -46,9 +46,10 @@ function commonHours(hours?: Location['regularHours']): string | null {
 export default async function LocationsPage({ params }: { params: { locale: string } }) {
   const { locale } = params;
   const t = await getT(locale);
-  const locations = await apiGet<Location[]>('/config/locations', { revalidate: 600 }).catch(
-    () => [] as Location[],
-  );
+  const locations = await apiGet<Location[]>(
+    `/config/locations?locale=${encodeURIComponent(locale)}`,
+    { revalidate: 600 },
+  ).catch(() => [] as Location[]);
 
   return (
     <SiteContainer className="space-y-10">

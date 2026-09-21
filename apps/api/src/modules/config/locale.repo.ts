@@ -1,9 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq, isNotNull } from 'drizzle-orm';
 
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
-import { locale } from '../../database/schema/i18n';
+import { locale, translation } from '../../database/schema/i18n';
 
 export type LocaleRow = typeof locale.$inferSelect;
 
@@ -27,6 +27,32 @@ export class LocaleRepo {
       .where(eq(locale.isActive, true))
       .orderBy(asc(locale.sortOrder));
     return rows.filter((r) => opts.includeTestOnly || !r.testOnly).map((r) => r.code);
+  }
+
+  /**
+   * The published translations of one namespace for a locale, `{ key → text }`, with the locale's
+   * own fallback chain applied (DEC-024) — what a storefront overlays on the English text stored
+   * on the row itself (a category, a branch, an extra). Empty for `en` or no locale: the row's own
+   * field already is the English source. Unpublished drafts are never served.
+   */
+  async publishedText(namespace: string, code: string | undefined): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    if (!code || code === 'en') return out;
+    const chain = await this.fallbackChain(code);
+    const rows = (
+      await this.db
+        .select({
+          key: translation.key,
+          localeCode: translation.localeCode,
+          publishedValue: translation.publishedValue,
+        })
+        .from(translation)
+        .where(and(eq(translation.namespace, namespace), isNotNull(translation.publishedValue)))
+    ).filter((r): r is typeof r & { publishedValue: string } => r.publishedValue != null);
+    for (const loc of [...chain].reverse()) {
+      for (const r of rows.filter((r) => r.localeCode === loc)) out.set(r.key, r.publishedValue);
+    }
+    return out;
   }
 
   /**

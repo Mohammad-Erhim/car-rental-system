@@ -58,3 +58,23 @@ export function matchesQuery(e: TranslationEntry, query: string) {
 /** the namespace travels in the URL; it can contain a colon (`lookup:currency`) */
 export const editorPath = (namespace: string, locale: string) =>
   paths.translationEditor(namespace, locale);
+
+/**
+ * A plain-words title for the areas whose text lives in the database rather than in the app, so the
+ * screen says "Branches" beside `catalogue:location` instead of leaving the code to be decoded.
+ * `null` for an area with no title of its own (the app's own screens, which the code already names).
+ */
+export function namespaceTitleKey(namespace: string): string | null {
+  switch (namespace) {
+    case 'catalogue:location':
+      return 'ops.trans.area.location';
+    case 'catalogue:product':
+      return 'ops.trans.area.product';
+    case 'catalogue:category':
+      return 'ops.trans.area.category';
+    case 'catalogue:feature':
+      return 'ops.trans.area.feature';
+    default:
+      return namespace.startsWith('lookup:') ? 'ops.trans.area.lookup' : null;
+  }
+}

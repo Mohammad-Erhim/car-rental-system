@@ -19,10 +19,13 @@ export class ConfigController {
   @Get('locations')
   @OptionalAuth()
   @ApiOperation({ operationId: 'config_listLocations', summary: 'Active rental locations' })
-  async listLocations(@Query('organizationId') organizationId?: string) {
+  async listLocations(
+    @Query('organizationId') organizationId?: string,
+    @Query('locale') locale?: string,
+  ) {
     const org = organizationId ? { id: organizationId } : await this.cfg.defaultOrganization();
     if (!org) return [];
-    return this.cfg.listLocations(org.id);
+    return this.cfg.listLocations(org.id, locale);
   }
 
   @Get('organization')

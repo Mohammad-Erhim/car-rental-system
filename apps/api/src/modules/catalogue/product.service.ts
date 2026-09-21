@@ -4,6 +4,7 @@ import { and, asc, eq } from 'drizzle-orm';
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
 import type { Actor } from '../../common/auth/types';
+import { PRODUCT_NS } from '../../common/i18n-namespaces';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { product, vehicleCategory } from '../../database/schema/catalogue';
@@ -97,13 +98,20 @@ export class ProductService {
    * Products a customer may select for a given category + location — active, in scope. Used by
    * the `apps/site` checkout step (SCREEN-CUS-005).
    */
-  async availableFor(categoryCode: string, locationCode: string, currency?: string) {
+  async availableFor(
+    categoryCode: string,
+    locationCode: string,
+    currency?: string,
+    locale?: string,
+  ) {
     const org = await this.orgId();
     const rows = await this.db
       .select()
       .from(product)
       .where(and(eq(product.organizationId, org), eq(product.active, true)))
       .orderBy(asc(product.sortOrder), asc(product.code));
+    // the customer's language where the dashboard has a published translation (DEC-037)
+    const text = await this.config.publishedText(PRODUCT_NS, locale);
     return rows
       .filter(
         (r) =>
@@ -113,7 +121,7 @@ export class ProductService {
           this.inScope(r.categoryScope, categoryCode) &&
           this.inScope(r.locationScope, locationCode),
       )
-      .map((r) => this.shape(r));
+      .map((r) => ({ ...this.shape(r), name: text.get(r.code) ?? r.name }));
   }
 
   /**

@@ -9,14 +9,21 @@ import { AuditService } from '../../common/audit/audit.service';
 import type { Actor } from '../../common/auth/types';
 import { CacheBus } from '../../common/cache/cache-bus';
 import { isUniqueViolation } from '../../common/db-error';
+import {
+  LOCATION_NS,
+  LOCATION_PICKUP_SUFFIX,
+  LOCATION_RETURN_SUFFIX,
+  PRODUCT_NS,
+} from '../../common/i18n-namespaces';
 import { revOf } from '../../common/i18n-source-rev';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
-import { vehicleCategory, vehicleFeature } from '../../database/schema/catalogue';
+import { product, vehicleCategory, vehicleFeature } from '../../database/schema/catalogue';
 import { customer } from '../../database/schema/customer';
 import { locale, translation } from '../../database/schema/i18n';
 import { account } from '../../database/schema/iam';
 import { lookupValue } from '../../database/schema/lookup';
+import { location } from '../../database/schema/org';
 import { WorkflowPublic } from '../workflow/workflow.public';
 
 const LOOKUP_NS = 'lookup:';
@@ -123,12 +130,42 @@ export class TranslationService implements OnModuleInit {
         .from(vehicleFeature);
       for (const f of feats) out.set(f.code, f.label);
     }
+    if (namespace === LOCATION_NS) await this.addLocationSources(out);
+    if (namespace === PRODUCT_NS) await this.addProductSources(out);
     const rows = await this.db
       .select({ key: translation.key, value: translation.value })
       .from(translation)
       .where(and(eq(translation.namespace, namespace), eq(translation.localeCode, 'en')));
     for (const r of rows) out.set(r.key, r.value);
     return out;
+  }
+
+  /** A branch's name, and its pickup / return instructions where it has them — the text a
+   *  customer reads, entered on the dashboard (DEC-037). Archived branches are left out. */
+  private async addLocationSources(out: Map<string, string>): Promise<void> {
+    const rows = await this.db
+      .select({
+        code: location.code,
+        name: location.name,
+        pickup: location.pickupInstructions,
+        ret: location.returnInstructions,
+      })
+      .from(location)
+      .where(eq(location.status, 'active'));
+    for (const l of rows) {
+      out.set(l.code, l.name);
+      if (l.pickup) out.set(`${l.code}${LOCATION_PICKUP_SUFFIX}`, l.pickup);
+      if (l.ret) out.set(`${l.code}${LOCATION_RETURN_SUFFIX}`, l.ret);
+    }
+  }
+
+  /** The name of each active extra / protection product. */
+  private async addProductSources(out: Map<string, string>): Promise<void> {
+    const rows = await this.db
+      .select({ code: product.code, name: product.name })
+      .from(product)
+      .where(eq(product.active, true));
+    for (const p of rows) out.set(p.code, p.name);
   }
 
   /** Every `en` source catalogue keyed by namespace — bundled UI strings + every reference-data
@@ -173,6 +210,12 @@ export class TranslationService implements OnModuleInit {
     if (feats.length) {
       out.set(CATALOGUE_FEATURE_NS, new Map(feats.map((f) => [f.code, f.label])));
     }
+    const locs = new Map<string, string>();
+    await this.addLocationSources(locs);
+    if (locs.size) out.set(LOCATION_NS, locs);
+    const prods = new Map<string, string>();
+    await this.addProductSources(prods);
+    if (prods.size) out.set(PRODUCT_NS, prods);
     const rows = await this.db
       .select({ namespace: translation.namespace, key: translation.key, value: translation.value })
       .from(translation)

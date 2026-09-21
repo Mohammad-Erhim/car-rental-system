@@ -40,9 +40,12 @@ export default async function HomePage({
     apiGet<FleetCategory[]>(`/catalogue/categories?locale=${encodeURIComponent(locale)}`, {
       revalidate: preview ? 0 : 300,
     }).catch(() => [] as FleetCategory[]),
-    apiGet<Array<{ code: string; name: string }>>('/config/locations', {
-      revalidate: preview ? 0 : 300,
-    })
+    apiGet<Array<{ code: string; name: string }>>(
+      `/config/locations?locale=${encodeURIComponent(locale)}`,
+      {
+        revalidate: preview ? 0 : 300,
+      },
+    )
       .then((rows): LocationItem[] => rows.map((r) => ({ code: r.code, name: r.name })))
       .catch(() => [] as LocationItem[]),
     seoOrigin(),

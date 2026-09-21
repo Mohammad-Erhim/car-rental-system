@@ -1,7 +1,14 @@
 import type { TranslationEntry } from '@carrental/contracts';
 import { describe, expect, it } from 'vitest';
 
-import { bucketOf, editorPath, inBucket, matchesQuery, pivotCoverage } from './translation-model';
+import {
+  bucketOf,
+  editorPath,
+  inBucket,
+  matchesQuery,
+  namespaceTitleKey,
+  pivotCoverage,
+} from './translation-model';
 
 const entry = (over: Partial<TranslationEntry>): TranslationEntry => ({
   key: 'nav.home',
@@ -53,5 +60,12 @@ describe('translation-model', () => {
 
   it('encodes a namespace with a colon into the path', () => {
     expect(editorPath('lookup:currency', 'fr')).toBe('/website/translations/lookup%3Acurrency/fr');
+  });
+
+  it('names the database-backed areas in plain words', () => {
+    expect(namespaceTitleKey('catalogue:location')).toBe('ops.trans.area.location');
+    expect(namespaceTitleKey('catalogue:product')).toBe('ops.trans.area.product');
+    expect(namespaceTitleKey('lookup:currency')).toBe('ops.trans.area.lookup');
+    expect(namespaceTitleKey('common')).toBeNull();
   });
 });

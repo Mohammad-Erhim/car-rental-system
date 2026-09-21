@@ -8,6 +8,7 @@
 'use client';
 
 import { apiFetch } from '@carrental/client';
+import { useI18n } from '@carrental/i18n/react';
 import type { InvoiceView } from '@carrental/client/react';
 export {
   useProfile,
@@ -104,12 +105,14 @@ export function useAvailableProducts(
   locationCode: string | null,
   currency: string | null = null,
 ) {
+  // extra names in the visitor's language where the dashboard has a translation (DEC-037)
+  const { locale } = useI18n();
   return useQuery({
-    queryKey: ['catalogue', 'products', categoryCode, locationCode, currency],
+    queryKey: ['catalogue', 'products', categoryCode, locationCode, currency, locale],
     enabled: !!categoryCode && !!locationCode,
     queryFn: ({ signal }) =>
       apiFetch<CatalogueProduct[]>(
-        `/catalogue/products?category=${encodeURIComponent(categoryCode!)}&location=${encodeURIComponent(locationCode!)}${currency ? `&currency=${encodeURIComponent(currency)}` : ''}`,
+        `/catalogue/products?category=${encodeURIComponent(categoryCode!)}&location=${encodeURIComponent(locationCode!)}${currency ? `&currency=${encodeURIComponent(currency)}` : ''}&locale=${encodeURIComponent(locale)}`,
         { signal, anonymous: true },
       ),
   });

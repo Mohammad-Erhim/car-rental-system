@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 
 import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
@@ -14,7 +14,6 @@ import {
   vehicleCategoryFeature,
   vehicleFeature,
 } from '../../database/schema/catalogue';
-import { translation } from '../../database/schema/i18n';
 import { organization } from '../../database/schema/org';
 import { LocaleRepo } from '../config/locale.repo';
 
@@ -89,27 +88,11 @@ export class CatalogueService {
    *  wins — the identical technique `LookupService.getValues` uses for reference-data labels.
    *  Returns an empty map for `locale` undefined or `'en'`: the DB row's own field already *is*
    *  the English source, nothing to overlay. */
-  private async translatedText(
+  private translatedText(
     namespace: string,
     locale: string | undefined,
   ): Promise<Map<string, string>> {
-    const out = new Map<string, string>();
-    if (!locale || locale === 'en') return out;
-    const chain = await this.locales.fallbackChain(locale);
-    const rows = (
-      await this.db
-        .select({
-          key: translation.key,
-          localeCode: translation.localeCode,
-          publishedValue: translation.publishedValue,
-        })
-        .from(translation)
-        .where(and(eq(translation.namespace, namespace), isNotNull(translation.publishedValue)))
-    ).filter((r): r is typeof r & { publishedValue: string } => r.publishedValue != null);
-    for (const loc of [...chain].reverse()) {
-      for (const r of rows.filter((r) => r.localeCode === loc)) out.set(r.key, r.publishedValue);
-    }
-    return out;
+    return this.locales.publishedText(namespace, locale);
   }
 
   private async orgId(): Promise<string> {

@@ -67,8 +67,9 @@ export class DiscoveryController {
     @Query('category') category: string,
     @Query('location') location: string,
     @Query('currency') currency?: string,
+    @Query('locale') locale?: string,
   ) {
-    return this.products.availableFor(category, location, currency);
+    return this.products.availableFor(category, location, currency, locale);
   }
 
   @Get('catalogue/categories')

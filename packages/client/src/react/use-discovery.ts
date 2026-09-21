@@ -28,10 +28,16 @@ export interface Location {
   regularHours: Array<{ day: number; open?: string; close?: string; closed?: boolean }>;
 }
 
-export function useLocations() {
+/** `locale` is optional — the customer surfaces pass theirs so branch names and instructions come
+ *  back translated (DEC-037); the ops dashboard omits it and sees the text as typed. */
+export function useLocations(locale?: string) {
   return useQuery({
-    queryKey: ['config', 'locations'],
-    queryFn: ({ signal }) => apiFetch<Location[]>('/config/locations', { signal, anonymous: true }),
+    queryKey: ['config', 'locations', locale ?? null],
+    queryFn: ({ signal }) =>
+      apiFetch<Location[]>(
+        `/config/locations${locale ? `?locale=${encodeURIComponent(locale)}` : ''}`,
+        { signal, anonymous: true },
+      ),
     staleTime: 5 * 60 * 1000,
   });
 }

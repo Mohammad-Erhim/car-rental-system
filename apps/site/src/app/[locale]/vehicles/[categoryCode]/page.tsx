@@ -79,7 +79,10 @@ export default async function VehicleDetailPage({
   const [cat, origin, locations] = await Promise.all([
     load(categoryCode, locale),
     seoOrigin(),
-    apiGet<Array<{ code: string; name: string }>>('/config/locations', { revalidate: 300 })
+    apiGet<Array<{ code: string; name: string }>>(
+      `/config/locations?locale=${encodeURIComponent(locale)}`,
+      { revalidate: 300 },
+    )
       .then((rows) => rows.map((r) => ({ code: r.code, name: r.name })))
       .catch(() => [] as Array<{ code: string; name: string }>),
   ]);

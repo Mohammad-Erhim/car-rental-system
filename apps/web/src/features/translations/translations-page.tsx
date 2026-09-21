@@ -4,7 +4,7 @@ import { CheckCircle2 } from 'lucide-react';
 import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
-import { editorPath, pivotCoverage, type PivotRow } from './translation-model';
+import { editorPath, namespaceTitleKey, pivotCoverage, type PivotRow } from './translation-model';
 
 import { DataTable } from '@/components/data-table/data-table';
 import { FilterChips } from '@/components/filter-chips';
@@ -18,6 +18,20 @@ import { useListParams } from '@/lib/use-list-params';
 
 const PARAMS = ['view', 'locale'] as const;
 const getRowId = (r: PivotRow) => r.namespace;
+
+/** An area's plain-words title (where it has one) above its code. */
+function NamespaceName({ namespace }: { namespace: string }) {
+  const { t } = useI18n();
+  const key = namespaceTitleKey(namespace);
+  return (
+    <span className="block">
+      {key ? <span className="block text-sm font-medium">{t(key)}</span> : null}
+      <span className="bidi-isolate block font-mono text-xs text-muted-foreground">
+        {namespace}
+      </span>
+    </span>
+  );
+}
 
 /** A language's share of one namespace as a small bar; the whole cell opens that editor. */
 function CoverageCell({
@@ -82,9 +96,7 @@ export function TranslationsPage() {
       {
         id: 'namespace',
         header: t('ops.tbl.namespace'),
-        cell: ({ row: { original: r } }) => (
-          <span className="bidi-isolate font-mono text-xs">{r.namespace}</span>
-        ),
+        cell: ({ row: { original: r } }) => <NamespaceName namespace={r.namespace} />,
       },
       ...locales.map<ColumnDef<PivotRow, unknown>>((l) => ({
         id: `loc-${l}`,
@@ -155,7 +167,7 @@ export function TranslationsPage() {
           cardBreakpoint="lg"
           renderCard={(r) => (
             <div className="space-y-2 p-4" data-row={r.namespace}>
-              <p className="bidi-isolate font-mono text-xs font-medium">{r.namespace}</p>
+              <NamespaceName namespace={r.namespace} />
               {locales.map((l) => (
                 <div key={l} className="flex items-center gap-3">
                   <span className="w-8 text-xs font-medium uppercase text-muted-foreground">

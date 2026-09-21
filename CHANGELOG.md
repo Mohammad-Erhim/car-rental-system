@@ -6,6 +6,13 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### Branch and extras text you can translate (2026-09)
+
+- **Branch names, their pickup/return instructions and extras names** now appear on the Translations
+  screen; the website and the app show them in the visitor's language (English where nothing is
+  translated yet). A branch or extra you add later shows up there to translate straight away.
+- French and Arabic are provided for the demo branches and extras, and for the name of every currency.
+
 ### Currencies you manage, and a better trail in Stripe (2026-09)
 
 - **Settings → Currencies:** add a currency from the supported list, choose the default, turn one off — no

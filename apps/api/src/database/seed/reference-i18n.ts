@@ -1,10 +1,12 @@
 import { and, eq } from 'drizzle-orm';
 
+import { LOCATION_PICKUP_SUFFIX, LOCATION_RETURN_SUFFIX } from '../../common/i18n-namespaces';
 import { revOf } from '../../common/i18n-source-rev';
 import type { Database } from '../drizzle';
-import { vehicleCategory, vehicleFeature } from '../schema/catalogue';
+import { product, vehicleCategory, vehicleFeature } from '../schema/catalogue';
 import { translation } from '../schema/i18n';
 import { lookupValue } from '../schema/lookup';
+import { location } from '../schema/org';
 
 /**
  * French and Arabic labels for the reference data whose English source lives in the database rather
@@ -56,6 +58,50 @@ export const REFERENCE_TRANSLATIONS: Namespaces = {
     gps: ['Navigation intégrée', 'نظام ملاحة مدمج'],
     leather: ['Sièges en cuir', 'مقاعد جلدية'],
     parking_sensors: ['Aide au stationnement', 'حساسات ركن السيارة'],
+  },
+  'catalogue:location': {
+    JFK: ['Aéroport JFK de New York', 'مطار جون كينيدي (JFK) في نيويورك'],
+    'JFK.pickup': [
+      'Rendez-vous au comptoir de location dans le hall des arrivées avec votre référence de réservation et votre permis de conduire.',
+      'توجّه إلى مكتب التأجير في صالة الوصول مع رقم الحجز ورخصة القيادة.',
+    ],
+    'JFK.return': [
+      'Rendez le véhicule dans la zone de retour signalée. Gardez la clé et remplissez la fiche de contrôle.',
+      'أعد السيارة إلى منطقة الإعادة المخصّصة. احتفظ بالمفتاح وأكمل قائمة الفحص.',
+    ],
+    LHR: ['Aéroport de Londres Heathrow', 'مطار لندن هيثرو'],
+    'LHR.pickup': [
+      'Rendez-vous au comptoir de location dans le hall des arrivées avec votre référence de réservation et votre permis de conduire.',
+      'توجّه إلى مكتب التأجير في صالة الوصول مع رقم الحجز ورخصة القيادة.',
+    ],
+    'LHR.return': [
+      'Rendez le véhicule dans la zone de retour signalée. Gardez la clé et remplissez la fiche de contrôle.',
+      'أعد السيارة إلى منطقة الإعادة المخصّصة. احتفظ بالمفتاح وأكمل قائمة الفحص.',
+    ],
+    PAR: ['Paris centre — Opéra', 'وسط باريس — الأوبرا'],
+    'PAR.pickup': [
+      'Rendez-vous au comptoir de location dans le hall des arrivées avec votre référence de réservation et votre permis de conduire.',
+      'توجّه إلى مكتب التأجير في صالة الوصول مع رقم الحجز ورخصة القيادة.',
+    ],
+    'PAR.return': [
+      'Rendez le véhicule dans la zone de retour signalée. Gardez la clé et remplissez la fiche de contrôle.',
+      'أعد السيارة إلى منطقة الإعادة المخصّصة. احتفظ بالمفتاح وأكمل قائمة الفحص.',
+    ],
+    TST1: ['Site de test 1 (24 h/24)', 'موقع الاختبار 1 (على مدار الساعة)'],
+    TST2: [
+      'Site de test 2 (horaires limités, pas de retour hors horaires)',
+      'موقع الاختبار 2 (ساعات محدودة، بدون إعادة خارج أوقات الدوام)',
+    ],
+  },
+  'catalogue:product': {
+    protection_full: ['Protection complète (franchise zéro)', 'حماية شاملة (بدون تحمّل)'],
+    protection_basic: [
+      'Exonération de dommages en cas de collision',
+      'التنازل عن مسؤولية أضرار التصادم',
+    ],
+    additional_driver: ['Conducteur supplémentaire', 'سائق إضافي'],
+    child_seat: ['Siège enfant', 'مقعد أطفال'],
+    gps: ['Navigation GPS', 'نظام ملاحة GPS'],
   },
   'lookup:adjustment_reason': {
     cleaning: ['Nettoyage', 'تنظيف'],
@@ -460,6 +506,33 @@ async function englishSource(db: Database, namespace: string, key: string): Prom
       .limit(1);
     return (isDescription ? row?.description : row?.name) ?? null;
   }
+  if (namespace === 'catalogue:location') {
+    const isPickup = key.endsWith(LOCATION_PICKUP_SUFFIX);
+    const isReturn = key.endsWith(LOCATION_RETURN_SUFFIX);
+    const code = isPickup
+      ? key.slice(0, -LOCATION_PICKUP_SUFFIX.length)
+      : isReturn
+        ? key.slice(0, -LOCATION_RETURN_SUFFIX.length)
+        : key;
+    const [row] = await db
+      .select({
+        name: location.name,
+        pickup: location.pickupInstructions,
+        ret: location.returnInstructions,
+      })
+      .from(location)
+      .where(eq(location.code, code))
+      .limit(1);
+    return (isPickup ? row?.pickup : isReturn ? row?.ret : row?.name) ?? null;
+  }
+  if (namespace === 'catalogue:product') {
+    const [row] = await db
+      .select({ name: product.name })
+      .from(product)
+      .where(eq(product.code, key))
+      .limit(1);
+    return row?.name ?? null;
+  }
   if (namespace === 'catalogue:feature') {
     const [row] = await db
       .select({ label: vehicleFeature.label })
@@ -503,6 +576,49 @@ export async function seedReferenceTranslations(db: Database): Promise<number> {
           .returning({ id: translation.id });
         written += inserted.length;
       }
+    }
+  }
+  return written + (await seedCurrencyNames(db));
+}
+
+/**
+ * The name of every currency an operator can enable, in French and Arabic, from the runtime's own
+ * ICU data — so a currency added from the dashboard is already named in every language and shows
+ * as translated (not missing) on the Translations screen. Only fills gaps: the five starter
+ * currencies keep their hand-written names above, and an operator's own wording is never replaced.
+ */
+async function seedCurrencyNames(db: Database): Promise<number> {
+  const values = await db
+    .select({ code: lookupValue.code, label: lookupValue.defaultLabel })
+    .from(lookupValue)
+    .where(eq(lookupValue.typeCode, 'currency'));
+  let written = 0;
+  for (const localeCode of ['fr', 'ar'] as const) {
+    let names: Intl.DisplayNames;
+    try {
+      names = new Intl.DisplayNames([localeCode], { type: 'currency' });
+    } catch {
+      continue;
+    }
+    for (const v of values) {
+      const value = names.of(v.code);
+      if (!value || value === v.code) continue;
+      const inserted = await db
+        .insert(translation)
+        .values({
+          namespace: 'lookup:currency',
+          key: v.code,
+          localeCode,
+          value,
+          publishedValue: value,
+          status: 'published',
+          sourceRevision: revOf(v.label),
+        })
+        .onConflictDoNothing({
+          target: [translation.namespace, translation.key, translation.localeCode],
+        })
+        .returning({ id: translation.id });
+      written += inserted.length;
     }
   }
   return written;

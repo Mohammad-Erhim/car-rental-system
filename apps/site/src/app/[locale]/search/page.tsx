@@ -77,9 +77,12 @@ export default async function SearchPage({
   const pickupAt = typeof searchParams.pickupAt === 'string' ? searchParams.pickupAt : '';
   const returnAt = typeof searchParams.returnAt === 'string' ? searchParams.returnAt : '';
 
-  const locations = await apiGet<Array<{ code: string; name: string }>>('/config/locations', {
-    revalidate: 300,
-  })
+  const locations = await apiGet<Array<{ code: string; name: string }>>(
+    `/config/locations?locale=${encodeURIComponent(locale)}`,
+    {
+      revalidate: 300,
+    },
+  )
     .then((rows) => rows.map((r): LocationOption => ({ code: r.code, name: r.name })))
     .catch(() => [] as LocationOption[]);
 

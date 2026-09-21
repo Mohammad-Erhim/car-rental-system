@@ -7,6 +7,7 @@ import type {
   VehicleCategory,
 } from '@carrental/contracts';
 import { createFormatters, type Formatters } from '@carrental/i18n';
+import { useI18n } from '@carrental/i18n/react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { apiFetch } from '../api-fetch';
@@ -32,9 +33,15 @@ export interface Location {
 }
 
 export function useLocations() {
+  // branch names and instructions in the app's language where the dashboard has a translation
+  const { locale } = useI18n();
   return useQuery({
-    queryKey: ['config', 'locations'],
-    queryFn: ({ signal }) => apiFetch<Location[]>('/config/locations', { signal, anonymous: true }),
+    queryKey: ['config', 'locations', locale],
+    queryFn: ({ signal }) =>
+      apiFetch<Location[]>(`/config/locations?locale=${encodeURIComponent(locale)}`, {
+        signal,
+        anonymous: true,
+      }),
     staleTime: 5 * 60 * 1000,
   });
 }
@@ -162,12 +169,13 @@ export function useAvailableProducts(
   locationCode: string | null,
   currency: string | null = null,
 ) {
+  const { locale } = useI18n();
   return useQuery({
-    queryKey: ['catalogue', 'products', categoryCode, locationCode, currency],
+    queryKey: ['catalogue', 'products', categoryCode, locationCode, currency, locale],
     enabled: !!categoryCode && !!locationCode,
     queryFn: ({ signal }) =>
       apiFetch<CatalogueProduct[]>(
-        `/catalogue/products?category=${encodeURIComponent(categoryCode!)}&location=${encodeURIComponent(locationCode!)}${currency ? `&currency=${encodeURIComponent(currency)}` : ''}`,
+        `/catalogue/products?category=${encodeURIComponent(categoryCode!)}&location=${encodeURIComponent(locationCode!)}${currency ? `&currency=${encodeURIComponent(currency)}` : ''}&locale=${encodeURIComponent(locale)}`,
         { signal, anonymous: true },
       ),
   });
