@@ -192,8 +192,10 @@ POST   /api/v1/ops/rentals/:reference/readiness
 POST   /api/v1/ops/rentals/:reference/return
 POST   /api/v1/ops/rentals/overdue-sweep
 GET    /api/v1/ops/reports
+POST   /api/v1/ops/reports/:code/preview
 POST   /api/v1/ops/reports/:code/run
 GET    /api/v1/ops/reports/runs
+GET    /api/v1/ops/reports/runs/:runId
 GET    /api/v1/ops/reports/runs/:runId/export
 GET    /api/v1/ops/reports/schedules
 POST   /api/v1/ops/reports/schedules

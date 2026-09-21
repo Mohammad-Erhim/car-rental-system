@@ -94,6 +94,9 @@ export const reportRun = pgTable(
       .notNull()
       .default(sql`'[]'::jsonb`),
     scopeNote: text('scope_note'),
+    /** analytic reports: the period, KPIs, trend and breakdowns as they were shown (the detail
+     *  rows live in `result`); null for a flat report */
+    summary: jsonb('summary').$type<Record<string, unknown> | null>(),
     /** the location codes the run's query was actually confined to (FR-RPT-004); `[]` = org-wide.
      *  Machine-checkable twin of `scopeNote` — read access is enforced against this, never by
      *  parsing the human-readable note. */

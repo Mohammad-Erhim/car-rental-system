@@ -1,0 +1,1 @@
+ALTER TABLE "report_run" ADD COLUMN "summary" jsonb;

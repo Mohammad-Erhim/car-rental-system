@@ -81,26 +81,88 @@ test('SCREEN-OPS-033/034: draft → preview → submit → a second admin approv
   guards.assertClean();
 });
 
-test('SCREEN-OPS-035: run a report, see the scope, export CSV', async ({ page }, testInfo) => {
+test('SCREEN-OPS-035: a report answers for a period, compares it, and follows the filters', async ({
+  page,
+}, testInfo) => {
   const guards = attachConsoleGuards(page);
 
   await signInStaff(page, ADMIN);
   await page.goto('/ops/reports');
   await expect(page.getByRole('heading', { name: 'Reports' })).toBeVisible();
 
-  await page.getByTestId('report-choice-fleet_utilisation').click();
-  await page.getByTestId('report-run').click();
+  // the overview opens on the last 30 days, compared with the 30 before, in the branch's zone
+  await expect(page.getByTestId('report-kpis')).toBeVisible();
+  await expect(page.getByTestId('report-period')).toContainText('30 days');
+  await expect(page.getByTestId('report-compare')).toContainText('the period before');
+  await expect(page.getByTestId('kpi-net_minor')).toBeVisible();
+  await shot(page, testInfo, 'ops-report-overview');
 
-  await expect(page.getByTestId('report-result')).toBeVisible();
-  await expect(page.getByTestId('report-scope-note')).toContainText(/location/i);
-  await expect(page.getByTestId('report-result').locator('table')).toBeVisible();
-  await shot(page, testInfo, 'ops-report-result');
+  // on a phone the filters fold away behind a button
+  const filters = page.getByRole('button', { name: 'Filters' });
+  if (await filters.isVisible()) await filters.click();
 
-  // the export is a file download now
+  // a shorter period, no comparison: the header and the cards follow at once
+  await page.getByTestId('rpt-preset-last_7_days').click();
+  await expect(page.getByTestId('report-period')).toContainText('7 days');
+  await page.getByTestId('rpt-compare-none').click();
+  await expect(page.getByTestId('report-compare')).toHaveCount(0);
+
+  // exact dates: both are needed, and a wrong order is said out loud
+  await page.getByTestId('rpt-preset-custom').click();
+  await expect(page.getByText('Pick the two dates')).toBeVisible();
+  await page.getByTestId('rpt-from').fill('2026-03-10');
+  await page.getByTestId('rpt-to').fill('2026-03-01');
+  await expect(page.getByText('The last day is before the first.')).toBeVisible();
+  await page.getByTestId('rpt-to').fill('2026-03-20');
+  await expect(page.getByTestId('report-period')).toContainText('11 days');
+
+  // another report, same period
+  await page.getByTestId('report-choice-fleet').click();
+  await expect(page.getByTestId('kpi-utilization')).toBeVisible();
+  await expect(page.getByTestId('report-period')).toContainText('11 days');
+
+  guards.assertClean();
+});
+
+test('SCREEN-OPS-035: exporting keeps a record, downloads a spreadsheet, and the run can be reopened', async ({
+  page,
+}) => {
+  const guards = attachConsoleGuards(page);
+  await signInStaff(page, ADMIN);
+  await page.goto('/ops/reports?report=sales&preset=last_7_days');
+  await expect(page.getByTestId('kpi-net_minor')).toBeVisible();
+
   const download = page.waitForEvent('download');
   await page.getByTestId('report-export').click();
-  expect((await download).suggestedFilename()).toMatch(/^report-.*\.csv$/);
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/^report-sales-\d{4}-\d{2}-\d{2}\.csv$/);
+  const text = await (await import('node:fs/promises')).readFile((await file.path())!, 'utf8');
+  expect(text.charCodeAt(0)).toBe(0xfeff);
+  expect(text).toContain('"Sales & revenue"');
+  expect(text).toContain('Time zone');
 
+  // it is in the recent runs, with its days, and opens exactly as it was
+  await page.getByTestId('rpt-tab-runs').click();
+  const open = page.locator('[data-testid^="run-open-"]').first();
+  await expect(open).toBeVisible();
+  await open.click();
+  await expect(page.getByText(/A saved report from/)).toBeVisible();
+  await expect(page.getByTestId('report-kpis')).toBeVisible();
+
+  guards.assertClean();
+});
+
+test('SCREEN-OPS-035: the checks without a period run on demand', async ({ page }, testInfo) => {
+  const guards = attachConsoleGuards(page);
+  await signInStaff(page, ADMIN);
+  await page.goto('/ops/reports?report=checks');
+  await page.getByTestId('report-choice-data_quality_sweep').click();
+  await page.getByTestId('report-run').click();
+  await expect(page.getByTestId('report-result')).toBeVisible();
+  await expect(page.getByTestId('report-scope-note')).toContainText(/location/i);
+  // a table on a laptop, cards on a phone — the checks are in words either way
+  await expect(page.getByTestId('report-result')).toContainText('Active or overdue rentals');
+  await shot(page, testInfo, 'ops-report-checks');
   guards.assertClean();
 });
 

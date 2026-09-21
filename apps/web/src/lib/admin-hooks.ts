@@ -1,3 +1,4 @@
+import type { AnalyticReport } from '@carrental/contracts';
 import {
   keepPreviousData,
   useMutation,
@@ -129,9 +130,22 @@ export interface ReportRunResult {
   runId: string;
   code: string;
   title: string;
+  /** `analytic`: the figures are in `report`; `flat`: a plain table in `columns` / `rows` */
+  kind?: 'analytic' | 'flat';
+  report?: AnalyticReport | null;
   columns: string[];
   rows: Array<Record<string, unknown>>;
   rowCount: number;
+  scopeNote: string;
+}
+
+/** An analytic report as it is shown on screen; `runId` is null for a preview (nothing saved). */
+export interface AnalyticRun {
+  runId: string | null;
+  code: string;
+  title: string;
+  kind: 'analytic';
+  report: AnalyticReport;
   scopeNote: string;
 }
 
@@ -141,6 +155,9 @@ export interface ReportRunSummary {
   rowCount: number;
   scopeNote: string | null;
   createdAt: string;
+  /** the days an analytic run covered; null for a flat report */
+  periodFrom?: string | null;
+  periodTo?: string | null;
 }
 
 export interface ReportSchedule {
@@ -151,6 +168,8 @@ export interface ReportSchedule {
   isActive: string;
   lastRunAt: string | null;
   lastSkipReason: string | null;
+  /** what the schedule asks for: the period, the comparison, the categories */
+  params?: Record<string, unknown>;
 }
 
 export function useReportDefinitions() {
@@ -164,6 +183,33 @@ export function useReportRuns() {
   return useQuery({
     queryKey: ['ops', 'report-runs'],
     queryFn: ({ signal }) => apiFetch<ReportRunSummary[]>('/ops/reports/runs', { signal }),
+  });
+}
+
+/** The figures for what is on screen. Nothing is stored; the previous answer stays until the next arrives. */
+export function useReportPreview(code: string, params: Record<string, unknown>, enabled: boolean) {
+  return useQuery({
+    queryKey: ['ops', 'report-preview', code, params],
+    queryFn: ({ signal }) =>
+      apiFetch<AnalyticRun>(`/ops/reports/${code}/preview`, {
+        method: 'POST',
+        body: { params },
+        signal,
+      }),
+    enabled,
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
+  });
+}
+
+/** A saved run, as it was shown. */
+export function useReportRunView(runId: string) {
+  return useQuery({
+    queryKey: ['ops', 'report-run', runId],
+    queryFn: ({ signal }) =>
+      apiFetch<ReportRunResult & { createdAt: string }>(`/ops/reports/runs/${runId}`, { signal }),
+    enabled: !!runId,
+    staleTime: Infinity,
   });
 }
 

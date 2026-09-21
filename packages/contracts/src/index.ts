@@ -12,6 +12,7 @@ export * from './catalogue';
 export * from './discovery';
 export * from './booking';
 export * from './workflow';
+export * from './report';
 
 export const API_BASE_PATH = '/api/v1';
 export const CONTRACT_VERSION = '1';

@@ -4058,6 +4058,52 @@
         ]
       }
     },
+    "/api/v1/ops/reports/runs/{runId}": {
+      "get": {
+        "operationId": "ReportController_getRun",
+        "parameters": [
+          {
+            "name": "runId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/reports/{code}/preview": {
+      "post": {
+        "operationId": "ReportController_previewReport",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/ops/reports/{code}/run": {
       "post": {
         "operationId": "ReportController_run",

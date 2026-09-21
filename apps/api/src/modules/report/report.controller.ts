@@ -96,6 +96,22 @@ export class ReportController {
     return this.reports.listRuns(actor, code);
   }
 
+  @Get('reports/runs/:runId')
+  @Permissions('report.read')
+  getRun(@Param('runId') runId: string, @CurrentActor() actor: Actor) {
+    return this.reports.getRunView(actor, runId);
+  }
+
+  @Post('reports/:code/preview')
+  @Permissions('report.read')
+  previewReport(
+    @Param('code') code: string,
+    @Body(new ZodValidationPipe(zRun)) body: z.infer<typeof zRun>,
+    @CurrentActor() actor: Actor,
+  ) {
+    return this.reports.preview(actor, code, body.params ?? {});
+  }
+
   @Post('reports/:code/run')
   @Permissions('report.read')
   run(

@@ -721,6 +721,62 @@ const REPORT_DEFINITIONS: Array<{
   columns: string[];
   minPermission: string;
 }> = [
+  // ---- analytic reports: a period, a comparison, KPIs, a trend and breakdowns ----
+  {
+    code: 'overview',
+    title: 'Business overview',
+    description:
+      'The headline numbers for a period: revenue, bookings, average daily rate, fleet utilisation, cancellations and cash collected.',
+    queryKind: 'analytic:overview',
+    columns: [],
+    minPermission: 'report.read',
+  },
+  {
+    code: 'sales',
+    title: 'Sales & revenue',
+    description:
+      'What was sold: revenue without tax, bookings, average rate per day, extras, tax and lost value, by vehicle category, branch and channel.',
+    queryKind: 'analytic:sales',
+    columns: [],
+    minPermission: 'report.read',
+  },
+  {
+    code: 'bookings',
+    title: 'Bookings',
+    description:
+      'How demand turned into trips: conversion, cancellations and no-shows, lead time, trip length and reasons.',
+    queryKind: 'analytic:bookings',
+    columns: [],
+    minPermission: 'report.read',
+  },
+  {
+    code: 'fleet',
+    title: 'Fleet utilisation',
+    description:
+      'How much of the fleet earned money: utilisation, rented and blocked days, revenue per rented and per available day, vehicle by vehicle.',
+    queryKind: 'analytic:fleet',
+    columns: [],
+    minPermission: 'report.read',
+  },
+  {
+    code: 'payments',
+    title: 'Payments & refunds',
+    description:
+      'Money that moved: collected, refunded and net by day, purpose and method, failed attempts, tax invoiced and unpaid balances.',
+    queryKind: 'analytic:payments',
+    columns: [],
+    minPermission: 'report.read',
+  },
+  {
+    code: 'operations',
+    title: 'Operations',
+    description:
+      'The work at the counter: pick-ups and returns, late returns, extensions, no-shows, inspection findings and damage charges.',
+    queryKind: 'analytic:operations',
+    columns: [],
+    minPermission: 'report.read',
+  },
+  // ---- earlier single-table reports: still run (and existing schedules keep working) ----
   {
     code: 'reservations_by_state',
     title: 'Reservations by state',

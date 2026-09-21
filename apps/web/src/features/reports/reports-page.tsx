@@ -1,274 +1,141 @@
 import { useAuth } from '@carrental/client/react';
 import { useI18n } from '@carrental/i18n/react';
-import type { ColumnDef } from '@tanstack/react-table';
-import { CalendarClock, Download, FileBarChart, Play, Plus, Send } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Plus } from 'lucide-react';
+import { useCallback, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
-import {
-  cellText,
-  columnLabel,
-  csvName,
-  isNumericColumn,
-  reportDescription,
-  reportTitle,
-  scopeText,
-  visibleColumns,
-} from './report-columns';
+import { AnalyticPanel } from './analytic-panel';
+import { AnalyticView, scopeLabel } from './analytic-view';
+import { ChecksPanel } from './checks-panel';
+import { csvName, reportDescription, reportTitle } from './report-columns';
+import { analyticCsv } from './report-csv';
 import { downloadCsv } from './report-model';
-import { ReportRowCard } from './report-row-card';
+import {
+  BASIS_REPORTS,
+  DEFAULT_REPORT,
+  LEGACY_REPORTS,
+  readView,
+  toScheduleParams,
+  VIEW_KEYS,
+  type ViewKey,
+} from './report-params';
+import { RunsTab, SchedulesTab } from './runs-tabs';
 import { ScheduleDialog } from './schedule-dialog';
 
 import { ChoiceTabs } from '@/components/choice-tabs';
 import { ConfirmDialog } from '@/components/confirm-dialog';
-import { DataTable } from '@/components/data-table/data-table';
 import { Page, PageHeader } from '@/components/page-header';
-import { SectionCard } from '@/components/section-card';
 import { StateSwitcher } from '@/components/state-switcher';
 import { StateView } from '@/components/state-view';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   fetchReportCsv,
   useReportDefinitions,
+  useReportRunView,
   useReportRuns,
   useReportSchedules,
-  useRunReport,
   useSendReportSchedule,
+  type ReportDefinition,
   type ReportRunResult,
   type ReportRunSummary,
   type ReportSchedule,
 } from '@/lib/admin-hooks';
+import { apiFetch } from '@/lib/api';
+import { downloadCsvFile } from '@/lib/csv';
 import { humanize } from '@/lib/labels';
 import { useLocationScope } from '@/lib/location-scope';
-import { useClientPage } from '@/lib/use-client-page';
 import { useListParams } from '@/lib/use-list-params';
 
 const TABS = ['run', 'runs', 'schedules'] as const;
 type Tab = (typeof TABS)[number];
+const CHECKS = 'checks';
+/** the order the reports are offered in: the overview first, then by what a manager asks next */
+const ORDER = ['overview', 'sales', 'bookings', 'fleet', 'payments', 'operations'];
 
 /**
- * SCREEN-OPS-035 — Reports. Each report is a whitelisted aggregate (no free SQL). Rows are limited
- * to the operator's location scope (FR-RPT-004), and the scope actually used is shown with every
- * result. A finished run can be exported as CSV; a report can be scheduled for recurring email.
+ * SCREEN-OPS-035 — Reports. Six reports answer for a period (the overview, sales, bookings, fleet,
+ * payments, operations), each with a comparison, headline figures, a trend and breakdowns; the
+ * checks without a period sit beside them. Everything is limited to the operator's branches
+ * (FR-RPT-004) and says which branches, which days and which currency it is about. A report can be
+ * exported, printed, or scheduled for e-mail.
  */
 export function ReportsPage() {
   const i18n = useI18n();
-  const { t, fmt } = i18n;
+  const { t } = i18n;
   const { hasPermission } = useAuth();
-  const canSchedule = hasPermission('report.export');
-  const { state, update } = useListParams(['tab'] as const);
+  const canExport = hasPermission('report.export');
+  const { state, update } = useListParams(['tab', 'saved', ...VIEW_KEYS] as const);
   const tab: Tab = (TABS as readonly string[]).includes(state.tab) ? (state.tab as Tab) : 'run';
-  const {
-    codes: locationCode,
-    selected: locationSelection,
-    options: locationOptions,
-    nameOf,
-  } = useLocationScope();
+  const view = readView(state as unknown as Record<ViewKey, string>);
+  const { codes: locationCode, nameOf } = useLocationScope();
 
   const defsQuery = useReportDefinitions();
-  // reports you can run first, branch-level ones before whole-organisation ones, then by name
-  const defs = useMemo(() => {
-    const list = [...(defsQuery.data ?? [])].sort(
-      (a, b) =>
-        Number(b.available) - Number(a.available) ||
-        Number(a.scope === 'org_wide') - Number(b.scope === 'org_wide') ||
-        reportTitle(i18n, a).localeCompare(reportTitle(i18n, b), i18n.locale),
-    );
-    return { ...defsQuery, data: defsQuery.data ? list : undefined };
-  }, [defsQuery]);
+  const defs = useMemo(() => defsQuery.data ?? [], [defsQuery.data]);
+  const analytic = useMemo(
+    () =>
+      defs
+        .filter((d) => d.queryKind.startsWith('analytic:'))
+        .sort((a, b) => ORDER.indexOf(a.code) - ORDER.indexOf(b.code)),
+    [defs],
+  );
+  const checks = useMemo(
+    () => defs.filter((d) => !d.queryKind.startsWith('analytic:') && !LEGACY_REPORTS.has(d.code)),
+    [defs],
+  );
   const runs = useReportRuns();
   const schedules = useReportSchedules();
-  const run = useRunReport();
   const send = useSendReportSchedule();
-
-  const [selected, setSelected] = useState('');
-  const [result, setResult] = useState<ReportRunResult | null>(null);
-  const [ranAt, setRanAt] = useState<Date | null>(null);
-  const resultRef = useRef<HTMLElement>(null);
-  // the picker is tall; after a run, bring the answer into view
-  useEffect(() => {
-    if (ranAt) resultRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-  }, [ranAt]);
-  const [runError, setRunError] = useState<string | null>(null);
-  const [resultPage, setResultPage] = useState({ page: 1, pageSize: 25 });
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [sending, setSending] = useState<ReportSchedule | null>(null);
-  const defOf = (c: string) => defs.data?.find((d) => d.code === c);
-  const titleOf = (c: string) => {
-    const d = defOf(c);
-    return d ? reportTitle(i18n, d) : humanize(c);
-  };
-  const code = selected || defs.data?.find((d) => d.available)?.code || defs.data?.[0]?.code || '';
-  const def = defs.data?.find((d) => d.code === code);
 
-  async function doRun() {
-    setRunError(null);
-    try {
-      // narrows within the actor's own scope; a report that doesn't filter by location ignores it
-      const r = await run.mutateAsync({ code, params: locationCode ? { locationCode } : {} });
-      setResult(r);
-      setRanAt(new Date());
-      setResultPage((p) => ({ ...p, page: 1 }));
-    } catch (err) {
-      setRunError(err instanceof Error ? err.message : t('ops.rpt.runFail'));
-    }
-  }
-  async function exportRun(runId: string, reportCode: string, on: Date) {
-    try {
-      downloadCsv(csvName(reportCode, on), await fetchReportCsv(runId));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('ops.rpt.exportFail'));
-    }
-  }
-
-  // ---- result table: positional aggregate rows with a run-defined column set ----
-  const cols = result
-    ? visibleColumns(
-        result.columns.length ? result.columns : Object.keys(result.rows[0] ?? {}),
-        result.rows,
-      )
-    : [];
-  const resultColumns = useMemo<ColumnDef<Record<string, unknown>, unknown>[]>(
-    () =>
-      cols.map((c) => {
-        const numeric = isNumericColumn(c, result?.rows ?? []);
-        return {
-          id: c,
-          header: columnLabel(i18n, c),
-          meta: { className: numeric ? 'text-end' : undefined },
-          cell: ({ row }) => (
-            <span className={numeric ? 'tabular-nums' : undefined}>
-              {cellText(i18n, c, row.original)}
-            </span>
-          ),
-        };
-      }),
-    [result, i18n.locale],
-  );
-  const resultRows = result?.rows ?? [];
-  const resultOffset = (resultPage.page - 1) * resultPage.pageSize;
-  // rows have no id of their own — their position in the result is the key
-  const resultSlice = resultRows
-    .slice(resultOffset, resultOffset + resultPage.pageSize)
-    .map((r, i) => ({ ...r, __i: resultOffset + i }));
-
-  // ---- runs ----
-  const runList = useMemo(() => runs.data ?? [], [runs.data]);
-  const { pageRows: runRows, pagination: runPaging } = useClientPage(runList, state, update);
-  const runColumns = useMemo<ColumnDef<ReportRunSummary, unknown>[]>(
-    () => [
-      {
-        id: 'report',
-        header: t('ops.rpt.report'),
-        cell: ({ row: { original: r } }) => (
-          <span className="font-medium">{titleOf(r.definitionCode)}</span>
-        ),
-      },
-      {
-        id: 'scope',
-        header: t('ops.rpt.scopeNote'),
-        meta: { className: 'hidden md:table-cell' },
-        cell: ({ row: { original: r } }) => (
-          <span className="text-muted-foreground">{scopeText(i18n, r.scopeNote, nameOf)}</span>
-        ),
-      },
-      {
-        id: 'rows',
-        header: t('ops.rpt.thRows'),
-        cell: ({ row: { original: r } }) => <span className="tabular-nums">{r.rowCount}</span>,
-      },
-      {
-        id: 'when',
-        header: t('ops.rpt.thWhen'),
-        cell: ({ row: { original: r } }) => (
-          <span className="whitespace-nowrap text-muted-foreground">
-            {fmt.dateTime(r.createdAt)}
-          </span>
-        ),
-      },
-      {
-        id: 'actions',
-        header: () => <span className="sr-only">{t('ops.resv.actions')}</span>,
-        meta: { className: 'text-end' },
-        cell: ({ row: { original: r } }) => (
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => void exportRun(r.id, r.definitionCode, new Date(r.createdAt))}
-          >
-            <Download aria-hidden="true" />
-            {t('ops.rpt.export')}
-          </Button>
-        ),
-      },
-    ],
-
-    [t, fmt, defs.data, nameOf],
+  const titleOf = useCallback(
+    (code: string) => {
+      const d = defs.find((x) => x.code === code);
+      return d ? reportTitle(i18n, d) : humanize(code);
+    },
+    // titles follow the language and the loaded definitions
+    [defs, i18n],
   );
 
-  // ---- schedules ----
-  const scheduleBadge = (s: ReportSchedule) =>
-    s.isActive !== 'true' ? (
-      <Badge variant="warning">
-        {s.lastSkipReason ? t(`ops.rpt.skip.${s.lastSkipReason}`) : t('ops.rpt.paused')}
-      </Badge>
-    ) : (
-      <Badge variant="success">{t('ops.rpt.active')}</Badge>
-    );
-  const scheduleColumns = useMemo<ColumnDef<ReportSchedule, unknown>[]>(
-    () => [
-      {
-        id: 'report',
-        header: t('ops.rpt.report'),
-        cell: ({ row: { original: s } }) => (
-          <span className="font-medium">{titleOf(s.definitionCode)}</span>
-        ),
-      },
-      {
-        id: 'cron',
-        header: t('ops.rpt.cron'),
-        cell: ({ row: { original: s } }) => (
-          <span className="bidi-isolate font-mono text-xs">{s.cron}</span>
-        ),
-      },
-      {
-        id: 'recipients',
-        header: t('ops.rpt.recipients'),
-        meta: { className: 'hidden md:table-cell' },
-        cell: ({ row: { original: s } }) => t('ops.rpt.recipientCount', { n: s.recipients.length }),
-      },
-      {
-        id: 'status',
-        header: t('ops.tbl.status'),
-        cell: ({ row: { original: s } }) => scheduleBadge(s),
-      },
-      {
-        id: 'actions',
-        header: () => <span className="sr-only">{t('ops.resv.actions')}</span>,
-        meta: { className: 'text-end' },
-        cell: ({ row: { original: s } }) =>
-          canSchedule ? (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => setSending(s)}
-              data-testid={`schedule-send-${s.id}`}
-            >
-              <Send aria-hidden="true" />
-              {t('ops.rpt.sendNow')}
-            </Button>
-          ) : null,
-      },
-    ],
+  const patch = (p: Partial<Record<Exclude<ViewKey, 'report'> | 'saved', string>>) => update(p);
+  const selected =
+    view.report === CHECKS
+      ? CHECKS
+      : analytic.some((d) => d.code === view.report)
+        ? view.report
+        : (analytic[0]?.code ?? DEFAULT_REPORT);
+  const def = analytic.find((d) => d.code === selected);
 
-    [t, canSchedule, defs.data],
+  const openRun = useCallback((r: ReportRunSummary) => update({ tab: '', saved: r.id }), [update]);
+  const exportRun = useCallback(
+    async (r: ReportRunSummary) => {
+      try {
+        if (!r.periodFrom) {
+          downloadCsv(csvName(r.definitionCode, new Date(r.createdAt)), await fetchReportCsv(r.id));
+          return;
+        }
+        const run = await apiFetch<ReportRunResult>(`/ops/reports/runs/${r.id}`);
+        const rep = run.report;
+        if (!rep) return;
+        downloadCsvFile(
+          csvName(r.definitionCode, new Date(r.createdAt)),
+          analyticCsv(i18n, rep, {
+            title: titleOf(r.definitionCode),
+            scope: scopeLabel(t, rep.scope.locations, nameOf),
+            basis: BASIS_REPORTS.has(r.definitionCode)
+              ? t(`ops.rpt.basis.${rep.period.basis}`)
+              : '',
+            compare: rep.period.compare ? t(`ops.rpt.compareKind.${rep.period.compare.kind}`) : '',
+            generated: i18n.fmt.dateTime(rep.generatedAt),
+          }),
+        );
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : t('ops.rpt.exportFail'));
+      }
+    },
+    [i18n, nameOf, t, titleOf],
   );
-
-  const narrowing =
-    locationSelection.length && locationOptions.length > 1 && def?.scope === 'location'
-      ? locationSelection.map(nameOf).join(', ')
-      : null;
 
   return (
     <Page>
@@ -276,7 +143,7 @@ export function ReportsPage() {
         title={t('ops.rpt.title')}
         description={t('ops.rpt.subtitleScoped')}
         actions={
-          canSchedule && tab === 'schedules' && defs.data?.length ? (
+          canExport && tab === 'schedules' && defs.length ? (
             <Button onClick={() => setScheduleOpen(true)} data-testid="schedule-new">
               <Plus aria-hidden="true" />
               {t('ops.rpt.newSchedule')}
@@ -285,205 +152,119 @@ export function ReportsPage() {
         }
       />
 
-      <StateSwitcher
-        label={t('ops.rpt.title')}
-        value={tab}
-        onChange={(v) => update({ tab: v === 'run' ? '' : v })}
-        testIdPrefix="rpt-tab"
-        options={[
-          { value: 'run', label: t('ops.rpt.run') },
-          {
-            value: 'runs',
-            label: `${t('ops.rpt.recent')}${runs.data ? ` (${runs.data.length})` : ''}`,
-          },
-          {
-            value: 'schedules',
-            label: `${t('ops.rpt.schedule')}${schedules.data ? ` (${schedules.data.length})` : ''}`,
-          },
-        ]}
-      />
+      <div className="print:hidden">
+        <StateSwitcher
+          label={t('ops.rpt.title')}
+          value={tab}
+          onChange={(v) => update({ tab: v === 'run' ? '' : v, saved: '' })}
+          testIdPrefix="rpt-tab"
+          options={[
+            { value: 'run', label: t('ops.rpt.reports') },
+            {
+              value: 'runs',
+              label: `${t('ops.rpt.recent')}${runs.data ? ` (${runs.data.length})` : ''}`,
+            },
+            {
+              value: 'schedules',
+              label: `${t('ops.rpt.schedule')}${schedules.data ? ` (${schedules.data.length})` : ''}`,
+            },
+          ]}
+        />
+      </div>
 
       {tab === 'run' ? (
-        <div className="space-y-6">
-          <SectionCard icon={FileBarChart} title={t('ops.rpt.run')}>
-            {defs.isError ? (
-              <StateView
-                kind="error"
-                title={t('ops.rpt.loadFail')}
-                actionLabel={t('ops.st.retry')}
-                onAction={() => void defs.refetch()}
-              />
-            ) : (
-              <div className="space-y-4">
-                <ChoiceTabs
-                  layout="list"
-                  className="sm:grid-cols-2"
-                  label={t('ops.rpt.report')}
-                  value={code}
-                  onChange={(v) => {
-                    setSelected(v);
-                    setResult(null);
-                  }}
-                  testIdPrefix="report-choice"
-                  options={(defs.data ?? []).map((d) => ({
+        state.saved ? (
+          <SavedRun
+            runId={state.saved}
+            onBack={() => update({ saved: '', tab: 'runs' })}
+            nameOf={nameOf}
+          />
+        ) : defsQuery.isError ? (
+          <StateView
+            kind="error"
+            title={t('ops.rpt.loadFail')}
+            actionLabel={t('ops.st.retry')}
+            onAction={() => void defsQuery.refetch()}
+          />
+        ) : defsQuery.isLoading ? (
+          <Skeleton className="h-64" />
+        ) : (
+          <div className="space-y-6">
+            <div className="space-y-2 print:hidden">
+              <ChoiceTabs
+                label={t('ops.rpt.report')}
+                value={selected}
+                onChange={(v) => update({ report: v === DEFAULT_REPORT ? '' : v })}
+                testIdPrefix="report-choice"
+                options={[
+                  ...analytic.map((d) => ({
                     value: d.code,
+                    label: reportTitle(i18n, d),
                     disabled: !d.available,
-                    label: (
-                      <span className="flex flex-wrap items-center gap-2">
-                        {reportTitle(i18n, d)}
-                        {d.scope === 'org_wide' ? (
-                          <Badge variant="outline">{t('ops.rpt.orgWideTag')}</Badge>
-                        ) : null}
-                      </span>
-                    ),
-                    description: reportDescription(i18n, d),
-                  }))}
-                />
-                <Button
-                  onClick={() => void doRun()}
-                  loading={run.isPending}
-                  disabled={!code || def?.available === false}
-                  data-testid="report-run"
-                >
-                  <Play aria-hidden="true" />
-                  {def
-                    ? t('ops.rpt.runNamed', { name: reportTitle(i18n, def) })
-                    : t('ops.rpt.runAction')}
-                </Button>
-                {def?.scope === 'org_wide' ? (
-                  <p className="text-xs text-muted-foreground" data-testid="report-org-wide">
-                    {def.available ? t('ops.rpt.orgWideNote') : t('ops.rpt.orgWideBlocked')}
-                  </p>
-                ) : null}
-                {narrowing ? (
-                  <p className="text-xs text-muted-foreground" data-testid="report-location-filter">
-                    {t('ops.rpt.locationFilter', { name: narrowing })}
-                  </p>
-                ) : null}
-                {runError ? (
-                  <p
-                    role="alert"
-                    className="text-sm text-destructive"
-                    data-testid="report-run-error"
-                  >
-                    {runError}
-                  </p>
-                ) : null}
-              </div>
-            )}
-          </SectionCard>
-
-          {result ? (
-            <section
-              ref={resultRef}
-              data-testid="report-result"
-              aria-label={titleOf(result.code)}
-              className="scroll-mt-20 space-y-3"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <h2 className="text-base font-semibold">{titleOf(result.code)}</h2>
-                  <Badge variant="secondary" data-testid="report-scope-note">
-                    {scopeText(i18n, result.scopeNote, nameOf)}
-                  </Badge>
-                  <span className="text-muted-foreground">
-                    {t('ops.rpt.rows', { n: result.rowCount })}
-                    {ranAt ? ` · ${t('ops.rpt.ranAt', { when: fmt.dateTime(ranAt) })}` : ''}
-                  </span>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => void exportRun(result.runId, result.code, ranAt ?? new Date())}
-                  data-testid="report-export"
-                >
-                  <Download aria-hidden="true" />
-                  {t('ops.rpt.export')}
-                </Button>
-              </div>
-              <DataTable
-                label={titleOf(result.code)}
-                columns={resultColumns}
-                data={resultSlice}
-                renderCard={(r) => <ReportRowCard row={r} columns={cols} rows={resultRows} />}
-                getRowId={(r) => String(r.__i)}
-                bodyTestId="report-rows"
-                empty={<StateView title={t('ops.rpt.noData')} className="py-10" />}
-                pagination={{
-                  page: resultPage.page,
-                  pageSize: resultPage.pageSize,
-                  total: resultRows.length,
-                  pageSizeOptions: [10, 25, 50, 100],
-                  onPageChange: (p) => setResultPage((s) => ({ ...s, page: p })),
-                  onPageSizeChange: (n) => setResultPage({ page: 1, pageSize: n }),
-                }}
+                  })),
+                  ...(checks.length ? [{ value: CHECKS, label: t('ops.rpt.checks') }] : []),
+                ]}
               />
-            </section>
-          ) : null}
-        </div>
+              {def ? (
+                <p className="text-sm text-muted-foreground">{reportDescription(i18n, def)}</p>
+              ) : null}
+            </div>
+            {selected === CHECKS ? (
+              <ChecksPanel defs={checks} nameOf={nameOf} />
+            ) : def ? (
+              <div className="space-y-2">
+                <h2 className="hidden text-xl font-semibold print:block">
+                  {reportTitle(i18n, def)}
+                </h2>
+                <AnalyticPanel
+                  key={def.code}
+                  code={def.code}
+                  title={reportTitle(i18n, def)}
+                  view={view}
+                  patch={patch}
+                  locationCode={locationCode}
+                  nameOf={nameOf}
+                  canExport={canExport}
+                  canSchedule={canExport}
+                  onSchedule={() => setScheduleOpen(true)}
+                />
+              </div>
+            ) : null}
+          </div>
+        )
       ) : tab === 'runs' ? (
-        <section aria-label={t('ops.rpt.recent')} data-testid="report-runs">
-          <DataTable
-            label={t('ops.rpt.recent')}
-            columns={runColumns}
-            data={runRows}
-            getRowId={(r) => r.id}
-            loading={runs.isLoading}
-            fetching={runs.isFetching}
-            bodyTestId="report-run-rows"
-            error={
-              runs.isError ? (
-                <StateView
-                  kind="error"
-                  title={t('ops.rpt.loadFail')}
-                  actionLabel={t('ops.st.retry')}
-                  onAction={() => void runs.refetch()}
-                  className="py-14"
-                />
-              ) : undefined
-            }
-            empty={<StateView icon={FileBarChart} title={t('ops.rpt.noRuns')} className="py-14" />}
-            pagination={runPaging}
-          />
-        </section>
+        <RunsTab
+          runs={runs.data ?? []}
+          loading={runs.isLoading}
+          fetching={runs.isFetching}
+          error={runs.isError}
+          onRetry={() => void runs.refetch()}
+          titleOf={titleOf}
+          nameOf={nameOf}
+          state={state}
+          update={update}
+          onOpen={openRun}
+          onExport={(r) => void exportRun(r)}
+        />
       ) : (
-        <section aria-label={t('ops.rpt.schedule')} data-testid="report-schedules">
-          <DataTable
-            label={t('ops.rpt.schedule')}
-            columns={scheduleColumns}
-            data={schedules.data ?? []}
-            getRowId={(s) => s.id}
-            loading={schedules.isLoading}
-            bodyTestId="report-schedule-rows"
-            error={
-              schedules.isError ? (
-                <StateView
-                  kind="error"
-                  title={t('ops.rpt.loadFail')}
-                  actionLabel={t('ops.st.retry')}
-                  onAction={() => void schedules.refetch()}
-                  className="py-14"
-                />
-              ) : undefined
-            }
-            empty={
-              <StateView icon={CalendarClock} title={t('ops.rpt.noSchedules')} className="py-14">
-                {canSchedule && defs.data?.length ? (
-                  <Button size="sm" onClick={() => setScheduleOpen(true)}>
-                    <Plus aria-hidden="true" />
-                    {t('ops.rpt.newSchedule')}
-                  </Button>
-                ) : null}
-              </StateView>
-            }
-          />
-        </section>
+        <SchedulesTab
+          schedules={schedules.data ?? []}
+          loading={schedules.isLoading}
+          error={schedules.isError}
+          onRetry={() => void schedules.refetch()}
+          titleOf={titleOf}
+          canSchedule={canExport}
+          canCreate={canExport && defs.length > 0}
+          onNew={() => setScheduleOpen(true)}
+          onSend={setSending}
+        />
       )}
 
-      {scheduleOpen && defs.data ? (
+      {scheduleOpen && defs.length ? (
         <ScheduleDialog
-          definitions={defs.data}
-          defaultCode={code}
+          definitions={defs.filter((d) => !LEGACY_REPORTS.has(d.code)) as ReportDefinition[]}
+          defaultCode={selected === CHECKS ? (checks[0]?.code ?? '') : selected}
+          defaults={toScheduleParams(view)}
           open
           onOpenChange={setScheduleOpen}
         />
@@ -503,5 +284,50 @@ export function ReportsPage() {
         />
       ) : null}
     </Page>
+  );
+}
+
+/** A run that was saved earlier, exactly as it was shown. */
+function SavedRun({
+  runId,
+  onBack,
+  nameOf,
+}: {
+  runId: string;
+  onBack: () => void;
+  nameOf: (c: string) => string;
+}) {
+  const { t, fmt } = useI18n();
+  const q = useReportRunView(runId);
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 p-3 text-sm print:hidden">
+        <span>
+          {q.data
+            ? t('ops.rpt.savedRun', { when: fmt.dateTime(q.data.createdAt) })
+            : t('ops.rpt.savedRunLoading')}
+        </span>
+        <Button size="sm" variant="outline" onClick={onBack}>
+          <ArrowLeft className="rtl:rotate-180" aria-hidden="true" />
+          {t('ops.rpt.backToRuns')}
+        </Button>
+      </div>
+      {q.isError ? (
+        <StateView
+          kind="error"
+          title={t('ops.rpt.loadFail')}
+          actionLabel={t('ops.st.retry')}
+          onAction={() => void q.refetch()}
+        />
+      ) : !q.data?.report ? (
+        <Skeleton className="h-64" />
+      ) : (
+        <AnalyticView
+          report={q.data.report}
+          usesBasis={BASIS_REPORTS.has(q.data.code)}
+          nameOf={nameOf}
+        />
+      )}
+    </div>
   );
 }

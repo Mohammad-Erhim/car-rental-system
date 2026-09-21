@@ -1,3 +1,4 @@
+import { REPORT_COMPARE, REPORT_PRESETS } from '@carrental/contracts';
 import { useI18n } from '@carrental/i18n/react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect, useMemo } from 'react';
@@ -14,6 +15,9 @@ import { useScheduleReport, type ReportDefinition } from '@/lib/admin-hooks';
 
 interface Values {
   definitionCode: string;
+  /** the days a report covers each time it is sent (analytic reports) */
+  period: string;
+  compare: string;
   preset: string;
   cron: string;
   recipients: string;
@@ -25,11 +29,14 @@ const CUSTOM = 'custom';
 export function ScheduleDialog({
   definitions,
   defaultCode,
+  defaults: viewDefaults = {},
   open,
   onOpenChange,
 }: {
   definitions: ReportDefinition[];
   defaultCode: string;
+  /** what the report on screen asks for, to carry over (period, comparison, categories, …) */
+  defaults?: Record<string, unknown>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -41,6 +48,8 @@ export function ScheduleDialog({
     () =>
       z.object({
         definitionCode: z.string().min(1, t('error.field.required')),
+        period: z.string(),
+        compare: z.string(),
         preset: z.string(),
         cron: z
           .string()
@@ -54,12 +63,17 @@ export function ScheduleDialog({
   );
   const defaults: Values = {
     definitionCode: defaultCode,
+    period: typeof viewDefaults.preset === 'string' ? viewDefaults.preset : 'last_30_days',
+    compare: typeof viewDefaults.compare === 'string' ? viewDefaults.compare : 'previous',
     preset: CRON_PRESETS[0].value,
     cron: CRON_PRESETS[0].value,
     recipients: '',
   };
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: defaults });
   const preset = form.watch('preset');
+  const chosen = form.watch('definitionCode');
+  const isAnalytic =
+    definitions.find((d) => d.code === chosen)?.queryKind.startsWith('analytic:') ?? false;
   // choosing a preset writes its cron; typing in the cron box switches the preset to custom
   useEffect(() => {
     if (preset !== CUSTOM)
@@ -80,6 +94,10 @@ export function ScheduleDialog({
           definitionCode: v.definitionCode,
           cron: v.cron.trim(),
           recipients: parseRecipients(v.recipients),
+          // an analytic report is always sent for a period *relative to the day it is sent*
+          ...(isAnalytic
+            ? { params: { ...viewDefaults, preset: v.period, compare: v.compare } }
+            : {}),
         });
         toast.success(t('ops.rpt.scheduleCreated'));
       }}
@@ -91,6 +109,28 @@ export function ScheduleDialog({
         options={definitions.map((d) => ({ value: d.code, label: reportTitle(i18n, d) }))}
         testIdPrefix="schedule-report"
       />
+      {isAnalytic ? (
+        <>
+          <ChoiceField
+            control={form.control}
+            name="period"
+            label={t('ops.rpt.schedulePeriod')}
+            description={t('ops.rpt.schedulePeriodHint')}
+            options={REPORT_PRESETS.filter((p) => p !== 'custom').map((p) => ({
+              value: p,
+              label: t(`ops.rpt.preset.${p}`),
+            }))}
+            testIdPrefix="schedule-period"
+          />
+          <ChoiceField
+            control={form.control}
+            name="compare"
+            label={t('ops.rpt.f.compare')}
+            options={REPORT_COMPARE.map((c) => ({ value: c, label: t(`ops.rpt.compare.${c}`) }))}
+            testIdPrefix="schedule-compare"
+          />
+        </>
+      ) : null}
       <ChoiceField
         control={form.control}
         name="preset"

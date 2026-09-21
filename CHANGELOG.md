@@ -6,6 +6,19 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### Reports rebuilt (2026-09)
+
+- **Six reports for any period** — business overview, sales & revenue, bookings, fleet utilisation,
+  payments & refunds, operations — each with headline figures and how they moved against the period
+  before (or the same days last year), a trend, breakdowns by category / branch / channel / status with
+  totals, and the records behind the numbers (each links to the reservation or rental).
+- **A clear time frame**: presets or exact dates, comparison, day/week/month grouping, which date places a
+  booking in the period (booking, pick-up or return date), the time zone the days are cut in, the
+  currency — all said at the top of the report. Money is never added across currencies.
+- **Export a spreadsheet** built from what is on screen, **print** a clean page, **send by e-mail** on a
+  schedule for a relative period ("last month"), and reopen any saved run exactly as it was.
+- Available in English, French and Arabic; works on a phone.
+
 ### Clearer requests, reports and audit log (2026-09)
 
 - **A request opens on your decision:** a "Waiting for your decision" card with Approve / Reject / Send

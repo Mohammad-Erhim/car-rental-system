@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 
+import { zReportParams, type AnalyticReport } from '@carrental/contracts';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { parseExpression } from 'cron-parser';
 import { and, asc, desc, eq, gte, ilike, inArray, lte, or, sql } from 'drizzle-orm';
@@ -28,6 +29,8 @@ import { rental } from '../../database/schema/rental';
 import { reservation, reconciliationException } from '../../database/schema/reservation';
 import { NotifyService } from '../notify/notify.service';
 
+import { analyticDef, isAnalytic, runAnalytic } from './analytics/engine';
+
 /**
  * How each `report_definition.queryKind` relates to a location scope:
  *  - `location`: every row traces to a branch (reservation pickup, a car's current branch, the
@@ -47,7 +50,7 @@ export const REPORT_SCOPE: Record<string, 'location' | 'org_wide'> = {
   data_quality_sweep: 'org_wide',
 };
 export const reportScopeOf = (queryKind: string): 'location' | 'org_wide' =>
-  REPORT_SCOPE[queryKind] ?? 'org_wide';
+  isAnalytic(queryKind) ? 'location' : (REPORT_SCOPE[queryKind] ?? 'org_wide');
 
 @Injectable()
 export class ReportService {
@@ -103,7 +106,7 @@ export class ReportService {
     return scope ? `Scoped to ${scope.join(', ')}` : 'All locations';
   }
 
-  async run(actor: Actor, code: string, params: Record<string, unknown> = {}) {
+  private async loadDefinition(actor: Actor, code: string) {
     const [def] = await this.db
       .select()
       .from(reportDefinition)
@@ -113,7 +116,107 @@ export class ReportService {
     if (def.minPermission && !(actor.permissions ?? []).includes(def.minPermission)) {
       throw AppError.forbidden(`This report requires ${def.minPermission}`);
     }
+    return def;
+  }
 
+  /**
+   * An analytic report for a period. `save` decides whether it is kept as a run (exports, the
+   * recent-runs list and scheduled deliveries) or only computed for the screen — changing a filter
+   * on the page previews, exporting saves.
+   */
+  private async analytic(
+    actor: Actor,
+    def: typeof reportDefinition.$inferSelect,
+    rawParams: Record<string, unknown>,
+    save: boolean,
+  ) {
+    const parsed = zReportParams.safeParse(rawParams);
+    if (!parsed.success) {
+      throw AppError.validation(
+        parsed.error.issues.map((i) => ({ path: i.path.join('.') || 'params', code: i.code })),
+      );
+    }
+    const params = parsed.data;
+    const spec = analyticDef(def.queryKind);
+    if (!spec)
+      throw AppError.businessRule(`Unknown report: ${def.queryKind}`, { reason: 'unknown_query' });
+    // narrows within the person's own branches, never beyond them
+    const scope = this.effectiveScope(actor, params.locationCode);
+    const orgId = await this.orgId();
+    const [org] = await this.db
+      .select({ currency: organization.defaultCurrency })
+      .from(organization)
+      .where(eq(organization.id, orgId))
+      .limit(1);
+    const report = await runAnalytic(spec, {
+      db: this.db,
+      orgId,
+      scope,
+      params,
+      title: def.title,
+      defaultCurrency: org?.currency ?? 'USD',
+      now: new Date(),
+    });
+    const scopeNote = this.scopeNoteFor(scope);
+    let runId: string | null = null;
+    if (save) {
+      const rows = report.detail?.rows ?? [];
+      const [saved] = await this.db
+        .insert(reportRun)
+        .values({
+          organizationId: orgId,
+          definitionCode: def.code,
+          params: rawParams,
+          status: 'complete',
+          rowCount: rows.length,
+          result: rows,
+          summary: { ...report, detail: report.detail ? { ...report.detail, rows: [] } : null },
+          scopeNote,
+          locationScope: scope ?? [],
+          createdBy: actor.accountId,
+        })
+        .returning({ id: reportRun.id });
+      runId = saved!.id;
+      await this.audit.record({
+        action: 'report.run',
+        targetType: 'report',
+        targetId: def.code,
+        actor,
+        after: {
+          rowCount: rows.length,
+          scopeNote,
+          period: `${report.period.from}..${report.period.to}`,
+        },
+      });
+    }
+    return {
+      runId,
+      code: def.code,
+      title: def.title,
+      kind: 'analytic' as const,
+      report,
+      columns: [] as string[],
+      rows: [] as Array<Record<string, unknown>>,
+      rowCount: report.detail?.rows.length ?? 0,
+      scopeNote,
+    };
+  }
+
+  /** The same figures as `run`, for the screen: nothing is stored and nothing is audited. */
+  async preview(actor: Actor, code: string, params: Record<string, unknown> = {}) {
+    const def = await this.loadDefinition(actor, code);
+    if (!isAnalytic(def.queryKind)) {
+      throw AppError.businessRule('This report has no preview', { reason: 'not_analytic' });
+    }
+    return this.analytic(actor, def, params, false);
+  }
+
+  async run(actor: Actor, code: string, params: Record<string, unknown> = {}) {
+    const def = await this.loadDefinition(actor, code);
+    if (isAnalytic(def.queryKind)) {
+      const saved = await this.analytic(actor, def, params, true);
+      return { ...saved, runId: saved.runId! };
+    }
     const orgId = await this.orgId();
     // `params.locationCode` narrows *within* the actor's own scope, same as the dashboard
     // endpoints above — never a replacement of it. Only applied for `reservations_by_state` and
@@ -636,6 +739,33 @@ export class ReportService {
     return row;
   }
 
+  /** A saved run as the screen shows it — the analytic figures plus the rows it kept. */
+  async getRunView(actor: Actor, runId: string) {
+    const row = await this.getRun(actor, runId);
+    const rows = (row.result as Array<Record<string, unknown>>) ?? [];
+    const summary = row.summary as (AnalyticReport & { detail: AnalyticReport['detail'] }) | null;
+    const [def] = await this.db
+      .select({ title: reportDefinition.title })
+      .from(reportDefinition)
+      .where(eq(reportDefinition.code, row.definitionCode))
+      .limit(1);
+    return {
+      runId: row.id,
+      code: row.definitionCode,
+      title: def?.title ?? row.definitionCode,
+      kind: summary ? ('analytic' as const) : ('flat' as const),
+      createdAt: new Date(row.createdAt).toISOString(),
+      params: row.params,
+      report: summary
+        ? { ...summary, detail: summary.detail ? { ...summary.detail, rows } : null }
+        : null,
+      columns: summary ? [] : ((def && rows[0] ? Object.keys(rows[0]) : []) as string[]),
+      rows: summary ? [] : rows,
+      rowCount: row.rowCount,
+      scopeNote: row.scopeNote ?? '',
+    };
+  }
+
   async exportCsv(actor: Actor, runId: string): Promise<string> {
     const run = await this.getRun(actor, runId);
     const rows = (run.result as Array<Record<string, unknown>>) ?? [];
@@ -785,6 +915,13 @@ export class ReportService {
       // body; a resumed one re-derives that same info without generating the report a second
       // time (the row already exists from the failed attempt).
       const runInfo = resuming ? await this.reportRunInfo(run.runId) : run;
+      // analytic reports say which days they cover
+      const fresh = resuming ? undefined : (run as { report?: AnalyticReport }).report;
+      const periodNote = fresh
+        ? `${fresh.period.from} to ${fresh.period.to}`
+        : resuming
+          ? await this.periodNoteOf(run.runId)
+          : null;
 
       // Isolate each recipient: one bad address/notify failure must not stop delivery to the
       // rest, and must not make the rest look "failed" and get resent next tick.
@@ -797,8 +934,10 @@ export class ReportService {
             fallback: {
               subject: `${runInfo.title} — report`,
               body:
-                `Your scheduled report "${runInfo.title}" ran with ${runInfo.rowCount} row(s). ` +
-                `Scope: ${runInfo.scopeNote}. Sign in to the operations console → Insights to view ` +
+                (periodNote
+                  ? `Your scheduled report "${runInfo.title}" for ${periodNote} is ready. `
+                  : `Your scheduled report "${runInfo.title}" ran with ${runInfo.rowCount} row(s). `) +
+                `Scope: ${runInfo.scopeNote}. Sign in to the operations console → Reports to view ` +
                 `or export the full data.`,
             },
             sourceType: 'report_run',
@@ -888,6 +1027,16 @@ export class ReportService {
     }
   }
 
+  private async periodNoteOf(runId: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ summary: reportRun.summary })
+      .from(reportRun)
+      .where(eq(reportRun.id, runId))
+      .limit(1);
+    const period = (row?.summary as { period?: { from: string; to: string } } | null)?.period;
+    return period ? `${period.from} to ${period.to}` : null;
+  }
+
   /** Re-derives the message fields a resumed delivery needs from the already-generated run row,
    *  without generating the report again. */
   private async reportRunInfo(
@@ -955,6 +1104,9 @@ export class ReportService {
         locationScope: reportRun.locationScope,
         createdBy: reportRun.createdBy,
         createdAt: reportRun.createdAt,
+        // analytic runs say which days they covered
+        periodFrom: sql<string | null>`${reportRun.summary} -> 'period' ->> 'from'`,
+        periodTo: sql<string | null>`${reportRun.summary} -> 'period' ->> 'to'`,
       })
       .from(reportRun)
       .where(code ? eq(reportRun.definitionCode, code) : sql`true`)

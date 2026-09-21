@@ -590,3 +590,48 @@ routing-payment.adapter,payment-config.controller,stripe-webhook.controller}.ts`
   Chrome via `playwright.workflows.config.ts`).
 - Not yet: digest emails / SMS / push, per-assignment location scope, editing by dragging connectors in
   the diagram, and governing role / permission-matrix edits (they keep their own guard rails).
+
+### DEC-035 — The reporting hub: one definition of every number
+
+- Status: accepted (2026-09-21). Replaces the four single-table reports (they still run, so existing
+  schedules keep working, but are no longer offered).
+- Why: the old reports were a table of keys ("totalMinor") with no period, no comparison, no currency
+  and no way to tell what a number meant. A manager needs to answer "how did we do in _this_ period,
+  compared with _that_ one, and where did it come from" — and to trust that a card, a chart and a table
+  that show the same number agree.
+- Decisions:
+  - **Six reports** answer for a period — overview, sales & revenue, bookings, fleet utilisation,
+    payments & refunds, operations — plus the two whole-organisation checks (open cases, data quality).
+    The overview is built _from_ the other reports' measures, so it cannot disagree with them.
+  - **Time frame.** A period is whole calendar days in the report's time zone, both ends included.
+    Presets (today … last year) are resolved on the server against "today" in that zone, so a schedule
+    means the same thing whenever it runs. A period longer than two years, or with the end before the
+    start, is refused. The zone is the branch's when one branch is chosen, else the one most branches in
+    scope use (ties alphabetical) — and is always shown.
+  - **Comparison.** "Previous" is the calendar period before for calendar presets (last month → the month
+    before), the same number of elapsed days at the start of the previous one for running presets
+    (this month so far → the same days last month), else the same number of days straight before.
+    "Same period last year" shifts the dates by 12 months. Change is relative (%), except for shares,
+    which move in points; colour says good/bad for the business (`betterWhen`), the arrow says which way.
+  - **Date basis** (booking date / pick-up date / return date) is an explicit choice on the reservation-
+    based reports, defaulting to booking date, and is printed on the report.
+  - **Sales** count confirmed and completed bookings, revenue **without tax**; tax, cancellations and
+    no-shows are shown beside it, never inside it. **Payments** are on a cash basis (the day the ledger
+    records the capture or refund). **Fleet**: utilisation = rented days ÷ rentable days (fleet days minus
+    blocked days); earned revenue spreads a trip's price over its days; RevPAC = utilisation × ADR;
+    vehicles belong to their home location and the fleet is today's fleet.
+  - **Money is never added across currencies**: the report is in one currency (asked for, else the
+    organisation's, else the busiest), the others are listed as left out, and can be switched to.
+  - **Scope**: every analytic report is limited to the branches the person may see (a narrower request
+    is allowed, a wider one is a 403).
+  - **Preview vs run**: changing a filter previews (nothing stored, nothing audited); exporting saves a
+    run (audited, listed under Recent runs, reopenable exactly as shown). Schedules store a _relative_
+    period.
+  - **Export** is a spreadsheet built from the figures on screen: who/what/when at the top, summary,
+    trend, each breakdown and the detail, words for headings, plain numbers, money in major units,
+    UTF-8 with a byte-order mark.
+- Consequences: migration 0033 (`report_run.summary`); `POST /ops/reports/:code/preview`,
+  `GET /ops/reports/runs/:id`; the result contract lives in `@carrental/contracts` (`report.ts`).
+- Tests: `period.test.ts` (time-frame arithmetic), `report-analytics.spec.ts` (every figure agrees with
+  every other place it appears; scope; refused periods), web unit tests for formatting, params and the
+  spreadsheet, Playwright flows (laptop + phone).

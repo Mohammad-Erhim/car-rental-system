@@ -223,3 +223,25 @@ body {
   --control-h-sm: 2rem;
   --control-px: 0.75rem;
 }
+
+/* Printing a page (a report, mostly): only the content — no navigation, no top bar — and no card
+   split across two sheets. */
+@media print {
+  aside,
+  header.sticky,
+  .skip-link {
+    display: none !important;
+  }
+  #ops-main {
+    padding: 0 !important;
+  }
+  [data-testid='report-kpis'] > li,
+  [data-testid^='breakdown-'],
+  [data-testid='report-notes'],
+  [data-testid='report-trend'] {
+    break-inside: avoid;
+  }
+  body {
+    background: #fff !important;
+  }
+}
