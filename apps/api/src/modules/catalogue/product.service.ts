@@ -97,7 +97,7 @@ export class ProductService {
    * Products a customer may select for a given category + location — active, in scope. Used by
    * the `apps/site` checkout step (SCREEN-CUS-005).
    */
-  async availableFor(categoryCode: string, locationCode: string) {
+  async availableFor(categoryCode: string, locationCode: string, currency?: string) {
     const org = await this.orgId();
     const rows = await this.db
       .select()
@@ -107,6 +107,9 @@ export class ProductService {
     return rows
       .filter(
         (r) =>
+          // a booking is in one currency and an extra is priced in one — offer only the extras
+          // the customer's quote can actually take (`resolveForBooking` rejects any other)
+          (!currency || r.currency === currency.toUpperCase()) &&
           this.inScope(r.categoryScope, categoryCode) &&
           this.inScope(r.locationScope, locationCode),
       )
@@ -234,7 +237,7 @@ export class ProductService {
       name: input.name,
       kind: input.kind,
       unitPriceMinor: input.unitPriceMinor,
-      currency: input.currency ?? existing?.currency ?? 'USD',
+      currency: input.currency ?? existing?.currency ?? (await this.config.defaultCurrency()),
       pricingUnit: input.pricingUnit ?? existing?.pricingUnit ?? 'per_rental',
       taxable: input.taxable ?? existing?.taxable ?? true,
       maxQuantity: input.maxQuantity ?? existing?.maxQuantity ?? 1,

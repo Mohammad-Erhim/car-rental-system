@@ -12,7 +12,7 @@ vi.mock('stripe', () => {
     balance = {
       retrieve: async () => {
         if (this.key.includes('invalidkey')) {
-          throw { type: 'authentication_error', message: 'Invalid API Key provided' };
+          throw { type: 'StripeAuthenticationError', message: 'Invalid API Key provided' };
         }
         return { object: 'balance' };
       },

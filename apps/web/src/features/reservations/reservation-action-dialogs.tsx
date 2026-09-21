@@ -1,3 +1,4 @@
+import { minorToDecimalString, minorUnitDigits, parseDecimalToMinor } from '@carrental/i18n';
 import { useI18n } from '@carrental/i18n/react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo } from 'react';
@@ -169,24 +170,35 @@ export function RefundDialog({
   const { t, fmt } = useI18n();
   const pending = usePendingApproval();
   const refund = useManualRefund(reference);
-  const max = refundableMinor / 100;
+  // amounts are typed in major units of the reservation's own currency and converted with integer
+  // arithmetic — a JPY refund has no cents and a USD one exactly two (DEC-036)
+  const digits = minorUnitDigits(currency);
+  const maxText = minorToDecimalString(refundableMinor, currency);
+  const step = digits === 0 ? '1' : `0.${'0'.repeat(digits - 1)}1`;
   const schema = useMemo(
     () =>
       z.object({
         amount: z
           .string()
           .min(1, t('error.field.required'))
-          .refine((v) => Number(v) > 0, t('error.field.mustBePositive'))
           .refine(
-            (v) => Number(v) <= max,
+            (v) => parseDecimalToMinor(v, currency) !== null,
+            t('ops.ccy.decimalsInvalid', { n: digits }),
+          )
+          .refine(
+            (v) => (parseDecimalToMinor(v, currency) ?? 0) > 0,
+            t('error.field.mustBePositive'),
+          )
+          .refine(
+            (v) => (parseDecimalToMinor(v, currency) ?? 0) <= refundableMinor,
             t('ops.resv.refundMax', { max: fmt.money({ amountMinor: refundableMinor, currency }) }),
           ),
         note: z.string().trim().min(1, t('error.field.required')),
       }),
-    [t, fmt, max, refundableMinor, currency],
+    [t, fmt, refundableMinor, currency, digits],
   );
   type Values = z.infer<typeof schema>;
-  const defaults: Values = { amount: max.toFixed(2), note: '' };
+  const defaults: Values = { amount: maxText, note: '' };
   const form = useForm<Values>({ resolver: zodResolver(schema), defaultValues: defaults });
 
   return (
@@ -202,7 +214,7 @@ export function RefundDialog({
       })}
       submitLabel={t('ops.resv.refund')}
       onSubmit={async ({ amount, note }) => {
-        const amountMinor = Math.round(Number(amount) * 100);
+        const amountMinor = parseDecimalToMinor(amount, currency) ?? 0;
         const res = await refund.mutateAsync({ amountMinor, note: note.trim() });
         if (pending(res)) return;
         toast.success(t('ops.resv.refundDone', { amount: fmt.money({ amountMinor, currency }) }));
@@ -218,9 +230,9 @@ export function RefundDialog({
               <Input
                 type="number"
                 inputMode="decimal"
-                min="0.01"
-                step="0.01"
-                max={max.toFixed(2)}
+                min={step}
+                step={step}
+                max={maxText}
                 data-testid="refund-amount"
                 {...field}
               />

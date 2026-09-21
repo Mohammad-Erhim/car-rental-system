@@ -81,6 +81,13 @@ describe('wouldReplace', () => {
     expect(wouldReplace(draft, all).map((p) => p.id)).toEqual(['a']);
   });
 
+  it('never replaces a price list in another currency', () => {
+    const eur = plan({ id: 'eur', currency: 'EUR' });
+    const draft = plan({ id: 'd', status: 'draft', effectiveFrom: '2026-06-01' });
+    expect(wouldReplace(draft, [eur])).toEqual([]);
+    expect(wouldReplace({ ...draft, currency: 'EUR' }, [eur]).map((p) => p.id)).toEqual(['eur']);
+  });
+
   it('ignores plans whose window does not overlap', () => {
     const past = plan({ id: 'old', effectiveFrom: '2025-01-01', effectiveTo: '2025-12-31' });
     const draft = plan({ id: 'd', status: 'draft', effectiveFrom: '2026-06-01' });

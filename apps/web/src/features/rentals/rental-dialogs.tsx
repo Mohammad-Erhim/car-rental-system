@@ -1,3 +1,4 @@
+import { minorUnitDigits, parseDecimalToMinor } from '@carrental/i18n';
 import { useI18n } from '@carrental/i18n/react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus, Trash2, Wrench } from 'lucide-react';
@@ -30,7 +31,6 @@ interface DialogProps {
 
 const INCIDENT_CATEGORIES = ['breakdown', 'accident', 'damage', 'other'] as const;
 const whole = /^\d+$/;
-const amount = /^\d+(\.\d{1,2})?$/;
 
 /** Shared field rules, localised. */
 function useRules() {
@@ -160,7 +160,11 @@ export function ReturnDialog({
               charge: z
                 .string()
                 .trim()
-                .refine((v) => v === '' || amount.test(v), t('error.field.invalid')),
+                // typed in the rental's own currency: a JPY charge has no cents (DEC-036)
+                .refine(
+                  (v) => v === '' || parseDecimalToMinor(v, currency) !== null,
+                  t('ops.ccy.decimalsInvalid', { n: minorUnitDigits(currency) }),
+                ),
             }),
           ),
         })
@@ -177,7 +181,7 @@ export function ReturnDialog({
             });
           }
         }),
-    [r, t, odometerOutKm],
+    [r, t, odometerOutKm, currency],
   );
   type Values = z.infer<typeof schema>;
   const defaults: Values = { odometerKm: '', fuelPct: '100', findings: [] };
@@ -189,7 +193,7 @@ export function ReturnDialog({
   const fuel = whole.test(live.fuelPct ?? '') ? Number(live.fuelPct) : null;
   const deficit = fuel != null && fuelOutPct != null ? Math.max(0, fuelOutPct - fuel) : 0;
   const findingsMinor = (live.findings ?? []).reduce(
-    (sum, f) => sum + (f?.charge && amount.test(f.charge) ? Math.round(Number(f.charge) * 100) : 0),
+    (sum, f) => sum + (f?.charge ? (parseDecimalToMinor(f.charge, currency) ?? 0) : 0),
     0,
   );
 
@@ -207,7 +211,7 @@ export function ReturnDialog({
         const findings = v.findings.map((f) => ({
           area: f.area.trim().slice(0, 80),
           description: f.description.trim().slice(0, 500),
-          chargeMinor: f.charge.trim() ? Math.round(Number(f.charge) * 100) : 0,
+          chargeMinor: f.charge.trim() ? (parseDecimalToMinor(f.charge, currency) ?? 0) : 0,
         }));
         const res = await ret.mutateAsync({
           odometerKm: Number(v.odometerKm),

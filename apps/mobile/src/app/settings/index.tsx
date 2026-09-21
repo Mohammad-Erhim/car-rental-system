@@ -10,12 +10,14 @@ import { Divider, ListRow, Screen, SwitchRow, Text } from '../../components/ui';
 import { useToast } from '../../components/ui/toast';
 import { useAppLock } from '../../lib/auth/app-lock-store';
 import { useAuth } from '../../lib/auth/auth-provider';
+import { useCurrencies } from '../../lib/api/hooks/use-discovery';
 import { registerForPushNotificationsAsync } from '../../lib/notifications/push';
 import { usePushPreference } from '../../lib/notifications/push-preference-store';
 import { useTheme } from '../../lib/theme/theme-provider';
 
 export default function SettingsScreen() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const currencies = useCurrencies(locale);
   const { space } = useTheme();
   const router = useRouter();
   const toast = useToast();
@@ -87,6 +89,12 @@ export default function SettingsScreen() {
       <SectionLabel text={t('mobile.settings.appearance')} />
       <ListRow label={t('theme.label')} onPress={() => router.push('/settings/appearance')} />
       <ListRow label={t('lang.switcher.label')} onPress={() => router.push('/settings/language')} />
+      {currencies.data && currencies.data.currencies.length > 1 ? (
+        <ListRow
+          label={t('currency.switcher.label')}
+          onPress={() => router.push('/settings/currency')}
+        />
+      ) : null}
 
       <Divider />
       <SectionLabel text={t('mobile.settings.notifications')} />

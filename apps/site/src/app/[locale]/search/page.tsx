@@ -1,3 +1,4 @@
+import { createFormatters } from '@carrental/i18n';
 import { AlertCircle, ArrowRight, CheckCircle2, Info, XCircle } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -6,6 +7,7 @@ import { HomeSearch, type LocationOption } from '../../../components/home-search
 import { CarArt, carVariantFor } from '../../../components/marketing/art';
 import { SiteContainer } from '../../../components/site-container';
 import { apiGet, apiPost } from '../../../lib/api';
+import { preferredCurrencyFromRequest } from '../../../lib/currency-server';
 import { getT } from '../../../lib/i18n';
 import { buildMetadata } from '../../../lib/seo';
 
@@ -46,9 +48,10 @@ export async function generateMetadata({
 function money(minor: number, currency: string, locale: string) {
   if (!Number.isFinite(minor)) return '—';
   try {
-    return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(minor / 100);
+    // the currency decides the decimals (¥5,000, $50.00) — never an assumed ÷100
+    return createFormatters(locale).money({ amountMinor: minor, currency });
   } catch {
-    return `${(minor / 100).toFixed(2)} ${currency}`;
+    return `${minor} ${currency}`;
   }
 }
 
@@ -80,6 +83,10 @@ export default async function SearchPage({
     .then((rows) => rows.map((r): LocationOption => ({ code: r.code, name: r.name })))
     .catch(() => [] as LocationOption[]);
 
+  // the visitor's chosen currency (a cookie set by the header switcher); the API prices in it
+  // where a price list exists and says per option which currency it actually used
+  const currency = preferredCurrencyFromRequest();
+
   let data: SearchResponse | null = null;
   let failure: 'badLocation' | 'generic' | null = null;
   if (pickup && pickupAt && returnAt) {
@@ -88,6 +95,7 @@ export default async function SearchPage({
         pickupLocationCode: pickup,
         pickupAt,
         returnAt,
+        ...(currency ? { currency } : {}),
       });
     } catch (e) {
       const status = (e as { status?: number }).status;
@@ -131,6 +139,19 @@ export default async function SearchPage({
           {t.t('site.search.summary', { location: pickup })}
         </p>
       )}
+
+      {currency &&
+      options.some(
+        (o) => typeof o.fromTotalMinor === 'number' && o.currency && o.currency !== currency,
+      ) ? (
+        <p
+          className="flex items-center gap-2 rounded-xl border border-hairline bg-surface-muted p-3 text-sm text-ink-muted"
+          data-testid="search-currency-fallback"
+        >
+          <Info className="size-4 shrink-0" aria-hidden="true" />
+          {t.t('site.currency.fallbackSearch', { currency })}
+        </p>
+      ) : null}
 
       {failure === 'badLocation' ? (
         <p className="flex items-center gap-2 rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm font-medium text-destructive">

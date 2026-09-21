@@ -635,3 +635,48 @@ routing-payment.adapter,payment-config.controller,stripe-webhook.controller}.ts`
 - Tests: `period.test.ts` (time-frame arithmetic), `report-analytics.spec.ts` (every figure agrees with
   every other place it appears; scope; refused periods), web unit tests for formatting, params and the
   spreadsheet, Playwright flows (laptop + phone).
+
+### DEC-036 — Operator-managed currencies, and what Stripe is told
+
+- Context: money was already "integer minor units + a currency code", and rate plans and extras already
+  carried a currency, but the system behaved as if there were one: `÷ 100` was written in the site, the app,
+  the dashboard and server messages (wrong for a zero-decimal currency such as JPY), a new price list in a
+  second currency would have retired the first, the dashboard added takings across currencies, and
+  customers had no way to choose a currency. Stripe only ever received `reservationReference`.
+- Decisions:
+  - **One catalogue of currencies** (`@carrental/i18n` → `currency.ts`): ISO code, name, decimal digits.
+    It is limited to currencies whose minor unit equals Stripe's smallest unit, so an amount never needs
+    rescaling on the way to Stripe. Three-decimal currencies (KWD, BHD, JOD, OMR, TND — Stripe wants a
+    multiple of 10) and Stripe's special cases (ISK, UGX, HUF, TWD) are left out on purpose; adding them
+    later is a catalogue edit plus a rounding rule. Every conversion — display, form input, server
+    sentence, Stripe amount, webhook comparison — goes through this module; no `÷ 100` anywhere.
+  - **Operators manage currencies from Settings → Currencies.** Storage stays the `currency` reference-data
+    list (so rate plans, extras and `assertLookupCode` are untouched); the page only adds the rules: only a
+    catalogue currency can be added (no free text), exactly one default that is always enabled, and a
+    disabled currency stays valid for reservations already made in it. Names come from `Intl.DisplayNames`
+    per enabled language — nothing to translate by hand. Migration 0034 is data-only: the five seeded
+    currencies stop being "system managed" and the organisation's currency becomes the flagged default.
+  - **Price lists per currency, no automatic conversion.** A rate plan and an extra are each priced in one
+    currency; a customer picks a currency and gets the price list in it. No list in it → the default
+    currency, and the option says which currency it is in. We do not convert with exchange rates: a rate
+    goes stale, someone has to own it, and charging a converted price is a decision to make deliberately,
+    not on day one. Publishing a price list supersedes only lists in the **same** currency.
+  - **A booking keeps the currency of its quote** through payment, extension, change of dates, refund and
+    invoice. Existing reservations are re-priced strictly in their own currency, even after that currency
+    has been disabled.
+  - **The customer's choice is a cookie** (site) / stored preference (app), read by the server-rendered
+    search page; a stale choice quietly resolves to the default. The switcher lists only currencies that
+    are enabled **and** have a live price list.
+  - **Stripe gets identifiers, never facts that change.** On the PaymentIntent: `reservation_reference`,
+    `payment_id` (our ledger row), `purpose`, `customer_id` (our account id, or `guest`), `channel`,
+    `quote_reference`, `env`, `source`, and a description such as "Booking RES-…". The saved-card Stripe
+    Customer carries ids only — no name, email or phone. Refunds carry the same reference and payment id.
+    Names, dates, plates, prices and locations are not sent: they change, and a stale copy in Stripe is worse
+    than none. Amount and currency are Stripe's own fields. Each payment records whether it went through
+    the test or live key (`payment_intent.provider`).
+  - The dashboard headline revenue is the default currency alone, with other currencies listed beside it.
+- Known limits: a role's refund limit is one number applied to the raw minor units of whichever currency is
+  refunded (no conversion); Stripe Customers are still created per reservation, not per account.
+- Tests: `currency.test.ts` (catalogue agrees with ICU, integer-only parsing/formatting, Stripe gate),
+  `stripe-payment.adapter.test.ts` (what Stripe is sent, and not), `currency.spec.ts` (which currencies can
+  exist, price lists coexisting, the customer's choice, a EUR booking, disabling without stranding anything).

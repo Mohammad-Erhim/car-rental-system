@@ -1,4 +1,8 @@
-import { zAvailabilitySearchRequest, zCreateQuoteRequest } from '@carrental/contracts';
+import {
+  zAvailabilitySearchRequest,
+  zCreateQuoteRequest,
+  type PublicCurrenciesResponse,
+} from '@carrental/contracts';
 import { Body, Controller, Get, Param, Post, Query, Req, Inject } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
@@ -15,6 +19,7 @@ import { organization } from '../../database/schema/org';
 import { AvailabilityService } from '../availability/availability.service';
 import { CatalogueService } from '../catalogue/catalogue.service';
 import { ProductService } from '../catalogue/product.service';
+import { ConfigPublic } from '../config/config.public';
 import { PricingService } from '../pricing/pricing.service';
 
 // Serves 'catalogue/*' and 'discovery/*' routes, each declared in full on its own method —
@@ -28,8 +33,29 @@ export class DiscoveryController {
     private readonly catalogue: CatalogueService,
     private readonly products: ProductService,
     private readonly pricing: PricingService,
+    private readonly config: ConfigPublic,
     @Inject(DB) private readonly db: Database,
   ) {}
+
+  @Get('discovery/currencies')
+  @OptionalAuth()
+  @ApiOperation({
+    operationId: 'discovery_currencies',
+    summary: 'Currencies a customer can be quoted in (those with a live price list)',
+  })
+  async currencies(@Query('locale') locale?: string): Promise<PublicCurrenciesResponse> {
+    const [enabled, defaultCode, sellable] = await Promise.all([
+      this.config.listEnabledCurrencies(locale),
+      this.config.defaultCurrency(),
+      this.pricing.sellableCurrencyCodes(new Date().toISOString().slice(0, 10)),
+    ]);
+    // the default is always offered so the switcher is never empty; every other currency only
+    // appears once there is something to buy in it
+    return {
+      defaultCode,
+      currencies: enabled.filter((c) => c.isDefault || sellable.includes(c.code)),
+    };
+  }
 
   @Get('catalogue/products')
   @OptionalAuth()
@@ -37,8 +63,12 @@ export class DiscoveryController {
     operationId: 'catalogue_listProducts',
     summary: 'Extras & protection products available for a category + location',
   })
-  listProducts(@Query('category') category: string, @Query('location') location: string) {
-    return this.products.availableFor(category, location);
+  listProducts(
+    @Query('category') category: string,
+    @Query('location') location: string,
+    @Query('currency') currency?: string,
+  ) {
+    return this.products.availableFor(category, location, currency);
   }
 
   @Get('catalogue/categories')
@@ -95,6 +125,7 @@ export class DiscoveryController {
       pickupAt: new Date(body.pickupAt),
       returnAt: new Date(body.returnAt),
       categoryCode: body.categoryCode,
+      currency: body.currency,
     });
   }
 
@@ -126,6 +157,7 @@ export class DiscoveryController {
       pickupAt,
       returnAt,
       categoryCode: body.categoryCode,
+      currency: body.currency,
     });
     const blocking = check.notices.find(
       (n) =>
@@ -142,6 +174,7 @@ export class DiscoveryController {
       pickupAt,
       returnAt,
       pickupYmd,
+      { currency: body.currency },
     );
     if (!priced) {
       throw AppError.businessRule('No rate is published for that vehicle class and dates', {

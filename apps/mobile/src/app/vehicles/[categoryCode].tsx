@@ -26,6 +26,7 @@ import {
   type SearchArgs,
 } from '../../lib/api/hooks/use-discovery';
 import { guestId } from '../../lib/guest-id';
+import { useCurrencyPreference } from '../../lib/currency/currency-store';
 import { useTheme } from '../../lib/theme/theme-provider';
 import { withAlpha } from '../../lib/theme/tokens';
 import { useTripDraft } from '../../lib/trip/trip-draft-store';
@@ -36,6 +37,7 @@ export default function VehicleDetailScreen() {
   const { colors, space } = useTheme();
   const router = useRouter();
   const draft = useTripDraft();
+  const currency = useCurrencyPreference((s) => s.code);
   const toast = useToast();
 
   const categoryQuery = useCategory(categoryCode ?? null, locale);
@@ -49,6 +51,7 @@ export default function VehicleDetailScreen() {
       pickupAt: draft.pickupAt,
       returnAt: draft.returnAt,
       categoryCode,
+      currency: currency ?? undefined,
     };
   }, [
     categoryCode,
@@ -56,6 +59,7 @@ export default function VehicleDetailScreen() {
     draft.returnLocationCode,
     draft.pickupAt,
     draft.returnAt,
+    currency,
   ]);
 
   const priceQuery = useAvailabilitySearch(args);

@@ -2,6 +2,7 @@
 
 import { ApiError } from '@carrental/client';
 import { useAuth } from '@carrental/client/react';
+import { stripeCurrency } from '@carrental/i18n';
 import { useI18n } from '@carrental/i18n/react';
 import {
   AppStateView,
@@ -62,9 +63,11 @@ function CheckoutInner() {
   const quote = useQuoteByRef(ref);
   const confirm = useConfirmBooking();
   const mode = usePaymentMode();
+  // extras are priced in one currency and a booking is in one — offer only those in the quote's
   const products = useAvailableProducts(
     quote.data?.categoryCode ?? null,
     quote.data?.pickupLocationCode ?? null,
+    quote.data?.currency ?? null,
   );
 
   const [fullName, setFullName] = useState('');
@@ -418,7 +421,7 @@ function CheckoutInner() {
                   options={{
                     mode: 'payment',
                     amount: Math.max(1, totalWithExtrasMinor),
-                    currency: quote.data.currency.toLowerCase(),
+                    currency: stripeCurrency(quote.data.currency),
                     locale: uiLocale as StripeElementLocale,
                     // required by Stripe.js for the deferred `stripe.createPaymentMethod({ elements })`
                     // call below — without it, Stripe assumes the standard `confirmPayment` flow and

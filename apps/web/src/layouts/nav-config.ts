@@ -5,6 +5,7 @@ import {
   CarFront,
   Bell,
   ClipboardList,
+  Coins,
   Cookie,
   CreditCard,
   Database,
@@ -186,6 +187,12 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: paths.organization, label: 'ops.nav.organization', icon: Building2, anyOf: CONFIG },
       { to: paths.policies, label: 'ops.nav.policies', icon: FileCheck2, anyOf: CONFIG },
+      {
+        to: paths.currencies,
+        label: 'ops.nav.currencies',
+        icon: Coins,
+        anyOf: ['config.read', 'lookup.manage'],
+      },
       {
         to: paths.referenceData,
         label: 'ops.nav.referenceData',

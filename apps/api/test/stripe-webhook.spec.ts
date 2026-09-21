@@ -18,7 +18,7 @@ vi.mock('stripe', async () => {
     balance = {
       retrieve: async () => {
         if (this.key.includes('invalidkey')) {
-          throw { type: 'authentication_error', message: 'Invalid API Key provided' };
+          throw { type: 'StripeAuthenticationError', message: 'Invalid API Key provided' };
         }
         return { object: 'balance' };
       },
@@ -27,6 +27,11 @@ vi.mock('stripe', async () => {
   (FakeStripe as unknown as { webhooks: typeof actual.webhooks }).webhooks = actual.webhooks;
   return { default: FakeStripe };
 });
+
+import { DB } from '../src/database/database.module';
+import type { Database } from '../src/database/drizzle';
+import { organization } from '../src/database/schema/org';
+import { paymentIntent } from '../src/database/schema/payment';
 
 import { closeTestApp, getTestApp, httpServer } from './helpers/app';
 import { signIn } from './helpers/auth';
@@ -41,6 +46,7 @@ import { signIn } from './helpers/auth';
  */
 describe('POST /webhooks/stripe', () => {
   let server: ReturnType<typeof httpServer>;
+  let db: Database;
   let adminToken: string;
   const webhookSecret = 'whsec_test_' + randomUUID().replace(/-/g, '');
 
@@ -50,6 +56,7 @@ describe('POST /webhooks/stripe', () => {
   beforeAll(async () => {
     const app = await getTestApp();
     server = httpServer(app);
+    db = app.get<Database>(DB);
     adminToken = (await signIn(app, 'test-admin@example.test', 'Test-Passw0rd!', 'staff'))
       .accessToken;
 
@@ -164,5 +171,74 @@ describe('POST /webhooks/stripe', () => {
       .send(payload)
       .expect(200);
     expect(second.body).toEqual({ received: true, handled: false, replay: true });
+  });
+  // ---- reconciliation against the ledger: amount AND currency (DEC-036) ----
+
+  async function localIntent(currency: string, amountMinor: number) {
+    const [org] = await db.select({ id: organization.id }).from(organization).limit(1);
+    const providerRef = `pi_ccy_${randomUUID().replace(/-/g, '')}`;
+    const reservationReference = `RES-WH-${randomUUID().slice(0, 8)}`;
+    await db.insert(paymentIntent).values({
+      organizationId: org!.id,
+      reservationReference,
+      purpose: 'booking',
+      amountMinor,
+      currency,
+      state: 'captured',
+      provider: 'stripe_test',
+      providerRef,
+    });
+    return { providerRef, reservationReference };
+  }
+
+  const succeeded = (providerRef: string, currency: string, amount: number) =>
+    JSON.stringify({
+      id: `evt_test_${randomUUID().replace(/-/g, '')}`,
+      object: 'event',
+      type: 'payment_intent.succeeded',
+      data: {
+        object: { id: providerRef, object: 'payment_intent', currency, amount_received: amount },
+      },
+    });
+
+  const post = (payload: string) =>
+    request(server)
+      .post('/api/v1/webhooks/stripe')
+      .set('Content-Type', 'application/json')
+      .set('stripe-signature', sign(payload))
+      .send(payload)
+      .expect(200);
+
+  const exceptionsFor = async (reservationReference: string) =>
+    (
+      (
+        await request(server)
+          .get('/api/v1/ops/payments/reconciliation')
+          .set('Authorization', `Bearer ${adminToken}`)
+          .expect(200)
+      ).body as Array<{ reservationReference: string; kind: string }>
+    ).filter((e) => e.reservationReference === reservationReference);
+
+  it('a payment that agrees with the ledger in amount and currency raises nothing', async () => {
+    const { providerRef, reservationReference } = await localIntent('EUR', 5000);
+    await post(succeeded(providerRef, 'eur', 5000));
+    expect(await exceptionsFor(reservationReference)).toEqual([]);
+  });
+
+  it('a payment in a different currency than the ledger is its own exception, not an amount mismatch', async () => {
+    // 5000 of one currency is not 5000 of another — comparing the numbers would say "fine"
+    const { providerRef, reservationReference } = await localIntent('USD', 5000);
+    await post(succeeded(providerRef, 'eur', 5000));
+    expect((await exceptionsFor(reservationReference)).map((e) => e.kind)).toEqual([
+      'currency_mismatch',
+    ]);
+  });
+
+  it('a payment for a different amount is still an amount mismatch', async () => {
+    const { providerRef, reservationReference } = await localIntent('JPY', 5000);
+    await post(succeeded(providerRef, 'jpy', 4900));
+    expect((await exceptionsFor(reservationReference)).map((e) => e.kind)).toEqual([
+      'amount_mismatch',
+    ]);
   });
 });

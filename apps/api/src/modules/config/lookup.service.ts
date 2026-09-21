@@ -1,3 +1,4 @@
+import { getCurrency } from '@carrental/i18n';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, asc, eq, inArray, isNotNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { AnyPgColumn, PgTable } from 'drizzle-orm/pg-core';
@@ -10,16 +11,19 @@ import { revOf } from '../../common/i18n-source-rev';
 import { OutboxService } from '../../common/outbox/outbox.service';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
-import { vehicleCategoryFeature, vehicleFeature } from '../../database/schema/catalogue';
+import { product, vehicleCategoryFeature, vehicleFeature } from '../../database/schema/catalogue';
 import { driver, driverDocument } from '../../database/schema/customer';
 import { vehicleBlock } from '../../database/schema/fleet';
 import { translation } from '../../database/schema/i18n';
 import { lookupType, lookupValue } from '../../database/schema/lookup';
+import { organization } from '../../database/schema/org';
+import { ratePlan } from '../../database/schema/pricing';
 import { reservation } from '../../database/schema/reservation';
 
 import { LocaleRepo } from './locale.repo';
 
 const NS = 'lookup';
+const CURRENCY_TYPE = 'currency';
 
 /**
  * FR-ADM-008 "usage count" — where a reference value is actually consumed. Deliberately narrow:
@@ -64,6 +68,22 @@ const LOOKUP_CONSUMERS: Record<string, UsageRef[]> = {
   ],
   licence_type: [{ surface: 'customer.driver', table: driver, column: driver.licenceType }],
   country: [{ surface: 'customer.driver_licence', table: driver, column: driver.licenceCountry }],
+  // a currency is "in use" while a live price list or an active extra is priced in it — existing
+  // reservations keep their currency forever, so they are deliberately not counted (DEC-036)
+  currency: [
+    {
+      surface: 'pricing.rate_plan',
+      table: ratePlan,
+      column: ratePlan.currency,
+      extra: ne(ratePlan.status, 'retired'),
+    },
+    {
+      surface: 'catalogue.product',
+      table: product,
+      column: product.currency,
+      extra: eq(product.active, true),
+    },
+  ],
   vehicle_feature: [
     { surface: 'catalogue.vehicle_feature', table: vehicleFeature, column: vehicleFeature.code },
     {
@@ -347,6 +367,25 @@ export class LookupService {
     const type = await this.getType(typeCode);
     this.assertEditable(type);
 
+    // a currency is not free text: only a catalogue currency (one whose minor unit Stripe agrees
+    // with) can exist, always under its upper-case ISO code, so a typo can never become a value a
+    // rate plan or a charge later trips over (DEC-036)
+    if (typeCode === CURRENCY_TYPE) {
+      const def = getCurrency(input.code);
+      if (!def) {
+        throw AppError.validation(
+          [{ path: 'code', code: 'unsupported', params: { type: typeCode } }],
+          `"${input.code}" is not a supported currency`,
+        );
+      }
+      input = {
+        ...input,
+        code: def.code,
+        label: input.label?.trim() || def.name,
+        attributes: { ...(input.attributes ?? {}), minorDigits: def.digits },
+      };
+    }
+
     const scopeKey = input.scopeKey ?? 'global';
     const [dupe] = await this.db
       .select({ id: lookupValue.id })
@@ -387,6 +426,8 @@ export class LookupService {
       { en: input.label, ...(input.translations ?? {}) },
       actor,
     );
+    if (typeCode === CURRENCY_TYPE && input.isDefault)
+      await this.syncOrgDefaultCurrency(input.code);
     await this.afterMutation(actor, typeCode, 'lookup.value.created', row!.id, {
       code: input.code,
     });
@@ -425,6 +466,20 @@ export class LookupService {
       throw AppError.conflict(row.version);
     }
 
+    if (typeCode === CURRENCY_TYPE) {
+      // exactly one default currency, always enabled: it can be handed to another currency but
+      // never simply switched off, and a disabled currency cannot be promoted
+      if (input.isDefault === true && !row.isActive) {
+        throw AppError.businessRule('Enable a currency before making it the default', {
+          reason: 'currency_not_enabled',
+        });
+      }
+      if (input.isDefault === false && row.code === (await this.resolveDefaultCurrency())) {
+        throw AppError.businessRule('Pick another currency as the default instead', {
+          reason: 'default_currency_required',
+        });
+      }
+    }
     if (input.isDefault) await this.demoteDefaults(typeCode, row.scopeKey, actor, valueId);
 
     // guard the UPDATE itself on the loaded version so two concurrent saves can't both win
@@ -466,6 +521,9 @@ export class LookupService {
       );
     }
 
+    if (typeCode === CURRENCY_TYPE && input.isDefault) {
+      await this.syncOrgDefaultCurrency(row.code);
+    }
     await this.afterMutation(actor, typeCode, 'lookup.value.updated', valueId, {
       code: row.code,
       before: { label: row.defaultLabel, sortOrder: row.sortOrder },
@@ -492,6 +550,15 @@ export class LookupService {
     if (!row) throw AppError.notFound('lookup value');
     if (row.systemManaged) {
       throw new AppError('forbidden', { title: 'System-managed value cannot be deactivated' });
+    }
+    if (
+      !active &&
+      typeCode === CURRENCY_TYPE &&
+      row.code === (await this.resolveDefaultCurrency())
+    ) {
+      throw AppError.businessRule('The default currency cannot be disabled — pick another first', {
+        reason: 'default_currency_required',
+      });
     }
     // FR-ADM-008: deactivating an in-use value needs an explicit confirmation (`force`).
     if (!active && !opts.force) {
@@ -617,6 +684,39 @@ export class LookupService {
     for (const locale of touched) {
       await this.cache.invalidate(`i18n:${locale}`, { namespace: `${NS}:${typeCode}` });
     }
+  }
+
+  /**
+   * The default currency: the enabled value flagged default, else the organisation's own
+   * `default_currency`. A fresh deployment has no flag until an operator sets one, and the rules
+   * below (the default can neither be disabled nor un-defaulted) must hold for that implicit
+   * default too, not only for a flagged one.
+   */
+  async resolveDefaultCurrency(): Promise<string | null> {
+    const [flagged] = await this.db
+      .select({ code: lookupValue.code })
+      .from(lookupValue)
+      .where(
+        and(
+          eq(lookupValue.typeCode, CURRENCY_TYPE),
+          eq(lookupValue.scopeKey, 'global'),
+          eq(lookupValue.isActive, true),
+          eq(lookupValue.isDefault, true),
+        ),
+      )
+      .limit(1);
+    if (flagged) return flagged.code;
+    const [org] = await this.db
+      .select({ c: organization.defaultCurrency })
+      .from(organization)
+      .limit(1);
+    return org?.c ?? null;
+  }
+
+  /** `organization.default_currency` is the legacy home of "the" currency (policy examples,
+   *  fallbacks); the reference-data default flag is now the source of truth, so mirror it. */
+  private async syncOrgDefaultCurrency(code: string) {
+    await this.db.update(organization).set({ defaultCurrency: code, updatedAt: sql`now()` });
   }
 
   private async afterMutation(

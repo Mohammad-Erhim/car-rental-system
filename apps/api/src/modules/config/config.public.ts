@@ -5,6 +5,7 @@ import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { location, organization } from '../../database/schema/org';
 
+import { CurrencyService } from './currency.service';
 import { LookupService } from './lookup.service';
 
 /**
@@ -16,7 +17,21 @@ export class ConfigPublic {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly lookups: LookupService,
+    private readonly currencies: CurrencyService,
   ) {}
+
+  /** Currencies the business currently sells in, default first (DEC-036). */
+  enabledCurrencyCodes() {
+    return this.currencies.enabledCodes();
+  }
+
+  defaultCurrency() {
+    return this.currencies.defaultCode();
+  }
+
+  listEnabledCurrencies(locale?: string) {
+    return this.currencies.listEnabled(locale);
+  }
 
   getLookupValues(
     typeCode: string,

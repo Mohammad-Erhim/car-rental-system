@@ -14,6 +14,7 @@ import {
   useAvailableUnits,
   useCreateQuote,
 } from '../lib/customer-hooks';
+import { usePreferredCurrency } from '../lib/currency';
 import { guestId } from '../lib/guest-id';
 import { useLocale } from '../lib/nav';
 import { defaultWindow, isCompleteTrip, readTrip, writeTrip, type TripWindow } from '../lib/trip';
@@ -38,6 +39,7 @@ function ReserveInner({
   const pathname = usePathname();
   const params = useSearchParams();
   const createQuote = useCreateQuote();
+  const currency = usePreferredCurrency();
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [stored, setStored] = useState<TripWindow | null>(null);
@@ -62,6 +64,7 @@ function ReserveInner({
           pickupAt: trip.pickupAt,
           returnAt: trip.returnAt,
           categoryCode,
+          currency,
         }
       : null,
   );
@@ -110,6 +113,7 @@ function ReserveInner({
         hold: true,
         holderKey: guestId(),
         unitId: selectedUnitId ?? undefined,
+        currency,
       });
       router.push(`/${locale}/checkout?quote=${q.reference}`);
     } catch (e) {
@@ -224,6 +228,11 @@ function ReserveInner({
               >
                 {formatMinor(option.fromTotalMinor, option.currency ?? 'USD', uiLocale)}
               </p>
+              {currency && option.currency && currency !== option.currency ? (
+                <p className="mt-1 text-xs text-ink-muted" data-testid="currency-fallback">
+                  {t('site.currency.fallback', { currency, shown: option.currency })}
+                </p>
+              ) : null}
             </div>
             <span
               className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${

@@ -15,6 +15,7 @@ import {
   useLocations,
   type SearchArgs,
 } from '../lib/api/hooks/use-discovery';
+import { useCurrencyPreference } from '../lib/currency/currency-store';
 import { useTheme } from '../lib/theme/theme-provider';
 import { useTripDraft } from '../lib/trip/trip-draft-store';
 
@@ -23,6 +24,7 @@ export default function SearchResultsScreen() {
   const { colors, space } = useTheme();
   const router = useRouter();
   const draft = useTripDraft();
+  const currency = useCurrencyPreference((s) => s.code);
   const categoriesQuery = useCategories(locale);
   const locationsQuery = useLocations();
   const pickupLocationName =
@@ -37,8 +39,15 @@ export default function SearchResultsScreen() {
       returnLocationCode: draft.returnLocationCode ?? undefined,
       pickupAt: draft.pickupAt,
       returnAt: draft.returnAt,
+      currency: currency ?? undefined,
     };
-  }, [draft.pickupLocationCode, draft.returnLocationCode, draft.pickupAt, draft.returnAt]);
+  }, [
+    draft.pickupLocationCode,
+    draft.returnLocationCode,
+    draft.pickupAt,
+    draft.returnAt,
+    currency,
+  ]);
 
   const searchQuery = useAvailabilitySearch(args);
   const imageByCategory = new Map((categoriesQuery.data ?? []).map((c) => [c.code, c.imageUrl]));

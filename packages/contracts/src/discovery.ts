@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { zCurrencyCode } from './currency';
 import { zId, zInstant } from './primitives';
 
 /** Search request (SCREEN-CUS-001 / FLOW-CUS-001). Instants are ISO-8601 with offset. */
@@ -9,6 +10,9 @@ export const zAvailabilitySearchRequest = z.object({
   pickupAt: zInstant,
   returnAt: zInstant,
   categoryCode: z.string().max(40).optional(),
+  /** the currency the customer chose to see prices in. Preferred, not guaranteed: with no price
+   *  list in it the response falls back to the default currency, and each option says which. */
+  currency: zCurrencyCode.optional(),
 });
 export type AvailabilitySearchRequest = z.infer<typeof zAvailabilitySearchRequest>;
 

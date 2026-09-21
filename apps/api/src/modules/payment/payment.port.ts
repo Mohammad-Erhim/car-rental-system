@@ -16,6 +16,13 @@
  *   anything else             → succeeds (treated as a normal token)
  */
 
+import type { PaymentContext } from './stripe-metadata';
+
+export type RefundContext = Pick<
+  PaymentContext,
+  'reservationReference' | 'paymentIntentId' | 'purpose'
+>;
+
 export interface AuthorizeInput {
   idempotencyKey: string;
   amountMinor: number;
@@ -31,6 +38,9 @@ export interface AuthorizeInput {
   /** true on a reservation's first charge — save the resulting customer + payment method so a
    *  later call can pass `reuse` instead of `token`. */
   saveForReuse?: boolean;
+  /** ids the processor should carry so a payment there can be traced back to our records
+   *  (stripe-metadata.ts). Optional: the simulator ignores it. */
+  context?: PaymentContext;
 }
 
 export interface PaymentResult {
@@ -41,6 +51,9 @@ export interface PaymentResult {
    *  the active provider doesn't support saved methods (e.g. an old simulator charge). */
   customerRef?: string | null;
   methodRef?: string | null;
+  /** which driver handled it: simulator | stripe_test | stripe_live — recorded on the intent so
+   *  a support engineer can tell a test-mode charge from a live one without opening Stripe. */
+  provider?: string;
 }
 
 export class PaymentDeclinedError extends Error {
@@ -85,6 +98,7 @@ export abstract class PaymentPort {
     providerRef: string,
     amountMinor: number,
     idempotencyKey?: string,
+    context?: RefundContext,
   ): Promise<PaymentResult>;
 }
 
@@ -125,7 +139,7 @@ export class SimulatorPaymentAdapter extends PaymentPort {
           ? 'tok_decline_reuse'
           : `sim_pm_${hash(tokenLike)}`
         : null);
-    return { providerRef, brand, last4, customerRef, methodRef };
+    return { providerRef, brand, last4, customerRef, methodRef, provider: 'simulator' };
   }
 
   async capture(
@@ -147,6 +161,7 @@ export class SimulatorPaymentAdapter extends PaymentPort {
     providerRef: string,
     _amountMinor: number,
     _idempotencyKey?: string,
+    _context?: RefundContext,
   ): Promise<PaymentResult> {
     const { brand, last4 } = brandFor(providerRef);
     return { providerRef: providerRef.replace(/auth|cap/, 'ref'), brand, last4 };

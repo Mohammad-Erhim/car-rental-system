@@ -8,6 +8,8 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
+import { CurrencySwitcher } from './currency-switcher';
+
 export function SiteHeader({ locale }: { locale: string }) {
   const { t, setLocale, locales } = useI18n();
   const router = useRouter();
@@ -102,6 +104,7 @@ export function SiteHeader({ locale }: { locale: string }) {
                 ))}
               </select>
             </label>
+            <CurrencySwitcher />
             <ThemeToggle
               labels={{
                 label: t('theme.label'),

@@ -492,8 +492,11 @@ export class ReportService {
       .from(organization)
       .where(eq(organization.id, orgId))
       .limit(1);
-    const [revenue] = await this.db
+    // grouped by currency: minor units of different currencies can never be added (5000 JPY is not
+    // 5000 USD), so the headline is the default currency alone and the rest are listed beside it
+    const revenueRows = await this.db
       .select({
+        currency: paymentIntent.currency,
         minor: sql<number>`coalesce(sum(${payment.amountMinor}) filter (where ${payment.type} = 'capture'), 0)::int
           - coalesce(sum(${payment.amountMinor}) filter (where ${payment.type} = 'refund'), 0)::int`,
       })
@@ -507,7 +510,13 @@ export class ReportService {
           sql`${payment.createdAt}::date = current_date`,
           scope ? inArray(reservation.pickupLocationCode, scope) : sql`true`,
         ),
-      );
+      )
+      .groupBy(paymentIntent.currency);
+    const headlineCurrency = org?.currency ?? 'USD';
+    const revenue = revenueRows.find((r) => r.currency === headlineCurrency);
+    const otherRevenue = revenueRows
+      .filter((r) => r.currency !== headlineCurrency && r.minor !== 0)
+      .map((r) => ({ currency: r.currency, minor: r.minor }));
 
     // reservations cancelled or marked no-show today (location-scoped like the other counts)
     const [cancellations] = await this.db
@@ -529,7 +538,12 @@ export class ReportService {
       overdue: overdue?.n ?? 0,
       assignQueue: queue?.n ?? 0,
       cancellationsToday: cancellations?.n ?? 0,
-      revenueToday: { minor: revenue?.minor ?? 0, currency: org?.currency ?? 'USD' },
+      revenueToday: {
+        minor: revenue?.minor ?? 0,
+        currency: headlineCurrency,
+        // takings in other currencies today — shown beside the headline, never added to it
+        other: otherRevenue,
+      },
       // org-wide by nature (recovery cases reference polymorphic subjects) — a branch-scoped
       // actor gets `null` ("not available for your locations"), never the organisation's numbers
       financeExceptions:
@@ -606,7 +620,9 @@ export class ReportService {
         select generate_series((current_date - ${days - 1}::int)::date, current_date, interval '1 day')::date as day
       ),
       booked as (
-        select r.created_at::date as day, count(*)::int as bookings, coalesce(sum(r.total_minor), 0)::int as booked_minor
+        -- every booking is counted; only the money is limited to the headline currency
+        select r.created_at::date as day, count(*)::int as bookings,
+          coalesce(sum(r.total_minor) filter (where r.currency = ${currency}), 0)::int as booked_minor
         from reservation r
         where r.organization_id = ${orgId} and r.created_at::date >= current_date - ${days - 1}::int ${resScope}
         group by r.created_at::date
@@ -630,6 +646,7 @@ export class ReportService {
         inner join payment_intent pi on pi.id = p.intent_id
         left join reservation r on r.reference = pi.reservation_reference
         where pi.organization_id = ${orgId} and p.outcome = 'succeeded'
+          and pi.currency = ${currency}
           and p.created_at::date >= current_date - ${days - 1}::int
           ${resScope}
         group by p.created_at::date
@@ -679,7 +696,8 @@ export class ReportService {
       reservations: number;
       revenue_minor: number;
     }>(sql`
-      select r.category_code, count(*)::int as reservations, coalesce(sum(r.total_minor), 0)::int as revenue_minor
+      select r.category_code, count(*)::int as reservations,
+        coalesce(sum(r.total_minor) filter (where r.currency = ${currency}), 0)::int as revenue_minor
       from reservation r
       where r.organization_id = ${orgId}
         and r.state in ('confirmed', 'fulfilled')

@@ -1,3 +1,4 @@
+import { minorUnitDigits } from '@carrental/i18n';
 import { useI18n } from '@carrental/i18n/react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus, Trash2 } from 'lucide-react';
@@ -8,6 +9,7 @@ import { z } from 'zod';
 
 import {
   emptyPlanValues,
+  overPreciseFields,
   planToValues,
   todayIso,
   valuesToInput,
@@ -127,6 +129,13 @@ export function PlanSheet({
             code: 'custom',
             path: ['effectiveTo'],
             message: t('error.field.beforeFrom'),
+          });
+        }
+        for (const path of overPreciseFields(v)) {
+          ctx.addIssue({
+            code: 'custom',
+            path,
+            message: t('ops.ccy.decimalsInvalid', { n: minorUnitDigits(v.currency) }),
           });
         }
         const min = Number(v.minDuration);

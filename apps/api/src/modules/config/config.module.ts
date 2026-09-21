@@ -5,6 +5,8 @@ import { BrandingController } from './branding.controller';
 import { ConfigVersionService } from './config-version.service';
 import { ConfigController } from './config.controller';
 import { ConfigPublic } from './config.public';
+import { CurrencyAdminController } from './currency-admin.controller';
+import { CurrencyService } from './currency.service';
 import { LocaleRepo } from './locale.repo';
 import { LocationAdminController } from './location-admin.controller';
 import { LocationAdminService } from './location-admin.service';
@@ -26,6 +28,7 @@ import { TranslationService } from './translation.service';
     TranslationController,
     BrandingController,
     LocationAdminController,
+    CurrencyAdminController,
   ],
   providers: [
     LookupService,
@@ -35,6 +38,7 @@ import { TranslationService } from './translation.service';
     BrandAssetService,
     LocationAdminService,
     LocaleRepo,
+    CurrencyService,
   ],
   exports: [ConfigPublic, LookupService, ConfigVersionService, TranslationService, LocaleRepo],
 })

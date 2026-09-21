@@ -1,3 +1,4 @@
+import { fromStripeAmount, stripeCurrency } from '@carrental/i18n';
 import {
   Controller,
   Headers,
@@ -103,6 +104,8 @@ export class StripeWebhookController {
       payment_intent?: string;
       amount_received?: number;
       amount_refunded?: number;
+      /** lower-case ISO code, on both PaymentIntent and Charge events */
+      currency?: string;
     };
     const providerRef = event.type.startsWith('charge.') ? obj.payment_intent : obj.id;
     if (!providerRef) return;
@@ -135,16 +138,42 @@ export class StripeWebhookController {
       return;
     }
 
+    // A payment in a different currency than our ledger recorded can never be reconciled by
+    // comparing numbers — 5000 is not 5000 — so it is its own kind of exception, raised before any
+    // amount is compared.
+    if (obj.currency && obj.currency !== stripeCurrency(local.currency)) {
+      await this.payments.openReconciliationException({
+        organizationId: local.organizationId,
+        reservationReference: local.reservationReference,
+        intentId: local.id,
+        kind: 'currency_mismatch',
+      });
+      this.logger.warn(
+        {
+          providerRef,
+          eventType: event.type,
+          ledgerCurrency: local.currency,
+          currency: obj.currency,
+        },
+        'stripe webhook currency disagrees with local payment ledger — reconciliation exception opened',
+      );
+      return;
+    }
+
     // The state alone can agree by coincidence — e.g. the ledger is already
     // `partially_refunded` from an earlier, smaller refund when this webhook reports a second,
     // different-amount one. Cross-check the actual amount Stripe reports against the ledger so
     // a same-state-wrong-amount drift is never mistaken for "nothing to do".
-    const providerAmount =
+    const stripeAmount =
       event.type === 'charge.refunded'
         ? obj.amount_refunded
         : event.type === 'payment_intent.succeeded'
           ? obj.amount_received
           : undefined;
+    // Stripe reports its own smallest unit; the ledger is in our minor unit — same number for
+    // every supported currency today, but the conversion is the one place that would say so
+    const providerAmount =
+      stripeAmount == null ? undefined : fromStripeAmount(stripeAmount, local.currency);
     const ledgerAmount = event.type === 'charge.refunded' ? local.refundedMinor : local.amountMinor;
     if (providerAmount != null && providerAmount !== ledgerAmount) {
       await this.payments.openReconciliationException({

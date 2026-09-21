@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 
+import { formatMinorPlain } from '@carrental/i18n';
 import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { and, asc, desc, eq, gte, inArray, lte, or, sql, type SQL } from 'drizzle-orm';
 
@@ -370,7 +371,7 @@ export class ReservationOpsService implements OnModuleInit {
           {
             actionKey: 'reservation.cancel.withFee',
             subjectId: reference,
-            subjectLabel: `Cancel ${reference}${goodwill ? ' (fee waived)' : ` (fee ${(fee / 100).toFixed(2)} ${row.currency})`}`,
+            subjectLabel: `Cancel ${reference}${goodwill ? ' (fee waived)' : ` (fee ${formatMinorPlain(fee, row.currency)})`}`,
             payload: { reasonCode: input.reasonCode, note: input.note },
             context: {
               currency: row.currency,
@@ -495,7 +496,7 @@ export class ReservationOpsService implements OnModuleInit {
     }
     void this.notifySafe(row, reference, 'reservation_cancelled', {
       reference,
-      refund: `${(refundMinor / 100).toFixed(2)} ${row.currency}`,
+      refund: formatMinorPlain(refundMinor, row.currency),
     });
 
     return { ...(await this.detail(reference, actor)), refundMinor, feeMinor };
@@ -590,6 +591,8 @@ export class ReservationOpsService implements OnModuleInit {
       pickupAt,
       returnAt,
       pickupYmd,
+      // the reservation's own currency, exactly — never whatever plan happens to win today
+      { currency: row.currency, strict: true },
     );
     if (!priced) {
       await this.availability.releaseHold(actor, newHold.id, 'abandoned');
@@ -808,7 +811,7 @@ export class ReservationOpsService implements OnModuleInit {
       {
         actionKey: 'payment.refund',
         subjectId: reference,
-        subjectLabel: `Refund ${(input.amountMinor / 100).toFixed(2)} ${row.currency} · ${reference}`,
+        subjectLabel: `Refund ${formatMinorPlain(input.amountMinor, row.currency)} · ${reference}`,
         payload: { amountMinor: input.amountMinor, note: input.note },
         context: { amount: input.amountMinor, currency: row.currency, reservationState: row.state },
         locationCode: row.pickupLocationCode,
@@ -820,7 +823,7 @@ export class ReservationOpsService implements OnModuleInit {
         const cap = actor.permissionConditions?.['payment.refund']?.amountMinorMax;
         if (cap !== undefined && input.amountMinor > cap) {
           throw new AppError('forbidden', {
-            title: `Your role can refund up to ${(cap / 100).toFixed(2)} — this needs someone with a higher limit`,
+            title: `Your role can refund up to ${formatMinorPlain(cap, row.currency)} — this needs someone with a higher limit`,
             params: { reason: 'over_limit', limitMinor: cap },
           });
         }

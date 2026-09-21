@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto';
 
+import { formatMinorPlain } from '@carrental/i18n';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { and, asc, eq, sql } from 'drizzle-orm';
 
@@ -256,6 +257,10 @@ export class BookingService {
       currency: quote.currency,
       token: input.paymentToken,
       actor: input.actor,
+      // the reservation row does not exist yet, so say who and where the processor should record
+      customerId: input.actor?.kind === 'customer' ? input.actor.accountId : null,
+      channel: input.actor?.kind === 'staff' ? 'staff' : input.actor ? 'customer' : 'guest',
+      quoteReference: input.quoteReference,
     });
 
     // ---- fault injection: money moved but the write fails → owned recovery case ----
@@ -464,10 +469,10 @@ export class BookingService {
         localeCode: input.actor?.localeCode ?? 'en',
         sourceType: 'reservation',
         sourceId: reference,
-        variables: { reference, total: `${(totalMinor / 100).toFixed(2)} ${quote.currency}` },
+        variables: { reference, total: formatMinorPlain(totalMinor, quote.currency) },
         fallback: {
           subject: `Your booking ${reference} is confirmed`,
-          body: `Booking ${reference} is confirmed. Total charged: ${(totalMinor / 100).toFixed(2)} ${quote.currency}.`,
+          body: `Booking ${reference} is confirmed. Total charged: ${formatMinorPlain(totalMinor, quote.currency)}.`,
         },
       });
     } catch (err) {

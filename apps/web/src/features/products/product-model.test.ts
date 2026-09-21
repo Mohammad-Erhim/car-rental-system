@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   fromMinor,
+  overPrecise,
   PRICE,
   PRODUCT_CODE,
   productValues,
@@ -13,9 +14,15 @@ import type { CatalogueProduct } from '@/lib/admin-hooks';
 
 describe('product-model', () => {
   it('converts money without floating point drift', () => {
-    expect(toMinor('9.99')).toBe(999);
-    expect(toMinor('1.15')).toBe(115);
-    expect(fromMinor(1250)).toBe('12.50');
+    expect(toMinor('9.99', 'USD')).toBe(999);
+    expect(toMinor('1.15', 'USD')).toBe(115);
+    expect(fromMinor(1250, 'USD')).toBe('12.50');
+    // a zero-decimal currency has no cents to show or accept
+    expect(fromMinor(1250, 'JPY')).toBe('1250');
+    expect(toMinor('1250', 'JPY')).toBe(1250);
+    expect(overPrecise('12.5', 'JPY')).toBe(true);
+    expect(overPrecise('12.50', 'USD')).toBe(false);
+    expect(overPrecise('12.505', 'USD')).toBe(true);
   });
 
   it('accepts prices with at most two decimals', () => {

@@ -480,6 +480,7 @@ export class RentalService implements OnModuleInit {
       new Date(row.scheduledPickupAt),
       new Date(row.scheduledReturnAt),
       pickupYmd,
+      { currency: row.currency, strict: true },
     );
     const newPriced = await this.pricing.priceWindow(
       res.categoryCode,
@@ -487,6 +488,7 @@ export class RentalService implements OnModuleInit {
       new Date(row.scheduledPickupAt),
       newReturn,
       pickupYmd,
+      { currency: row.currency, strict: true },
     );
     if (!oldPriced || !newPriced) {
       throw AppError.businessRule('No rate is published for the extended dates', {

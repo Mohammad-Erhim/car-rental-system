@@ -1,3 +1,4 @@
+import { stripeCurrency, toStripeAmount } from '@carrental/i18n';
 import Stripe from 'stripe';
 
 import {
@@ -7,7 +8,14 @@ import {
   PaymentTimeoutError,
   type AuthorizeInput,
   type PaymentResult,
+  type RefundContext,
 } from './payment.port';
+import {
+  customerMetadata,
+  paymentDescription,
+  paymentMetadata,
+  refundMetadata,
+} from './stripe-metadata';
 
 /**
  * The real Stripe implementation of `PaymentPort` (FR-PAY-010). Constructed with an already-
@@ -29,8 +37,19 @@ import {
  * different card" outcome instead of a silent hang.
  */
 export class StripePaymentAdapter extends PaymentPort {
-  constructor(private readonly stripe: Stripe) {
+  /** `mode` is which of the operator's two key sets this client was built from — recorded on
+   *  every payment so test-mode and live charges can be told apart from our own database.
+   *  `environment` is the deployment (NODE_ENV) and goes into Stripe metadata. */
+  constructor(
+    private readonly stripe: Stripe,
+    private readonly mode: 'test' | 'live' = 'test',
+    private readonly environment = 'production',
+  ) {
     super();
+  }
+
+  private get provider(): string {
+    return `stripe_${this.mode}`;
   }
 
   async authorize(input: AuthorizeInput): Promise<PaymentResult> {
@@ -43,25 +62,35 @@ export class StripePaymentAdapter extends PaymentPort {
       // confirm with a generic, code-less invalid_request_error. Pinning to card avoids that
       // entirely and matches the Payment Element's own `paymentMethodOrder`/wallet restriction on
       // the frontend (checkout/page.tsx).
+      // The amount and currency go through the currency module — never `amountMinor` raw — so a
+      // currency Stripe would reject or mis-scale fails here, before any request is made.
+      const amount = toStripeAmount(input.amountMinor, input.currency);
+      const currency = stripeCurrency(input.currency);
+      const ctx = input.context
+        ? {
+            metadata: paymentMetadata({ ...input.context, environment: this.environment }),
+            description: paymentDescription(input.context),
+          }
+        : { metadata: { source: 'carrental', reservation_reference: input.reference } };
       const intent = input.reuse
         ? await this.stripe.paymentIntents.create(
             {
-              amount: input.amountMinor,
-              currency: input.currency.toLowerCase(),
+              amount,
+              currency,
               customer: input.reuse.customerRef,
               payment_method: input.reuse.methodRef,
               payment_method_types: ['card'],
               off_session: true,
               confirm: true,
               capture_method: 'manual',
-              metadata: { reservationReference: input.reference },
+              ...ctx,
             },
             { idempotencyKey: input.idempotencyKey },
           )
         : await this.stripe.paymentIntents.create(
             {
-              amount: input.amountMinor,
-              currency: input.currency.toLowerCase(),
+              amount,
+              currency,
               payment_method: input.token,
               payment_method_types: ['card'],
               confirm: true,
@@ -69,7 +98,7 @@ export class StripePaymentAdapter extends PaymentPort {
               ...(input.saveForReuse
                 ? { customer: await this.customerFor(input), setup_future_usage: 'off_session' }
                 : {}),
-              metadata: { reservationReference: input.reference },
+              ...ctx,
             },
             { idempotencyKey: input.idempotencyKey },
           );
@@ -84,6 +113,7 @@ export class StripePaymentAdapter extends PaymentPort {
       const pm = intent.payment_method;
       const { brand, last4 } = await this.methodDetails(pm);
       return {
+        provider: this.provider,
         providerRef: intent.id,
         brand,
         last4,
@@ -114,7 +144,7 @@ export class StripePaymentAdapter extends PaymentPort {
         ...(idempotencyKey ? [{ idempotencyKey }] : []),
       );
       const { brand, last4 } = await this.methodDetails(intent.payment_method);
-      return { providerRef: intent.id, brand, last4 };
+      return { providerRef: intent.id, brand, last4, provider: this.provider };
     } catch (err) {
       throw this.mapError(err);
     }
@@ -138,15 +168,22 @@ export class StripePaymentAdapter extends PaymentPort {
     providerRef: string,
     amountMinor: number,
     idempotencyKey?: string,
+    context?: RefundContext,
   ): Promise<PaymentResult> {
     try {
       const refund = await this.stripe.refunds.create(
-        { payment_intent: providerRef, amount: amountMinor },
+        {
+          payment_intent: providerRef,
+          amount: amountMinor,
+          ...(context
+            ? { metadata: refundMetadata({ ...context, environment: this.environment }) }
+            : {}),
+        },
         ...(idempotencyKey ? [{ idempotencyKey }] : []),
       );
       const intent = await this.stripe.paymentIntents.retrieve(providerRef);
       const { brand, last4 } = await this.methodDetails(intent.payment_method);
-      return { providerRef: refund.id, brand, last4 };
+      return { providerRef: refund.id, brand, last4, provider: this.provider };
     } catch (err) {
       throw this.mapError(err);
     }
@@ -165,8 +202,12 @@ export class StripePaymentAdapter extends PaymentPort {
   }
 
   private async customerFor(input: AuthorizeInput): Promise<string> {
+    // ids only — no name/email/phone: Stripe doesn't need them to charge a saved card, and they
+    // would go stale here the moment the customer edits their profile
     const customer = await this.stripe.customers.create({
-      metadata: { reservationReference: input.reference },
+      metadata: input.context
+        ? customerMetadata({ ...input.context, environment: this.environment })
+        : { source: 'carrental', reservation_reference: input.reference },
     });
     return customer.id;
   }

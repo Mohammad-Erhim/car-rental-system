@@ -26,7 +26,7 @@ export const overview: AnalyticDef = {
   breakdowns: sales.breakdowns.filter((b) => b.key !== 'channel'),
   notes: ['overview.where', 'sales.basis', 'fleet.formula', 'payments.cash'],
   currencyActivity: (ctx, range) => reservationCurrencies(ctx, range),
-  async measure(ctx, range, buckets, opts) {
+  async measure(ctx, range, buckets, _opts) {
     const [s, f, b, p] = await Promise.all([
       sales.measure(ctx, range, buckets, { detail: false }),
       fleet.measure(ctx, range, buckets, { detail: false }),

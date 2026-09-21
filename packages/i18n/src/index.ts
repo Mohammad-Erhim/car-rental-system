@@ -12,13 +12,22 @@ export {
   type LocaleDefinition,
 } from './config';
 
+export { createFormatters, minorToMajor, type Formatters, type Money } from './format';
+
 export {
-  createFormatters,
-  minorToMajor,
+  SUPPORTED_CURRENCIES,
+  getCurrency,
+  isSupportedCurrency,
   minorUnitDigits,
-  type Formatters,
-  type Money,
-} from './format';
+  minorToDecimalString,
+  formatMinorPlain,
+  parseDecimalToMinor,
+  pickCurrency,
+  stripeCurrency,
+  toStripeAmount,
+  fromStripeAmount,
+  type CurrencyDefinition,
+} from './currency';
 
 export {
   createTranslator,

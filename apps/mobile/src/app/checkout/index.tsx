@@ -44,7 +44,12 @@ export default function CheckoutScreen() {
   const draft = useTripDraft();
 
   const quote = useQuoteByRef(reference ?? null);
-  const products = useAvailableProducts(quote.data?.categoryCode ?? null, quote.data?.pickupLocationCode ?? null);
+  // extras are priced in one currency and a booking is in one — offer only those in the quote's
+  const products = useAvailableProducts(
+    quote.data?.categoryCode ?? null,
+    quote.data?.pickupLocationCode ?? null,
+    quote.data?.currency ?? null,
+  );
   const mode = usePaymentMode();
   const confirm = useConfirmBooking();
   const formErrors = useFormErrors();

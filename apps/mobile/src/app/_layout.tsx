@@ -139,6 +139,7 @@ function RootNavigator() {
         <Stack.Screen name="settings/index" options={{ headerShown: true }} />
         <Stack.Screen name="settings/language" options={{ headerShown: true }} />
         <Stack.Screen name="settings/appearance" options={{ headerShown: true }} />
+        <Stack.Screen name="settings/currency" options={{ headerShown: true }} />
         <Stack.Screen name="legal/[slug]" options={{ headerShown: true }} />
         <Stack.Screen name="help" options={{ headerShown: true }} />
         <Stack.Screen name="locations" options={{ headerShown: true }} />

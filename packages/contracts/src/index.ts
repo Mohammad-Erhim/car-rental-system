@@ -7,6 +7,7 @@ export * from './consent';
 export * from './auth';
 export * from './account';
 export * from './lookup';
+export * from './currency';
 export * from './translations';
 export * from './catalogue';
 export * from './discovery';

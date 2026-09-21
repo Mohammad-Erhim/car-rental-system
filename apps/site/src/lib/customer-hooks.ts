@@ -26,6 +26,7 @@ export {
   useConfirmBooking,
   useMyReservations,
   formatMinor,
+  useCurrencies,
   type Location,
   type SearchArgs,
   type ReservationResult,
@@ -98,13 +99,17 @@ export interface CatalogueProduct {
   maxQuantity: number;
 }
 
-export function useAvailableProducts(categoryCode: string | null, locationCode: string | null) {
+export function useAvailableProducts(
+  categoryCode: string | null,
+  locationCode: string | null,
+  currency: string | null = null,
+) {
   return useQuery({
-    queryKey: ['catalogue', 'products', categoryCode, locationCode],
+    queryKey: ['catalogue', 'products', categoryCode, locationCode, currency],
     enabled: !!categoryCode && !!locationCode,
     queryFn: ({ signal }) =>
       apiFetch<CatalogueProduct[]>(
-        `/catalogue/products?category=${encodeURIComponent(categoryCode!)}&location=${encodeURIComponent(locationCode!)}`,
+        `/catalogue/products?category=${encodeURIComponent(categoryCode!)}&location=${encodeURIComponent(locationCode!)}${currency ? `&currency=${encodeURIComponent(currency)}` : ''}`,
         { signal, anonymous: true },
       ),
   });

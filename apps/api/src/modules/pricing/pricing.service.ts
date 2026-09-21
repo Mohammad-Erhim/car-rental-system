@@ -19,6 +19,16 @@ import { computeQuote, isQuoteError, type QuoteComputation } from './quote.calcu
 
 const QUOTE_TTL_MS = 20 * 60 * 1000; // 20 minutes
 
+/** Which currency a price should be in (DEC-036). */
+export interface PriceOptions {
+  /** the currency wanted. Without `strict` it is a preference: no price list in it falls back to
+   *  the default currency, then to any enabled one. */
+  currency?: string;
+  /** price in `currency` and nothing else — for a reservation that already exists (extend, change
+   *  dates), whose currency is fixed. Applies even after that currency has been disabled. */
+  strict?: boolean;
+}
+
 export interface PricedQuote {
   computation: QuoteComputation;
   ratePlanId: string;
@@ -115,10 +125,20 @@ export class PricingService implements OnModuleInit {
     return org.id;
   }
 
-  /** The published rate plan that applies to a category + location for a pickup date (local YMD). */
-  async applicablePlan(categoryCode: string, locationCode: string, pickupYmd: string) {
+  /**
+   * The published rate plan that applies to a category + location for a pickup date (local YMD),
+   * in the requested currency where there is one (see `PriceOptions`). Only currencies the
+   * business currently sells in are offered for a *new* price, so disabling a currency in the
+   * dashboard takes effect on the next search without touching its plans.
+   */
+  async applicablePlan(
+    categoryCode: string,
+    locationCode: string,
+    pickupYmd: string,
+    opts: PriceOptions = {},
+  ) {
     const orgId = await this.orgId();
-    const rows = await this.db
+    const candidates = await this.db
       .select()
       .from(ratePlan)
       .where(
@@ -131,6 +151,7 @@ export class PricingService implements OnModuleInit {
           or(isNull(ratePlan.effectiveTo), sql`${ratePlan.effectiveTo} >= ${pickupYmd}`),
         ),
       );
+    const rows = await this.inPreferredCurrency(candidates, opts);
     if (!rows.length) return null;
     // most specific (location-scoped) then latest effectiveFrom wins
     rows.sort((a, b) => {
@@ -143,6 +164,54 @@ export class PricingService implements OnModuleInit {
     return { plan, tiers };
   }
 
+  /**
+   * Narrow candidate plans to one currency. Strict: exactly the requested currency. Otherwise the
+   * first currency in [requested, default, …other enabled] that has any candidate — so a customer
+   * who picked EUR gets EUR where there is a EUR price list and the default currency where there
+   * is not, never an arbitrary mix. With no currencies configured at all, nothing is filtered
+   * out (a fresh deployment behaves as before).
+   */
+  private async inPreferredCurrency<T extends { currency: string }>(
+    candidates: T[],
+    opts: PriceOptions,
+  ): Promise<T[]> {
+    if (opts.strict && opts.currency) {
+      return candidates.filter((r) => r.currency === opts.currency);
+    }
+    const enabled = await this.config.enabledCurrencyCodes();
+    const pool = enabled.length
+      ? candidates.filter((r) => enabled.includes(r.currency))
+      : candidates;
+    const order = [
+      ...(opts.currency ? [opts.currency] : []),
+      await this.config.defaultCurrency(),
+      ...enabled,
+      ...pool.map((r) => r.currency),
+    ];
+    for (const code of new Set(order)) {
+      const match = pool.filter((r) => r.currency === code);
+      if (match.length) return match;
+    }
+    return [];
+  }
+
+  /** Currencies that have at least one published, not-yet-expired price list — what a customer
+   *  can actually be quoted in. */
+  async sellableCurrencyCodes(todayYmd: string): Promise<string[]> {
+    const orgId = await this.orgId();
+    const rows = await this.db
+      .selectDistinct({ currency: ratePlan.currency })
+      .from(ratePlan)
+      .where(
+        and(
+          eq(ratePlan.organizationId, orgId),
+          eq(ratePlan.status, 'published'),
+          or(isNull(ratePlan.effectiveTo), sql`${ratePlan.effectiveTo} >= ${todayYmd}`),
+        ),
+      );
+    return rows.map((r) => r.currency);
+  }
+
   /** Price a window; returns null if no plan applies, throws AppError on a rule violation. */
   async priceWindow(
     categoryCode: string,
@@ -150,8 +219,9 @@ export class PricingService implements OnModuleInit {
     pickupAt: Date,
     returnAt: Date,
     pickupYmd: string,
+    opts: PriceOptions = {},
   ): Promise<PricedQuote | null> {
-    const applicable = await this.applicablePlan(categoryCode, locationCode, pickupYmd);
+    const applicable = await this.applicablePlan(categoryCode, locationCode, pickupYmd, opts);
     if (!applicable) return null;
     const { plan, tiers } = applicable;
     const result = computeQuote(
@@ -409,7 +479,8 @@ export class PricingService implements OnModuleInit {
       organizationId: orgId,
       categoryCode: input.categoryCode,
       locationCode: input.locationCode ?? null,
-      currency: input.currency ?? 'USD',
+      // no currency given → the business's default one, not a hard-coded dollar (DEC-036)
+      currency: input.currency ?? (await this.config.defaultCurrency()),
       name: input.name,
       effectiveFrom: input.effectiveFrom,
       effectiveTo: input.effectiveTo ?? null,
@@ -547,7 +618,11 @@ export class PricingService implements OnModuleInit {
     if (issues.length) throw AppError.validation(issues, 'Rate plan is not valid');
   }
 
-  /** Published plans for the same scope whose effective range overlaps `plan` (open ends = ±∞). */
+  /**
+   * Published plans for the same scope *and currency* whose effective range overlaps `plan` (open
+   * ends = ±∞). Currency is part of the scope: a EUR price list runs alongside the USD one for
+   * the same category and location — publishing one must never retire the other (DEC-036).
+   */
   private async overlappingPublished(plan: typeof ratePlan.$inferSelect) {
     const FAR = '9999-12-31';
     return this.db
@@ -557,6 +632,7 @@ export class PricingService implements OnModuleInit {
         and(
           eq(ratePlan.organizationId, plan.organizationId),
           eq(ratePlan.categoryCode, plan.categoryCode),
+          eq(ratePlan.currency, plan.currency),
           plan.locationCode
             ? eq(ratePlan.locationCode, plan.locationCode)
             : isNull(ratePlan.locationCode),

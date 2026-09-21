@@ -22,6 +22,7 @@ import { CategoriesPage } from '../features/categories/categories-page.js';
 import { FeaturesPage } from '../features/categories/features-page.js';
 import { ConsentLogPage } from '../features/consent/consent-log-page.js';
 import { ConsentPage } from '../features/consent/consent-page.js';
+import { CurrenciesPage } from '../features/currencies/currencies-page.js';
 import { CustomerDetailPage } from '../features/customers/customer-detail-page.js';
 import { CustomersPage } from '../features/customers/customers-page.js';
 import { DashboardPage } from '../features/dashboard/dashboard-page.js';
@@ -149,6 +150,10 @@ function dashboardRoutes(): RouteObject[] {
     {
       path: 'search',
       element: perm(['reservation.read', 'rental.read'], <SearchPage />),
+    },
+    {
+      path: 'settings/currencies',
+      element: perm(['config.read', 'lookup.manage'], <CurrenciesPage />),
     },
     {
       path: 'settings/reference-data',

@@ -1,10 +1,12 @@
 import type {
   AvailabilitySearchResponse,
+  PublicCurrenciesResponse,
   ConfirmBookingRequest,
   Quote,
   Reservation,
   VehicleCategory,
 } from '@carrental/contracts';
+import { createFormatters, type Formatters } from '@carrental/i18n';
 import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { apiFetch } from '../api-fetch';
@@ -69,6 +71,8 @@ export interface SearchArgs {
   pickupAt: string;
   returnAt: string;
   categoryCode?: string;
+  /** the currency the customer chose (preferred, not guaranteed — each option says which it is in) */
+  currency?: string;
 }
 
 export function useAvailabilitySearch(args: SearchArgs | null) {
@@ -153,15 +157,33 @@ export interface CatalogueProduct {
   maxQuantity: number;
 }
 
-export function useAvailableProducts(categoryCode: string | null, locationCode: string | null) {
+export function useAvailableProducts(
+  categoryCode: string | null,
+  locationCode: string | null,
+  currency: string | null = null,
+) {
   return useQuery({
-    queryKey: ['catalogue', 'products', categoryCode, locationCode],
+    queryKey: ['catalogue', 'products', categoryCode, locationCode, currency],
     enabled: !!categoryCode && !!locationCode,
     queryFn: ({ signal }) =>
       apiFetch<CatalogueProduct[]>(
-        `/catalogue/products?category=${encodeURIComponent(categoryCode!)}&location=${encodeURIComponent(locationCode!)}`,
+        `/catalogue/products?category=${encodeURIComponent(categoryCode!)}&location=${encodeURIComponent(locationCode!)}${currency ? `&currency=${encodeURIComponent(currency)}` : ''}`,
         { signal, anonymous: true },
       ),
+  });
+}
+
+/** The currencies a customer can be quoted in — enabled ones with a live price list, default
+ *  first. Mirrors `@carrental/client/react`'s `useCurrencies`. */
+export function useCurrencies(locale?: string) {
+  return useQuery({
+    queryKey: ['discovery', 'currencies', locale],
+    queryFn: ({ signal }) =>
+      apiFetch<PublicCurrenciesResponse>(
+        `/discovery/currencies${locale ? `?locale=${encodeURIComponent(locale)}` : ''}`,
+        { signal, anonymous: true },
+      ),
+    staleTime: 5 * 60 * 1000,
   });
 }
 
@@ -216,11 +238,20 @@ export function usePaymentMode() {
   });
 }
 
-/** Format integer minor units as a localized currency string (SRS-I18N). */
+// one formatter per locale — building an Intl.NumberFormat per amount is the slow part of a list
+const formatters = new Map<string, Formatters>();
+
+/** Format integer minor units as a localized currency string (SRS-I18N). The number of decimals
+ *  comes from the currency, not from an assumption of two — 5000 is ¥5,000 but $50.00. */
 export function formatMinor(amountMinor: number, currency: string, locale = 'en'): string {
+  let f = formatters.get(locale);
+  if (!f) {
+    f = createFormatters(locale);
+    formatters.set(locale, f);
+  }
   try {
-    return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(amountMinor / 100);
+    return f.money({ amountMinor, currency });
   } catch {
-    return `${(amountMinor / 100).toFixed(2)} ${currency}`;
+    return `${amountMinor} ${currency}`;
   }
 }

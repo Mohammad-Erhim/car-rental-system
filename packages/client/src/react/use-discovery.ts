@@ -1,10 +1,12 @@
 import type {
   AvailabilitySearchResponse,
+  PublicCurrenciesResponse,
   ConfirmBookingRequest,
   Quote,
   Reservation,
   VehicleCategory,
 } from '@carrental/contracts';
+import { createFormatters, type Formatters } from '@carrental/i18n';
 import { useMutation, useQuery } from '@tanstack/react-query';
 
 import { apiFetch } from '../api-fetch';
@@ -54,6 +56,8 @@ export interface SearchArgs {
   pickupAt: string;
   returnAt: string;
   categoryCode?: string;
+  /** the currency the customer chose (preferred, not guaranteed — each option says which it is in) */
+  currency?: string;
 }
 
 export function useAvailabilitySearch(args: SearchArgs | null) {
@@ -132,13 +136,37 @@ export function useMyReservations(enabled: boolean) {
   });
 }
 
-/** Format integer minor units as a localized currency string (SRS-I18N — transaction currency). */
+// one formatter per locale — building an Intl.NumberFormat per amount is the slow part of a list
+const formatters = new Map<string, Formatters>();
+
+/** Format integer minor units as a localized currency string (SRS-I18N — transaction currency).
+ *  The number of decimals comes from the currency, not from an assumption of two — 5000 is
+ *  ¥5,000 but $50.00 (DEC-036). */
 export function formatMinor(amountMinor: number, currency: string, locale = 'en'): string {
-  try {
-    return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(amountMinor / 100);
-  } catch {
-    return `${(amountMinor / 100).toFixed(2)} ${currency}`;
+  let f = formatters.get(locale);
+  if (!f) {
+    f = createFormatters(locale);
+    formatters.set(locale, f);
   }
+  try {
+    return f.money({ amountMinor, currency });
+  } catch {
+    return `${amountMinor} ${currency}`;
+  }
+}
+
+/** The currencies a customer can be quoted in — enabled ones with a live price list, default
+ *  first. Public and cacheable; drives the currency switcher. */
+export function useCurrencies(locale?: string) {
+  return useQuery({
+    queryKey: ['discovery', 'currencies', locale],
+    queryFn: ({ signal }) =>
+      apiFetch<PublicCurrenciesResponse>(
+        `/discovery/currencies${locale ? `?locale=${encodeURIComponent(locale)}` : ''}`,
+        { signal, anonymous: true },
+      ),
+    staleTime: 5 * 60 * 1000,
+  });
 }
 
 /**

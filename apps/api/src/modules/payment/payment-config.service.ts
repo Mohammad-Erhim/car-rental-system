@@ -6,6 +6,8 @@ import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
 import type { Actor } from '../../common/auth/types';
 import { decryptSecret, encryptSecret, maskSecret } from '../../common/crypto/secret-cipher';
+import { ENV } from '../../config/config.module';
+import type { Env } from '../../config/env.schema';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { organization } from '../../database/schema/org';
@@ -65,6 +67,7 @@ export class PaymentConfigService {
   constructor(
     @Inject(DB) private readonly db: Database,
     private readonly audit: AuditService,
+    @Inject(ENV) private readonly env: Env,
   ) {}
 
   private async orgId(): Promise<string> {
@@ -179,7 +182,11 @@ export class PaymentConfigService {
       });
     }
     const secretKey = decryptSecret(ciphertext);
-    return new StripePaymentAdapter(new Stripe(secretKey));
+    return new StripePaymentAdapter(
+      new Stripe(secretKey),
+      driver === 'stripe_live' ? 'live' : 'test',
+      this.env.NODE_ENV,
+    );
   }
 
   /** For the webhook endpoint — the currently-active mode's webhook signing secret, so a signed

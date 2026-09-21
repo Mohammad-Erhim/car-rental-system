@@ -1,5 +1,5 @@
 import { LOCALES, DEFAULT_LOCALE, NAMESPACED_RESOURCES } from '@carrental/i18n';
-import { sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 import { revOf } from '../../common/i18n-source-rev';
 import type { Database } from '../drizzle';
@@ -301,6 +301,20 @@ const CONFIGURABLE_LOOKUPS: Record<string, { label: string; values: [string, str
   },
 };
 
+/**
+ * The currencies a fresh deployment starts with (DEC-036). After that they belong to the
+ * operator — enabled, disabled and defaulted from Settings → Currencies — so unlike the other
+ * standards lists they are not `systemManaged`, and only a currency from the supported catalogue
+ * in `@carrental/i18n` can ever be added.
+ */
+const STARTER_CURRENCIES: [string, string][] = [
+  ['USD', 'US Dollar'],
+  ['GBP', 'Pound Sterling'],
+  ['EUR', 'Euro'],
+  ['AED', 'UAE Dirham'],
+  ['CAD', 'Canadian Dollar'],
+];
+
 const EXTERNAL_STANDARDS: Record<string, { label: string; values: [string, string][] }> = {
   country: {
     label: 'Country',
@@ -311,16 +325,6 @@ const EXTERNAL_STANDARDS: Record<string, { label: string; values: [string, strin
       ['DE', 'Germany'],
       ['AE', 'United Arab Emirates'],
       ['CA', 'Canada'],
-    ],
-  },
-  currency: {
-    label: 'Currency',
-    values: [
-      ['USD', 'US Dollar'],
-      ['GBP', 'Pound Sterling'],
-      ['EUR', 'Euro'],
-      ['AED', 'UAE Dirham'],
-      ['CAD', 'Canadian Dollar'],
     ],
   },
   time_zone: {
@@ -627,7 +631,13 @@ export async function seedSystem(db: Database): Promise<void> {
       })
       .onConflictDoUpdate({
         target: lookupType.code,
-        set: { classification, editability, requiredCodes, updatedAt: sql`now()` },
+        set: {
+          classification,
+          editability,
+          requiredCodes,
+          lockReason: lockReason ?? null,
+          updatedAt: sql`now()`,
+        },
       });
   };
 
@@ -689,6 +699,41 @@ export async function seedSystem(db: Database): Promise<void> {
       'Standards-managed reference; codes and structure are locked (SRS-LKP-006).',
     );
     await registerValues(typeCode, spec.values, true);
+  }
+
+  // currencies — operator-managed, catalogue-constrained (DEC-036)
+  await registerType(
+    'currency',
+    'constrained',
+    'config',
+    'constrained',
+    [],
+    'Only currencies from the supported list can be added; manage them under Settings > Currencies.',
+  );
+  await registerValues('currency', STARTER_CURRENCIES, false);
+  // exactly one default from the start — only if the operator has not already chosen one
+  const [flaggedDefault] = await db
+    .select({ id: lookupValue.id })
+    .from(lookupValue)
+    .where(
+      and(
+        eq(lookupValue.typeCode, 'currency'),
+        eq(lookupValue.scopeKey, 'global'),
+        eq(lookupValue.isDefault, true),
+      ),
+    )
+    .limit(1);
+  if (!flaggedDefault) {
+    await db
+      .update(lookupValue)
+      .set({ isDefault: true })
+      .where(
+        and(
+          eq(lookupValue.typeCode, 'currency'),
+          eq(lookupValue.scopeKey, 'global'),
+          eq(lookupValue.code, STARTER_CURRENCIES[0]![0]),
+        ),
+      );
   }
 
   // permission-action lookup mirror (for the role editor selector)

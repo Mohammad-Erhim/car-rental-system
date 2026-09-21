@@ -4,23 +4,15 @@
  */
 
 import { resolveLocale } from './config';
+import { minorUnitDigits } from './currency';
+
+export { minorUnitDigits };
 
 export interface Money {
   /** Integer minor units (SRS-DAT-003). e.g. 1299 = 12.99 for a 2-decimal currency. */
   amountMinor: number;
   /** ISO 4217 code, e.g. "USD". Stable; display locale never changes it. */
   currency: string;
-}
-
-const DEFAULT_MINOR_UNITS: Record<string, number> = {
-  JPY: 0,
-  KWD: 3,
-  BHD: 3,
-  OMR: 3,
-};
-
-export function minorUnitDigits(currency: string): number {
-  return DEFAULT_MINOR_UNITS[currency.toUpperCase()] ?? 2;
 }
 
 export function minorToMajor(money: Money): number {

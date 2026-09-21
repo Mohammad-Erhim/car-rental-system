@@ -26,6 +26,8 @@ export interface SearchInput {
   pickupAt: Date;
   returnAt: Date;
   categoryCode?: string;
+  /** the currency the customer wants to see (preferred, not guaranteed — see `PriceOptions`) */
+  currency?: string;
 }
 
 export interface SearchOption {
@@ -219,6 +221,7 @@ export class AvailabilityService {
           input.pickupAt,
           input.returnAt,
           pickupYmd,
+          { currency: input.currency },
         );
         if (priced) {
           fromTotalMinor = priced.computation.totalMinor;

@@ -1,3 +1,4 @@
+import { isSupportedCurrency } from '@carrental/i18n';
 import { Inject, Injectable } from '@nestjs/common';
 import { and, desc, eq, sql } from 'drizzle-orm';
 
@@ -5,10 +6,12 @@ import { AppError } from '../../common/app-error';
 import { AuditService } from '../../common/audit/audit.service';
 import type { Actor } from '../../common/auth/types';
 import { OutboxService } from '../../common/outbox/outbox.service';
+import { ENV } from '../../config/config.module';
+import type { Env } from '../../config/env.schema';
 import { DB } from '../../database/database.module';
 import type { Database } from '../../database/drizzle';
 import { payment, paymentIntent, recoveryCase } from '../../database/schema/payment';
-import { reconciliationException } from '../../database/schema/reservation';
+import { reconciliationException, reservation } from '../../database/schema/reservation';
 
 import {
   PaymentDeclinedError,
@@ -16,6 +19,7 @@ import {
   PaymentProviderConfigError,
   PaymentTimeoutError,
 } from './payment.port';
+import type { PaymentContext } from './stripe-metadata';
 
 export interface AuthorizeAndCaptureInput {
   organizationId: string;
@@ -28,6 +32,12 @@ export interface AuthorizeAndCaptureInput {
    *  `findSavedMethod`. Required on a reservation's first charge. */
   token?: string;
   actor: Actor | null;
+  /** who and where, for the processor's records (stripe-metadata.ts). All optional: whatever a
+   *  caller leaves out is read from the reservation itself, so an extend / incidental charge
+   *  needs no extra plumbing. `customerId` null means "guest"; `undefined` means "look it up". */
+  customerId?: string | null;
+  channel?: string | null;
+  quoteReference?: string | null;
 }
 
 @Injectable()
@@ -37,7 +47,40 @@ export class PaymentService {
     private readonly port: PaymentPort,
     private readonly audit: AuditService,
     private readonly outbox: OutboxService,
+    @Inject(ENV) private readonly env: Env,
   ) {}
+
+  /**
+   * The ids a processor should carry with a charge. What the caller didn't say is read from the
+   * reservation (an extension, a settlement); a brand-new booking has no reservation row yet, so
+   * its caller states the customer and channel directly.
+   */
+  private async contextFor(
+    input: AuthorizeAndCaptureInput,
+    intentId: string,
+    purpose: string,
+  ): Promise<PaymentContext> {
+    let customerId = input.customerId;
+    let channel = input.channel;
+    if (customerId === undefined || channel === undefined) {
+      const [res] = await this.db
+        .select({ accountId: reservation.accountId, channel: reservation.channel })
+        .from(reservation)
+        .where(eq(reservation.reference, input.reservationReference))
+        .limit(1);
+      if (customerId === undefined) customerId = res?.accountId ?? null;
+      if (channel === undefined) channel = res?.channel ?? null;
+    }
+    return {
+      reservationReference: input.reservationReference,
+      paymentIntentId: intentId,
+      purpose,
+      customerId,
+      channel: channel ?? null,
+      quoteReference: input.quoteReference ?? null,
+      environment: this.env.NODE_ENV,
+    };
+  }
 
   /**
    * Idempotent authorize + capture for a reservation. A duplicate call (same reservation +
@@ -54,6 +97,15 @@ export class PaymentService {
     alreadyProcessed: boolean;
   }> {
     const purpose = input.purpose ?? 'booking';
+    // Only a currency the processor can take at our minor unit may be charged (the catalogue in
+    // @carrental/i18n). Checked before anything is recorded, so an unsupported currency is a
+    // clear refusal rather than a half-written intent and a provider error mid-checkout.
+    if (!isSupportedCurrency(input.currency)) {
+      throw AppError.businessRule(`Payments in ${input.currency} are not supported`, {
+        reason: 'currency_not_supported',
+        currency: input.currency,
+      });
+    }
     const [existing] = await this.db
       .select()
       .from(paymentIntent)
@@ -138,6 +190,7 @@ export class PaymentService {
       last4: string;
       customerRef?: string | null;
       methodRef?: string | null;
+      provider?: string;
     };
     try {
       auth = await this.port.authorize({
@@ -154,6 +207,7 @@ export class PaymentService {
         reference: input.reservationReference,
         reuse: saved ?? undefined,
         saveForReuse: !saved,
+        context: await this.contextFor(input, intentId, purpose),
       });
     } catch (err) {
       if (err instanceof PaymentTimeoutError) {
@@ -212,6 +266,7 @@ export class PaymentService {
       .update(paymentIntent)
       .set({
         state: 'authorized',
+        ...(auth.provider ? { provider: auth.provider } : {}),
         providerRef: auth.providerRef,
         methodBrand: auth.brand,
         methodLast4: auth.last4,
@@ -349,7 +404,11 @@ export class PaymentService {
       // `state === 'captured'` gate above), this key is also stable across a retry of this same
       // logical refund, so the provider itself never issues it twice even if the block below
       // rolls the local claim back and something retries.
-      const res = await this.port.refund(intent.providerRef!, amountMinor, `refund:${intent.id}`);
+      const res = await this.port.refund(intent.providerRef!, amountMinor, `refund:${intent.id}`, {
+        reservationReference,
+        paymentIntentId: intent.id,
+        purpose: intent.purpose,
+      });
       await this.recordLedger(
         intent.id,
         reservationReference,

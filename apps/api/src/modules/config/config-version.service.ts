@@ -6,6 +6,7 @@ import {
   zPagesConfig,
   H1_CAPABLE_BLOCKS,
 } from '@carrental/contracts';
+import { formatMinorPlain } from '@carrental/i18n';
 import { brandConfigSchema, validateBrandConfig } from '@carrental/theme';
 import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { and, asc, desc, eq, sql } from 'drizzle-orm';
@@ -476,8 +477,9 @@ export class ConfigVersionService implements OnModuleInit {
       const SAMPLE_FUEL_DEFICIT_PCT = 20;
       const lateFeeMinor = Math.round((SAMPLE_TOTAL_MINOR * lateFeeBps) / 10000);
       const fuelChargeMinor = SAMPLE_FUEL_DEFICIT_PCT * minorPerPct;
-      const cancellation = `A $100.00 booking cancelled inside ${freeCancelHours}h keeps a ${(lateFeeBps / 100).toFixed(0)}% fee = $${(lateFeeMinor / 100).toFixed(2)}`;
-      const fuel = `Returning ${SAMPLE_FUEL_DEFICIT_PCT}% low on fuel = $${(fuelChargeMinor / 100).toFixed(2)}`;
+      const currency = await this.orgCurrency();
+      const cancellation = `A ${formatMinorPlain(SAMPLE_TOTAL_MINOR, currency)} booking cancelled inside ${freeCancelHours}h keeps a ${(lateFeeBps / 100).toFixed(0)}% fee = ${formatMinorPlain(lateFeeMinor, currency)}`;
+      const fuel = `Returning ${SAMPLE_FUEL_DEFICIT_PCT}% low on fuel = ${formatMinorPlain(fuelChargeMinor, currency)}`;
       // when the caller names the key, only show the example that key drives.
       const examples =
         key === 'cancellation'
@@ -489,7 +491,7 @@ export class ConfigVersionService implements OnModuleInit {
         examples,
         policy: {
           key: key ?? null,
-          currency: await this.orgCurrency(),
+          currency,
           freeCancelHours,
           lateFeeBps,
           minorPerPct,

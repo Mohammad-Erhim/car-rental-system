@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common';
 
 import { PaymentConfigService } from './payment-config.service';
-import { PaymentPort, type AuthorizeInput, type PaymentResult } from './payment.port';
+import {
+  PaymentPort,
+  type AuthorizeInput,
+  type PaymentResult,
+  type RefundContext,
+} from './payment.port';
 
 /**
  * The `PaymentPort` bound into the app's DI container (payment.module.ts) — every call is routed
@@ -38,8 +43,9 @@ export class RoutingPaymentAdapter extends PaymentPort {
     providerRef: string,
     amountMinor: number,
     idempotencyKey?: string,
+    context?: RefundContext,
   ): Promise<PaymentResult> {
     const adapter = await this.config.resolveActiveAdapter();
-    return adapter.refund(providerRef, amountMinor, idempotencyKey);
+    return adapter.refund(providerRef, amountMinor, idempotencyKey, context);
   }
 }

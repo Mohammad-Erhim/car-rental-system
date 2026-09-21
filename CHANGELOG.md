@@ -6,6 +6,20 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### Currencies you manage, and a better trail in Stripe (2026-09)
+
+- **Settings → Currencies:** add a currency from the supported list, choose the default, turn one off — no
+  redeploy. Rate plans and extras pick from it; the website and the app offer the currencies that have
+  prices, with a currency switcher. A booking keeps the currency it was made in, through payment,
+  extension, refund and invoice. Names appear in every enabled language.
+- **Correct money in every currency:** amounts now follow the currency's own decimals (¥5,000, $50.00) in
+  the website, the app, the dashboard's price and refund fields, e-mails and messages.
+- **Fixed:** publishing a price list in a second currency no longer retires the first; the dashboard's
+  "revenue today" no longer adds different currencies together (others are listed beside it).
+- **Stripe:** each payment carries our reservation reference, payment id, customer id (or "guest"), purpose,
+  channel and quote reference, plus a short description — identifiers only, nothing that can change.
+  Amounts and currencies are converted in one place, and the webhook checks currency as well as amount.
+
 ### Reports rebuilt (2026-09)
 
 - **Six reports for any period** — business overview, sales & revenue, bookings, fleet utilisation,

@@ -73,6 +73,7 @@ describe('StripePaymentAdapter', () => {
         { idempotencyKey: 'res-1:booking' },
       );
       expect(result).toEqual({
+        provider: 'stripe_test',
         providerRef: 'pi_1',
         brand: 'visa',
         last4: '4242',
@@ -254,7 +255,12 @@ describe('StripePaymentAdapter', () => {
       expect(stripe.paymentIntents.capture).toHaveBeenCalledWith('pi_1', {
         amount_to_capture: 5000,
       });
-      expect(result).toEqual({ providerRef: 'pi_1', brand: 'visa', last4: '4242' });
+      expect(result).toEqual({
+        provider: 'stripe_test',
+        providerRef: 'pi_1',
+        brand: 'visa',
+        last4: '4242',
+      });
     });
 
     it('void cancels the intent; a "already settled" error is swallowed as a best-effort no-op', async () => {
@@ -293,6 +299,193 @@ describe('StripePaymentAdapter', () => {
         amount: 2000,
       });
       expect(result.providerRef).toBe('re_1');
+    });
+
+    it('a refund carries ids only, so it can be traced back to our ledger', async () => {
+      const stripe = fakeStripe();
+      stripe.refunds.create.mockResolvedValue({ id: 're_2' });
+      stripe.paymentIntents.retrieve.mockResolvedValue({ payment_method: 'pm_1' });
+      stripe.paymentMethods.retrieve.mockResolvedValue({ card });
+
+      await new StripePaymentAdapter(stripe as unknown as Stripe, 'live', 'production').refund(
+        'pi_1',
+        2000,
+        'refund:abc',
+        { reservationReference: 'RES-1', paymentIntentId: 'intent-uuid', purpose: 'booking' },
+      );
+      expect(stripe.refunds.create).toHaveBeenCalledWith(
+        {
+          payment_intent: 'pi_1',
+          amount: 2000,
+          metadata: {
+            source: 'carrental',
+            env: 'production',
+            reservation_reference: 'RES-1',
+            payment_id: 'intent-uuid',
+            purpose: 'booking',
+          },
+        },
+        { idempotencyKey: 'refund:abc' },
+      );
+    });
+  });
+
+  describe('what Stripe is told about a payment', () => {
+    const context = {
+      reservationReference: 'RES-7',
+      paymentIntentId: 'intent-uuid',
+      purpose: 'extension-1789960642317',
+      customerId: 'acct-uuid',
+      channel: 'customer',
+      quoteReference: 'Q-9',
+      environment: 'production',
+    };
+
+    it('sends stable identifiers and a short description — nothing that can change', async () => {
+      const stripe = fakeStripe();
+      stripe.paymentIntents.create.mockResolvedValue({
+        id: 'pi_m',
+        status: 'requires_capture',
+        payment_method: 'pm_1',
+      });
+      stripe.paymentMethods.retrieve.mockResolvedValue({ card });
+
+      await adapterFor(stripe).authorize({
+        idempotencyKey: 'k',
+        amountMinor: 5000,
+        currency: 'USD',
+        token: 'pm_x',
+        reference: 'RES-7',
+        context,
+      });
+
+      const [body] = stripe.paymentIntents.create.mock.calls[0]!;
+      expect(body.description).toBe('Extension RES-7');
+      expect(body.metadata).toEqual({
+        source: 'carrental',
+        env: 'production',
+        reservation_reference: 'RES-7',
+        payment_id: 'intent-uuid',
+        // the uniqueness suffix of our own purpose key means nothing to Stripe
+        purpose: 'extension',
+        customer_id: 'acct-uuid',
+        channel: 'customer',
+        quote_reference: 'Q-9',
+      });
+      // nothing personal or mutable rides along
+      const sent = JSON.stringify(body);
+      for (const forbidden of ['email', 'name', 'phone', 'plate', 'pickup', 'location']) {
+        expect(sent.toLowerCase()).not.toContain(forbidden);
+      }
+    });
+
+    it('marks a guest checkout as "guest" and leaves out what is unknown', async () => {
+      const stripe = fakeStripe();
+      stripe.paymentIntents.create.mockResolvedValue({
+        id: 'pi_g',
+        status: 'requires_capture',
+        payment_method: 'pm_1',
+      });
+      stripe.paymentMethods.retrieve.mockResolvedValue({ card });
+
+      await adapterFor(stripe).authorize({
+        idempotencyKey: 'k',
+        amountMinor: 5000,
+        currency: 'USD',
+        token: 'pm_x',
+        reference: 'RES-8',
+        context: { ...context, customerId: null, channel: null, quoteReference: null },
+      });
+      const [body] = stripe.paymentIntents.create.mock.calls[0]!;
+      expect(body.metadata.customer_id).toBe('guest');
+      expect(body.metadata).not.toHaveProperty('channel');
+      expect(body.metadata).not.toHaveProperty('quote_reference');
+    });
+
+    it('the saved-card Stripe customer gets ids only — no name, email or phone', async () => {
+      const stripe = fakeStripe();
+      stripe.customers.create.mockResolvedValue({ id: 'cus_9' });
+      stripe.paymentIntents.create.mockResolvedValue({
+        id: 'pi_c',
+        status: 'requires_capture',
+        payment_method: 'pm_1',
+        customer: 'cus_9',
+      });
+      stripe.paymentMethods.retrieve.mockResolvedValue({ card });
+
+      await adapterFor(stripe).authorize({
+        idempotencyKey: 'k',
+        amountMinor: 5000,
+        currency: 'USD',
+        token: 'pm_x',
+        reference: 'RES-7',
+        saveForReuse: true,
+        context,
+      });
+      expect(stripe.customers.create).toHaveBeenCalledWith({
+        metadata: {
+          source: 'carrental',
+          env: 'production',
+          customer_id: 'acct-uuid',
+          reservation_reference: 'RES-7',
+        },
+      });
+    });
+
+    it('records whether the client was built from the live or the test key set', async () => {
+      const stripe = fakeStripe();
+      stripe.paymentIntents.create.mockResolvedValue({
+        id: 'pi_l',
+        status: 'requires_capture',
+        payment_method: 'pm_1',
+      });
+      stripe.paymentMethods.retrieve.mockResolvedValue({ card });
+      const live = new StripePaymentAdapter(stripe as unknown as Stripe, 'live');
+      const res = await live.authorize({
+        idempotencyKey: 'k',
+        amountMinor: 5000,
+        currency: 'USD',
+        token: 'pm_x',
+        reference: 'RES-7',
+      });
+      expect(res.provider).toBe('stripe_live');
+    });
+  });
+
+  describe('currency handling', () => {
+    it('sends a zero-decimal currency as-is, lower-cased', async () => {
+      const stripe = fakeStripe();
+      stripe.paymentIntents.create.mockResolvedValue({
+        id: 'pi_j',
+        status: 'requires_capture',
+        payment_method: 'pm_1',
+      });
+      stripe.paymentMethods.retrieve.mockResolvedValue({ card });
+      await adapterFor(stripe).authorize({
+        idempotencyKey: 'k',
+        amountMinor: 12000,
+        currency: 'JPY',
+        token: 'pm_x',
+        reference: 'RES-J',
+      });
+      expect(stripe.paymentIntents.create).toHaveBeenCalledWith(
+        expect.objectContaining({ amount: 12000, currency: 'jpy' }),
+        expect.anything(),
+      );
+    });
+
+    it('refuses a currency outside the supported catalogue before calling Stripe', async () => {
+      const stripe = fakeStripe();
+      await expect(
+        adapterFor(stripe).authorize({
+          idempotencyKey: 'k',
+          amountMinor: 5000,
+          currency: 'KWD',
+          token: 'pm_x',
+          reference: 'RES-K',
+        }),
+      ).rejects.toBeInstanceOf(RangeError);
+      expect(stripe.paymentIntents.create).not.toHaveBeenCalled();
     });
   });
 

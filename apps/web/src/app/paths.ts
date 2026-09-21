@@ -49,6 +49,7 @@ export const paths = {
   organization: '/settings/organization',
   policies: '/settings/policies',
   referenceData: '/settings/reference-data',
+  currencies: '/settings/currencies',
   integrations: '/settings/integrations',
   payments: '/settings/integrations/payments',
   email: '/settings/integrations/email',

@@ -30,6 +30,7 @@ export {
   useConfirmBooking,
   useMyReservations,
   formatMinor,
+  useCurrencies,
   type Location,
   type SearchArgs,
   type ReservationResult,

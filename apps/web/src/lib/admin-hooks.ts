@@ -460,7 +460,13 @@ export interface OpsDashboard {
   overdue: number;
   assignQueue: number;
   cancellationsToday: number;
-  revenueToday: { minor: number; currency: string };
+  /** the headline is the default currency alone; takings in other currencies are listed in
+   *  `other` and never added to it */
+  revenueToday: {
+    minor: number;
+    currency: string;
+    other?: Array<{ currency: string; minor: number }>;
+  };
   /** `null` for an account limited to specific locations — these figures are organisation-wide */
   financeExceptions: { recoveryCases: number; reconciliation: number; total: number } | null;
   fleet: {

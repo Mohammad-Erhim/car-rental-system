@@ -1,3 +1,5 @@
+import { minorToDecimalString, parseDecimalToMinor } from '@carrental/i18n';
+
 import type { CatalogueProduct, ProductPricingUnit } from '@/lib/admin-hooks';
 
 export type ProductKind = CatalogueProduct['kind'];
@@ -5,8 +7,12 @@ export type ProductKind = CatalogueProduct['kind'];
 export const PRODUCT_CODE = /^[a-z0-9_]{2,60}$/;
 export const PRICE = /^\d+(\.\d{1,2})?$/;
 
-export const toMinor = (s: string) => Math.round(Number(s) * 100);
-export const fromMinor = (m: number) => (m / 100).toFixed(2);
+/** What was typed → integer minor units, by the product's own currency (¥ has no cents). */
+export const toMinor = (s: string, currency: string) => parseDecimalToMinor(s, currency) ?? 0;
+export const fromMinor = (m: number, currency: string) => minorToDecimalString(m, currency);
+/** more decimals than the currency has (12.505 USD, 12.5 JPY) — refused, never silently rounded */
+export const overPrecise = (price: string, currency: string) =>
+  price.trim() !== '' && parseDecimalToMinor(price, currency) === null;
 
 export interface ProductValues {
   code: string;
@@ -27,7 +33,8 @@ export const emptyProduct = (): ProductValues => ({
   name: '',
   kind: 'extra',
   price: '',
-  currency: 'USD',
+  // empty: the currency picker fills in the business's default currency once it has loaded
+  currency: '',
   pricingUnit: 'per_rental',
   maxQuantity: '1',
   taxable: true,
@@ -40,7 +47,7 @@ export const productValues = (p: CatalogueProduct): ProductValues => ({
   code: p.code,
   name: p.name,
   kind: p.kind,
-  price: fromMinor(p.unitPriceMinor),
+  price: fromMinor(p.unitPriceMinor, p.currency),
   currency: p.currency,
   pricingUnit: p.pricingUnit,
   maxQuantity: String(p.maxQuantity),

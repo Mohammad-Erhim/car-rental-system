@@ -82,6 +82,7 @@ POST   /api/v1/config/translations/:namespace/:locale/publish
 GET    /api/v1/config/translations/completeness
 POST   /api/v1/consent
 GET    /api/v1/dev/mail
+GET    /api/v1/discovery/currencies
 POST   /api/v1/discovery/quote
 GET    /api/v1/discovery/quotes/:reference
 POST   /api/v1/discovery/search
@@ -120,6 +121,10 @@ GET    /api/v1/ops/catalogue/products
 POST   /api/v1/ops/catalogue/products
 POST   /api/v1/ops/catalogue/products/:code/deactivate
 POST   /api/v1/ops/catalogue/products/:code/restore
+GET    /api/v1/ops/config/currencies
+POST   /api/v1/ops/config/currencies
+POST   /api/v1/ops/config/currencies/:code/default
+POST   /api/v1/ops/config/currencies/:code/disable
 GET    /api/v1/ops/config/versions
 POST   /api/v1/ops/config/versions
 DELETE /api/v1/ops/config/versions/:id

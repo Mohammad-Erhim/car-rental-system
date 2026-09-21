@@ -211,6 +211,15 @@ export function DashboardPage() {
             value={
               d?.revenueToday ? formatMinor(d.revenueToday.minor, d.revenueToday.currency) : '—'
             }
+            hint={
+              d?.revenueToday?.other?.length
+                ? t('ops.dash.revenueOther', {
+                    list: d.revenueToday.other
+                      .map((o) => formatMinor(o.minor, o.currency))
+                      .join(' · '),
+                  })
+                : undefined
+            }
             to="/finance"
             icon={Wallet}
           />

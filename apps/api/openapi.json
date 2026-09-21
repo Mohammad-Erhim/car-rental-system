@@ -878,6 +878,91 @@
         ]
       }
     },
+    "/api/v1/ops/config/currencies": {
+      "get": {
+        "operationId": "currency_overview",
+        "summary": "Enabled and available currencies",
+        "parameters": [
+          {
+            "name": "locale",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-config"
+        ]
+      },
+      "post": {
+        "operationId": "currency_enable",
+        "summary": "Enable a supported currency",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-config"
+        ]
+      }
+    },
+    "/api/v1/ops/config/currencies/{code}/default": {
+      "post": {
+        "operationId": "currency_setDefault",
+        "summary": "Make a currency the default",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-config"
+        ]
+      }
+    },
+    "/api/v1/ops/config/currencies/{code}/disable": {
+      "post": {
+        "operationId": "currency_disable",
+        "summary": "Disable a currency for new prices",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-config"
+        ]
+      }
+    },
     "/api/v1/workflows/inbox": {
       "get": {
         "operationId": "workflows_inbox",
@@ -2420,6 +2505,30 @@
         ]
       }
     },
+    "/api/v1/discovery/currencies": {
+      "get": {
+        "operationId": "discovery_currencies",
+        "summary": "Currencies a customer can be quoted in (those with a live price list)",
+        "parameters": [
+          {
+            "name": "locale",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "discovery"
+        ]
+      }
+    },
     "/api/v1/catalogue/products": {
       "get": {
         "operationId": "catalogue_listProducts",
@@ -2435,6 +2544,14 @@
           },
           {
             "name": "location",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "currency",
             "required": true,
             "in": "query",
             "schema": {

@@ -1,3 +1,4 @@
+import { minorUnitDigits } from '@carrental/i18n';
 import { useI18n } from '@carrental/i18n/react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMemo } from 'react';
@@ -7,6 +8,7 @@ import { z } from 'zod';
 
 import {
   emptyProduct,
+  overPrecise,
   PRICE,
   PRODUCT_CODE,
   productValues,
@@ -87,6 +89,15 @@ export function ProductSheet({
         .refine((v) => !scopeIssue(v.locationMode, v.locationScope), {
           path: ['locationScope'],
           message: t('ops.scope.pickOne'),
+        })
+        .superRefine((v, ctx) => {
+          if (overPrecise(v.price, v.currency)) {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['price'],
+              message: t('ops.ccy.decimalsInvalid', { n: minorUnitDigits(v.currency) }),
+            });
+          }
         }),
     [t, editing, existingCodes],
   );
@@ -126,7 +137,7 @@ export function ProductSheet({
           code: v.code,
           name: v.name.trim(),
           kind: v.kind,
-          unitPriceMinor: toMinor(v.price),
+          unitPriceMinor: toMinor(v.price, v.currency),
           currency: v.currency,
           pricingUnit: v.pricingUnit,
           taxable: v.taxable,
