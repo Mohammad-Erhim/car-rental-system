@@ -19,8 +19,10 @@ import { SectionCard } from '@/components/section-card';
 import { StateView } from '@/components/state-view';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { scopeText } from '@/features/reports/report-columns';
 import { useDashboardAnalytics } from '@/lib/admin-hooks';
 import { formatMinor } from '@/lib/discovery-hooks';
+import { useLocationScope } from '@/lib/location-scope';
 
 const RANGES = [7, 30, 90] as const;
 type Range = (typeof RANGES)[number];
@@ -96,7 +98,9 @@ function themedTooltip(format: (v: number) => string, label: string) {
  * never two charts silently covering different windows.
  */
 export function TrendsCard({ locationCode }: { locationCode?: string }) {
-  const { t, fmt } = useI18n();
+  const i18n = useI18n();
+  const { t, fmt } = i18n;
+  const { nameOf } = useLocationScope();
   const [days, setDays] = useState<Range>(30);
   const analytics = useDashboardAnalytics(days, locationCode);
   const a = analytics.data;
@@ -124,7 +128,7 @@ export function TrendsCard({ locationCode }: { locationCode?: string }) {
       icon={TrendingUp}
       description={
         a
-          ? `${a.scopeNote} · ${t('ops.dash.analytics.utilCaveat', { n: a.fleetTotal })}`
+          ? `${scopeText(i18n, a.scopeNote, nameOf)} · ${t('ops.dash.analytics.utilCaveat', { n: a.fleetTotal })}`
           : undefined
       }
       actions={

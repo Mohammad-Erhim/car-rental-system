@@ -8,8 +8,8 @@
 'use client';
 
 import { apiFetch } from '@carrental/client';
-import { useI18n } from '@carrental/i18n/react';
 import type { InvoiceView } from '@carrental/client/react';
+import { useI18n } from '@carrental/i18n/react';
 export {
   useProfile,
   useUpdateProfile,

@@ -68,6 +68,8 @@ export function ReservationDetailPage() {
   const { t, fmt } = useI18n();
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
+  // a hook, so it must run on every render — before the loading / error early returns below
+  const actsAt = useLocationAccess();
   const [dialog, setDialog] = useState<Dialog>(null);
 
   const detail = useReservationDetail(reference);
@@ -98,7 +100,6 @@ export function ReservationDetailPage() {
   const canModify = hasPermission('reservation.modify');
   const canCancel = hasPermission('reservation.cancel', 'reservation.modify');
   const canAssign = hasPermission('rental.pickup', 'fleet.manage');
-  const actsAt = useLocationAccess();
   const canRefund = hasPermission('payment.refund');
   const refundableMinor = d.paidMinor - d.refundedMinor;
 

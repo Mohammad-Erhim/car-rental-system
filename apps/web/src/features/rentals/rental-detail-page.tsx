@@ -76,6 +76,9 @@ export function RentalDetailPage() {
   const { t, fmt } = useI18n();
   const navigate = useNavigate();
   const { hasPermission } = useAuth();
+  // a hook, so it must run on every render — before the loading / error early returns below.
+  // Pickup actions belong to the pickup branch, return actions to the return branch.
+  const actsAt = useLocationAccess();
   const [dialog, setDialog] = useState<Dialog>(null);
   const detail = useOpsRentalDetail(reference);
 
@@ -105,7 +108,6 @@ export function RentalDetailPage() {
   const inProgress = d.state === 'active' || d.state === 'overdue';
 
   // mirrors the API's per-action @Permissions
-  const actsAt = useLocationAccess(); // pickup actions belong to the pickup branch, return actions to the return branch
   const canPickup =
     d.state === 'awaiting_pickup' && hasPermission('rental.pickup') && actsAt(d.pickupLocationCode);
   const canReturn = inProgress && hasPermission('rental.return') && actsAt(d.returnLocationCode);

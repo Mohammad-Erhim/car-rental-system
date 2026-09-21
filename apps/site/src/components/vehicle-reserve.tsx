@@ -8,13 +8,13 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 
+import { usePreferredCurrency } from '../lib/currency';
 import {
   formatMinor,
   useAvailabilitySearch,
   useAvailableUnits,
   useCreateQuote,
 } from '../lib/customer-hooks';
-import { usePreferredCurrency } from '../lib/currency';
 import { guestId } from '../lib/guest-id';
 import { useLocale } from '../lib/nav';
 import { defaultWindow, isCompleteTrip, readTrip, writeTrip, type TripWindow } from '../lib/trip';

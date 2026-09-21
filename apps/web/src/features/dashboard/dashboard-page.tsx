@@ -22,6 +22,7 @@ import { Page, PageHeader } from '@/components/page-header';
 import { StatCard } from '@/components/stat-card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { scopeText } from '@/features/reports/report-columns';
 import { useOpsDashboard } from '@/lib/admin-hooks';
 import { formatMinor } from '@/lib/discovery-hooks';
 import { useLocationScope } from '@/lib/location-scope';
@@ -44,8 +45,9 @@ function useNow(intervalMs = 30_000) {
  * a banner at the top. A metric that can't be read shows "unavailable", never `0` (FR-RPT-001).
  */
 export function DashboardPage() {
-  const { t, fmt } = useI18n();
-  const { codes: locationCode } = useLocationScope();
+  const i18n = useI18n();
+  const { t, fmt } = i18n;
+  const { codes: locationCode, nameOf } = useLocationScope();
   const dash = useOpsDashboard(locationCode);
   const now = useNow();
 
@@ -83,7 +85,7 @@ export function DashboardPage() {
         meta={
           d ? (
             <span>
-              {d.scopeNote} · {t('ops.dash.updated', { time: updated })}
+              {scopeText(i18n, d.scopeNote, nameOf)} · {t('ops.dash.updated', { time: updated })}
             </span>
           ) : null
         }
