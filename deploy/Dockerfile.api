@@ -26,6 +26,7 @@ COPY packages/ui/package.json        packages/ui/package.json
 COPY packages/theme/package.json     packages/theme/package.json
 COPY packages/config/package.json    packages/config/package.json
 COPY scripts/patch-expo-localization.mjs scripts/patch-expo-localization.mjs
+COPY scripts/patch-stripe-cardfield.mjs   scripts/patch-stripe-cardfield.mjs
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm install --frozen-lockfile
 
