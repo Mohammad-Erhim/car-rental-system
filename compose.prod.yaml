@@ -121,7 +121,14 @@ services:
   api:
     <<: [*api-image, *logging]
     environment: *api-env
-    ports: ['3001:3001']
+    # Loopback by default: `edge` already proxies /api + /health (DEC-021's single-origin
+    # design), so nothing needs this published beyond direct debugging on the host itself.
+    # ufw's default-DROP INPUT policy does NOT protect Docker's published ports (its DNAT/
+    # FORWARD rules bypass the INPUT chain ufw filters — verified on a real host), so an
+    # unqualified `3001:3001` here is reachable from the public internet the moment a security
+    # group allows it, with no OS-level firewall as a second layer. Override API_PORT_BIND to
+    # open it deliberately.
+    ports: ['${API_PORT_BIND:-127.0.0.1}:3001:3001']
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
