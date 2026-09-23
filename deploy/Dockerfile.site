@@ -20,6 +20,7 @@ COPY apps/web/package.json           apps/web/package.json
 COPY apps/site/package.json          apps/site/package.json
 COPY e2e/package.json                e2e/package.json
 COPY packages/contracts/package.json packages/contracts/package.json
+COPY packages/client/package.json    packages/client/package.json
 COPY packages/i18n/package.json      packages/i18n/package.json
 COPY packages/ui/package.json        packages/ui/package.json
 COPY packages/theme/package.json     packages/theme/package.json
@@ -45,7 +46,10 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 WEB_UPSTREAM=$WEB_UPSTREAM
 COPY tsconfig.base.json ./
 COPY packages/ packages/
 COPY apps/site/ apps/site/
-RUN pnpm --filter @carrental/theme --filter @carrental/contracts --filter @carrental/i18n --filter @carrental/ui build \
+# Reuses the root build:packages script (theme, contracts, i18n, client, ui) rather than
+# duplicating its filter list here — a hand-copied list previously omitted @carrental/client,
+# which apps/site imports, and drifted silently out of sync when client was added to the real one.
+RUN pnpm build:packages \
  && pnpm --filter @carrental/site build
 
 ########################  runtime  ########################
