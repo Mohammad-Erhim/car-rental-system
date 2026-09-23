@@ -98,7 +98,34 @@ the main edge) — Basic Auth over plain HTTP sends the password unencrypted. A 
 a second Caddy/nginx+certbot in front is enough for an internal admin tool; it doesn't need a
 real CA cert the way the customer-facing site does.
 
-## 5. Using it
+## 5. Deploying the app itself as a Portainer stack
+
+Portainer can deploy `compose.prod.yaml` directly from this repo (Stacks → Add stack → build
+method "Repository" → this repo's URL + branch + `compose.prod.yaml` as the compose path, secrets
+pasted into its own "Environment variables" box). This works, but one thing about it is not
+obvious and will silently break the deploy if missed:
+
+**Portainer's own `/data` must be a host bind-mount at the identical path on both sides —
+`/data:/data`, not a named volume, not `/opt/something:/data`** (verified the hard way; see the
+comment on the `portainer` service in `compose.admin.yaml` for the mechanism). Get this wrong and
+the symptom is silent and confusing: the deployed stack reports success, every container is
+healthy, but any service that bind-mounts a file _from the git checkout_ (this repo's own `edge`
+service mounts `deploy/nginx.edge.conf`) gets an **empty directory instead of that file** — no
+error anywhere, nginx just falls back to its stock default config and the app is unreachable on
+its actual port. If you ever see `edge` (or any bind-mount-from-repo service) come up "healthy"
+but not actually serve anything, this is almost certainly why —
+`docker exec <container> cat <mounted-path>` will show it's a directory, not the expected file.
+
+Also: don't run manual `docker compose -p carrental-app ...` commands from a different checkout
+of this repo against a Portainer-managed stack's project name. Portainer stores the secrets you
+typed into its UI in `/data/compose/<id>/stack.env` on the host, completely separate from any
+`.env` you have elsewhere — running compose against the same project name from a different
+directory silently substitutes _your_ env values (different passwords, etc.) and can recreate
+containers (including the database) with mismatched credentials. If you need to intervene
+manually, use that stack's own `stack.env`: `docker compose -p carrental-app -f compose.prod.yaml
+--env-file /data/compose/<id>/stack.env up -d`.
+
+## 6. Using it
 
 - **"A container is misbehaving"** → Portainer: see its state, logs tail, restart it, or exec a
   shell in without SSH-ing into the host and running raw `docker` commands.
@@ -116,7 +143,7 @@ real CA cert the way the customer-facing site does.
   `docker run --rm -it --network container:carrental-api-1 nicolaka/netshoot` gives you `tcpdump`,
   `mtr`, `dig`, `curl` etc. from the exact network namespace the API container sees.
 
-## 6. Trimming it down
+## 7. Trimming it down
 
 If the full stack is too heavy even with swap, drop pieces independently — nothing else depends
 on cAdvisor or node-exporter being present, Prometheus just has one fewer target:
@@ -128,7 +155,7 @@ docker compose -f compose.prod.yaml -f compose.admin.yaml stop cadvisor node-exp
 Portainer + Adminer alone (container management + DB) is a reasonable floor if you want to skip
 the Grafana/Prometheus/Loki log-and-metrics layer entirely.
 
-## 7. Teardown
+## 8. Teardown
 
 ```bash
 docker compose -f compose.prod.yaml -f compose.admin.yaml down   # add -v to also drop metrics/log history

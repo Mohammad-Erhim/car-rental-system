@@ -133,12 +133,25 @@ services:
   # `/portainer` binary — no shell, no wget/curl, so a CMD-SHELL probe can never run (verified:
   # `exec: "/bin/sh": stat /bin/sh: no such file or directory`). admin-edge depends on it with
   # `service_started`, not `service_healthy`, for the same reason.
+  #
+  # /data MUST be a host bind-mount at the SAME path on both sides, not a named volume and not a
+  # different host path (verified the hard way, twice). Portainer computes bind-mount sources for
+  # a git-stack (e.g. this repo's own edge nginx config) from ITS OWN filesystem view — a path
+  # like /data/compose/<id>/deploy/nginx.edge.conf — then asks the HOST docker daemon to mount
+  # that literal path into a *different* container. The daemon resolves it against the real host
+  # root, not Portainer's mount namespace. A named volume: the path only exists inside the
+  # volume's private store, invisible to the daemon. A host bind-mount at a *different* path (e.g.
+  # /opt/foo:/data): Portainer still computes /data/compose/..., which doesn't exist at host
+  # /data either. Either way the daemon silently creates an empty directory where a file was
+  # expected, and the mounted "file" is empty — no error, just a container serving nginx's stock
+  # default config on the wrong port. Only /data:/data (identical both sides) makes the path
+  # Portainer computes also the real path the host daemon finds the file at.
   portainer:
     image: portainer/portainer-ce:2.21.4
     command: ['--admin-password-file', '/run/secrets/portainer_admin_password']
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - portainerdata:/data
+      - /data:/data
       - ./deploy/secrets/portainer_admin_password:/run/secrets/portainer_admin_password:ro
     mem_limit: 192m
     restart: unless-stopped
@@ -186,4 +199,3 @@ volumes:
   prometheusdata:
   lokidata:
   grafanadata:
-  portainerdata:
