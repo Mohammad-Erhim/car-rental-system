@@ -64,7 +64,16 @@ WORKDIR /app
 COPY --from=build --chown=node:node /prod/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/apps/api/dist ./dist
 COPY --from=build --chown=node:node /app/apps/api/src/database/migrations ./dist/database/migrations
+# Real demo vehicle photos (discovery.ts's seedPhotos, __dirname-relative to the compiled seed
+# module) — tsc only emits .ts->.js, so these binary assets need their own copy or every dev-seed
+# install silently keeps every vehicle's imageRef unset instead of using a real photo.
+COPY --from=build --chown=node:node /app/apps/api/src/database/seed/assets ./dist/database/seed/assets
 COPY --from=build --chown=node:node /app/apps/api/package.json ./package.json
+# OBJECT_STORAGE_FS_ROOT (default ./var/objects, DEC-015's filesystem driver — driver-license
+# photos, data-export downloads, the dev seed's vehicle photos) resolves under WORKDIR at
+# runtime. /app itself is root-owned (only the COPYs above are chowned to node), so without this
+# the node user gets EACCES the first time anything tries to create it.
+RUN mkdir -p var/objects && chown -R node:node var
 # Provenance for GET /health/version (both optional in env.schema — empty is fine).
 ARG GIT_SHA=""
 ARG BUILD_TIME=""
