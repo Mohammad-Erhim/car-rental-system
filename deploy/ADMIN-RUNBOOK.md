@@ -125,6 +125,17 @@ containers (including the database) with mismatched credentials. If you need to 
 manually, use that stack's own `stack.env`: `docker compose -p carrental-app -f compose.prod.yaml
 --env-file /data/compose/<id>/stack.env up -d`.
 
+One more consequence of the app and the admin stack being deployed two different ways (Portainer
+git-stack vs. this runbook's manual `docker compose -f compose.prod.yaml -f compose.admin.yaml`):
+they end up on two different Docker networks, and Prometheus's `carrental-api` scrape target
+shows `down` (DNS lookup failure for `api`) even though the app is perfectly healthy — Loki still
+sees its logs fine, since Promtail discovers every container on the host regardless of network,
+but a metrics scrape is a real HTTP connection that needs the two on the same network. Fix:
+`docker network connect <app's-project-name>_default carrental-prometheus-1` (find the network
+name with `docker network ls`). This doesn't happen if you deploy both from the _same_ `docker
+compose -f compose.prod.yaml -f compose.admin.yaml up -d` invocation, as this runbook otherwise
+recommends — they'd share one project and one network from the start.
+
 ## 6. Using it
 
 - **"A container is misbehaving"** → Portainer: see its state, logs tail, restart it, or exec a
