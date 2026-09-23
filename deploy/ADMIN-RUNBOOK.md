@@ -47,15 +47,16 @@ cd /path/to/car-rental-system
 # Grafana admin password: put a real value in your server-side .env
 #   GRAFANA_ADMIN_PASSWORD=<openssl rand -base64 24>
 
-# Portainer: a bcrypt hash file, not a plaintext password — this also sidesteps Portainer's
-# "set your password within 5 minutes of first boot or start over" window entirely, since the
-# password is already set the moment the container starts.
+# Portainer: --admin-password-file wants the PLAINTEXT password in the file (verified against
+# 2.21.4 — --admin-password, not this flag, is the one that takes a hash; the flag names invite
+# the opposite assumption). Writing it here also sidesteps Portainer's "set your password within
+# 5 minutes of first boot or start over" window entirely, since the password is already set the
+# moment the container starts.
 mkdir -p deploy/secrets
-docker run --rm httpd:2.4-alpine htpasswd -nbB admin "$(openssl rand -base64 24)" \
-  | cut -d: -f2 > deploy/secrets/portainer_admin_password
-# ^ generates and hashes a random password in one step and discards the plaintext. If you want to
-# choose the password yourself instead, replace the command substitution with your own string,
-# read it once from the terminal, then don't keep it in shell history.
+openssl rand -base64 24 | tr -d '\n' > deploy/secrets/portainer_admin_password
+cat deploy/secrets/portainer_admin_password
+# ^ note that value down (a password manager, not a scrollback you'll lose) — it's your Portainer
+# login and the file is gitignored, so this is the only place it exists in plaintext.
 
 # admin-edge Basic Auth (shared by all four tools, on top of Portainer/Grafana's own logins):
 docker run --rm httpd:2.4-alpine htpasswd -nbB admin '<choose-a-password>' > deploy/admin.htpasswd

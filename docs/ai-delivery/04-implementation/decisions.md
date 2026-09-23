@@ -832,10 +832,12 @@ routing-payment.adapter,payment-config.controller,stripe-webhook.controller}.ts`
     path. Grafana is the single pane over both, plus cAdvisor/node-exporter for container/host/
     network metrics the app itself doesn't expose. Portainer for container lifecycle, Adminer for
     Postgres — both cheaper than standing up pgAdmin's own stack or a hand-rolled Docker UI.
-  - Portainer's admin password is set via `--admin-password-file` (a pre-generated bcrypt hash),
-    not through its own first-boot UI flow — that flow expires the setup window 5 minutes after
-    first start, which is a worse failure mode on a slow/swapping host than just not having that
-    window at all.
+  - Portainer's admin password is set via `--admin-password-file` (a pre-generated random
+    password, written as **plaintext** — verified against 2.21.4 that this flag hashes the file's
+    content itself; feeding it a pre-computed bcrypt hash, as `--admin-password` wants, silently
+    creates an admin account no real password can log into), not through its own first-boot UI
+    flow — that flow expires the setup window 5 minutes after first start, which is a worse
+    failure mode on a slow/swapping host than just not having that window at all.
   - Every service in the file has an explicit `mem_limit`; the answer to "not enough RAM for this"
     is host swap (`deploy/ADMIN-RUNBOOK.md`), not raising the caps — bounding a debug tool's
     memory is safer than letting it compete with the app for the last free MB.
@@ -843,9 +845,22 @@ routing-payment.adapter,payment-config.controller,stripe-webhook.controller}.ts`
     top of Portainer/Grafana's own logins, plus an explicit either/or in the runbook: open the
     ports but lock the EC2 security group to a known IP, or keep the security group closed and
     reach them over an SSH tunnel instead.
+  - `portainer-ce`'s image ships only its own binary — no shell, no wget/curl — so it cannot run a
+    `CMD-SHELL` healthcheck at all (confirmed: `exec: "/bin/sh": stat /bin/sh: no such file or
+directory`); it has no healthcheck, and `admin-edge` depends on it with `service_started`, not
+    `service_healthy`. Loki 3.x additionally refused to start until `compactor.retention_enabled`
+    was paired with an explicit `delete_request_store` — both were caught by actually starting the
+    stack, not by reading the config.
 - Known limits: no TLS termination shipped for this admin edge (documented as a follow-up, same
   as the main edge in `compose.prod.yaml`); Prometheus config has no env-var interpolation, so
   `METRICS_TOKEN` (if set) has to be pasted into the tracked `deploy/prometheus.yml` by hand
   rather than read from `.env`.
-- Tests: none — infra-only, no application code changed. Validated by reading each config file;
-  not run against a live Docker engine (unavailable on the authoring host).
+- Tests: none automated — infra-only, no application code changed. Manually verified end-to-end
+  with a live Docker engine: `docker compose -f compose.prod.yaml -f compose.admin.yaml config`
+  passes; every service reaches `Up`/`healthy` (postgres, cadvisor, node-exporter, prometheus,
+  loki, promtail, grafana, portainer, adminer, admin-edge); all four admin-edge ports 401 with no
+  or wrong credentials and let the right upstream through with correct ones; Prometheus's own
+  `/api/v1/targets` shows cadvisor/node-exporter/itself up; Grafana's `/api/datasources` shows
+  both provisioned datasources; Loki has log lines labelled with every running container's name
+  (promtail is shipping); Portainer's `/api/auth` and Adminer's login both succeed against
+  Postgres with real credentials.

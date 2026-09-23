@@ -129,6 +129,10 @@ services:
     restart: unless-stopped
     <<: *admin-logging
 
+  # No healthcheck: the portainer-ce image is a from-scratch/distroless-style build with only the
+  # `/portainer` binary — no shell, no wget/curl, so a CMD-SHELL probe can never run (verified:
+  # `exec: "/bin/sh": stat /bin/sh: no such file or directory`). admin-edge depends on it with
+  # `service_started`, not `service_healthy`, for the same reason.
   portainer:
     image: portainer/portainer-ce:2.21.4
     command: ['--admin-password-file', '/run/secrets/portainer_admin_password']
@@ -136,12 +140,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - portainerdata:/data
       - ./deploy/secrets/portainer_admin_password:/run/secrets/portainer_admin_password:ro
-    healthcheck:
-      test: ['CMD-SHELL', 'wget -qO- http://localhost:9000/api/system/status || exit 1']
-      interval: 15s
-      timeout: 5s
-      start_period: 45s
-      retries: 5
     mem_limit: 192m
     restart: unless-stopped
     <<: *admin-logging
@@ -171,7 +169,7 @@ services:
       - '${ADMIN_ADMINER_PORT:-8093}:8093'
       - '${ADMIN_PROMETHEUS_PORT:-8094}:8094'
     depends_on:
-      portainer: { condition: service_healthy }
+      portainer: { condition: service_started }
       grafana: { condition: service_healthy }
       adminer: { condition: service_started }
       prometheus: { condition: service_healthy }
