@@ -815,3 +815,37 @@ routing-payment.adapter,payment-config.controller,stripe-webhook.controller}.ts`
   display name the account had at the time.
 - Tests: `privacy.spec.ts`, `iam.spec.ts` (TEST-IAM-008 rewritten — it asserted the stub), the web
   `privacy-page.test.tsx`.
+
+### DEC-042 — Admin/observability stack for the deployed host
+
+- Date: 2026-09-23
+- Context: operating a live EC2 deployment with no browser-based way to manage Docker containers,
+  read aggregated logs, browse the database, or see host/network metrics — every one of those was
+  an SSH session and raw `docker`/`psql` commands.
+- Decisions:
+  - Kept separate from the app: `compose.admin.yaml`, layered onto `compose.prod.yaml` (same
+    compose project/network, `-f compose.prod.yaml -f compose.admin.yaml up -d`), not wired into
+    `compose.yaml`/dev.
+  - Reused what the app already emits rather than adding new instrumentation: Prometheus scrapes
+    the existing `/metrics` (SRS-OBS-006) instead of a bespoke exporter; Promtail ships existing
+    container stdout (already the app's Pino JSON logs) into Loki instead of a second logging
+    path. Grafana is the single pane over both, plus cAdvisor/node-exporter for container/host/
+    network metrics the app itself doesn't expose. Portainer for container lifecycle, Adminer for
+    Postgres — both cheaper than standing up pgAdmin's own stack or a hand-rolled Docker UI.
+  - Portainer's admin password is set via `--admin-password-file` (a pre-generated bcrypt hash),
+    not through its own first-boot UI flow — that flow expires the setup window 5 minutes after
+    first start, which is a worse failure mode on a slow/swapping host than just not having that
+    window at all.
+  - Every service in the file has an explicit `mem_limit`; the answer to "not enough RAM for this"
+    is host swap (`deploy/ADMIN-RUNBOOK.md`), not raising the caps — bounding a debug tool's
+    memory is safer than letting it compete with the app for the last free MB.
+  - HTTP Basic Auth in front of all four UIs at the nginx layer (`deploy/nginx.admin.conf`), on
+    top of Portainer/Grafana's own logins, plus an explicit either/or in the runbook: open the
+    ports but lock the EC2 security group to a known IP, or keep the security group closed and
+    reach them over an SSH tunnel instead.
+- Known limits: no TLS termination shipped for this admin edge (documented as a follow-up, same
+  as the main edge in `compose.prod.yaml`); Prometheus config has no env-var interpolation, so
+  `METRICS_TOKEN` (if set) has to be pasted into the tracked `deploy/prometheus.yml` by hand
+  rather than read from `.env`.
+- Tests: none — infra-only, no application code changed. Validated by reading each config file;
+  not run against a live Docker engine (unavailable on the authoring host).
