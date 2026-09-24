@@ -39,12 +39,10 @@ export function Badge({ tone = 'neutral', children }: { tone?: BadgeTone; childr
 export function toneForReservationState(state: string): BadgeTone {
   switch (state) {
     case 'confirmed':
-    case 'active':
+    case 'fulfilled':
       return 'success';
     case 'pending':
-    case 'modified':
       return 'primary';
-    case 'overdue':
     case 'no_show':
       return 'warning';
     case 'cancelled':

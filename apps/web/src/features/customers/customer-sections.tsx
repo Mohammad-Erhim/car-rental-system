@@ -1,5 +1,5 @@
 import { useI18n } from '@carrental/i18n/react';
-import { CalendarDays, CarFront, IdCard, Mail, ShieldAlert, Wallet } from 'lucide-react';
+import { CalendarDays, CarFront, FileText, IdCard, Mail, ShieldAlert, Wallet } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 import { useCanDecide } from './customer-dialogs';
@@ -11,9 +11,10 @@ import { StateView } from '@/components/state-view';
 import { StatusBadge } from '@/components/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import type { CustomerRecord, CustomerRestriction } from '@/lib/admin-hooks';
+import type { CustomerRecord, CustomerRestriction, PrivacyRequest } from '@/lib/admin-hooks';
 
 export type RestrictionAction = 'approve' | 'reject' | 'lift';
+export type PrivacyRequestAction = 'review' | 'complete' | 'reject';
 
 const bidi = (value: string | null | undefined) =>
   value ? <span className="bidi-isolate">{value}</span> : '—';
@@ -262,6 +263,121 @@ export function RestrictionsCard({
         <ul className="divide-y">
           {r.restrictions.map((x) => (
             <RestrictionRow key={x.id} x={x} onAction={onAction} />
+          ))}
+        </ul>
+      )}
+    </SectionCard>
+  );
+}
+
+const DREQ_STATUS_VARIANT: Record<
+  PrivacyRequest['status'],
+  'default' | 'secondary' | 'success' | 'warning' | 'destructive'
+> = {
+  received: 'default',
+  in_review: 'default',
+  blocked: 'warning',
+  completed: 'success',
+  rejected: 'destructive',
+  cancelled: 'secondary',
+};
+
+function PrivacyRequestRow({
+  x,
+  onAction,
+}: {
+  x: PrivacyRequest;
+  onAction: (x: PrivacyRequest, action: PrivacyRequestAction) => void;
+}) {
+  const { t } = useI18n();
+  const { manage } = useCanDecide();
+  const canReview = manage && (x.status === 'received' || x.status === 'blocked');
+  const canResolve = manage && ['received', 'in_review', 'blocked'].includes(x.status);
+  return (
+    <li
+      className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+      data-testid={`dreq-${x.id}`}
+    >
+      <div className="min-w-0 space-y-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary" className="capitalize">
+            {t(`ops.cust.dreqKind.${x.kind}`)}
+          </Badge>
+          <Badge variant={DREQ_STATUS_VARIANT[x.status]}>
+            {t(`ops.cust.dreqStatus.${x.status}`)}
+          </Badge>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {x.detail ?? t('ops.cust.none')}
+          {x.resolutionNote ? ` · ${x.resolutionNote}` : ''}
+        </p>
+        {x.blockers.length ? (
+          <p className="text-xs text-warning">{x.blockers.map((b) => b.detail).join(' · ')}</p>
+        ) : null}
+      </div>
+      {canReview || canResolve ? (
+        <div className="flex items-center gap-2">
+          {canReview ? (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onAction(x, 'review')}
+              data-testid={`dreq-review-${x.id}`}
+            >
+              {t('ops.cust.dreqReview')}
+            </Button>
+          ) : null}
+          {canResolve ? (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onAction(x, 'complete')}
+                data-testid={`dreq-complete-${x.id}`}
+              >
+                {t('ops.cust.dreqComplete')}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => onAction(x, 'reject')}
+                data-testid={`dreq-reject-${x.id}`}
+              >
+                {t('ops.cust.dreqReject')}
+              </Button>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+/** Access / correction / closure requests the customer filed (FR-IAM-008) — review, complete, reject. */
+export function PrivacyRequestsCard({
+  r,
+  onAction,
+}: {
+  r: CustomerRecord;
+  onAction: (x: PrivacyRequest, action: PrivacyRequestAction) => void;
+}) {
+  const { t } = useI18n();
+  const pending = r.dataRequests.some((x) =>
+    ['received', 'in_review', 'blocked'].includes(x.status),
+  );
+  return (
+    <SectionCard
+      title={t('ops.cust.dataRequests')}
+      icon={FileText}
+      className={pending ? 'border-warning/60' : undefined}
+      data-testid="cust-data-requests"
+    >
+      {r.dataRequests.length === 0 ? (
+        <StateView title={t('ops.cust.none')} className="py-4" />
+      ) : (
+        <ul className="divide-y">
+          {r.dataRequests.map((x) => (
+            <PrivacyRequestRow key={x.id} x={x} onAction={onAction} />
           ))}
         </ul>
       )}

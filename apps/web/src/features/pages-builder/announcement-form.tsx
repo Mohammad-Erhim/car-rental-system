@@ -100,6 +100,14 @@ export function AnnouncementForm({
           onCheckedChange={(v) => set({ dismissible: v })}
         />
       </div>
+      <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+        <Label htmlFor="ann-sticky">{t('ops.pages.announce.sticky')}</Label>
+        <Switch
+          id="ann-sticky"
+          checked={base.sticky}
+          onCheckedChange={(v) => set({ sticky: v })}
+        />
+      </div>
       <div className="space-y-1.5">
         <div className="flex items-baseline justify-between gap-2">
           <Label htmlFor="ann-id">{t('ops.pages.announce.campaignId')}</Label>

@@ -336,6 +336,7 @@ export const zAnnouncement = z.object({
   cta: zCtaLink.nullable().default(null),
   variant: z.enum(['info', 'success', 'warning', 'critical']).default('info'),
   dismissible: z.boolean().default(true),
+  sticky: z.boolean().default(false),
 });
 export type Announcement = z.infer<typeof zAnnouncement>;
 

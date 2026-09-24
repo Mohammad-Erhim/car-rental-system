@@ -3,9 +3,9 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 
-import { RestrictionsCard } from './customer-sections';
+import { PrivacyRequestsCard, RestrictionsCard } from './customer-sections';
 
-import type { CustomerRecord, CustomerRestriction } from '@/lib/admin-hooks';
+import type { CustomerRecord, CustomerRestriction, PrivacyRequest } from '@/lib/admin-hooks';
 
 let manage = true;
 vi.mock('@carrental/client/react', async () => {
@@ -77,6 +77,80 @@ describe('RestrictionsCard', () => {
   it('says so when there are none', () => {
     manage = true;
     show([]);
+    expect(screen.getByText('None')).toBeInTheDocument();
+  });
+});
+
+const dataRequest = (over: Partial<PrivacyRequest>): PrivacyRequest => ({
+  id: 'd1',
+  kind: 'access',
+  status: 'received',
+  blockers: [],
+  detail: 'please send my data',
+  resolutionNote: null,
+  resolvedBy: null,
+  resolvedAt: null,
+  createdAt: new Date().toISOString(),
+  ...over,
+});
+
+const showRequests = (rows: PrivacyRequest[]) => {
+  const onAction = vi.fn();
+  render(
+    <I18nProvider initialLocale="en">
+      <MemoryRouter>
+        <PrivacyRequestsCard r={{ dataRequests: rows } as CustomerRecord} onAction={onAction} />
+      </MemoryRouter>
+    </I18nProvider>,
+  );
+  return onAction;
+};
+
+describe('PrivacyRequestsCard', () => {
+  it('lets a manager start review on a received request', () => {
+    manage = true;
+    const onAction = showRequests([dataRequest({})]);
+    fireEvent.click(screen.getByRole('button', { name: 'Start review' }));
+    expect(onAction).toHaveBeenCalledWith(expect.objectContaining({ id: 'd1' }), 'review');
+  });
+
+  it('offers Complete and Reject on an in-review request', () => {
+    manage = true;
+    const onAction = showRequests([dataRequest({ status: 'in_review' })]);
+    fireEvent.click(screen.getByRole('button', { name: 'Complete' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
+    expect(onAction.mock.calls.map((c) => c[1])).toEqual(['complete', 'reject']);
+  });
+
+  it('shows blockers on a blocked closure request', () => {
+    manage = true;
+    showRequests([
+      dataRequest({
+        kind: 'closure',
+        status: 'blocked',
+        blockers: [{ code: 'retention_period', detail: 'must be retained for a period' }],
+      }),
+    ]);
+    expect(screen.getByText('must be retained for a period')).toBeInTheDocument();
+  });
+
+  it('offers no actions on a completed request', () => {
+    manage = true;
+    showRequests([dataRequest({ status: 'completed', resolutionNote: 'sent by email' })]);
+    expect(screen.queryByRole('button', { name: 'Complete' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Reject' })).toBeNull();
+    expect(screen.getByText('completed')).toBeInTheDocument();
+  });
+
+  it('shows read-only rows without customer.manage', () => {
+    manage = false;
+    showRequests([dataRequest({})]);
+    expect(screen.queryByRole('button', { name: 'Start review' })).toBeNull();
+  });
+
+  it('says so when there are none', () => {
+    manage = true;
+    showRequests([]);
     expect(screen.getByText('None')).toBeInTheDocument();
   });
 });

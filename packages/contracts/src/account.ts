@@ -42,6 +42,9 @@ export const zPrivacyRequest = z.object({
     .array(z.object({ code: z.string(), detail: z.string(), count: z.number().int().optional() }))
     .default([]),
   detail: z.string().nullable(),
+  resolutionNote: z.string().nullable(),
+  resolvedBy: zId.nullable(),
+  resolvedAt: zInstant.nullable(),
   createdAt: zInstant,
   /** the day a reply is due — one month from filing (DEC-041) */
   dueAt: zInstant.optional(),

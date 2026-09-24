@@ -2627,6 +2627,122 @@
         ]
       }
     },
+    "/api/v1/ops/customers/{id}/data-requests": {
+      "get": {
+        "operationId": "CustomerController_listDataRequests",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/customers/{id}/data-requests/{rid}/review": {
+      "post": {
+        "operationId": "CustomerController_reviewDataRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "rid",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/customers/{id}/data-requests/{rid}/complete": {
+      "post": {
+        "operationId": "CustomerController_completeDataRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "rid",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/ops/customers/{id}/data-requests/{rid}/reject": {
+      "post": {
+        "operationId": "CustomerController_rejectDataRequest",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "rid",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/ops/customers/{id}/merge": {
       "post": {
         "operationId": "CustomerController_merge",
@@ -7288,6 +7404,10 @@
                   "dismissible": {
                     "type": "boolean",
                     "default": true
+                  },
+                  "sticky": {
+                    "type": "boolean",
+                    "default": false
                   }
                 },
                 "required": [
