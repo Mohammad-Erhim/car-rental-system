@@ -41,6 +41,14 @@ Required in every environment: `DATABASE_URL`, `REDIS_URL`, `JWT_ACCESS_SECRET`,
 The API validates the whole environment on boot and **exits non-zero** on anything missing or
 malformed — check the first lines of the api log if it will not start.
 
+`APP_URL`, `API_PUBLIC_URL` and `SITE_URL` all default to `localhost` in `.env.example` — set
+them to the real public origin (e.g. `http://<host>:3000` / `http://<host>:3001`) before going
+live. `edge`'s same-origin proxying (§0) masks a stale default for the browser's own API reads,
+so the site can look correct at first glance; it still breaks anything that uses these values
+directly — the API's own generated links, and any client that calls the API's public origin
+directly instead of through edge (a mobile app, for one — `CORS_ALLOWED_ORIGINS` staying
+`localhost`-only rejects it outright).
+
 TLS terminates in front of nginx (a load balancer or another proxy). Never expose Postgres,
 Redis, or `/metrics` to the internet.
 
