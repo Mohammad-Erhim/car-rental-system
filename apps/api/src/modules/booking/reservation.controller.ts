@@ -4,12 +4,18 @@ import { z } from 'zod';
 
 import { AppError } from '../../common/app-error';
 import { CurrentActor } from '../../common/auth/auth.guard';
-import { OrgWide, Permissions } from '../../common/auth/permissions.guard';
+import { OrgWide, Permissions, StaffPermissions } from '../../common/auth/permissions.guard';
 import type { Actor } from '../../common/auth/types';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe';
 import { InvoicePublic } from '../invoice/invoice.public';
 
 import { ReservationOpsService } from './reservation-ops.service';
+import {
+  RESERVATION_CANCEL,
+  RESERVATION_INVOICES,
+  RESERVATION_MODIFY,
+  RESERVATION_VIEW,
+} from './reservation-permissions';
 
 const zCancel = z.object({
   reasonCode: z.string().max(60).optional(),
@@ -39,7 +45,7 @@ export class ReservationController {
     private readonly invoices: InvoicePublic,
   ) {}
 
-  // ---- customer ----
+  // ---- customer (staff reach these too — `@StaffPermissions`, DEC-038) ----
 
   @Get('reservations/mine')
   mine(@CurrentActor() actor: Actor) {
@@ -47,22 +53,26 @@ export class ReservationController {
   }
 
   @Get('reservations/:reference')
+  @StaffPermissions(...RESERVATION_VIEW)
   detail(@Param('reference') reference: string, @CurrentActor() actor: Actor) {
     return this.ops.detail(reference, actor);
   }
 
   @Get('reservations/:reference/history')
+  @StaffPermissions(...RESERVATION_VIEW)
   history(@Param('reference') reference: string, @CurrentActor() actor: Actor) {
     return this.ops.history(reference, actor);
   }
 
   @Get('reservations/:reference/invoices')
+  @StaffPermissions(...RESERVATION_INVOICES)
   async listInvoices(@Param('reference') reference: string, @CurrentActor() actor: Actor) {
     await this.ops.detail(reference, actor); // ownership check — throws not-found/forbidden
     return this.invoices.listForReservation(reference);
   }
 
   @Get('reservations/:reference/invoices/:number')
+  @StaffPermissions(...RESERVATION_INVOICES)
   async invoice(
     @Param('reference') reference: string,
     @Param('number') number: string,
@@ -75,6 +85,7 @@ export class ReservationController {
   }
 
   @Post('reservations/:reference/cancel')
+  @StaffPermissions(...RESERVATION_CANCEL)
   cancel(
     @Param('reference') reference: string,
     @Body(new ZodValidationPipe(zCancel)) body: z.infer<typeof zCancel>,
@@ -84,6 +95,7 @@ export class ReservationController {
   }
 
   @Post('reservations/:reference/modify')
+  @StaffPermissions(...RESERVATION_MODIFY)
   modify(
     @Param('reference') reference: string,
     @Body(new ZodValidationPipe(zModify)) body: z.infer<typeof zModify>,

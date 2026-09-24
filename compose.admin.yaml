@@ -1,0 +1,223 @@
+# Admin / observability stack — opt-in, not part of the app. Adds a debugging platform for the
+# EC2 host: Docker container management, log tracing, metrics (incl. network), and a DB browser.
+# See deploy/ADMIN-RUNBOOK.md for setup (secrets, swap, security-group notes) before using this.
+#
+#   docker compose -f compose.prod.yaml -f compose.admin.yaml up -d
+#
+# Runs merged into the same compose project as compose.prod.yaml (same network + service names),
+# so Prometheus/Adminer can reach `api`/`postgres` by name with no extra wiring.
+#
+# What's here and why:
+#   portainer     Docker: containers, images, volumes, exec-in, restart — from a browser.
+#   grafana       One pane for both of the below (Explore: logs + metrics side by side).
+#   loki+promtail Log aggregation — every container's stdout/stderr, searchable/filterable by
+#                 container name, correlatable with the API's X-Request-Id/X-Correlation-Id.
+#   prometheus    Scrapes the app's own /metrics (already instrumented, SRS-OBS-006) plus
+#                 cadvisor (per-container CPU/mem/network) and node-exporter (host CPU/mem/disk/
+#                 network) — this is the "network tracing" layer for interface/connection-level
+#                 issues; for packet-level debugging use a one-off netshoot container (RUNBOOK).
+#   tempo         Distributed traces — receives OTLP from apps/api/src/tracing.ts (opt-in there via
+#                 OTEL_EXPORTER_OTLP_ENDPOINT; zero cost when unset). Sampled, not every request —
+#                 see OTEL_TRACES_SAMPLE_RATIO in .env.example.
+#   adminer       Postgres browser — run ad-hoc SQL, inspect tables, no separate pgAdmin stack.
+#   admin-edge    Single nginx in front of all of the above, each on its own port, HTTP Basic
+#                 Auth at this layer even though Portainer/Grafana have their own login too
+#                 (defense in depth against an unauthenticated scan hitting the raw port).
+#
+# Every service below has an explicit mem_limit — this is extra load on top of the app stack, and
+# the intent is a soft cap, not starvation. If the host doesn't have headroom, add swap (RUNBOOK)
+# rather than raising these; a bounded, occasionally-swapping debug tool is fine, an OOM-killed
+# app container is not.
+
+x-admin-logging: &admin-logging
+  logging:
+    driver: json-file
+    options: { max-size: '5m', max-file: '2' }
+
+services:
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    command: ['--housekeeping_interval=15s', '--docker_only=true']
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    mem_limit: 128m
+    restart: unless-stopped
+    <<: *admin-logging
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    command:
+      - '--path.rootfs=/host'
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /:/host:ro,rslave
+    pid: host
+    mem_limit: 64m
+    restart: unless-stopped
+    <<: *admin-logging
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./deploy/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheusdata:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:9090/-/ready || exit 1']
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+    mem_limit: 256m
+    restart: unless-stopped
+    <<: *admin-logging
+
+  loki:
+    image: grafana/loki:3.2.1
+    volumes:
+      - ./deploy/loki-config.yml:/etc/loki/local-config.yaml:ro
+      - lokidata:/loki
+    command: ['-config.file=/etc/loki/local-config.yaml']
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3100/ready || exit 1']
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+    mem_limit: 256m
+    restart: unless-stopped
+    <<: *admin-logging
+
+  promtail:
+    image: grafana/promtail:3.2.1
+    volumes:
+      - ./deploy/promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    command: ['-config.file=/etc/promtail/config.yml']
+    depends_on:
+      loki: { condition: service_healthy }
+    mem_limit: 128m
+    restart: unless-stopped
+    <<: *admin-logging
+
+  tempo:
+    image: grafana/tempo:2.6.1
+    user: root
+    volumes:
+      - ./deploy/tempo-config.yml:/etc/tempo.yml:ro
+      - tempodata:/var/tempo
+    command: ['-config.file=/etc/tempo.yml']
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3200/ready || exit 1']
+      interval: 15s
+      timeout: 5s
+      start_period: 45s
+      retries: 5
+    mem_limit: 192m
+    restart: unless-stopped
+    <<: *admin-logging
+
+  grafana:
+    image: grafana/grafana-oss:11.3.1
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_ANALYTICS_REPORTING_ENABLED: 'false'
+      GF_ANALYTICS_CHECK_FOR_UPDATES: 'false'
+    volumes:
+      - grafanadata:/var/lib/grafana
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      prometheus: { condition: service_healthy }
+      loki: { condition: service_healthy }
+      tempo: { condition: service_healthy }
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3000/api/health || exit 1']
+      interval: 15s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+    mem_limit: 256m
+    restart: unless-stopped
+    <<: *admin-logging
+
+  # No healthcheck: the portainer-ce image is a from-scratch/distroless-style build with only the
+  # `/portainer` binary — no shell, no wget/curl, so a CMD-SHELL probe can never run (verified:
+  # `exec: "/bin/sh": stat /bin/sh: no such file or directory`). admin-edge depends on it with
+  # `service_started`, not `service_healthy`, for the same reason.
+  #
+  # /data MUST be a host bind-mount at the SAME path on both sides, not a named volume and not a
+  # different host path (verified the hard way, twice). Portainer computes bind-mount sources for
+  # a git-stack (e.g. this repo's own edge nginx config) from ITS OWN filesystem view — a path
+  # like /data/compose/<id>/deploy/nginx.edge.conf — then asks the HOST docker daemon to mount
+  # that literal path into a *different* container. The daemon resolves it against the real host
+  # root, not Portainer's mount namespace. A named volume: the path only exists inside the
+  # volume's private store, invisible to the daemon. A host bind-mount at a *different* path (e.g.
+  # /opt/foo:/data): Portainer still computes /data/compose/..., which doesn't exist at host
+  # /data either. Either way the daemon silently creates an empty directory where a file was
+  # expected, and the mounted "file" is empty — no error, just a container serving nginx's stock
+  # default config on the wrong port. Only /data:/data (identical both sides) makes the path
+  # Portainer computes also the real path the host daemon finds the file at.
+  portainer:
+    image: portainer/portainer-ce:2.21.4
+    command: ['--admin-password-file', '/run/secrets/portainer_admin_password']
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /data:/data
+      - ./deploy/secrets/portainer_admin_password:/run/secrets/portainer_admin_password:ro
+    mem_limit: 192m
+    restart: unless-stopped
+    <<: *admin-logging
+
+  adminer:
+    image: adminer:4.8.1
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+      ADMINER_DESIGN: pepa-linha
+    depends_on:
+      postgres: { condition: service_healthy }
+    mem_limit: 96m
+    restart: unless-stopped
+    <<: *admin-logging
+
+  # Fronts portainer/grafana/adminer/prometheus, one port each, HTTP Basic Auth on every one.
+  # Bound to 127.0.0.1 by default — verified on a real EC2 host that `ufw` (or any host firewall)
+  # does NOT protect Docker's published ports: Docker's DNAT/FORWARD rules bypass the INPUT chain
+  # ufw filters, so `ports: ['8091:8091']` (no host IP) is reachable from the public internet the
+  # moment the security group allows it, regardless of any OS-level firewall. Loopback-only means
+  # reaching these needs an SSH tunnel (RUNBOOK "access options" B) unless you deliberately change
+  # this to '0.0.0.0:${ADMIN_PORTAINER_PORT:-8091}:8091' *and* lock the security group down first
+  # (RUNBOOK option A) — never the reverse order.
+  admin-edge:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./deploy/nginx.admin.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./deploy/admin.htpasswd:/etc/nginx/admin.htpasswd:ro
+    ports:
+      - '127.0.0.1:${ADMIN_PORTAINER_PORT:-8091}:8091'
+      - '127.0.0.1:${ADMIN_GRAFANA_PORT:-8092}:8092'
+      - '127.0.0.1:${ADMIN_ADMINER_PORT:-8093}:8093'
+      - '127.0.0.1:${ADMIN_PROMETHEUS_PORT:-8094}:8094'
+    depends_on:
+      portainer: { condition: service_started }
+      grafana: { condition: service_healthy }
+      adminer: { condition: service_started }
+      prometheus: { condition: service_healthy }
+    mem_limit: 32m
+    restart: unless-stopped
+    <<: *admin-logging
+
+volumes:
+  prometheusdata:
+  lokidata:
+  grafanadata:
+  tempodata:

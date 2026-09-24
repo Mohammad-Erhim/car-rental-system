@@ -507,4 +507,193 @@ describe('StripePaymentAdapter', () => {
       );
     });
   });
+
+  // ---- 3-D Secure / SCA (DEC-040) ----
+  describe('3-D Secure', () => {
+    const authInput = (over: Record<string, unknown> = {}) => ({
+      idempotencyKey: 'res-9:booking:pm_3ds',
+      amountMinor: 5000,
+      currency: 'EUR',
+      token: 'pm_3ds',
+      reference: 'res-9',
+      ...over,
+    });
+
+    describe('authorize', () => {
+      it('hands the challenge to a caller that can run it: actionRequired + the client secret, nothing captured', async () => {
+        const stripe = fakeStripe();
+        stripe.paymentIntents.create.mockResolvedValue({
+          id: 'pi_sca',
+          status: 'requires_action',
+          client_secret: 'pi_sca_secret_abc',
+          payment_method: 'pm_3ds',
+        });
+        const result = await adapterFor(stripe).authorize(authInput({ allowAction: true }));
+        expect(result.providerRef).toBe('pi_sca');
+        expect(result.actionRequired).toEqual({ clientSecret: 'pi_sca_secret_abc' });
+        expect(stripe.paymentIntents.capture).not.toHaveBeenCalled();
+      });
+
+      it('is still a decline for a caller that cannot (modify / extend / off-session) — even with a client secret to hand', async () => {
+        const stripe = fakeStripe();
+        stripe.paymentIntents.create.mockResolvedValue({
+          id: 'pi_sca',
+          status: 'requires_action',
+          client_secret: 'pi_sca_secret_abc',
+        });
+        const err = await adapterFor(stripe)
+          .authorize(authInput())
+          .catch((e) => e);
+        expect(err).toBeInstanceOf(PaymentDeclinedError);
+        expect(err.failureCode).toBe('requires_action');
+      });
+
+      it('is a decline when there is no client secret to continue with, even for a caller that could', async () => {
+        const stripe = fakeStripe();
+        stripe.paymentIntents.create.mockResolvedValue({ id: 'pi_sca', status: 'requires_action' });
+        await expect(
+          adapterFor(stripe).authorize(authInput({ allowAction: true })),
+        ).rejects.toBeInstanceOf(PaymentDeclinedError);
+      });
+
+      it('does not change a payment that needs no challenge', async () => {
+        const stripe = fakeStripe();
+        stripe.paymentIntents.create.mockResolvedValue({
+          id: 'pi_ok',
+          status: 'requires_capture',
+          payment_method: 'pm_1',
+        });
+        stripe.paymentMethods.retrieve.mockResolvedValue({ card });
+        const result = await adapterFor(stripe).authorize(authInput({ allowAction: true }));
+        expect(result.actionRequired).toBeUndefined();
+        expect(result.providerRef).toBe('pi_ok');
+      });
+    });
+
+    describe('resume', () => {
+      const intent = (over: Record<string, unknown>) => ({
+        id: 'pi_sca',
+        status: 'requires_capture',
+        payment_method: 'pm_3ds',
+        customer: 'cus_1',
+        client_secret: 'pi_sca_secret_abc',
+        ...over,
+      });
+
+      it('finds the authenticated payment (requires_capture) and hands back its details', async () => {
+        const stripe = fakeStripe();
+        stripe.paymentIntents.retrieve.mockResolvedValue(intent({}));
+        stripe.paymentMethods.retrieve.mockResolvedValue({ card });
+        const out = await adapterFor(stripe).resume('pi_sca', 'pm_3ds');
+        expect(out).toEqual({
+          kind: 'authorized',
+          result: {
+            provider: 'stripe_test',
+            providerRef: 'pi_sca',
+            brand: 'visa',
+            last4: '4242',
+            customerRef: 'cus_1',
+            methodRef: 'pm_3ds',
+          },
+        });
+        expect(stripe.paymentIntents.cancel).not.toHaveBeenCalled();
+      });
+
+      it('treats an already-succeeded payment as authorized', async () => {
+        const stripe = fakeStripe();
+        stripe.paymentIntents.retrieve.mockResolvedValue(intent({ status: 'succeeded' }));
+        stripe.paymentMethods.retrieve.mockResolvedValue({ card });
+        expect((await adapterFor(stripe).resume('pi_sca', 'pm_3ds')).kind).toBe('authorized');
+      });
+
+      it('asks again, with the same secret, while the customer has not finished', async () => {
+        const stripe = fakeStripe();
+        stripe.paymentIntents.retrieve.mockResolvedValue(intent({ status: 'requires_action' }));
+        expect(await adapterFor(stripe).resume('pi_sca', 'pm_3ds')).toEqual({
+          kind: 'action_required',
+          clientSecret: 'pi_sca_secret_abc',
+        });
+      });
+
+      it("a challenge the customer failed is a decline carrying the bank's reason", async () => {
+        const stripe = fakeStripe();
+        stripe.paymentIntents.retrieve.mockResolvedValue(
+          intent({
+            status: 'requires_payment_method',
+            payment_method: null,
+            last_payment_error: { code: 'payment_intent_authentication_failure' },
+          }),
+        );
+        const err = await adapterFor(stripe)
+          .resume('pi_sca', 'pm_3ds')
+          .catch((e) => e);
+        expect(err).toBeInstanceOf(PaymentDeclinedError);
+        expect(err.failureCode).toBe('payment_intent_authentication_failure');
+      });
+
+      it('a failed challenge with no reason from the bank is `authentication_failed`', async () => {
+        const stripe = fakeStripe();
+        stripe.paymentIntents.retrieve.mockResolvedValue(
+          intent({ status: 'requires_payment_method', payment_method: null }),
+        );
+        const err = await adapterFor(stripe)
+          .resume('pi_sca')
+          .catch((e) => e);
+        expect(err.failureCode).toBe('authentication_failed');
+      });
+
+      it('a cancelled payment is gone — authorise afresh', async () => {
+        const stripe = fakeStripe();
+        stripe.paymentIntents.retrieve.mockResolvedValue(intent({ status: 'canceled' }));
+        expect(await adapterFor(stripe).resume('pi_sca', 'pm_3ds')).toEqual({ kind: 'superseded' });
+      });
+
+      it('a different card than the one the challenge was for drops that payment and starts over', async () => {
+        const stripe = fakeStripe();
+        stripe.paymentIntents.retrieve.mockResolvedValue(intent({ status: 'requires_action' }));
+        stripe.paymentIntents.cancel.mockResolvedValue({});
+        expect(await adapterFor(stripe).resume('pi_sca', 'pm_another_card')).toEqual({
+          kind: 'superseded',
+        });
+        expect(stripe.paymentIntents.cancel).toHaveBeenCalledWith('pi_sca');
+      });
+
+      it('still supersedes when cancelling the abandoned payment itself fails (it moves no money)', async () => {
+        const stripe = fakeStripe();
+        stripe.paymentIntents.retrieve.mockResolvedValue(intent({ status: 'requires_action' }));
+        stripe.paymentIntents.cancel.mockRejectedValue({ type: 'StripeAPIError', message: 'boom' });
+        expect(await adapterFor(stripe).resume('pi_sca', 'pm_another_card')).toEqual({
+          kind: 'superseded',
+        });
+      });
+
+      it('an unexpected status is a decline that names it, never a silent success', async () => {
+        const stripe = fakeStripe();
+        stripe.paymentIntents.retrieve.mockResolvedValue(intent({ status: 'processing' }));
+        const err = await adapterFor(stripe)
+          .resume('pi_sca', 'pm_3ds')
+          .catch((e) => e);
+        expect(err).toBeInstanceOf(PaymentDeclinedError);
+        expect(err.failureCode).toBe('processing');
+      });
+
+      it('maps a Stripe outage to a timeout and a bad key to a configuration error', async () => {
+        const stripe = fakeStripe();
+        stripe.paymentIntents.retrieve.mockRejectedValueOnce({
+          type: 'StripeConnectionError',
+          message: 'x',
+        });
+        await expect(adapterFor(stripe).resume('pi_sca')).rejects.toBeInstanceOf(
+          PaymentTimeoutError,
+        );
+        stripe.paymentIntents.retrieve.mockRejectedValueOnce({
+          type: 'StripeAuthenticationError',
+          message: 'x',
+        });
+        await expect(adapterFor(stripe).resume('pi_sca')).rejects.toBeInstanceOf(
+          PaymentProviderConfigError,
+        );
+      });
+    });
+  });
 });

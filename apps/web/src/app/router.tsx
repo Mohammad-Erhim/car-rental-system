@@ -38,6 +38,7 @@ import { OrganizationPage } from '../features/organization/organization-page.js'
 import { PagesPage } from '../features/pages-builder/pages-page.js';
 import { PaymentsPage } from '../features/payments/payments-page.js';
 import { PolicyPage } from '../features/policy/policy-page.js';
+import { PrivacyPage } from '../features/privacy/privacy-page.js';
 import { ProductsPage } from '../features/products/products-page.js';
 import { RatePlansPage } from '../features/rate-plans/rate-plans-page.js';
 import { ReferenceDataPage } from '../features/reference-data/reference-data-page.js';
@@ -280,6 +281,7 @@ function dashboardRoutes(): RouteObject[] {
       path: 'finance',
       element: perm(['payment.read', 'payment.reconcile'], <FinancePage />),
     },
+    { path: 'privacy', element: perm(['customer.read', 'customer.manage'], <PrivacyPage />) },
     {
       path: 'settings/policies',
       element: perm(['config.read', 'config.publish'], <PolicyPage />),

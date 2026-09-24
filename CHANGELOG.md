@@ -6,6 +6,33 @@ pre-1.0 and versions track the delivery stages in `docs/ai-delivery/04-implement
 
 ## [Unreleased]
 
+### Four go-live fixes: staff access, Stripe events, 3-D Secure, data requests (2026-09)
+
+- **Fixed — staff access:** a staff role holding no reservation or payment permission could still read,
+  cancel, extend and fully refund any reservation or rental through the routes customers use for their
+  own bookings. Those routes now ask staff for the same permission the dashboard already asks for;
+  customers still reach only their own. The route-manifest test now records every route's guards, and a
+  new route has to choose between a permission, an audience or "own data only".
+- **Fixed — Stripe events were lost:** an event whose first delivery failed was answered "already
+  handled" on Stripe's retry and never applied. A failed delivery is now taken over and applied on the
+  retry, once, even when several arrive together. **Card disputes** (`charge.dispute.*`) now reach
+  Payments & recovery as a "Card dispute" exception with the reason, status and the day the evidence is
+  due. **Action for operators:** subscribe the Stripe webhook endpoint to the five `charge.dispute.*`
+  events (deploy/RUNBOOK.md §1).
+- **3-D Secure:** cards whose bank asks the customer to authenticate can now pay on the website — the
+  bank's check runs and the same booking is submitted again; nothing is charged or booked until it
+  succeeds. (The mobile app does not run the check yet and tells the customer their bank needs to confirm
+  the payment.) The payment step of guest checkout has its own limit against card testing — 20 a minute
+  per address by default (`RATE_LIMIT_BOOKING_CONFIRM_MAX`). `RATE_LIMIT_ENABLED=0` and the other on/off
+  settings now really turn things off; any text used to count as "on".
+- **Data requests are fulfilled** (FR-IAM-008): staff have a **Data requests** screen (Customers group)
+  with a due date, a copy-of-data release, corrections, rejections with a reason the customer can read,
+  and account closure. Closure now waits only for what is really open — a current or upcoming reservation,
+  an open rental or an unresolved payment issue — and, when completed, removes the sign-in, contact
+  details, saved cards, saved drivers and their documents. Reservations, invoices, payments and the audit
+  trail are kept for their retention period. The customer sees the outcome on their account page, can
+  download their data for 30 days, and is e-mailed the result in English, French or Arabic.
+
 ### Branch and extras text you can translate (2026-09)
 
 - **Branch names, their pickup/return instructions and extras names** now appear on the Translations

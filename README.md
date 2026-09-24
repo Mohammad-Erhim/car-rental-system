@@ -59,7 +59,9 @@ docker compose --profile site up  # …and the Next.js customer site on :3000 (h
 set `DEV_DB_PORT` / `DEV_REDIS_PORT`. A **production-shaped** stack lives in `compose.prod.yaml`
 (`cp .env.example .env` with real secrets, then `docker compose -f compose.prod.yaml up -d`) —
 it adds the `edge` nginx that fronts site + dashboard + API on one port (`EDGE_PORT`, default
-3000); see `deploy/RUNBOOK.md`.
+3000); see `deploy/RUNBOOK.md`. An opt-in **admin/observability stack** (`compose.admin.yaml`) —
+Portainer, Grafana+Prometheus+Loki, Adminer — gives a browser UI for debugging Docker, logs,
+metrics/network and the database on the deployed host; see `deploy/ADMIN-RUNBOOK.md`.
 
 - Customer site: <http://localhost:3000/> (redirects to `/en`, `/ar`, or `/fr`)
 - Operations dashboard: <http://localhost:3000/ops/> — also served directly on <http://localhost:3100/ops/>

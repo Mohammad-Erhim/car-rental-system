@@ -1,0 +1,39 @@
+# Auto-provisioned on every Grafana boot — no manual "add datasource" click-through.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false
+
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    editable: false
+    jsonData:
+      # @opentelemetry/instrumentation-pino (apps/api/src/tracing.ts, when tracing is on) injects
+      # trace_id/span_id into every log line written while a span is active — this turns that
+      # field into a clickable link straight to the matching trace in Tempo.
+      derivedFields:
+        - datasourceUid: tempo
+          matcherRegex: '"trace_id":"([a-f0-9]+)"'
+          name: TraceID
+
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    access: proxy
+    url: http://tempo:3200
+    editable: false
+    jsonData:
+      # The reverse direction: from a trace, jump to the logs covering its time window for the
+      # same service.
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: '-5m'
+        spanEndTimeShift: '5m'
+        filterByTraceID: true

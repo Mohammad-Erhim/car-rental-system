@@ -8,6 +8,15 @@ export class NotifyPublic {
   constructor(private readonly notify: NotifyService) {}
 
   /**
+   * A templated message with its own variables: the published template for `event` in the
+   * recipient's language (following the locale's fallback chain), else `fallback`. Delivery
+   * problems never bubble up.
+   */
+  async send(input: Parameters<NotifyService['send']>[0]): Promise<void> {
+    await this.notify.send(input);
+  }
+
+  /**
    * A plain transactional message to one address. Uses a published template for `event` if the
    * organisation has one, else the inline title/body. Delivery problems never bubble up.
    */

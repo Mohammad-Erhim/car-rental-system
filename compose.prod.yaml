@@ -55,6 +55,10 @@ x-api-env: &api-env
   PAYMENT_DRIVER: ${PAYMENT_DRIVER:-simulator}
   RATE_LIMIT_ENABLED: '1'
   LOG_LEVEL: ${LOG_LEVEL:-info}
+  # DEC-043: unset (default) means tracing.ts never starts the OTel SDK — zero overhead unless you
+  # opt in (e.g. compose.admin.yaml's tempo: http://tempo:4318/v1/traces).
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+  OTEL_TRACES_SAMPLE_RATIO: ${OTEL_TRACES_SAMPLE_RATIO:-0.2}
 
 services:
   postgres:
@@ -97,6 +101,7 @@ services:
   migrate:
     <<: *api-image
     environment: *api-env
+    volumes: ['objectstorage:/app/var']
     command:
       [
         'sh',
@@ -113,6 +118,7 @@ services:
     <<: *api-image
     profiles: ['tools']
     environment: *api-env
+    volumes: ['objectstorage:/app/var']
     command: ['node', 'dist/database/seed/seed.js', '--profile=development']
     depends_on:
       postgres: { condition: service_healthy }
@@ -121,7 +127,20 @@ services:
   api:
     <<: [*api-image, *logging]
     environment: *api-env
-    ports: ['3001:3001']
+    # OBJECT_STORAGE_FS_ROOT (./var/objects, DEC-015's filesystem driver — driver-license photos,
+    # data-export downloads, the dev seed's vehicle photos) lived in the container's own writable
+    # layer with no volume, verified the hard way: recreating this container for an unrelated fix
+    # silently discarded every file under it while the database rows referencing them (imageRef,
+    # stored_object) survived untouched, leaving every reference pointing at a 404.
+    volumes: ['objectstorage:/app/var']
+    # Loopback by default: `edge` already proxies /api + /health (DEC-021's single-origin
+    # design), so nothing needs this published beyond direct debugging on the host itself.
+    # ufw's default-DROP INPUT policy does NOT protect Docker's published ports (its DNAT/
+    # FORWARD rules bypass the INPUT chain ufw filters — verified on a real host), so an
+    # unqualified `3001:3001` here is reachable from the public internet the moment a security
+    # group allows it, with no OS-level firewall as a second layer. Override API_PORT_BIND to
+    # open it deliberately.
+    ports: ['${API_PORT_BIND:-127.0.0.1}:3001:3001']
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -131,6 +150,7 @@ services:
   worker:
     <<: [*api-image, *logging]
     environment: *api-env
+    volumes: ['objectstorage:/app/var']
     command: ['node', 'dist/worker.js']
     # the worker has no HTTP surface; replace the API image's /health/ready probe with a
     # check on its real dependency — the Redis it drains the outbox / runs housekeeping through.
@@ -208,3 +228,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  objectstorage:

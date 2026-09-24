@@ -1772,6 +1772,166 @@
         ]
       }
     },
+    "/api/v1/auth/data-requests/{id}/export": {
+      "get": {
+        "operationId": "IamController_exportDataRequest",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/v1/ops/privacy-requests": {
+      "get": {
+        "operationId": "PrivacyOpsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "privacy"
+        ]
+      }
+    },
+    "/api/v1/ops/privacy-requests/{id}": {
+      "get": {
+        "operationId": "PrivacyOpsController_detail",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "privacy"
+        ]
+      }
+    },
+    "/api/v1/ops/privacy-requests/{id}/review": {
+      "post": {
+        "operationId": "PrivacyOpsController_review",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "privacy"
+        ]
+      }
+    },
+    "/api/v1/ops/privacy-requests/{id}/complete": {
+      "post": {
+        "operationId": "PrivacyOpsController_complete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "privacy"
+        ]
+      }
+    },
+    "/api/v1/ops/privacy-requests/{id}/reject": {
+      "post": {
+        "operationId": "PrivacyOpsController_reject",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "privacy"
+        ]
+      }
+    },
+    "/api/v1/ops/payments/config": {
+      "get": {
+        "operationId": "PaymentConfigController_getConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-payments"
+        ]
+      },
+      "put": {
+        "operationId": "PaymentConfigController_updateConfig",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-payments"
+        ]
+      }
+    },
+    "/api/v1/ops/payments/mode": {
+      "get": {
+        "operationId": "PaymentConfigController_getMode",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ops-payments"
+        ]
+      }
+    },
     "/api/v1/admin/roles": {
       "get": {
         "operationId": "admin_listRoles",
@@ -3939,46 +4099,6 @@
         },
         "tags": [
           "reservations"
-        ]
-      }
-    },
-    "/api/v1/ops/payments/config": {
-      "get": {
-        "operationId": "PaymentConfigController_getConfig",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "ops-payments"
-        ]
-      },
-      "put": {
-        "operationId": "PaymentConfigController_updateConfig",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "ops-payments"
-        ]
-      }
-    },
-    "/api/v1/ops/payments/mode": {
-      "get": {
-        "operationId": "PaymentConfigController_getMode",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "ops-payments"
         ]
       }
     },

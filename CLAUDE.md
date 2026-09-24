@@ -11,10 +11,10 @@ React hook, a type — it goes in a `packages/*` library and both import it. A f
 says "adapted from" or "ported from" another app is a bug report, not a comment.
 
 `apps/mobile` (React Native/Expo) is the fourth app and the same rule applies, with one caveat:
-`packages/client` is documented as a *browser* runtime (`apiFetch` reads `document.cookie`,
+`packages/client` is documented as a _browser_ runtime (`apiFetch` reads `document.cookie`,
 `token-store`/`return-to` use `localStorage`/`sessionStorage`) and has no injection seam, so
 `apps/mobile` cannot literally import its `apiFetch`/token-store/React hooks the way `apps/web`
-and `apps/site` do. What it *does* reuse: `packages/contracts` and `packages/theme` (already
+and `apps/site` do. What it _does_ reuse: `packages/contracts` and `packages/theme` (already
 framework-agnostic), `packages/i18n` including its React bindings (DOM-touches are all guarded
 no-ops), and `packages/client`'s root-level `ApiError`/`createQueryClient` (genuinely DOM-free).
 Its own `src/lib/api/*` reimplements only the browser-specific glue (fetch orchestration, session
@@ -74,13 +74,26 @@ When you add a module: register it in `apps/api/src/app.module.ts` **and** in `A
   session's audience always equals the account kind (one email = one account = one kind), so a
   customer session can only ever belong to a customer account and vice versa — and
   `@RequireAudience('staff' | 'customer')` is available to assert it per controller.
+- **`PermissionsGuard` lets any signed-in actor through a route that declares no permission.** So a
+  route customers use on their own data but the dashboard also calls (`GET /reservations/:ref`,
+  cancel, extend…) must say what a _staff_ actor needs: `@StaffPermissions('reservation.read', …)`
+  — customers pass to the service's ownership check, staff must hold one of the actions. Mirror
+  what the matching `/ops` route requires (DEC-038). Without it, a role holding no reservation or
+  payment permission can read and refund any booking.
 - A branch-aware list resolves its `locationCode` query (comma-separated, multi-select) through
   `effectiveLocationCodes(actor, raw)` and guards a single record with `assertRecordInScope(...)` — a
   rental/reservation belongs to its pickup AND return branch. An endpoint that covers the whole
   organisation (settings, audit, payments config…) is marked `@OrgWide()`, which refuses accounts
   limited to specific locations. See DEC-029.
-- `apps/api/test/route-manifest.spec.ts` snapshots the full method + path + guard table. If your
-  change moves a route or drops a guard, that test fails — update the snapshot deliberately.
+- `apps/api/test/route-manifest.spec.ts` snapshots the full method + path + guard table (public /
+  optional-auth / audience / permissions / staff-permissions / org-wide / step-up / rate-limit). If
+  your change moves a route or drops a guard, that test fails — update the snapshot deliberately.
+  It also fails on an `/ops` or `/admin` route with no `@Permissions`, and on a signed-in route with
+  no audience, no `@Permissions` / `@StaffPermissions` and no entry on its own-data-only list — a new
+  route has to choose.
+- An endpoint a visitor can hit that spends money or sends mail (checkout confirm, sign-up, password
+  reset…) carries `@RateLimit(...)`; the presets and their env knobs are in `rate-limit.decorator.ts`
+  and `env.schema.ts`.
 
 ### Data access
 

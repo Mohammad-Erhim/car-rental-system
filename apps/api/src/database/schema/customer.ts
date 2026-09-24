@@ -126,7 +126,7 @@ export const privacyRequest = pgTable(
     status: text('status').notNull().default('received'),
     // received | in_review | completed | rejected | cancelled | blocked
     blockers: jsonb('blockers')
-      .$type<Array<{ code: string; detail: string }>>()
+      .$type<Array<{ code: string; detail: string; count?: number }>>()
       .notNull()
       .default(sql`'[]'::jsonb`),
     detail: text('detail'),

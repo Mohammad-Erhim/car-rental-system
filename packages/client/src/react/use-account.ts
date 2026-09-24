@@ -80,6 +80,13 @@ export function useCreateDataRequest() {
   });
 }
 
+/** The person's data for a completed access request (DEC-041): the JSON the API builds on demand. */
+export function useDataRequestExport() {
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<unknown>(`/auth/data-requests/${id}/export`),
+  });
+}
+
 export function useCancelDataRequest() {
   const qc = useQueryClient();
   return useMutation({

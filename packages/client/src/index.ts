@@ -15,3 +15,4 @@ export {
 } from './token-store';
 export { createQueryClient, type QueryClientOptions } from './query-client';
 export { stashReturnTo, takeReturnTo, peekReturnTo } from './return-to';
+export { submitWithBankChallenge, BankChallengeFailedError } from './bank-challenge';

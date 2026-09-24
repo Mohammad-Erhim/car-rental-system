@@ -33,6 +33,30 @@ export class RateLimitGuard implements CanActivate {
     return this.shared.client;
   }
 
+  /** A preset reads its limit and window from env (so ops can retune without a deploy of code);
+   *  otherwise the decorator's own literals apply. */
+  private limitsFor(opts: RateLimitOptions): { limit: number; windowSec: number } {
+    switch (opts.preset) {
+      case 'auth':
+        return {
+          limit: this.env.RATE_LIMIT_AUTH_MAX,
+          windowSec: this.env.RATE_LIMIT_AUTH_WINDOW_SEC,
+        };
+      case 'discovery-quote':
+        return {
+          limit: this.env.RATE_LIMIT_DISCOVERY_QUOTE_MAX,
+          windowSec: this.env.RATE_LIMIT_DISCOVERY_QUOTE_WINDOW_SEC,
+        };
+      case 'booking-confirm':
+        return {
+          limit: this.env.RATE_LIMIT_BOOKING_CONFIRM_MAX,
+          windowSec: this.env.RATE_LIMIT_BOOKING_CONFIRM_WINDOW_SEC,
+        };
+      default:
+        return { limit: opts.limit ?? Number.MAX_SAFE_INTEGER, windowSec: opts.windowSec ?? 60 };
+    }
+  }
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
     if (!this.env.RATE_LIMIT_ENABLED) return true;
 
@@ -42,18 +66,7 @@ export class RateLimitGuard implements CanActivate {
     ]);
     if (!opts) return true;
 
-    const limit =
-      opts.preset === 'auth'
-        ? this.env.RATE_LIMIT_AUTH_MAX
-        : opts.preset === 'discovery-quote'
-          ? this.env.RATE_LIMIT_DISCOVERY_QUOTE_MAX
-          : (opts.limit ?? Number.MAX_SAFE_INTEGER);
-    const windowSec =
-      opts.preset === 'auth'
-        ? this.env.RATE_LIMIT_AUTH_WINDOW_SEC
-        : opts.preset === 'discovery-quote'
-          ? this.env.RATE_LIMIT_DISCOVERY_QUOTE_WINDOW_SEC
-          : (opts.windowSec ?? 60);
+    const { limit, windowSec } = this.limitsFor(opts);
 
     const req = context.switchToHttp().getRequest<Request>();
     const ip = clientIp(req);

@@ -103,6 +103,9 @@ const SYSTEM_FIXED_STATE_SETS: Record<string, string[]> = {
     'account_verification',
     'account_recovery',
     'security_alert',
+    'privacy_request_completed',
+    'privacy_request_closed',
+    'privacy_request_rejected',
   ],
   delivery_state: ['queued', 'sent', 'delivered', 'failed', 'suppressed', 'retried'],
 };
@@ -977,6 +980,60 @@ const TEMPLATES: Array<{
       ar: {
         subject: 'إعادة تعيين كلمة المرور — الرمز {{code}}',
         body: 'مرحبًا {{name}}،\n\nاستخدم الرمز {{code}} لإعادة تعيين كلمة المرور. تنتهي صلاحيته خلال 15 دقيقة ويُستخدم مرة واحدة.\n\nإذا لم تطلب ذلك، فحسابك آمن ولا حاجة لأي إجراء.',
+      },
+    },
+  },
+  {
+    key: 'privacy_request_completed',
+    variables: [{ name: 'name' }, { name: 'note' }],
+    byLocale: {
+      en: {
+        subject: 'Your data request is complete',
+        body: 'Hi {{name}},\n\nWe have completed your data request.\n\n{{note}}\n\nSign in to your account to see the outcome. If you asked for a copy of your data, you can download it there.',
+      },
+      fr: {
+        subject: 'Votre demande relative à vos données est terminée',
+        body: 'Bonjour {{name}},\n\nNous avons traité votre demande relative à vos données.\n\n{{note}}\n\nConnectez-vous à votre compte pour en voir le résultat. Si vous avez demandé une copie de vos données, vous pouvez la télécharger depuis votre compte.',
+      },
+      ar: {
+        subject: 'اكتمل طلبك المتعلق ببياناتك',
+        body: 'مرحبًا {{name}}،\n\nلقد أنهينا معالجة طلبك المتعلق ببياناتك.\n\n{{note}}\n\nسجّل الدخول إلى حسابك للاطلاع على النتيجة. إذا طلبت نسخة من بياناتك فيمكنك تنزيلها من هناك.',
+      },
+    },
+  },
+  {
+    key: 'privacy_request_closed',
+    variables: [{ name: 'name' }, { name: 'note' }],
+    byLocale: {
+      en: {
+        subject: 'Your account has been closed',
+        body: 'Hi {{name}},\n\nAs you asked, we have closed your account and erased your personal details. Records we must keep for the legal retention period — reservations, rentals, invoices and payments — are kept.\n\n{{note}}\n\nYou are welcome to open a new account at any time.',
+      },
+      fr: {
+        subject: 'Votre compte a été clos',
+        body: 'Bonjour {{name}},\n\nComme vous l’aviez demandé, nous avons clos votre compte et effacé vos informations personnelles. Les documents que nous devons conserver pendant la durée légale — réservations, locations, factures et paiements — sont conservés.\n\n{{note}}\n\nVous pouvez ouvrir un nouveau compte à tout moment.',
+      },
+      ar: {
+        subject: 'تم إغلاق حسابك',
+        body: 'مرحبًا {{name}}،\n\nكما طلبت، أغلقنا حسابك وحذفنا بياناتك الشخصية. السجلات التي يجب أن نحتفظ بها للمدة القانونية — الحجوزات وعقود الإيجار والفواتير والمدفوعات — محفوظة.\n\n{{note}}\n\nيمكنك فتح حساب جديد في أي وقت.',
+      },
+    },
+  },
+  {
+    key: 'privacy_request_rejected',
+    variables: [{ name: 'name' }, { name: 'note' }],
+    byLocale: {
+      en: {
+        subject: 'Your data request could not be completed',
+        body: 'Hi {{name}},\n\nWe could not complete your data request.\n\nReason: {{note}}\n\nSign in to your account to see the details or to send a new request.',
+      },
+      fr: {
+        subject: 'Votre demande relative à vos données n’a pas pu être traitée',
+        body: 'Bonjour {{name}},\n\nNous n’avons pas pu traiter votre demande relative à vos données.\n\nMotif : {{note}}\n\nConnectez-vous à votre compte pour voir le détail ou envoyer une nouvelle demande.',
+      },
+      ar: {
+        subject: 'تعذّر إكمال طلبك المتعلق ببياناتك',
+        body: 'مرحبًا {{name}}،\n\nتعذّر علينا إكمال طلبك المتعلق ببياناتك.\n\nالسبب: {{note}}\n\nسجّل الدخول إلى حسابك للاطلاع على التفاصيل أو لإرسال طلب جديد.',
       },
     },
   },

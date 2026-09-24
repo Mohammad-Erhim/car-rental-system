@@ -9,6 +9,7 @@ import {
   type AuthorizeInput,
   type PaymentResult,
   type RefundContext,
+  type ResumeOutcome,
 } from './payment.port';
 import {
   customerMetadata,
@@ -29,12 +30,13 @@ import {
  * "opaque token" contract exactly — the simulator's fake tokens and Stripe's real PaymentMethod
  * ids are interchangeable from every caller's point of view.
  *
- * Known, disclosed scope boundary: a PaymentIntent that comes back `requires_action` (3-D Secure
- * / SCA challenge) is treated as a decline with failureCode `requires_action` rather than driving
- * a client-side confirmation redirect — that needs a materially different multi-step checkout
- * (create → client confirms/redirects → server verifies) that this system's current single-
- * request confirm flow doesn't have. No money moves either way; the guest sees a clear "try a
- * different card" outcome instead of a silent hang.
+ * 3-D Secure / SCA (DEC-040): a PaymentIntent that comes back `requires_action` is handed to the
+ * caller as `actionRequired` (with the client secret) when the caller said it can take the
+ * customer through the bank's challenge (`allowAction` — only the checkout's confirm can); the
+ * client completes it with `stripe.handleNextAction`, the checkout is submitted again and
+ * `resume` finds the authenticated payment. For every other caller (modify, extend, off-session
+ * settlement — no customer in the loop) a challenge is still a decline with failureCode
+ * `requires_action`, exactly as before. No money moves until the capture either way.
  */
 export class StripePaymentAdapter extends PaymentPort {
   /** `mode` is which of the operator's two key sets this client was built from — recorded on
@@ -103,6 +105,16 @@ export class StripePaymentAdapter extends PaymentPort {
             { idempotencyKey: input.idempotencyKey },
           );
 
+      if (intent.status === 'requires_action' && input.allowAction && intent.client_secret) {
+        // the bank wants the customer to authenticate — nothing is held or charged yet
+        return {
+          provider: this.provider,
+          providerRef: intent.id,
+          brand: 'unknown',
+          last4: '0000',
+          actionRequired: { clientSecret: intent.client_secret },
+        };
+      }
       if (intent.status === 'requires_action' || intent.status === 'requires_confirmation') {
         throw new PaymentDeclinedError('requires_action');
       }
@@ -124,6 +136,57 @@ export class StripePaymentAdapter extends PaymentPort {
             : null,
         methodRef: input.reuse ? input.reuse.methodRef : input.saveForReuse ? (pm as string) : null,
       };
+    } catch (err) {
+      throw this.mapError(err);
+    }
+  }
+
+  async resume(providerRef: string, token?: string): Promise<ResumeOutcome> {
+    try {
+      const intent = await this.stripe.paymentIntents.retrieve(providerRef);
+      const pm =
+        typeof intent.payment_method === 'string'
+          ? intent.payment_method
+          : (intent.payment_method?.id ?? null);
+      // The customer has since offered a different card: this payment was for the old one. Drop it
+      // (best effort — a cancel that fails only leaves an unconfirmed intent that moves no money).
+      if (token && pm && pm !== token && intent.status !== 'canceled') {
+        await this.void(providerRef).catch(() => undefined);
+        return { kind: 'superseded' };
+      }
+      switch (intent.status) {
+        case 'requires_capture':
+        case 'succeeded': {
+          const { brand, last4 } = await this.methodDetails(intent.payment_method);
+          return {
+            kind: 'authorized',
+            result: {
+              provider: this.provider,
+              providerRef: intent.id,
+              brand,
+              last4,
+              customerRef: (intent.customer as string | null) ?? null,
+              methodRef: pm,
+            },
+          };
+        }
+        case 'requires_action':
+        case 'requires_confirmation':
+          return intent.client_secret
+            ? { kind: 'action_required', clientSecret: intent.client_secret }
+            : { kind: 'superseded' };
+        case 'canceled':
+          return { kind: 'superseded' };
+        case 'requires_payment_method':
+          // the challenge failed, was abandoned, or the bank refused after it — Stripe clears the card
+          throw new PaymentDeclinedError(
+            intent.last_payment_error?.decline_code ??
+              intent.last_payment_error?.code ??
+              'authentication_failed',
+          );
+        default:
+          throw new PaymentDeclinedError(intent.status);
+      }
     } catch (err) {
       throw this.mapError(err);
     }
@@ -161,6 +224,16 @@ export class StripePaymentAdapter extends PaymentPort {
       if (mapped instanceof PaymentDeclinedError && mapped.failureCode === 'already_settled')
         return;
       throw mapped;
+    }
+  }
+
+  async forgetCustomer(customerRef: string): Promise<void> {
+    try {
+      await this.stripe.customers.del(customerRef);
+    } catch (err) {
+      // already deleted (or never existed here) — the goal, "Stripe holds nothing", is met
+      if ((err as { code?: string } | null)?.code === 'resource_missing') return;
+      throw this.mapError(err);
     }
   }
 

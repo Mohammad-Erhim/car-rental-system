@@ -713,3 +713,227 @@ routing-payment.adapter,payment-config.controller,stripe-webhook.controller}.ts`
   booking, by design (a booking keeps the terms it accepted).
 - Tests: `entity-translations.spec.ts` (served per language, English fallback, drafts unserved, a new
   branch appears to translate and is served once published, completeness of both namespaces).
+
+### DEC-038 — Routes customers and staff both use need a staff permission
+
+- Context: the routes a customer uses on their own reservation or rental (`GET /reservations/:ref`,
+  `…/cancel`, `…/modify`, `GET /rentals/:ref`, `…/extend`, `GET /bookings/:ref`) are the ones the
+  dashboard calls too. The ownership check (`assertOwnerOrStaff`) only asked "is this staff?", and
+  `PermissionsGuard` lets a signed-in user through any route that declares no permission — so a role
+  holding NO reservation or payment permission (an audit used `config.read` only) could read, cancel and
+  fully refund any booking. The route-manifest test that CLAUDE.md said guarded this snapshotted only
+  method and path.
+- Decisions:
+  - `@StaffPermissions(...actions)`: customers pass straight through to the service's ownership check; a
+    staff actor needs one of the actions. Applied at the controller, not in the service — the deferred
+    (workflow-approved) executions and the services' own internal calls are untouched.
+  - The sets mirror what the dashboard and the matching `/ops` route already require: view =
+    reservation.read | modify | cancel; invoices = reservation.read | payment.read | payment.reconcile;
+    cancel = reservation.cancel | modify; modify = reservation.modify; rental view = rental.read | pickup |
+    return; extend = rental.pickup | return. **Cancel deliberately accepts `reservation.modify`** — the
+    dashboard's own Cancel button and `/ops/.../no-show` do, and `support_staff` cancels today.
+  - The route manifest now records each route's guards (public / optional / audience / permissions /
+    staff-permissions / org-wide / step-up / rate-limit), read from the same Nest metadata the guards read.
+    It fails on a dropped guard, requires `@Permissions` on every `/ops` and `/admin` route (two named
+    exceptions) and makes every signed-in route without a permission choose: one audience, or own-data-only.
+- Known limit: a modify-only role can still cancel (as the dashboard already lets it). Tightening that is
+  one decorator plus the dashboard's `canCancel`. Authenticated routes still default to "allow"; the
+  manifest census is what stops a new one slipping through.
+- Tests: `staff-permission-gate.spec.ts` (role matrix, no side effects on refusal, owner / stranger /
+  guest), `route-manifest.spec.ts`.
+
+### DEC-039 — Stripe webhooks: a failed delivery is retried, and disputes reach finance
+
+- Context: a delivery that failed was stored `failed`; Stripe's retry then found that row and was answered
+  `200 handled:false, replay:true` — the event was lost for good after one transient error. Chargebacks
+  (`charge.dispute.*`) were not handled at all.
+- Decisions:
+  - `IdempotencyService.begin({ retryFailed: true })` takes over a `failed` claim — or an `in_progress` one
+    older than five minutes (its owner died) — in one atomic statement, so of several concurrent retries
+    exactly one runs. Only the webhook opts in; client commands still replay their stored result.
+  - The five `charge.dispute.*` events open ONE `dispute` reconciliation exception per dispute, carrying the
+    reason, status and evidence deadline (`detail`); later events refresh it; once finance has resolved it, a
+    further event (a loss, say) opens a fresh one. The ledger is never edited by a dispute.
+  - A payment still `requires_action` is a legitimate place for a failed / cancelled payment to be (a
+    customer who fails or abandons a bank challenge), so it no longer raises "missing in ledger".
+  - The dashboard labels the new kind and shows the deadline; `missing_in_ledger` / `missing_in_provider`
+    had no label (a raw key) and now do.
+- Operator step: subscribe the webhook endpoint in the Stripe dashboard to `charge.dispute.created`,
+  `.updated`, `.funds_withdrawn`, `.funds_reinstated`, `.closed` — an event Stripe is not asked to send
+  cannot be handled (deploy/RUNBOOK.md).
+- Known limit: evidence is still submitted in Stripe's dashboard; the exception queue is how finance learns
+  of a dispute and its deadline.
+- Tests: `stripe-webhook.spec.ts` (retry after failure, concurrent retries, abandoned claim, the dispute
+  lifecycle, pending-challenge intents).
+
+### DEC-040 — Card payments: 3-D Secure, and a throttled guest checkout
+
+- Context: (1) a card whose bank asked the customer to authenticate was a flat decline, so SCA-mandated
+  cards (most European cards) could not pay; (2) `POST /bookings/confirm` — reachable with no account, every
+  call a card authorisation — had no rate limit (80 of 80 rapid calls went through: a card-testing vector).
+- Decisions:
+  - Only the checkout can run a challenge (`allowAction`). It answers `payment_action_required` (402) with
+    the processor's client secret — nothing charged, no reservation, the hold still live. The client runs the
+    bank's challenge (`stripe.handleNextAction`) and submits the SAME request again; `PaymentPort.resume`
+    finds the authenticated payment and it is captured. A different card, or a changed total, since the
+    challenge began drops that attempt and starts afresh (its own idempotency key). Modify, extend and
+    off-session charges have no customer in the loop, so a challenge there is still a decline.
+  - `packages/client` `submitWithBankChallenge` is that round trip, DOM-free so the app can reuse it.
+  - `POST /bookings/confirm` has its own limiter (`RATE_LIMIT_BOOKING_CONFIRM_MAX` / `_WINDOW_SEC`, default 20
+    per 60 s per client IP). The env flags now really honour `0` / `false` / `off` (`z.coerce.boolean()` made
+    every string true, so the runbook's `RATE_LIMIT_ENABLED=0` emergency switch did nothing).
+- Known limits: the mobile app does not run the challenge yet (`handleNextAction` from
+  `@stripe/stripe-react-native` with the same helper — it could not be built or run where this was made), so
+  it shows "your bank needs to confirm this payment". Verified with the simulator, a mocked Stripe client and
+  unit tests; not against live Stripe. `trust proxy` counts one hop — behind a TLS terminator every visitor
+  shares one bucket (deploy/RUNBOOK.md).
+- Tests: `payment-sca.spec.ts`, `stripe-payment.adapter.test.ts`, `bank-challenge.test.ts`,
+  `security.spec.ts` (checkout burst), `env.schema.test.ts`.
+
+### DEC-041 — Data requests are fulfilled
+
+- Context: FR-IAM-008 requests were only recorded. A closure was always "blocked" by a placeholder retention
+  line, nothing moved a request past `received`, and there was no export, no erasure and no screen for staff.
+- Decisions:
+  - The whole feature lives in IAM (`privacy.service.ts`). A customer files; staff with `customer.manage`
+    work the queue (`/ops/privacy-requests`, org-wide); a reply is due one month after filing.
+  - **Access**: completing it releases a download built when the customer asks (current, never stored as a
+    second copy), available 30 days, audited. **Correction**: completed with a note of what was fixed.
+    **Rejection** needs a reason the customer can read. The customer is emailed (templated en / fr / ar).
+  - **Closure** is blocked by what is really open — a current or upcoming reservation, an open rental, an
+    unresolved payment issue — recomputed on every look, so it unblocks itself when the trip ends. Past
+    records being retained is NOT a blocker. Completing it (fresh password required): the payment processor
+    is asked to drop the saved cards FIRST (if it cannot, nothing changes and staff retry); then in one
+    transaction the login is retired (sessions revoked, password and contact removed, the address freed), the
+    profile, saved drivers and their documents are erased and messages sent to the person are redacted; the
+    document files are deleted afterwards.
+  - **Kept, on purpose**: reservations, rentals, invoices, payments, the per-reservation driver details on
+    them, and the audit trail — financial and contractual records with a legal retention period. Erasing
+    those is a separate, scheduled retention decision.
+- Known limits: nothing yet erases the retained records when their retention period ends; the closure
+  confirmation email is the one message that keeps the address (proof that we replied); audit events keep the
+  display name the account had at the time.
+- Tests: `privacy.spec.ts`, `iam.spec.ts` (TEST-IAM-008 rewritten — it asserted the stub), the web
+  `privacy-page.test.tsx`.
+
+### DEC-042 — Admin/observability stack for the deployed host
+
+- Date: 2026-09-23
+- Context: operating a live EC2 deployment with no browser-based way to manage Docker containers,
+  read aggregated logs, browse the database, or see host/network metrics — every one of those was
+  an SSH session and raw `docker`/`psql` commands.
+- Decisions:
+  - Kept separate from the app: `compose.admin.yaml`, layered onto `compose.prod.yaml` (same
+    compose project/network, `-f compose.prod.yaml -f compose.admin.yaml up -d`), not wired into
+    `compose.yaml`/dev.
+  - Reused what the app already emits rather than adding new instrumentation: Prometheus scrapes
+    the existing `/metrics` (SRS-OBS-006) instead of a bespoke exporter; Promtail ships existing
+    container stdout (already the app's Pino JSON logs) into Loki instead of a second logging
+    path. Grafana is the single pane over both, plus cAdvisor/node-exporter for container/host/
+    network metrics the app itself doesn't expose. Portainer for container lifecycle, Adminer for
+    Postgres — both cheaper than standing up pgAdmin's own stack or a hand-rolled Docker UI.
+  - Portainer's admin password is set via `--admin-password-file` (a pre-generated random
+    password, written as **plaintext** — verified against 2.21.4 that this flag hashes the file's
+    content itself; feeding it a pre-computed bcrypt hash, as `--admin-password` wants, silently
+    creates an admin account no real password can log into), not through its own first-boot UI
+    flow — that flow expires the setup window 5 minutes after first start, which is a worse
+    failure mode on a slow/swapping host than just not having that window at all.
+  - Every service in the file has an explicit `mem_limit`; the answer to "not enough RAM for this"
+    is host swap (`deploy/ADMIN-RUNBOOK.md`), not raising the caps — bounding a debug tool's
+    memory is safer than letting it compete with the app for the last free MB.
+  - HTTP Basic Auth in front of all four UIs at the nginx layer (`deploy/nginx.admin.conf`), on
+    top of Portainer/Grafana's own logins, plus an explicit either/or in the runbook: open the
+    ports but lock the EC2 security group to a known IP, or keep the security group closed and
+    reach them over an SSH tunnel instead.
+  - `portainer-ce`'s image ships only its own binary — no shell, no wget/curl — so it cannot run a
+    `CMD-SHELL` healthcheck at all (confirmed: `exec: "/bin/sh": stat /bin/sh: no such file or
+directory`); it has no healthcheck, and `admin-edge` depends on it with `service_started`, not
+    `service_healthy`. Loki 3.x additionally refused to start until `compactor.retention_enabled`
+    was paired with an explicit `delete_request_store` — both were caught by actually starting the
+    stack, not by reading the config.
+- Known limits: no TLS termination shipped for this admin edge (documented as a follow-up, same
+  as the main edge in `compose.prod.yaml`); Prometheus config has no env-var interpolation, so
+  `METRICS_TOKEN` (if set) has to be pasted into the tracked `deploy/prometheus.yml` by hand
+  rather than read from `.env`.
+- Tests: none automated — infra-only, no application code changed. Manually verified end-to-end
+  with a live Docker engine: `docker compose -f compose.prod.yaml -f compose.admin.yaml config`
+  passes; every service reaches `Up`/`healthy` (postgres, cadvisor, node-exporter, prometheus,
+  loki, promtail, grafana, portainer, adminer, admin-edge); all four admin-edge ports 401 with no
+  or wrong credentials and let the right upstream through with correct ones; Prometheus's own
+  `/api/v1/targets` shows cadvisor/node-exporter/itself up; Grafana's `/api/datasources` shows
+  both provisioned datasources; Loki has log lines labelled with every running container's name
+  (promtail is shipping); Portainer's `/api/auth` and Adminer's login both succeed against
+  Postgres with real credentials.
+
+### DEC-043 — Distributed tracing, opt-in and sampled
+
+- Date: 2026-09-23
+- Context: operating the live deployment surfaced a concrete gap — several incidents that night
+  (a stale nginx upstream, a stale Next.js ISR cache, a wiped object-storage volume) produced no
+  error and no log line, only a wrong result; nothing in logs+metrics alone would have pointed at
+  where in a multi-hop request the problem actually was. `OTEL_EXPORTER_OTLP_ENDPOINT` had existed
+  in `env.schema.ts` since DEC-017 as a reserved, unused slot.
+- Decisions:
+  - `apps/api/src/tracing.ts`, imported as the first thing in `main.ts` (before express/http/
+    ioredis are required, so `@opentelemetry/auto-instrumentations-node`'s patching applies) —
+    but it's a no-op unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Default deployment behaviour
+    (unset) is unchanged: the SDK is never constructed, nothing is patched, zero added latency.
+  - Performance, made explicit rather than assumed: `OTEL_TRACES_SAMPLE_RATIO` (default 0.2)
+    controls what fraction of requests create spans at all — the real cost lever, since span
+    creation itself (not export) is the per-request work. `ParentBasedSampler` means a trace
+    already sampled by an upstream caller is never truncated at this service regardless of the
+    ratio. Export itself is async/batched (`NodeSDK`'s default `BatchSpanProcessor` when given a
+    `traceExporter`) — no request ever blocks on Tempo being reachable. `fs` instrumentation is
+    explicitly disabled (wraps every `readFile`/`stat`; the auto-instrumentations-node docs call
+    it out as usually not worth it, and nothing on a hot path here needs filesystem-level spans).
+  - `@opentelemetry/instrumentation-pino` (bundled in the auto-instrumentations set) injects
+    `trace_id`/`span_id` into Pino log lines written while a span is active. Loki's datasource
+    config extracts `trace_id` as a derived field linking straight to the matching Tempo trace,
+    and Tempo's `tracesToLogsV2` links back — closes the exact "correlate logs and metrics by
+    timestamp manually" gap the admin/observability stack (DEC-042) was left with.
+  - Tempo added to `compose.admin.yaml` (not `compose.prod.yaml` — it's a debugging aid, not
+    something the app depends on to run), filesystem storage, 24h retention, `mem_limit: 192m`
+    matching the rest of that file's soft-cap convention.
+  - Not done: DB-level spans. The app's Postgres client is `postgres` (porsager), which has no
+    official OpenTelemetry instrumentation (unlike `pg`, which does) — adding an unofficial,
+    less-maintained package as a new production dependency for this wasn't judged worth it
+    tonight. A trace currently shows HTTP → Nest handler → Redis; the query time inside that
+    handler is a gap, visible in the span duration but not broken out further. Worker.js was
+    deliberately left uninstrumented too — no inbound HTTP, and BullMQ has no auto-instrumentation
+    to hang spans off; the highest-value, best-supported surface (API requests) came first.
+- Also: confirmed (not changed — already true) that every inter-service address in
+  `compose.prod.yaml` is an env var with a same-host default (`DATABASE_URL`, `REDIS_URL`,
+  `API_UPSTREAM`, `SITE_UPSTREAM`, `WEB_UPSTREAM`), not hardcoded in application code — moving a
+  piece to a second host later is an env var + firewall change, not a code change. Building actual
+  multi-host orchestration (Swarm/Kubernetes, service discovery across hosts) now, before there's
+  a second host, would be exactly the premature abstraction this repo's own conventions warn
+  against; the honest scope tonight was making sure nothing added _forecloses_ that later.
+- Also found live, while verifying this on a resource-constrained host under real load
+  (everything else in this file's stack running at once, load average 15+ on 2 vCPUs): the api
+  Dockerfile's `HEALTHCHECK` (`--timeout=5s --start-period=25s`) produced a false unhealthy —
+  under real CPU contention, spawning the healthcheck's own fresh Node process took longer than
+  5s even though the already-running server answered real requests instantly, and OpenTelemetry's
+  auto-instrumentation module-scanning at boot pushed cold-start past the old 25s start period.
+  Widened to `--timeout=10s --start-period=90s`; costs nothing once started (retries just succeed
+  sooner), and stops a loaded host from flapping a healthy container to unhealthy over the
+  healthcheck's own overhead rather than the app's.
+- The load-average finding above is itself the headline "keep this from affecting performance"
+  answer: this compose.admin.yaml stack (Loki/Promtail/Grafana/Prometheus/Tempo/cAdvisor/
+  node-exporter — Portainer and Adminer are far lighter) running continuously alongside the app on
+  a 2-vCPU host is genuinely oversubscribed, independent of tracing. Recommendation, not enforced
+  in code: start the heavy half only while actively debugging (`docker compose ... up -d loki
+promtail grafana prometheus tempo cadvisor node-exporter`) and stop it again after — this was
+  already how `compose.admin.yaml` was designed (opt-in, separate from `compose.prod.yaml`), the
+  finding tonight is that "opt-in" should mean "on demand," not "on demand once, then left running
+  for the rest of the deployment's life," on an instance this size.
+- Known limits: not verified against real production traffic volume — the 0.2 default is a
+  reasonable starting point, not a measured one. No DB-level or worker spans (above). Tempo has no
+  auth of its own beyond admin-edge's Basic Auth (same tier as the rest of that stack).
+- Tests: `apps/api`'s full unit suite (183 tests / 17 files, `env.schema.test.ts` and
+  `observability.module.test.ts` among them) passes unchanged; full `tsc --noEmit` and `eslint
+src` both clean. No automated test for tracing.ts itself — instrumentation bootstrap code, not
+  business logic — verified live instead: built the api image with the new dependencies, set
+  `OTEL_EXPORTER_OTLP_ENDPOINT` pointing at a running Tempo, made real requests through the
+  deployed app, and confirmed matching traces appeared in Tempo (`GET /metrics`, `Create Nest
+App`, `dns.lookup`, `tcp.connect` spans, correct `service.name`) with `trace_id`/`span_id`
+  correlated into the same requests' Pino log lines.

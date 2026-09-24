@@ -8,6 +8,22 @@ const INSECURE_PRODUCTION_DEFAULTS: Record<string, string> = {
   OBJECT_STORAGE_SIGNING_SECRET: 'dev-object-signing-secret-change',
 };
 
+/**
+ * An on/off environment flag. `z.coerce.boolean()` is NOT one — it is `Boolean(value)`, so the
+ * strings "false", "0", "no" and "off" all came out `true`, and `RATE_LIMIT_ENABLED=0` (the
+ * runbook's own emergency switch) did nothing. Here 1/true/yes/on and 0/false/no/off are read for
+ * what they say (any case); empty means "not set"; anything else fails the boot loudly rather than
+ * being guessed at.
+ */
+const envFlag = (fallback: boolean) =>
+  z.preprocess((raw) => {
+    if (typeof raw !== 'string') return raw;
+    const v = raw.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(v)) return true;
+    if (['0', 'false', 'no', 'off'].includes(v)) return false;
+    return v === '' ? undefined : raw;
+  }, z.boolean().default(fallback));
+
 /** Runtime environment contract. Validated once at boot; invalid config fails fast (SRS §5). */
 const baseEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -86,12 +102,12 @@ const baseEnvSchema = z.object({
     .min(16)
     .default('dev-payment-config-encryption-key-change'),
 
-  MAPS_ENABLED: z.coerce.boolean().default(false),
+  MAPS_ENABLED: envFlag(false),
   MAP_STYLE_URL: z.string().optional(),
 
   /** SRS-SEC-015 — abuse controls. `RATE_LIMIT_ENABLED=false` disables the guard entirely.
    * `RATE_LIMIT_AUTH_MAX` requests per `RATE_LIMIT_AUTH_WINDOW_SEC` per client IP on auth routes. */
-  RATE_LIMIT_ENABLED: z.coerce.boolean().default(true),
+  RATE_LIMIT_ENABLED: envFlag(true),
   RATE_LIMIT_AUTH_MAX: z.coerce.number().int().positive().default(40),
   RATE_LIMIT_AUTH_WINDOW_SEC: z.coerce.number().int().positive().default(60),
   /** Same shape as the auth preset, for the public quote+hold endpoint — unauthenticated with
@@ -100,13 +116,29 @@ const baseEnvSchema = z.object({
    *  tune credential-guessing and inventory-squatting limits independently. */
   RATE_LIMIT_DISCOVERY_QUOTE_MAX: z.coerce.number().int().positive().default(30),
   RATE_LIMIT_DISCOVERY_QUOTE_WINDOW_SEC: z.coerce.number().int().positive().default(60),
+  /** The payment step of checkout (`POST /bookings/confirm`, DEC-040). A guest reaches it with no
+   *  account, and every call there is a card authorisation — which is exactly what card-testing
+   *  ("does this stolen number work?") runs in bulk. Its own pair so conversion and abuse can be
+   *  tuned apart from the quote and sign-in limits; per client IP, so keep it well above what one
+   *  household or office legitimately books in a minute. */
+  RATE_LIMIT_BOOKING_CONFIRM_MAX: z.coerce.number().int().positive().default(20),
+  RATE_LIMIT_BOOKING_CONFIRM_WINDOW_SEC: z.coerce.number().int().positive().default(60),
 
   /** SRS-SEC-014 — how recent a full password auth must be for a `@StepUp()` route (seconds). */
   STEP_UP_MAX_AGE_SEC: z.coerce.number().int().nonnegative().default(900),
 
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  /** Unset (default): tracing.ts never initialises the OpenTelemetry SDK at all — zero added
+   *  latency, zero background export traffic, the honest zero-overhead state for a checkout that
+   *  never asked for this. Set to an OTLP/HTTP traces endpoint (e.g. a Tempo instance's
+   *  `http://tempo:4318/v1/traces`) to turn tracing on. */
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
-  METRICS_ENABLED: z.coerce.boolean().default(true),
+  /** Fraction of requests that get traced (the rest still work identically, just unrecorded) —
+   *  the actual performance lever: exporting is already async/batched off the request path, so
+   *  this controls the CPU cost of span creation itself and the export volume. 1 = trace
+   *  everything (fine for low-traffic staging; reconsider under real production load). */
+  OTEL_TRACES_SAMPLE_RATIO: z.coerce.number().min(0).max(1).default(0.2),
+  METRICS_ENABLED: envFlag(true),
   /** Shared secret required on the `X-Metrics-Token` header to read `/metrics` (SRS DEC-017)
    *  — that endpoint has no other auth (it must be scrapeable by an external Prometheus, which
    *  isn't a staff/customer actor) and otherwise hands any unauthenticated caller Node process

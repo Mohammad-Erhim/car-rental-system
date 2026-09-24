@@ -39,6 +39,7 @@ import {
   setRefreshCookie,
 } from './iam.cookies';
 import { IamService } from './iam.service';
+import { PrivacyService } from './privacy.service';
 import { ProfileService } from './profile.service';
 
 const zResend = z.object({ accountId: z.string().uuid() });
@@ -69,6 +70,7 @@ export class IamController {
   constructor(
     private readonly iam: IamService,
     private readonly profiles: ProfileService,
+    private readonly privacy: PrivacyService,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
@@ -316,7 +318,7 @@ export class IamController {
   @Get('data-requests')
   @RequireAudience('customer')
   listDataRequests(@CurrentActor() actor: Actor) {
-    return this.profiles.listDataRequests(actor);
+    return this.privacy.listMine(actor);
   }
 
   @Post('data-requests')
@@ -325,12 +327,27 @@ export class IamController {
     @Body(new ZodValidationPipe(zDataRequest)) body: z.infer<typeof zDataRequest>,
     @CurrentActor() actor: Actor,
   ) {
-    return this.profiles.createDataRequest(actor, body.kind, body.detail);
+    return this.privacy.create(actor, body.kind, body.detail);
   }
 
   @Post('data-requests/:id/cancel')
   @RequireAudience('customer')
   cancelDataRequest(@CurrentActor() actor: Actor, @Req() req: Request) {
-    return this.profiles.cancelDataRequest(actor, req.params.id!);
+    return this.privacy.cancel(actor, req.params.id!);
+  }
+
+  /** The person's data, once staff have completed their access request (DEC-041). */
+  @Get('data-requests/:id/export')
+  @RequireAudience('customer')
+  @RateLimit({ limit: 10, windowSec: 3600, bucket: 'data-export' })
+  async exportDataRequest(
+    @CurrentActor() actor: Actor,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const { filename, data } = await this.privacy.exportFor(actor, req.params.id!);
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Cache-Control', 'no-store');
+    return data;
   }
 }

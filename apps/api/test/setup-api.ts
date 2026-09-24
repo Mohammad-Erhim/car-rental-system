@@ -22,6 +22,12 @@ process.env.RATE_LIMIT_AUTH_WINDOW_SEC ??= '2';
 process.env.RATE_LIMIT_DISCOVERY_QUOTE_MAX ??= '200';
 process.env.RATE_LIMIT_DISCOVERY_QUOTE_WINDOW_SEC ??= '2';
 
+// The payment step of checkout (DEC-040): production default is 20/min per IP. The functional specs
+// confirm many bookings from one test IP, so the window is short and the ceiling well above anything
+// they do — while `security.spec.ts` still trips it with a concurrent burst.
+process.env.RATE_LIMIT_BOOKING_CONFIRM_MAX ??= '100';
+process.env.RATE_LIMIT_BOOKING_CONFIRM_WINDOW_SEC ??= '2';
+
 // SRS-SEC-014 step-up: a 1s freshness window so a `@StepUp()` route reliably demands a
 // re-auth a moment after sign-in (only `reports/schedules/:id/send` is protected today).
 process.env.STEP_UP_MAX_AGE_SEC ??= '1';
