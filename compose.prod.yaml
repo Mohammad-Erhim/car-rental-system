@@ -205,6 +205,11 @@ services:
       context: .
       dockerfile: deploy/Dockerfile.web
       target: runtime
+      args:
+        # Leave unset for a single-origin deploy (SITE_DOMAIN=OPS_DOMAIN=API_DOMAIN) — only
+        # needed when they're three real subdomains, so the dashboard's "live preview" / "view
+        # public site" know where the site actually is instead of guessing their own origin.
+        VITE_SITE_URL: ${VITE_SITE_URL:-}
     image: carrental-web:${TAG:-local}
     environment:
       API_UPSTREAM: http://api:3001

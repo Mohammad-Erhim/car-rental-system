@@ -43,6 +43,13 @@ CMD ["pnpm", "--filter", "@carrental/web", "dev", "--", "--host", "0.0.0.0"]
 ########################  build  ########################
 FROM deps AS build
 ENV NODE_ENV=production
+# Vite inlines VITE_* vars at build time, not runtime — unset, apps/web/src/lib/site-origin.ts
+# falls back to the browser's current origin for the "live preview" iframe / "view public site"
+# link. That's correct for the single-origin deploy (site *is* this origin) but wrong the moment
+# site/ops are split across subdomains: the dashboard's own origin has no route for the site's
+# pages, so the preview 404s (verified live). Pass the real site origin for a split deploy.
+ARG VITE_SITE_URL=""
+ENV VITE_SITE_URL=$VITE_SITE_URL
 COPY tsconfig.base.json ./
 COPY packages/ packages/
 COPY apps/web/ apps/web/
