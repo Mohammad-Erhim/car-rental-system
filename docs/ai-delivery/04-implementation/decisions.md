@@ -864,3 +864,76 @@ directory`); it has no healthcheck, and `admin-edge` depends on it with `service
   both provisioned datasources; Loki has log lines labelled with every running container's name
   (promtail is shipping); Portainer's `/api/auth` and Adminer's login both succeed against
   Postgres with real credentials.
+
+### DEC-043 — Distributed tracing, opt-in and sampled
+
+- Date: 2026-09-23
+- Context: operating the live deployment surfaced a concrete gap — several incidents that night
+  (a stale nginx upstream, a stale Next.js ISR cache, a wiped object-storage volume) produced no
+  error and no log line, only a wrong result; nothing in logs+metrics alone would have pointed at
+  where in a multi-hop request the problem actually was. `OTEL_EXPORTER_OTLP_ENDPOINT` had existed
+  in `env.schema.ts` since DEC-017 as a reserved, unused slot.
+- Decisions:
+  - `apps/api/src/tracing.ts`, imported as the first thing in `main.ts` (before express/http/
+    ioredis are required, so `@opentelemetry/auto-instrumentations-node`'s patching applies) —
+    but it's a no-op unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Default deployment behaviour
+    (unset) is unchanged: the SDK is never constructed, nothing is patched, zero added latency.
+  - Performance, made explicit rather than assumed: `OTEL_TRACES_SAMPLE_RATIO` (default 0.2)
+    controls what fraction of requests create spans at all — the real cost lever, since span
+    creation itself (not export) is the per-request work. `ParentBasedSampler` means a trace
+    already sampled by an upstream caller is never truncated at this service regardless of the
+    ratio. Export itself is async/batched (`NodeSDK`'s default `BatchSpanProcessor` when given a
+    `traceExporter`) — no request ever blocks on Tempo being reachable. `fs` instrumentation is
+    explicitly disabled (wraps every `readFile`/`stat`; the auto-instrumentations-node docs call
+    it out as usually not worth it, and nothing on a hot path here needs filesystem-level spans).
+  - `@opentelemetry/instrumentation-pino` (bundled in the auto-instrumentations set) injects
+    `trace_id`/`span_id` into Pino log lines written while a span is active. Loki's datasource
+    config extracts `trace_id` as a derived field linking straight to the matching Tempo trace,
+    and Tempo's `tracesToLogsV2` links back — closes the exact "correlate logs and metrics by
+    timestamp manually" gap the admin/observability stack (DEC-042) was left with.
+  - Tempo added to `compose.admin.yaml` (not `compose.prod.yaml` — it's a debugging aid, not
+    something the app depends on to run), filesystem storage, 24h retention, `mem_limit: 192m`
+    matching the rest of that file's soft-cap convention.
+  - Not done: DB-level spans. The app's Postgres client is `postgres` (porsager), which has no
+    official OpenTelemetry instrumentation (unlike `pg`, which does) — adding an unofficial,
+    less-maintained package as a new production dependency for this wasn't judged worth it
+    tonight. A trace currently shows HTTP → Nest handler → Redis; the query time inside that
+    handler is a gap, visible in the span duration but not broken out further. Worker.js was
+    deliberately left uninstrumented too — no inbound HTTP, and BullMQ has no auto-instrumentation
+    to hang spans off; the highest-value, best-supported surface (API requests) came first.
+- Also: confirmed (not changed — already true) that every inter-service address in
+  `compose.prod.yaml` is an env var with a same-host default (`DATABASE_URL`, `REDIS_URL`,
+  `API_UPSTREAM`, `SITE_UPSTREAM`, `WEB_UPSTREAM`), not hardcoded in application code — moving a
+  piece to a second host later is an env var + firewall change, not a code change. Building actual
+  multi-host orchestration (Swarm/Kubernetes, service discovery across hosts) now, before there's
+  a second host, would be exactly the premature abstraction this repo's own conventions warn
+  against; the honest scope tonight was making sure nothing added _forecloses_ that later.
+- Also found live, while verifying this on a resource-constrained host under real load
+  (everything else in this file's stack running at once, load average 15+ on 2 vCPUs): the api
+  Dockerfile's `HEALTHCHECK` (`--timeout=5s --start-period=25s`) produced a false unhealthy —
+  under real CPU contention, spawning the healthcheck's own fresh Node process took longer than
+  5s even though the already-running server answered real requests instantly, and OpenTelemetry's
+  auto-instrumentation module-scanning at boot pushed cold-start past the old 25s start period.
+  Widened to `--timeout=10s --start-period=90s`; costs nothing once started (retries just succeed
+  sooner), and stops a loaded host from flapping a healthy container to unhealthy over the
+  healthcheck's own overhead rather than the app's.
+- The load-average finding above is itself the headline "keep this from affecting performance"
+  answer: this compose.admin.yaml stack (Loki/Promtail/Grafana/Prometheus/Tempo/cAdvisor/
+  node-exporter — Portainer and Adminer are far lighter) running continuously alongside the app on
+  a 2-vCPU host is genuinely oversubscribed, independent of tracing. Recommendation, not enforced
+  in code: start the heavy half only while actively debugging (`docker compose ... up -d loki
+promtail grafana prometheus tempo cadvisor node-exporter`) and stop it again after — this was
+  already how `compose.admin.yaml` was designed (opt-in, separate from `compose.prod.yaml`), the
+  finding tonight is that "opt-in" should mean "on demand," not "on demand once, then left running
+  for the rest of the deployment's life," on an instance this size.
+- Known limits: not verified against real production traffic volume — the 0.2 default is a
+  reasonable starting point, not a measured one. No DB-level or worker spans (above). Tempo has no
+  auth of its own beyond admin-edge's Basic Auth (same tier as the rest of that stack).
+- Tests: `apps/api`'s full unit suite (183 tests / 17 files, `env.schema.test.ts` and
+  `observability.module.test.ts` among them) passes unchanged; full `tsc --noEmit` and `eslint
+src` both clean. No automated test for tracing.ts itself — instrumentation bootstrap code, not
+  business logic — verified live instead: built the api image with the new dependencies, set
+  `OTEL_EXPORTER_OTLP_ENDPOINT` pointing at a running Tempo, made real requests through the
+  deployed app, and confirmed matching traces appeared in Tempo (`GET /metrics`, `Create Nest
+App`, `dns.lookup`, `tcp.connect` spans, correct `service.name`) with `trace_id`/`span_id`
+  correlated into the same requests' Pino log lines.

@@ -16,6 +16,9 @@
 #                 cadvisor (per-container CPU/mem/network) and node-exporter (host CPU/mem/disk/
 #                 network) — this is the "network tracing" layer for interface/connection-level
 #                 issues; for packet-level debugging use a one-off netshoot container (RUNBOOK).
+#   tempo         Distributed traces — receives OTLP from apps/api/src/tracing.ts (opt-in there via
+#                 OTEL_EXPORTER_OTLP_ENDPOINT; zero cost when unset). Sampled, not every request —
+#                 see OTEL_TRACES_SAMPLE_RATIO in .env.example.
 #   adminer       Postgres browser — run ad-hoc SQL, inspect tables, no separate pgAdmin stack.
 #   admin-edge    Single nginx in front of all of the above, each on its own port, HTTP Basic
 #                 Auth at this layer even though Portainer/Grafana have their own login too
@@ -105,6 +108,23 @@ services:
     restart: unless-stopped
     <<: *admin-logging
 
+  tempo:
+    image: grafana/tempo:2.6.1
+    user: root
+    volumes:
+      - ./deploy/tempo-config.yml:/etc/tempo.yml:ro
+      - tempodata:/var/tempo
+    command: ['-config.file=/etc/tempo.yml']
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3200/ready || exit 1']
+      interval: 15s
+      timeout: 5s
+      start_period: 45s
+      retries: 5
+    mem_limit: 192m
+    restart: unless-stopped
+    <<: *admin-logging
+
   grafana:
     image: grafana/grafana-oss:11.3.1
     environment:
@@ -119,6 +139,7 @@ services:
     depends_on:
       prometheus: { condition: service_healthy }
       loki: { condition: service_healthy }
+      tempo: { condition: service_healthy }
     healthcheck:
       test: ['CMD-SHELL', 'wget -qO- http://localhost:3000/api/health || exit 1']
       interval: 15s
@@ -199,3 +220,4 @@ volumes:
   prometheusdata:
   lokidata:
   grafanadata:
+  tempodata:

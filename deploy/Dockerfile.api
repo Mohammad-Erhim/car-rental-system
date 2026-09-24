@@ -80,7 +80,14 @@ ARG BUILD_TIME=""
 ENV GIT_SHA=$GIT_SHA BUILD_TIME=$BUILD_TIME
 USER node
 EXPOSE 3001
-HEALTHCHECK --interval=15s --timeout=5s --start-period=25s --retries=10 \
+# --timeout and --start-period both widened (were 5s/25s) after a live false-unhealthy: this
+# check spawns a whole new Node process every run, and under real CPU contention that spawn alone
+# can exceed 5s even though the already-running server answers real requests instantly — Docker
+# then marks the container unhealthy for a problem that was in the healthcheck's own overhead, not
+# the app. --start-period is separately generous because OpenTelemetry's auto-instrumentation
+# (tracing.ts, opt-in) scans node_modules at boot before the server starts listening; on a
+# constrained host under load this was observed taking minutes, not the previous window's seconds.
+HEALTHCHECK --interval=20s --timeout=10s --start-period=90s --retries=10 \
   CMD node -e "fetch('http://127.0.0.1:3001/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["node", "dist/main.js"]

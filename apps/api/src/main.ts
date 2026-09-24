@@ -1,4 +1,5 @@
 import './config/bootstrap-env';
+import './tracing';
 
 import { createApp } from './bootstrap';
 import { loadEnv } from './config/env.schema';

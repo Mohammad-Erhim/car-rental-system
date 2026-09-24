@@ -12,11 +12,13 @@ the app itself — it's a second compose file layered on top.
 | Database                 | Adminer                        | `:8093`             |
 | Raw PromQL               | Prometheus                     | `:8094`             |
 
-Grafana is the one pane for both logs (via Loki, fed by Promtail from every container's stdout)
-and metrics (via Prometheus, scraping the API's own `/metrics`, cAdvisor's per-container stats,
-and node-exporter's host CPU/memory/disk/**network** counters). That combination — logs and
-metrics next to each other, filterable by container and time range — is what "full trace" means
-here in practice; see "Using it" below for how that maps onto an actual incident.
+Grafana is the one pane for logs (via Loki, fed by Promtail from every container's stdout),
+metrics (via Prometheus, scraping the API's own `/metrics`, cAdvisor's per-container stats, and
+node-exporter's host CPU/memory/disk/**network** counters), and — when the API's own
+`OTEL_EXPORTER_OTLP_ENDPOINT` is set (DEC-043, off by default, zero overhead when unset) —
+distributed traces via Tempo, correlated with Loki so a trace ID in a log line jumps straight to
+its trace and back. See "Using it" below for how that maps onto an actual incident, and §7 for why
+you shouldn't run all of this continuously on a small instance.
 
 ## 1. Before you start: EC2 sizing and swap
 
@@ -153,18 +155,46 @@ recommends — they'd share one project and one network from the start.
   dashboards won't get you there; drop a one-off tool container on the same network instead:
   `docker run --rm -it --network container:carrental-api-1 nicolaka/netshoot` gives you `tcpdump`,
   `mtr`, `dig`, `curl` etc. from the exact network namespace the API container sees.
+- **"Where did the time go across site → api → db/redis"** (tracing has to be on, DEC-043) →
+  Grafana → Explore → Tempo, search by service name `carrental-api` or paste a trace ID straight
+  from a log line's `trace_id` field (Loki→Tempo correlation is already wired). Shows the actual
+  span breakdown — HTTP handler, Redis calls, etc. — not just "this request took 900ms."
 
-## 7. Trimming it down
+## 7. Steady state: run the heavy half on demand, not 24/7
 
-If the full stack is too heavy even with swap, drop pieces independently — nothing else depends
-on cAdvisor or node-exporter being present, Prometheus just has one fewer target:
+Verified live on a t3.small: the app plus this entire admin stack running continuously pushed
+load average past 15 on 2 vCPUs and produced real symptoms (healthcheck false-negatives, slow
+requests, docker builds timing out on their own network calls). None of that was a bug in any one
+piece — it's the honest capacity of a small instance running everything at once, all the time.
+
+**Portainer and Adminer are lightweight enough to leave running continuously** — they're mostly
+idle until you click into them. **Loki, Promtail, Grafana, Prometheus, Tempo, cAdvisor and
+node-exporter are the heavy half.** Best practice on an instance this size: start them when you're
+actually about to debug something, stop them again when you're done.
 
 ```bash
-docker compose -f compose.prod.yaml -f compose.admin.yaml stop cadvisor node-exporter
+# start the heavy half
+docker compose -f compose.prod.yaml -f compose.admin.yaml up -d \
+  loki promtail grafana prometheus tempo cadvisor node-exporter
+
+# ...debug...
+
+# stop it again
+docker compose -f compose.prod.yaml -f compose.admin.yaml stop \
+  loki promtail grafana prometheus tempo cadvisor node-exporter
 ```
 
-Portainer + Adminer alone (container management + DB) is a reasonable floor if you want to skip
-the Grafana/Prometheus/Loki log-and-metrics layer entirely.
+If you'd rather have _something_ always on without the full weight, cAdvisor + node-exporter
+alone (feeding Prometheus, viewed through Grafana) is far cheaper than adding Loki/Promtail's log
+pipeline too — drop just the log side:
+
+```bash
+docker compose -f compose.prod.yaml -f compose.admin.yaml stop loki promtail
+```
+
+On a larger instance (more vCPUs headroom specifically, not just RAM — the symptom tonight was
+CPU contention, not OOM) running everything continuously is fine; this only matters at t3.small/
+t3.medium scale.
 
 ## 8. Teardown
 

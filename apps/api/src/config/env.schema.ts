@@ -128,7 +128,16 @@ const baseEnvSchema = z.object({
   STEP_UP_MAX_AGE_SEC: z.coerce.number().int().nonnegative().default(900),
 
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
+  /** Unset (default): tracing.ts never initialises the OpenTelemetry SDK at all — zero added
+   *  latency, zero background export traffic, the honest zero-overhead state for a checkout that
+   *  never asked for this. Set to an OTLP/HTTP traces endpoint (e.g. a Tempo instance's
+   *  `http://tempo:4318/v1/traces`) to turn tracing on. */
   OTEL_EXPORTER_OTLP_ENDPOINT: z.string().optional(),
+  /** Fraction of requests that get traced (the rest still work identically, just unrecorded) —
+   *  the actual performance lever: exporting is already async/batched off the request path, so
+   *  this controls the CPU cost of span creation itself and the export volume. 1 = trace
+   *  everything (fine for low-traffic staging; reconsider under real production load). */
+  OTEL_TRACES_SAMPLE_RATIO: z.coerce.number().min(0).max(1).default(0.2),
   METRICS_ENABLED: envFlag(true),
   /** Shared secret required on the `X-Metrics-Token` header to read `/metrics` (SRS DEC-017)
    *  — that endpoint has no other auth (it must be scrapeable by an external Prometheus, which

@@ -55,6 +55,10 @@ x-api-env: &api-env
   PAYMENT_DRIVER: ${PAYMENT_DRIVER:-simulator}
   RATE_LIMIT_ENABLED: '1'
   LOG_LEVEL: ${LOG_LEVEL:-info}
+  # DEC-043: unset (default) means tracing.ts never starts the OTel SDK — zero overhead unless you
+  # opt in (e.g. compose.admin.yaml's tempo: http://tempo:4318/v1/traces).
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+  OTEL_TRACES_SAMPLE_RATIO: ${OTEL_TRACES_SAMPLE_RATIO:-0.2}
 
 services:
   postgres:
