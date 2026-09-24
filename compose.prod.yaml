@@ -3,15 +3,18 @@
 #   cp .env.example .env                       # set real POSTGRES_PASSWORD / JWT_ACCESS_SECRET /
 #                                               # PASSWORD_PEPPER / COOKIE_SECRET /
 #                                               # OBJECT_STORAGE_SIGNING_SECRET / PAYMENT_WEBHOOK_SECRET /
-#                                               # PAYMENT_CONFIG_ENCRYPTION_KEY
+#                                               # PAYMENT_CONFIG_ENCRYPTION_KEY / TLS_DOMAIN
+#   sudo certbot certonly --standalone -d "$TLS_DOMAIN"   # see deploy/RUNBOOK.md §1a — one-time,
+#                                                          # needs port 80 free and reachable
 #   docker compose -f compose.prod.yaml build
 #   docker compose -f compose.prod.yaml up -d  # migrate + seed:system run automatically, then api/worker/web
 #   docker compose -f compose.prod.yaml run --rm seed-dev   # optional demo dataset
-#   open http://localhost:3000
+#   open https://<TLS_DOMAIN>
 #
 # Interpolated ${VARS} are read from the repo-root `.env` (that is why this file lives at the
-# repo root, not in deploy/). Not production-final as-is: terminate TLS in front, and run
-# Postgres/Redis as managed services rather than containers.
+# repo root, not in deploy/). `edge` now terminates TLS itself via Let's Encrypt (deploy/
+# nginx.edge.conf) — see deploy/RUNBOOK.md §1a for cert issuance/renewal. Not production-final
+# beyond that: run Postgres/Redis as managed services rather than containers.
 #
 # Development stack: compose.yaml.
 
@@ -215,9 +218,11 @@ services:
       SITE_UPSTREAM: http://site:3000
       WEB_UPSTREAM: http://web:8080
       API_UPSTREAM: http://api:3001
+      TLS_DOMAIN: ${TLS_DOMAIN:?set TLS_DOMAIN to the host's public DNS name (certbot obtains the cert for it)}
     volumes:
       - ./deploy/nginx.edge.conf:/etc/nginx/templates/default.conf.template:ro
-    ports: ['${EDGE_PORT:-3000}:8080']
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    ports: ['${EDGE_HTTP_PORT:-80}:80', '${EDGE_HTTPS_PORT:-443}:443']
     depends_on:
       api: { condition: service_healthy }
       site: { condition: service_started }

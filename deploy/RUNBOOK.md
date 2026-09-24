@@ -42,15 +42,41 @@ The API validates the whole environment on boot and **exits non-zero** on anythi
 malformed — check the first lines of the api log if it will not start.
 
 `APP_URL`, `API_PUBLIC_URL` and `SITE_URL` all default to `localhost` in `.env.example` — set
-them to the real public origin (e.g. `http://<host>:3000` / `http://<host>:3001`) before going
-live. `edge`'s same-origin proxying (§0) masks a stale default for the browser's own API reads,
-so the site can look correct at first glance; it still breaks anything that uses these values
-directly — the API's own generated links, and any client that calls the API's public origin
-directly instead of through edge (a mobile app, for one — `CORS_ALLOWED_ORIGINS` staying
-`localhost`-only rejects it outright).
+them to the real public origin (e.g. `https://<TLS_DOMAIN>` for both — `edge` is the single
+origin) before going live. `edge`'s same-origin proxying (§0) masks a stale default for the
+browser's own API reads, so the site can look correct at first glance; it still breaks anything
+that uses these values directly — the API's own generated links, and any client that calls the
+API's public origin directly instead of through edge (a mobile app, for one —
+`CORS_ALLOWED_ORIGINS` staying `localhost`-only rejects it outright).
 
-TLS terminates in front of nginx (a load balancer or another proxy). Never expose Postgres,
-Redis, or `/metrics` to the internet.
+Never expose Postgres, Redis, or `/metrics` to the internet.
+
+### 1a. TLS
+
+`edge` terminates TLS itself (`deploy/nginx.edge.conf`) with a Let's Encrypt certificate — no
+separate load balancer needed. This matters beyond "the padlock icon": the refresh and CSRF
+cookies (`iam.cookies.ts`) are `Secure` whenever `NODE_ENV=production`, and a browser silently
+refuses to store (or send back) a `Secure` cookie over plain HTTP — verified deploying without
+this: every page refresh lost the session with nothing logged to explain why.
+
+Set `TLS_DOMAIN` in `.env` to the host's public DNS name (an EC2 public DNS name works fine —
+you don't need a separately-owned domain), then get the first certificate **before** `up -d`
+(port 80 must be free and reachable — stop `edge` first if it's already running on it):
+
+```
+sudo apt-get install -y certbot   # or snap install --classic certbot
+sudo certbot certonly --standalone -d "$TLS_DOMAIN"
+```
+
+This writes `/etc/letsencrypt/live/$TLS_DOMAIN/{fullchain,privkey}.pem`, which `compose.prod.yaml`
+bind-mounts read-only into `edge`. Renew the same way every ~60 days (Let's Encrypt certs are
+90-day) — `certonly --standalone` needs port 80 free, so briefly stop `edge` around it:
+
+```
+docker compose -f compose.prod.yaml stop edge
+sudo certbot renew
+docker compose -f compose.prod.yaml start edge
+```
 
 **Stripe webhook** (live card payments). In the Stripe dashboard add an endpoint
 `https://<your host>/api/v1/webhooks/stripe` and subscribe it to these events — one Stripe is never
