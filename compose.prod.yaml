@@ -3,13 +3,14 @@
 #   cp .env.example .env                       # set real POSTGRES_PASSWORD / JWT_ACCESS_SECRET /
 #                                               # PASSWORD_PEPPER / COOKIE_SECRET /
 #                                               # OBJECT_STORAGE_SIGNING_SECRET / PAYMENT_WEBHOOK_SECRET /
-#                                               # PAYMENT_CONFIG_ENCRYPTION_KEY / TLS_DOMAIN
-#   sudo certbot certonly --standalone -d "$TLS_DOMAIN"   # see deploy/RUNBOOK.md §1a — one-time,
+#                                               # PAYMENT_CONFIG_ENCRYPTION_KEY / SITE_DOMAIN / OPS_DOMAIN / API_DOMAIN
+#   sudo certbot certonly --standalone -d "$SITE_DOMAIN" -d "$OPS_DOMAIN" -d "$API_DOMAIN"
+#                                                          # see deploy/RUNBOOK.md §1a — one-time,
 #                                                          # needs port 80 free and reachable
 #   docker compose -f compose.prod.yaml build
 #   docker compose -f compose.prod.yaml up -d  # migrate + seed:system run automatically, then api/worker/web
 #   docker compose -f compose.prod.yaml run --rm seed-dev   # optional demo dataset
-#   open https://<TLS_DOMAIN>
+#   open https://<SITE_DOMAIN>
 #
 # Interpolated ${VARS} are read from the repo-root `.env` (that is why this file lives at the
 # repo root, not in deploy/). `edge` now terminates TLS itself via Let's Encrypt (deploy/
@@ -44,6 +45,10 @@ x-api-env: &api-env
   APP_URL: ${APP_URL:-http://localhost:3000}
   API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:3001}
   CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+  # Unset by default (site/ops/api share one origin, DEC-021) — set when SITE_DOMAIN/OPS_DOMAIN/
+  # API_DOMAIN below are three separate subdomains instead, so the refresh/CSRF cookies still
+  # reach all three (see COOKIE_DOMAIN's doc in env.schema.ts).
+  COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
   JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET (openssl rand -base64 48)}
   PASSWORD_PEPPER: ${PASSWORD_PEPPER:?set PASSWORD_PEPPER}
   COOKIE_SECRET: ${COOKIE_SECRET:?set COOKIE_SECRET}
@@ -218,7 +223,18 @@ services:
       SITE_UPSTREAM: http://site:3000
       WEB_UPSTREAM: http://web:8080
       API_UPSTREAM: http://api:3001
-      TLS_DOMAIN: ${TLS_DOMAIN:?set TLS_DOMAIN to the host's public DNS name (certbot obtains the cert for it)}
+      # Three DISTINCT hostnames, each its own nginx server{} block (deploy/nginx.edge.conf) —
+      # nginx treats a repeated server_name on the same listen port as a conflict and silently
+      # drops all but the first, so setting two of these the same breaks routing for whichever
+      # one loses, not just a redundant config. Also set the api service's COOKIE_DOMAIN above
+      # (nginx.edge.conf's header comment explains why) so the refresh/CSRF cookies reach all
+      # three. TLS_CERT_DOMAIN is whichever one certbot was told to lead with — `certonly -d
+      # $SITE_DOMAIN -d $OPS_DOMAIN -d $API_DOMAIN` names the cert directory after the first
+      # -d, and the SAN list covers the rest (RUNBOOK.md §1a).
+      SITE_DOMAIN: ${SITE_DOMAIN:?set SITE_DOMAIN to the customer site's public DNS name}
+      OPS_DOMAIN: ${OPS_DOMAIN:?set OPS_DOMAIN to the ops dashboard's public DNS name — distinct from SITE_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN to the API's public DNS name — distinct from SITE_DOMAIN/OPS_DOMAIN}
+      TLS_CERT_DOMAIN: ${TLS_CERT_DOMAIN:-${SITE_DOMAIN}}
     volumes:
       - ./deploy/nginx.edge.conf:/etc/nginx/templates/default.conf.template:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro

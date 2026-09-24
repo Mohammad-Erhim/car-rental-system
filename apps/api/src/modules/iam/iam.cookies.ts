@@ -14,7 +14,9 @@ import type { Env } from '../../config/env.schema';
 export { csrfCookieName, refreshCookieName, type AuthAudience };
 
 /**
- * Browser refresh token: Secure, HttpOnly, SameSite=Lax on a shared origin (SRS-SEC-003).
+ * Browser refresh token: Secure, HttpOnly, SameSite=Lax on a shared origin (SRS-SEC-003) — or,
+ * when `COOKIE_DOMAIN` is set, a shared *registrable domain* across sibling subdomains instead
+ * (still same-site, so the same CSRF property holds; see COOKIE_DOMAIN's doc in env.schema.ts).
  * `Path=/api/v1/auth` limits where the cookie is sent. One cookie per audience (see
  * `refresh-cookie-name.ts`) so the ops dashboard and the customer site keep separate sessions.
  */
@@ -25,6 +27,7 @@ export function refreshCookieOptions(env: Env, maxAgeMs: number): CookieOptions 
     sameSite: 'lax',
     path: '/api/v1/auth',
     maxAge: maxAgeMs,
+    ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
   };
 }
 
@@ -59,6 +62,7 @@ export function csrfCookieOptions(env: Env, maxAgeMs: number): CookieOptions {
     sameSite: 'lax',
     path: '/',
     maxAge: maxAgeMs,
+    ...(env.COOKIE_DOMAIN ? { domain: env.COOKIE_DOMAIN } : {}),
   };
 }
 

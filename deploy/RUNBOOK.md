@@ -59,18 +59,34 @@ cookies (`iam.cookies.ts`) are `Secure` whenever `NODE_ENV=production`, and a br
 refuses to store (or send back) a `Secure` cookie over plain HTTP — verified deploying without
 this: every page refresh lost the session with nothing logged to explain why.
 
-Set `TLS_DOMAIN` in `.env` to the host's public DNS name (an EC2 public DNS name works fine —
-you don't need a separately-owned domain), then get the first certificate **before** `up -d`
-(port 80 must be free and reachable — stop `edge` first if it's already running on it):
+`SITE_DOMAIN`/`OPS_DOMAIN`/`API_DOMAIN` in `.env` must be three **distinct** public DNS names —
+one per surface, since `nginx.edge.conf` routes by which hostname a request came in on and
+treats a repeated `server_name` on the same port as a conflict (nginx silently drops all but the
+first). An EC2 instance's own default public DNS name will not work for this: it's on Let's
+Encrypt's forbidden-policy list, and it changes on every stop/start unless the instance has an
+Elastic IP anyway — get real subdomains instead (Route 53 or any DNS provider) pointed at the
+instance's IP, or use a free wildcard-to-IP service like `sslip.io` if you don't own a domain
+(`<ip-with-dashes>.sslip.io` resolves to that IP automatically).
+
+Splitting the three surfaces across real subdomains instead of one shared origin also needs
+`COOKIE_DOMAIN` set to the domain they share (e.g. `example.com`) — see its doc in
+`env.schema.ts` — otherwise a cookie set while signing in on `OPS_DOMAIN` is host-only and
+invisible on `SITE_DOMAIN`/`API_DOMAIN`.
+
+Get the first certificate **before** `up -d` (port 80 must be free and reachable — stop `edge`
+first if it's already running on it):
 
 ```
 sudo apt-get install -y certbot   # or snap install --classic certbot
-sudo certbot certonly --standalone -d "$TLS_DOMAIN"
+sudo certbot certonly --standalone -d "$SITE_DOMAIN" -d "$OPS_DOMAIN" -d "$API_DOMAIN"
 ```
 
-This writes `/etc/letsencrypt/live/$TLS_DOMAIN/{fullchain,privkey}.pem`, which `compose.prod.yaml`
-bind-mounts read-only into `edge`. Renew the same way every ~60 days (Let's Encrypt certs are
-90-day) — `certonly --standalone` needs port 80 free, so briefly stop `edge` around it:
+This writes `/etc/letsencrypt/live/$SITE_DOMAIN/{fullchain,privkey}.pem` (certbot names the
+directory after the *first* `-d`; the cert's SAN list covers the other two) — `TLS_CERT_DOMAIN`
+defaults to `SITE_DOMAIN` to match, only set it separately if you led with a different `-d`.
+`compose.prod.yaml` bind-mounts `/etc/letsencrypt` read-only into `edge`. Renew the same way
+every ~60 days (Let's Encrypt certs are 90-day) — `certonly --standalone` needs port 80 free, so
+briefly stop `edge` around it:
 
 ```
 docker compose -f compose.prod.yaml stop edge

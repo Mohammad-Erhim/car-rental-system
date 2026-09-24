@@ -31,6 +31,13 @@ const baseEnvSchema = z.object({
   API_PORT: z.coerce.number().int().positive().default(3001),
   APP_URL: z.string().url().default('http://localhost:3000'),
   API_PUBLIC_URL: z.string().url().default('http://localhost:3001'),
+  // Unset (default) = host-only refresh/CSRF cookies (iam.cookies.ts), the right choice when
+  // site/ops/api share one origin. Set to the registrable domain (e.g. `.example.com`, leading
+  // dot optional per RFC 6265) when they're split across sibling subdomains instead — otherwise
+  // a cookie set while signing in on one subdomain is invisible on the others. Still
+  // `SameSite=Lax`: sibling subdomains of one registrable domain are same-site, so this doesn't
+  // reopen the cross-site CSRF surface DEC-021 avoided by using one origin.
+  COOKIE_DOMAIN: z.string().optional(),
   CORS_ALLOWED_ORIGINS: z
     .string()
     .default('http://localhost:3000')
