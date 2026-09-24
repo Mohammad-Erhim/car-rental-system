@@ -19,6 +19,13 @@ Redis 7 are dependencies; in production they are managed services, not container
 Money is integer minor units everywhere. Redis holds no source-of-truth state — losing it
 degrades caching and rate-limiting only.
 
+`OBJECT_STORAGE_FS_ROOT` (default `./var/objects`, filesystem driver, DEC-015) holds driver-
+license photos and data-export downloads on the `api`/`worker` containers themselves — it **must**
+sit on a persisted volume (`compose.prod.yaml`'s `objectstorage` volume already does this). Verify
+this the hard way once: recreating `api` without that volume silently deletes every file under it
+while the database rows referencing them (`account.licenceRef`, `stored_object`, ...) survive
+untouched — every reference then 404s, with nothing logged to explain why.
+
 ---
 
 ## 1. Configuration
@@ -58,6 +65,12 @@ stored encrypted; a wrong one shows as 400s on every delivery.
 > `compose.prod.yaml` = production-shaped stack · `compose.yaml` = local development stack.
 > BuildKit is required — `apt-get install docker-buildx` (or the Docker `docker-buildx-plugin`)
 > if `docker build` reports the buildx component missing.
+>
+> **Small instance (≤2 vCPU / ≤2 GB RAM, e.g. a `t3.small`)**: building all three images
+> (`api`/`site`/`web`) is genuinely memory- and CPU-heavy — verified this stalls and can even
+> time out unrelated network calls (image pulls) on an under-swapped small instance. Add swap
+> before the first `build` — `deploy/ADMIN-RUNBOOK.md` §1 has the exact commands (they apply
+> regardless of whether you ever run that stack's admin tools).
 
 ## 2. Bootstrap (first deploy)
 
@@ -102,6 +115,12 @@ GIT_SHA=$(git rev-parse HEAD) BUILD_TIME=$(date -u +%FT%TZ) \
   docker compose -f compose.prod.yaml build api worker web
 docker compose -f compose.prod.yaml up -d      # `migrate` one-shot runs first (no-op if no new migration), then rolling-replaces api/worker/web
 ```
+
+Recreating just `api` on its own (`up -d api`, or `up -d --no-deps api` to skip re-checking
+`postgres`/`redis`/`migrate`) is safe — `edge`'s nginx re-resolves its upstreams (a `resolver` +
+variable `proxy_pass`, not a cached IP) instead of needing a manual restart to notice the new
+container. Verified live: recreating `api` alone, `edge` untouched, picked it up immediately with
+zero manual intervention.
 
 Migrations are **forward-only and additive** (new tables/columns/indexes). A deploy that adds a
 migration is safe to apply before the new code is live. Watch `/health/ready` and the api log
