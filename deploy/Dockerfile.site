@@ -44,7 +44,15 @@ FROM deps AS build
 # owns `/ops` routing, so the site image builds with the proxy OFF. Override with
 # `--build-arg WEB_UPSTREAM=http://web:3000` for a standalone (edge-less) site deploy.
 ARG WEB_UPSTREAM=""
-ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 WEB_UPSTREAM=$WEB_UPSTREAM
+# The ops dashboard's page-builder live preview posts draft edits into this app via
+# `postMessage` (apps/site's preview-origin.ts allow-lists the sender). In the single-origin dev
+# setup the dashboard is same-origin so no config is needed; a split-subdomain prod deploy (three
+# real domains, RUNBOOK.md §1a) puts the dashboard on its own origin, and without this the site
+# silently drops every preview update — the iframe loads, editing just never appears to do
+# anything, with nothing logged to explain why.
+ARG NEXT_PUBLIC_PREVIEW_PARENT_ORIGINS=""
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 WEB_UPSTREAM=$WEB_UPSTREAM \
+  NEXT_PUBLIC_PREVIEW_PARENT_ORIGINS=$NEXT_PUBLIC_PREVIEW_PARENT_ORIGINS
 COPY tsconfig.base.json ./
 COPY packages/ packages/
 COPY apps/site/ apps/site/

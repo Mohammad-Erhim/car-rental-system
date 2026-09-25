@@ -187,6 +187,11 @@ services:
       context: .
       dockerfile: deploy/Dockerfile.site
       target: runtime
+      args:
+        # See deploy/Dockerfile.site's comment on this ARG — required for the ops dashboard's
+        # page-builder live preview to work once SITE_DOMAIN/OPS_DOMAIN are real, separate
+        # subdomains instead of one shared origin.
+        NEXT_PUBLIC_PREVIEW_PARENT_ORIGINS: ${NEXT_PUBLIC_PREVIEW_PARENT_ORIGINS:-}
     image: carrental-site:${TAG:-local}
     environment:
       NODE_ENV: production
