@@ -4,7 +4,7 @@ import { CardField, useStripe } from '@stripe/stripe-react-native';
 import { Stack, useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import { Minus, Plus } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
-import { Platform, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { CheckoutConfirmation } from '../../components/checkout/confirmation-view';
 import { AppStateView, Badge, Button, Card, Divider, Field, Input, Screen, SegmentedControl, Text } from '../../components/ui';
@@ -144,7 +144,7 @@ export default function CheckoutScreen() {
   }
 
   return (
-    <Screen scroll  contentContainerStyle={{ gap: space(5) }}>
+    <Screen scroll keyboardAvoiding contentContainerStyle={{ gap: space(5) }}>
       <Stack.Screen options={{ title: t('checkout.title') }} />
 
       {!reference || quote.isError ? (

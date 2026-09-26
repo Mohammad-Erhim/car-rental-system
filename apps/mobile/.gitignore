@@ -16,3 +16,7 @@ expo-env.d.ts
 
 # release signing key + passwords - never commit
 /credentials
+
+# built .aab/.apk for store submission - large, regenerable, keep the README's docs only
+/release/*
+!/release/README.md

@@ -58,9 +58,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         // bundle declares it. The in-app catalogue is runtime-driven, but these are the three
         // locales shipped with this binary and used by UIKit controls such as UIDatePicker.
         CFBundleLocalizations: ['en', 'ar', 'fr'],
-        NSCameraUsageDescription:
-          'Used to photograph your driving licence and take vehicle condition photos at pickup/return.',
-        NSPhotoLibraryUsageDescription: 'Used to attach a photo of your driving licence.',
         NSFaceIDUsageDescription: 'Used to unlock the app quickly and securely.',
         NSLocationWhenInUseUsageDescription:
           'Used to sort pickup locations by distance from you. Optional — you can always choose one manually.',
@@ -74,8 +71,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         backgroundColor: '#0f6b4c',
       },
       permissions: [
-        'CAMERA',
-        'READ_MEDIA_IMAGES',
         'USE_BIOMETRIC',
         'USE_FINGERPRINT',
         'ACCESS_COARSE_LOCATION',
@@ -88,18 +83,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     plugins: [
       'expo-router',
+      'expo-asset',
+      'expo-font',
+      '@react-native-community/datetimepicker',
       'expo-secure-store',
       'expo-system-ui',
       'expo-localization',
       'expo-local-authentication',
-      [
-        'expo-image-picker',
-        {
-          photosPermission: 'Used to attach a photo of your driving licence.',
-          cameraPermission:
-            'Used to photograph your driving licence and take vehicle condition photos at pickup/return.',
-        },
-      ],
       [
         'expo-location',
         {
@@ -124,8 +114,6 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       [
         'expo-build-properties',
         {
-          // SDK 51 predates the top-level `newArchEnabled` config field — this plugin is the
-          // documented way to opt into the New Architecture on this SDK.
           ios: { deploymentTarget: '15.1', newArchEnabled: true },
           android: { minSdkVersion: 24, newArchEnabled: true },
         },

@@ -1,8 +1,14 @@
 import { useI18n } from '@carrental/i18n/react';
-import { BottomSheetModal, BottomSheetScrollView, BottomSheetTextInput } from '@gorhom/bottom-sheet';
+import {
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetScrollView,
+  BottomSheetTextInput,
+  type BottomSheetBackdropProps,
+} from '@gorhom/bottom-sheet';
 import * as Location from 'expo-location';
 import { MapPin, Navigation, Search } from 'lucide-react-native';
-import { forwardRef, useMemo, useState } from 'react';
+import { forwardRef, useCallback, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { useLocations, type Location as RentalLocation } from '../../lib/api/hooks/use-discovery';
@@ -64,11 +70,20 @@ export const LocationPickerSheet = forwardRef<BottomSheetModal, LocationPickerSh
       return withDistance.sort((a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity));
     }, [locationsQuery.data, query, origin]);
 
+    const renderBackdrop = useCallback(
+      (props: BottomSheetBackdropProps) => (
+        <BottomSheetBackdrop {...props} disappearsOnIndex={-1} appearsOnIndex={0} pressBehavior="close" />
+      ),
+      [],
+    );
+
     return (
       <BottomSheetModal
         ref={ref}
         snapPoints={['45%', '80%']}
+        enableDynamicSizing={false}
         enablePanDownToClose
+        backdropComponent={renderBackdrop}
         backgroundStyle={{ backgroundColor: colors.card }}
       >
         <View style={{ paddingHorizontal: space(4), gap: space(3), flex: 1 }}>

@@ -110,7 +110,7 @@ function RootNavigator() {
           // the back chevron — e.g. literally "(tabs)". Android's back button is icon-only
           // regardless, so this never surfaced there. Forcing it off globally beats blanking
           // `headerBackTitle` per screen, which is exactly the approach that missed this case.
-          headerBackTitleVisible: false,
+          headerBackButtonDisplayMode: 'minimal',
           contentStyle: { backgroundColor: colors.background },
           // Hardcoded to always slide from the right regardless of locale, so a forward push in
           // Arabic looked backwards — it should slide in from the reading-start side, which is the
