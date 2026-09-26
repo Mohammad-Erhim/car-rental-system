@@ -24,7 +24,7 @@
       "channel": "production",
       "env": {
         "APP_VARIANT": "production",
-        "EXPO_PUBLIC_API_URL": "https://api.carrental.example/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://car-rental-api.mohammad-erhim.dev/v1"
       },
       "autoIncrement": true
     }

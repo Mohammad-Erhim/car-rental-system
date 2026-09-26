@@ -24,12 +24,18 @@ export function getApiOrigin(): string {
 
 export const CORRELATION_PREFIX = 'mobile';
 
-/** Vehicle/category photos come back from the API as a signed but *relative* path
- *  (`/api/v1/assets/<key>?exp=...&sig=...` — see `object-storage.service.ts#signRef`), because on
- *  the web that resolves fine against the page's own origin. React Native's `Image` has no such
- *  origin to resolve against — a relative `uri` just fails to load, silently, with the image slot
- *  left blank instead of falling back to the app's own placeholder art. Absolutize it against the
- *  configured API origin before handing it to `<Image>`. */
+/** Vehicle/category photos come back from the API as a signed but *relative* path, always in the
+ *  browser-facing form `/api/v1/assets/<key>?exp=...&sig=...` (see `object-storage.service.ts#
+ *  signRef`) — correct when resolved against a browser-facing origin whose own reverse-proxy
+ *  location keeps that `/api` prefix. React Native's `Image` has no page origin to resolve a
+ *  relative `uri` against at all, so this absolutizes it against `getApiOrigin()` instead — but a
+ *  dedicated mobile API domain (see `deploy/nginx.edge.conf`'s `${API_DOMAIN}` block) expects the
+ *  `/api` prefix stripped (its proxy re-adds it), matching `EXPO_PUBLIC_API_URL` being configured
+ *  as `.../v1` rather than `.../api/v1` for that domain. Rewrite the server's `/api/v1` prefix to
+ *  whatever prefix `getApiBaseUrl()` itself uses, so both origin shapes resolve correctly. */
 export function resolveAssetUrl(url: string): string {
-  return /^https?:\/\//i.test(url) ? url : `${getApiOrigin()}${url}`;
+  if (/^https?:\/\//i.test(url)) return url;
+  const basePath = new URL(getApiBaseUrl()).pathname.replace(/\/$/, '');
+  const path = url.replace(/^\/api\/v1(?=\/|$)/, basePath);
+  return `${getApiOrigin()}${path}`;
 }

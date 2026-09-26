@@ -13,3 +13,6 @@ expo-env.d.ts
 # native builds if ever prebuilt locally
 /ios
 /android
+
+# release signing key + passwords - never commit
+/credentials
