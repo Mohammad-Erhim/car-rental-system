@@ -52,6 +52,13 @@ On a physical device, `EXPO_PUBLIC_API_URL` in `.env` must be your machine's LAN
 | `pnpm prebuild` | Generates native `ios/`/`android/` projects (gitignored) |
 | `pnpm build:dev` / `:preview` / `:production` | EAS builds per `eas.json` profile |
 
+## Publishing to Google Play
+
+Store listing assets (icon, feature graphic, screenshots, promo video), the listing copy and a
+step-by-step publishing guide live in [`google-play/`](./google-play/README.md).
+`pnpm build:production` builds the Play `.aab`; `pnpm build:production:apk` builds a sideloadable
+`.apk` from the same profile.
+
 ## Structure
 
 ```

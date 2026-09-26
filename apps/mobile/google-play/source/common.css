@@ -1,0 +1,106 @@
+/* Shared design system for every store asset (screenshots, feature graphic, video). */
+@font-face { font-family: 'Jakarta'; font-weight: 500; src: url(fonts/plus-jakarta-sans-latin-500-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Jakarta'; font-weight: 600; src: url(fonts/plus-jakarta-sans-latin-600-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Jakarta'; font-weight: 700; src: url(fonts/plus-jakarta-sans-latin-700-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Jakarta'; font-weight: 800; src: url(fonts/plus-jakarta-sans-latin-800-normal.woff2) format('woff2'); }
+
+:root {
+  /* Sampled from the app itself (icon, light + dark captures). */
+  --brand: #0f6b4c;        /* launcher icon green */
+  --emerald: #0c7951;      /* light-theme primary */
+  --emerald-hi: #16a06b;
+  --emerald-lo: #064a33;
+  --mint: #49d498;         /* dark-theme primary */
+  --mint-soft: #bff0d9;
+  --ink: #0b111e;          /* dark-theme background */
+  --ink-2: #111a2e;
+  --ink-3: #18233b;
+  --paper: #f3f8f5;
+  --paper-2: #e3f1ea;
+  --slate: #475569;
+  --slate-night: #a9b6c9;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { font-family: 'Jakarta', system-ui, sans-serif; -webkit-font-smoothing: antialiased; text-rendering: geometricPrecision; }
+
+/* ---------- Device ---------- */
+.phone {
+  position: absolute;
+  border-radius: calc(var(--pw) * 0.125);
+  padding: calc(var(--pw) * 0.026);
+  width: var(--pw);
+  background:
+    linear-gradient(155deg, #4a505a 0%, #1b1e23 9%, #0a0b0d 38%, #0a0b0d 70%, #23272d 92%, #4a505a 100%);
+  box-shadow:
+    inset 0 0 0 calc(var(--pw) * 0.003) rgba(255, 255, 255, 0.16),
+    inset 0 0 0 calc(var(--pw) * 0.009) #050506;
+  transform-origin: 50% 50%;
+}
+.phone .screen {
+  display: block; width: 100%; height: auto;
+  border-radius: calc(var(--pw) * 0.1);
+  overflow: hidden;
+}
+.phone .screen img { display: block; width: 100%; height: auto; }
+.phone .btn { position: absolute; right: calc(var(--pw) * -0.008); width: calc(var(--pw) * 0.011); border-radius: 0 6px 6px 0; background: linear-gradient(90deg, #15171b, #3b4048); }
+.phone .btn.p { top: 21%; height: 7%; }
+.phone .btn.v { top: 32%; height: 12%; }
+.phone.day  { filter: drop-shadow(0 60px 70px rgba(6, 74, 51, 0.28)) drop-shadow(0 18px 24px rgba(11, 17, 30, 0.22)); }
+.phone.night{ filter: drop-shadow(0 70px 90px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 90px rgba(73, 212, 152, 0.14)); }
+
+/* ---------- Zoomed callout cropped from a capture ---------- */
+.callout {
+  position: absolute; overflow: hidden;
+  background-repeat: no-repeat;
+  border-radius: 44px;
+}
+.callout.day   { box-shadow: 0 50px 90px -20px rgba(6, 74, 51, 0.38), 0 16px 32px -12px rgba(11, 17, 30, 0.25), 0 0 0 6px #fff; }
+.callout.night { box-shadow: 0 60px 110px -20px rgba(0, 0, 0, 0.75), 0 0 0 3px rgba(73, 212, 152, 0.55), 0 0 80px rgba(73, 212, 152, 0.22); }
+.callout.fade-r { -webkit-mask-image: linear-gradient(90deg, #000 78%, transparent 99%); }
+
+/* ---------- Type ---------- */
+.eyebrow {
+  position: absolute; display: inline-flex; align-items: center; gap: 18px;
+  font-weight: 800; font-size: 31px; letter-spacing: 0.2em; text-transform: uppercase;
+  padding: 16px 30px 16px 22px; border-radius: 999px; white-space: nowrap;
+}
+.eyebrow svg { width: 40px; height: 40px; }
+.day .eyebrow, .eyebrow.day { color: var(--emerald); background: rgba(12, 121, 81, 0.1); box-shadow: inset 0 0 0 2px rgba(12, 121, 81, 0.14); }
+.night .eyebrow, .eyebrow.night { color: var(--mint); background: rgba(73, 212, 152, 0.1); box-shadow: inset 0 0 0 2px rgba(73, 212, 152, 0.22); }
+
+.headline {
+  position: absolute; font-weight: 800; font-size: 124px; line-height: 1.02; letter-spacing: -0.04em;
+}
+.day .headline, .headline.day { color: var(--ink); }
+.night .headline, .headline.night { color: #fff; }
+.headline em { font-style: normal; }
+.day .headline em, .headline.day em {
+  color: var(--emerald);
+  background: linear-gradient(transparent 64%, rgba(73, 212, 152, 0.42) 64%, rgba(73, 212, 152, 0.42) 90%, transparent 90%);
+  padding: 0 6px; margin: 0 -6px;
+}
+.night .headline em, .headline.night em { color: var(--mint); text-shadow: 0 0 60px rgba(73, 212, 152, 0.45); }
+
+.sub { position: absolute; font-weight: 500; font-size: 46px; line-height: 1.35; letter-spacing: -0.01em; }
+.day .sub, .sub.day { color: var(--slate); }
+.night .sub, .sub.night { color: var(--slate-night); }
+
+/* ---------- Floating chips ---------- */
+.chip {
+  position: absolute; display: inline-flex; align-items: center; gap: 22px; white-space: nowrap;
+  font-weight: 700; font-size: 40px; letter-spacing: -0.01em;
+  padding: 18px 40px 18px 18px; border-radius: 999px;
+}
+.chip .ic { width: 76px; height: 76px; border-radius: 50%; display: grid; place-items: center; }
+.chip .ic svg { width: 40px; height: 40px; }
+.chip.day { background: #fff; color: var(--ink); box-shadow: 0 30px 60px -18px rgba(6, 74, 51, 0.35), 0 8px 16px -8px rgba(11, 17, 30, 0.2); }
+.chip.day .ic { background: var(--emerald); color: #fff; }
+.chip.night { background: rgba(17, 26, 46, 0.92); color: #fff; box-shadow: 0 30px 70px -18px rgba(0, 0, 0, 0.8), inset 0 0 0 2px rgba(255, 255, 255, 0.08); }
+.chip.night .ic { background: var(--mint); color: var(--ink); }
+
+/* ---------- Brand lockup (uses the real launcher icon) ---------- */
+.lockup { position: absolute; display: flex; align-items: center; gap: 26px; font-weight: 800; letter-spacing: -0.03em; }
+.lockup img { display: block; border-radius: 24%; }
+.day .lockup, .lockup.day { color: var(--ink); }
+.night .lockup, .lockup.night { color: #fff; }

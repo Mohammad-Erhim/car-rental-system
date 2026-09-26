@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="common.css">
+<style>
+  body { width: 1024px; height: 500px; position: relative; overflow: hidden;
+    background: radial-gradient(120% 140% at 0% 0%, #17865c 0%, #0f6b4c 38%, #084531 72%, #06301f 100%); }
+  .layer { position: absolute; left: 0; top: 0; width: 1024px; height: 500px; }
+  .fg-head { position: absolute; left: 52px; top: 136px; font-weight: 800; font-size: 47px; line-height: 1.04; letter-spacing: -0.04em; color: #fff; z-index: 10; }
+  .fg-head em { font-style: normal; color: var(--mint); text-shadow: 0 0 30px rgba(73, 212, 152, 0.45); }
+  .fg-sub { position: absolute; left: 52px; top: 268px; display: flex; flex-direction: column; gap: 11px; z-index: 10; }
+  .fg-sub div { display: flex; align-items: center; gap: 11px; color: rgba(255,255,255,.9); font-weight: 600; font-size: 18.5px; letter-spacing: -0.005em; }
+  .fg-sub svg { width: 16px; height: 16px; color: var(--ink); background: var(--mint); border-radius: 50%; padding: 4px; box-sizing: content-box; }
+  .glow { position: absolute; border-radius: 50%; }
+</style>
+<script src="icons.js"></script>
+<script src="lib.js"></script>
+</head>
+<body>
+<div id="bg" class="layer"></div>
+<script>
+const { el, icon, phone, mapSVG, smoothPath, lockup, place } = Kit;
+const bg = document.getElementById('bg');
+bg.insertAdjacentHTML('beforeend', mapSVG(1024, 500, { seed: 5, color: '#ffffff', minor: 0.06, major: 0.07 }).replace(/stroke-width="(\d+)"/g, (m, w) => `stroke-width="${(w * 0.32).toFixed(1)}"`));
+const g = el('div', 'glow', bg);
+Object.assign(g.style, { left: '560px', top: '-120px', width: '620px', height: '620px', background: 'radial-gradient(circle, rgba(73,212,152,.45) 0%, transparent 65%)' });
+const d = smoothPath([[-40, 470], [240, 430], [520, 330], [760, 380], [1064, 250]], 0.6);
+bg.insertAdjacentHTML('beforeend', `<svg class="layer" viewBox="0 0 1024 500">
+  <defs><filter id="gl"><feGaussianBlur stdDeviation="7"/></filter></defs>
+  <path d="${d}" fill="none" stroke="#49d498" stroke-width="22" opacity=".45" filter="url(#gl)" stroke-linecap="round"/>
+  <path d="${d}" fill="none" stroke="#0b111e" stroke-opacity=".55" stroke-width="18" stroke-linecap="round"/>
+  <path d="${d}" fill="none" stroke="#49d498" stroke-width="9" stroke-linecap="round"/>
+  <path d="${d}" fill="none" stroke="#0b111e" stroke-width="1.6" stroke-dasharray="9 8" stroke-linecap="round" opacity=".6"/></svg>`);
+
+lockup(document.body, { x: 52, y: 58, size: 50, theme: 'night', font: 27 }).style.gap = '14px';
+document.body.insertAdjacentHTML('beforeend', `<div class="fg-head">Rent the <em>right car</em><br>in a few taps</div>
+<div class="fg-sub">
+  <div>${icon('check', { stroke: 3.4 }) || ''}Live availability at your pickup point</div>
+  <div>${icon('check', { stroke: 3.4 }) || ''}Know your trip price up front</div>
+  <div>${icon('check', { stroke: 3.4 }) || ''}Choose the exact car you’ll drive</div>
+</div>`);
+
+// phones: dark results behind, light home in front — both bleed off the bottom edge
+phone(document.body, { src: 'captures/dark-results.png', x: 790, y: 64, w: 214, theme: 'night', z: 4,
+  transform: 'perspective(1400px) rotateY(-16deg) rotateZ(7deg)' });
+phone(document.body, { src: 'captures/light-home.png', x: 612, y: 92, w: 232, theme: 'day', z: 6,
+  transform: 'perspective(1400px) rotateY(12deg) rotateZ(-6deg)' });
+document.querySelectorAll('.phone').forEach((p) => { p.style.filter = 'drop-shadow(0 26px 30px rgba(0,0,0,.45))'; });
+document.body.dataset.ready = '1';
+</script>
+</body>
+</html>

@@ -1,0 +1,532 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="common.css">
+<style>
+  body { margin: 0; overflow: hidden; background: #000; }
+  #stage { position: relative; overflow: hidden; }
+  .world { position: absolute; inset: 0; overflow: hidden; }
+  .fill { position: absolute; inset: 0; }
+  .abs { position: absolute; left: 0; top: 0; }
+  .phone { left: 0; top: 0; }
+  .phone .screen { position: relative; aspect-ratio: 1344 / 2992; background: #000; }
+  .phone .screen img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+  .tx { position: absolute; }
+  .tx .eyebrow { position: relative; }
+  .v-head { font-weight: 800; letter-spacing: -0.04em; line-height: 1.04; margin-top: 26px; }
+  .v-head .line { display: block; overflow: hidden; padding: 0 0.08em 0.1em; margin: 0 -0.08em -0.1em; }
+  .v-head .line > span { display: inline-block; white-space: nowrap; }
+  .v-head em { font-style: normal; }
+  .day .v-head { color: var(--ink); }
+  .day .v-head em { color: var(--emerald); background: linear-gradient(transparent 64%, rgba(73,212,152,.42) 64%, rgba(73,212,152,.42) 90%, transparent 90%); }
+  .night .v-head, .brand .v-head { color: #fff; }
+  .night .v-head em, .brand .v-head em { color: var(--mint); text-shadow: 0 0 50px rgba(73,212,152,.45); }
+  .v-sub { font-weight: 500; line-height: 1.4; margin-top: 22px; }
+  .day .v-sub { color: var(--slate); }
+  .night .v-sub { color: var(--slate-night); }
+  .tx.right { text-align: right; }
+  .tx.right .eyebrow { margin-left: auto; }
+  .ripple { position: absolute; border-radius: 50%; pointer-events: none; z-index: 60; }
+  .finger { position: absolute; border-radius: 50%; z-index: 61; background: rgba(255,255,255,.55); box-shadow: 0 8px 24px rgba(0,0,0,.35), inset 0 0 0 3px rgba(255,255,255,.9); }
+  .badge { position: absolute; border-radius: 50%; display: grid; place-items: center; z-index: 45; }
+  .badge.day { background: var(--emerald); color: #fff; box-shadow: 0 0 0 7px #fff, 0 20px 40px -8px rgba(6,74,51,.5); }
+  .badge svg { width: 50%; height: 50%; }
+  .car { position: absolute; left: 0; top: 0; z-index: 3; background-repeat: no-repeat; }
+  .moon, .sun { display: inline-block; }
+  .moon svg, .sun svg { width: 100%; height: 100%; }
+  .pill { display: inline-flex; align-items: center; gap: 18px; font-weight: 800; border-radius: 999px; background: var(--mint); color: var(--ink); box-shadow: 0 20px 60px rgba(73,212,152,.35); }
+  .pill svg { width: 1.1em; height: 1.1em; }
+  .blob { position: absolute; border-radius: 50%; }
+</style>
+<script src="icons.js"></script>
+<script src="lib.js"></script>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+const { el, icon, mapSVG, smoothPath, mulberry32 } = Kit;
+const q = new URLSearchParams(location.search);
+const W = +q.get('w') || 1920, H = +q.get('h') || 1080, V = H > W;
+const DURATION = 32;
+const stage = document.getElementById('stage');
+Object.assign(stage.style, { width: W + 'px', height: H + 'px' });
+document.body.style.width = W + 'px'; document.body.style.height = H + 'px';
+
+/* ---------------- time helpers ---------------- */
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const E = {
+  lin: (t) => t,
+  out: (t) => 1 - Math.pow(1 - t, 3),
+  in: (t) => t * t * t,
+  io: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2),
+  expo: (t) => (t >= 1 ? 1 : 1 - Math.pow(2, -10 * t)),
+  back: (t) => { const c1 = 1.5, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); },
+  quint: (t) => 1 - Math.pow(1 - t, 5),
+};
+const seg = (t, a, b, e = E.out) => e(clamp((t - a) / (b - a)));
+const lerp = (a, b, p) => a + (b - a) * p;
+/** 0→1 on [a, a+din], hold, 1→0 on [b-dout, b] */
+const env = (t, a, b, din = 0.5, dout = 0.4, ein = E.out, eout = E.in) => (t < b - dout ? seg(t, a, a + din, ein) : 1 - seg(t, b - dout, b, eout));
+
+/* ---------------- layout ---------------- */
+const PW = V ? 560 : 430;
+const BEZ = PW * 0.026, K = (PW - 2 * BEZ) / 1344, PH = 2992 * K + 2 * BEZ;
+const PHONE = V ? { cx: 540, cy: 1920 - 56 - PH / 2 } : { cx: 1330, cy: 540 };
+const SPLIT = V ? { cx: 540, cy: 1130, s: 0.78 } : { cx: 960, cy: 540, s: 1 };
+const SEAM = V ? { cx: 505, cy: 1130 } : { cx: 960, cy: 540 };
+const TXT = V ? { x: 80, y: 130, maxW: 920, head: 84, sub: 32, eb: 22 } : { x: 150, y: 318, maxW: 860, head: 88, sub: 30, eb: 23 };
+/** stage position of a native-capture point for the main phone at rest */
+const nat = (nx, ny, cx = PHONE.cx, cy = PHONE.cy) => [cx - PW / 2 + BEZ + nx * K, cy - PH / 2 + BEZ + ny * K];
+
+/* ---------------- worlds ---------------- */
+const dayW = el('div', 'world day', stage);
+const nightW = el('div', 'world night', stage);
+const brandW = el('div', 'world brand', stage);
+dayW.style.zIndex = 1; nightW.style.zIndex = 2; brandW.style.zIndex = 4;
+
+function background(world, theme) {
+  const bg = el('div', 'fill', world);
+  bg.style.background = theme === 'day'
+    ? 'linear-gradient(180deg, #f7fbf9 0%, #e9f5ef 55%, #dcefe5 100%)'
+    : theme === 'night' ? 'linear-gradient(180deg, #0e1628 0%, #0b111e 60%, #080d17 100%)'
+    : 'radial-gradient(120% 120% at 20% 0%, #17865c 0%, #0f6b4c 40%, #084531 75%, #06301f 100%)';
+  const blobs = theme === 'day'
+    ? [[0.25, 0.35, 0.55, 'rgba(73,212,152,.26)'], [0.8, 0.7, 0.6, 'rgba(73,212,152,.3)'], [0.95, 0.05, 0.4, 'rgba(12,121,81,.1)']]
+    : theme === 'night' ? [[0.2, 0.8, 0.6, 'rgba(12,121,81,.38)'], [0.75, 0.35, 0.6, 'rgba(73,212,152,.14)'], [0.95, 0.95, 0.5, 'rgba(12,121,81,.3)']]
+    : [[0.5, 0.45, 0.6, 'rgba(73,212,152,.35)']];
+  const M = Math.max(W, H);
+  blobs.forEach(([x, y, r, c]) => {
+    const b = el('div', 'blob', bg);
+    Object.assign(b.style, { left: x * W - r * M + 'px', top: y * H - r * M + 'px', width: 2 * r * M + 'px', height: 2 * r * M + 'px', background: `radial-gradient(circle, ${c} 0%, transparent 70%)` });
+  });
+  const map = el('div', 'abs', bg);
+  map.innerHTML = mapSVG(W + 400, H + 200, { seed: theme === 'brand' ? 5 : 11, color: theme === 'day' ? '#0c7951' : theme === 'night' ? '#9fb4d6' : '#ffffff', minor: theme === 'day' ? 0.06 : 0.055, major: 0.08 })
+    .replace(/stroke-width="(\d+)"/g, (m, w) => `stroke-width="${(w * (V ? 0.75 : 0.6)).toFixed(1)}"`);
+  return { bg, map };
+}
+const dayBg = background(dayW, 'day');
+const nightBg = background(nightW, 'night');
+const brandBg = background(brandW, 'brand');
+
+/* ---------------- routes (+ a car that drives them) ---------------- */
+const ROUTE = V ? [[-120, 1520], [200, 1380], [560, 1560], [900, 1420], [1200, 1330]]
+                : [[-120, 930], [330, 820], [760, 940], [1250, 860], [1700, 690], [2050, 740]];
+const routeD = smoothPath(ROUTE, 0.6);
+function routeLayer(world, theme) {
+  const holder = el('div', 'fill', world);
+  holder.style.zIndex = 2;
+  const base = theme === 'day'
+    ? `<path d="${routeD}" fill="none" stroke="#fff" stroke-width="40" stroke-linecap="round"/><path d="${routeD}" fill="none" stroke="#0c7951" stroke-width="24" stroke-linecap="round"/>`
+    : `<defs><filter id="rg${theme}" x="-10%" y="-50%" width="120%" height="200%"><feGaussianBlur stdDeviation="14"/></filter></defs>
+       <path d="${routeD}" fill="none" stroke="#49d498" stroke-width="44" stroke-linecap="round" opacity=".35" filter="url(#rg${theme})"/>
+       <path d="${routeD}" fill="none" stroke="#18233b" stroke-width="38" stroke-linecap="round"/><path d="${routeD}" fill="none" stroke="#49d498" stroke-width="19" stroke-linecap="round"/>`;
+  holder.innerHTML = `<svg class="abs" width="${W}" height="${H}">${base}</svg>
+    <svg class="abs" width="${W}" height="${H}"><path class="dash" d="${routeD}" fill="none" stroke="${theme === 'day' ? '#fff' : '#0b111e'}" stroke-width="4" stroke-dasharray="22 20" stroke-linecap="round" opacity="${theme === 'day' ? 0.9 : 0.7}"/></svg>`;
+  const car = el('div', 'car', holder);
+  // the launcher-icon car (white body, green hubs), cropped to its bounding box
+  const cw = V ? 104 : 96, sc = cw / 546;
+  Object.assign(car.style, { width: cw + 'px', height: 332 * sc + 'px', backgroundImage: 'url(../../assets/adaptive-icon.png)',
+    backgroundSize: `${1024 * sc}px ${1024 * sc}px`, backgroundPosition: `${-239 * sc}px ${-393 * sc}px`,
+    filter: theme === 'day' ? 'drop-shadow(0 6px 8px rgba(6,74,51,.45))' : 'drop-shadow(0 0 12px rgba(73,212,152,.7))' });
+  return { dash: holder.querySelector('.dash'), car, ch: 332 * sc, cw };
+}
+const dayRoute = routeLayer(dayW, 'day');
+const nightRoute = routeLayer(nightW, 'night');
+const probe = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+probe.setAttribute('d', routeD);
+const probeSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+probeSvg.appendChild(probe); document.body.appendChild(probeSvg);
+const ROUTE_LEN = probe.getTotalLength();
+
+/* ---------------- phones ---------------- */
+const KEYS = ['home', 'results', 'detail'];
+function makePhone(world, theme, keys = KEYS, z = 20) {
+  const n = el('div', `phone ${theme}`, world);
+  n.style.setProperty('--pw', PW + 'px');
+  n.style.zIndex = z;
+  n.style.transformOrigin = '50% 50%';
+  const scr = el('div', 'screen', n);
+  const layers = {};
+  for (const k of keys) {
+    const im = el('img', '', scr);
+    im.src = `captures/${theme === 'day' ? 'light' : 'dark'}-${k}.png`;
+    layers[k] = im;
+  }
+  el('div', 'btn p', n); el('div', 'btn v', n);
+  return { n, layers };
+}
+const dayPhone = makePhone(dayW, 'day');
+const nightPhone = makePhone(nightW, 'night');
+const fanL = makePhone(nightW, 'night', ['home'], 18);
+const fanR = makePhone(nightW, 'night', ['results'], 18);
+
+const SWITCH = [{ t: 0, key: 'home', dir: 1 }, { t: 7.0, key: 'results', dir: 1 }, { t: 11.0, key: 'detail', dir: 1 },
+  { t: 15.4, key: 'results', dir: -1 }, { t: 19.1, key: 'home', dir: 1 }, { t: 23.0, key: 'detail', dir: 1 }];
+function applyScreens(ph, t) {
+  let i = 0;
+  for (let j = 0; j < SWITCH.length; j++) if (t >= SWITCH[j].t) i = j;
+  const cur = SWITCH[i], prev = SWITCH[i - 1];
+  const p = i > 0 ? seg(t, cur.t, cur.t + 0.65, E.io) : 1;
+  for (const k of KEYS) { const im = ph.layers[k]; im.style.display = 'none'; im.style.transform = ''; im.style.filter = ''; im.style.zIndex = 0; }
+  const a = ph.layers[cur.key];
+  a.style.display = 'block'; a.style.zIndex = 2;
+  a.style.transform = `translateX(${(1 - p) * 100 * cur.dir}%)`;
+  a.style.boxShadow = p < 1 ? '-20px 0 40px rgba(0,0,0,.25)' : 'none';
+  if (prev && p < 1 && prev.key !== cur.key) {
+    const b = ph.layers[prev.key];
+    b.style.display = 'block'; b.style.zIndex = 1;
+    b.style.transform = `translateX(${-p * 28 * cur.dir}%)`;
+    b.style.filter = `brightness(${1 - 0.25 * p})`;
+  }
+}
+
+function phonePose(t) {
+  // entrance, split move, outro move — everything else floats gently
+  const enter = seg(t, 3.0, 4.2, E.quint);
+  let cx = PHONE.cx, cy = PHONE.cy + (1 - enter) * (H * 0.95), s = 1;
+  let rx = (1 - enter) * 38, ry = (1 - enter) * (V ? -16 : -28), rz = (1 - enter) * 6;
+  const toSplit = seg(t, 15.4, 16.1, E.io) - seg(t, 18.8, 19.5, E.io);
+  cx = lerp(cx, SPLIT.cx, toSplit); cy = lerp(cy, SPLIT.cy, toSplit); s = lerp(s, SPLIT.s, toSplit);
+  const out = seg(t, 26.9, 27.8, E.io);
+  cx = lerp(cx, V ? 540 : 960, out); cy = lerp(cy, V ? H * 0.53 : 540, out); s = lerp(s, V ? 0.86 : 0.98, out);
+  cy += Math.sin(t * 1.25) * 6 * enter;
+  ry += Math.sin(t * 0.7) * 1.2 * enter;
+  return { cx, cy, s, rx, ry, rz };
+}
+function poseTransform({ cx, cy, s, rx = 0, ry = 0, rz = 0 }) {
+  return `translate3d(${cx - PW / 2}px, ${cy - PH / 2}px, 0) perspective(2400px) rotateX(${rx}deg) rotateY(${ry}deg) rotateZ(${rz}deg) scale(${s})`;
+}
+
+/* ---------------- text blocks ---------------- */
+function textBlock(world, { eyebrow, ic, lines, sub, x = TXT.x, y = TXT.y, right = false, head = TXT.head, maxW = TXT.maxW }) {
+  const n = el('div', 'tx' + (right ? ' right' : ''), world);
+  n.style.zIndex = 50;
+  if (right) { n.style.right = x + 'px'; } else { n.style.left = x + 'px'; }
+  n.style.top = y + 'px';
+  n.style.width = maxW + 'px';
+  let eb = null;
+  if (eyebrow) {
+    eb = el('div', 'eyebrow', n, icon(ic, { stroke: 2.4 }) + `<span>${eyebrow}</span>`);
+    Object.assign(eb.style, { fontSize: TXT.eb + 'px', padding: `${TXT.eb * 0.5}px ${TXT.eb}px ${TXT.eb * 0.5}px ${TXT.eb * 0.7}px`, gap: TXT.eb * 0.55 + 'px' });
+    eb.querySelector('svg').style.cssText = `width:${TXT.eb * 1.3}px;height:${TXT.eb * 1.3}px`;
+    if (!right) eb.style.display = 'inline-flex';
+  }
+  const hd = el('div', 'v-head', n);
+  hd.style.fontSize = head + 'px';
+  if (!eyebrow) hd.style.marginTop = 0;
+  const spans = lines.map((l) => el('span', 'line', hd, `<span>${l}</span>`).firstChild);
+  let sb = null;
+  if (sub) { sb = el('div', 'v-sub', n, sub); sb.style.fontSize = TXT.sub + 'px'; sb.style.maxWidth = maxW * 0.95 + 'px'; if (right) sb.style.marginLeft = 'auto'; }
+  return { n, eb, hd, spans, sb, maxW };
+}
+function fitText(b) {
+  const w = Math.max(...b.spans.map((s) => s.getBoundingClientRect().width));
+  if (w > b.maxW) b.hd.style.fontSize = parseFloat(b.hd.style.fontSize) * (b.maxW / w) + 'px';
+}
+function animText(b, t, tin, tout) {
+  const vis = t >= tin - 0.01 && t <= tout + 0.45;
+  b.n.style.display = vis ? 'block' : 'none';
+  if (!vis) return;
+  const o = seg(t, tout, tout + 0.45, E.in);
+  b.n.style.opacity = 1 - o;
+  b.n.style.transform = `translateY(${-o * 40}px)`;
+  if (b.eb) { const p = seg(t, tin, tin + 0.5); b.eb.style.opacity = p; b.eb.style.transform = `translateY(${(1 - p) * 24}px)`; }
+  b.spans.forEach((s, i) => { const p = seg(t, tin + 0.12 + i * 0.1, tin + 0.9 + i * 0.1, E.expo); s.style.transform = `translateY(${(1 - p) * 115}%)`; });
+  if (b.sb) { const p = seg(t, tin + 0.45, tin + 1.0); b.sb.style.opacity = p; b.sb.style.transform = `translateY(${(1 - p) * 18}px)`; }
+}
+
+const T = {
+  hero: textBlock(dayW, { eyebrow: 'Car rental, done right', ic: 'sparkles', lines: ['Rent the <em>right car</em>', 'in a few taps'], sub: 'Transparent pricing, easy changes, and pickup where you need it.' }),
+  avail: textBlock(dayW, { eyebrow: 'Live availability', ic: 'circle-check', lines: ['See what’s', '<em>available</em>, right now'], sub: 'Real availability for every class at your pickup point.' }),
+  price: textBlock(dayW, { eyebrow: 'Transparent pricing', ic: 'receipt', lines: ['Know your', '<em>trip price</em> up front'], sub: 'See the price for your trip before you reserve.' }),
+  light: textBlock(dayW, { eyebrow: 'Light & dark mode', ic: 'sun', lines: ['Light <em>by day.</em>'], y: V ? 140 : 150, x: V ? 80 : 130, head: V ? 124 : 100 }),
+  dark: textBlock(nightW, { lines: [`<span class="moon" style="width:.9em;height:.9em;vertical-align:-0.08em;margin-right:.25em;color:var(--mint)">${icon('moon', { stroke: 2.2 })}</span><em>Dark</em> by night.`], right: true, x: V ? 70 : 64, y: V ? 1700 : 830, head: V ? 100 : 90 }),
+  pickup: textBlock(nightW, { eyebrow: 'Flexible pickup', ic: 'map-pin', lines: ['Pick up where', '<em>you need it</em>'], sub: 'Choose your branch and dates, then search.' }),
+  choose: textBlock(nightW, { eyebrow: 'Your car, your choice', ic: 'car-front', lines: ['Choose the', '<em>exact car</em> you’ll drive'], sub: 'Pick a specific car, or any available car in the class.' }),
+};
+
+/* ---------------- callouts that lift out of the screen ---------------- */
+function lift(world, theme, { key, rect, s, dx = 0, dy = 0, rot = 0, fade = false, z = 40 }) {
+  const [x0, y0, x1, y1] = rect;
+  const w = (x1 - x0) * s, h = (y1 - y0) * s;
+  const n = el('div', 'callout ' + theme + (fade ? ' fade-r' : ''), world);
+  const src = `captures/${theme === 'day' ? 'light' : 'dark'}-${key}.png`;
+  Object.assign(n.style, { width: w + 'px', height: h + 'px', left: 0, top: 0, backgroundImage: `url(${src})`,
+    backgroundSize: `${1344 * s}px ${2992 * s}px`, backgroundPosition: `${-x0 * s}px ${-y0 * s}px`, zIndex: z, boxShadow: 'none', borderRadius: (V ? 30 : 24) + 'px' });
+  const [ix, iy] = nat((x0 + x1) / 2, (y0 + y1) / 2);
+  return { n, w, h, s, rect, ix, iy, fx: ix + dx, fy: iy + dy, rot, theme };
+}
+function animLift(c, t, a, b) {
+  const p = t < b - 0.45 ? seg(t, a, a + 0.7, E.back) : 1 - seg(t, b - 0.45, b, E.io);
+  const vis = t > a && t < b;
+  c.n.style.display = vis ? 'block' : 'none';
+  if (!vis) return 0;
+  const pc = clamp(p, 0, 1.2);
+  const sc = lerp(K / c.s, 1, pc);
+  const x = lerp(c.ix, c.fx, pc) - c.w / 2, y = lerp(c.iy, c.fy, pc) - c.h / 2;
+  c.n.style.transform = `translate(${x}px, ${y}px) rotate(${c.rot * pc}deg) scale(${sc})`;
+  const al = clamp(pc);
+  c.n.style.boxShadow = c.theme === 'day'
+    ? `0 ${40 * al}px ${80 * al}px -20px rgba(6,74,51,${0.4 * al}), 0 0 0 ${5 * al}px rgba(255,255,255,${al})`
+    : `0 ${50 * al}px ${90 * al}px -20px rgba(0,0,0,${0.75 * al}), 0 0 0 ${3 * al}px rgba(73,212,152,${0.6 * al}), 0 0 ${70 * al}px rgba(73,212,152,${0.25 * al})`;
+  return pc;
+}
+const LS = V ? 1.34 : 1; // callouts are relatively larger in portrait
+const C = {
+  econ:   lift(dayW, 'day', { key: 'results', rect: [24, 624, 1320, 1072], s: 0.52 * LS, dx: V ? 0 : 70, dy: V ? 60 : 46, rot: -2.5 }),
+  price:  lift(dayW, 'day', { key: 'detail', rect: [24, 1764, 1320, 2118], s: 0.56 * LS, dx: V ? 0 : 40, dy: -20, rot: 2 }),
+  pick:   lift(dayW, 'day', { key: 'detail', rect: [24, 2170, 1344, 2650], s: 0.52 * LS, dx: V ? -20 : 30, dy: -30, rot: -2, fade: true }),
+  loc:    lift(nightW, 'night', { key: 'home', rect: [66, 505, 1278, 748], s: 0.6 * LS, dx: V ? 0 : 40, rot: -2 }),
+  search: lift(nightW, 'night', { key: 'home', rect: [66, 1340, 1278, 1540], s: 0.58 * LS, dx: V ? 0 : 30, rot: 1.5 }),
+  specs:  lift(nightW, 'night', { key: 'detail', rect: [24, 876, 1320, 1424], s: 0.46 * LS, dx: V ? 40 : 90, dy: -10, rot: 2 }),
+  choose: lift(nightW, 'night', { key: 'detail', rect: [24, 2170, 1344, 2650], s: 0.54 * LS, dx: V ? -30 : 20, dy: -40, rot: -2, fade: true }),
+};
+
+/* ---------------- chips, badges, taps ---------------- */
+function makeChip(world, theme, ic, text) {
+  const n = el('div', `chip ${theme}`, world, `<span class="ic">${icon(ic, { stroke: 2.4 })}</span><span>${text}</span>`);
+  const f = V ? 30 : 24;
+  Object.assign(n.style, { fontSize: f + 'px', padding: `${f * 0.4}px ${f}px ${f * 0.4}px ${f * 0.4}px`, gap: f * 0.55 + 'px', left: 0, top: 0, zIndex: 55 });
+  const icn = n.querySelector('.ic'); icn.style.width = icn.style.height = f * 1.9 + 'px';
+  icn.querySelector('svg').style.cssText = `width:${f}px;height:${f}px`;
+  return n;
+}
+function chipAt(world, theme, ic, text, nx, ny, anchor = 'right') { return { n: makeChip(world, theme, ic, text), nx, ny, anchor }; }
+const CH = {
+  c1: chipAt(dayW, 'day', 'map-pin', 'Pickup where you need it', 1096, 1096),
+  c2: chipAt(dayW, 'day', 'pencil', 'Easy changes', 1530, 1530),
+  c3: chipAt(dayW, 'day', 'receipt', 'Transparent pricing', 1920, 1920),
+  lhr: chipAt(dayW, 'day', 'map-pin', 'London Heathrow Airport', 672, 440, 'center'),
+  dates: chipAt(nightW, 'night', 'calendar-days', 'Choose dates & times', 980, 985),
+};
+function animChip(c, t, a, b) {
+  const vis = t > a && t < b;
+  c.n.style.display = vis ? 'inline-flex' : 'none';
+  if (!vis) return;
+  const p = t < b - 0.35 ? seg(t, a, a + 0.55, E.back) : 1 - seg(t, b - 0.35, b, E.in);
+  const r = c.n.getBoundingClientRect();
+  const w = c.n.offsetWidth, h = c.n.offsetHeight;
+  const [px, py] = nat(0, c.ny);
+  let x;
+  if (c.anchor === 'center') x = PHONE.cx - w / 2;
+  else x = V ? W - 36 - w : Math.min(W - 70 - w, PHONE.cx + PW / 2 + 150 - w);
+  c.n.style.opacity = clamp(p * 1.5);
+  c.n.style.transform = `translate(${x + (1 - p) * 60}px, ${py - h / 2}px) scale(${lerp(0.7, 1, p)})`;
+}
+const wallet = el('div', 'badge day', dayW, icon('wallet', { stroke: 2.2 }));
+const BADGE = V ? 110 : 84;
+Object.assign(wallet.style, { width: BADGE + 'px', height: BADGE + 'px', left: 0, top: 0 });
+
+function makeTap(world, color) {
+  const r = el('div', 'ripple', world); const f = el('div', 'finger', world);
+  r.style.border = `${V ? 6 : 5}px solid ${color}`;
+  return { r, f };
+}
+const tapDay = makeTap(dayW, '#0c7951');
+const tapNight = makeTap(nightW, '#49d498');
+const tapNight2 = makeTap(nightW, '#49d498');
+function animTap(tp, t, a, x, y) {
+  const vis = t > a - 0.25 && t < a + 0.75;
+  tp.r.style.display = tp.f.style.display = vis ? 'block' : 'none';
+  if (!vis) return;
+  const R = V ? 120 : 90;
+  const p = seg(t, a, a + 0.7, E.out);
+  tp.r.style.width = tp.r.style.height = R + 'px';
+  tp.r.style.transform = `translate(${x - R / 2}px, ${y - R / 2}px) scale(${lerp(0.2, 2.1, p)})`;
+  tp.r.style.opacity = t < a ? 0 : 0.9 * (1 - p);
+  const fs = V ? 64 : 50;
+  const fp = seg(t, a - 0.25, a - 0.05, E.out) * (1 - seg(t, a + 0.2, a + 0.5, E.in));
+  tp.f.style.width = tp.f.style.height = fs + 'px';
+  const press = 1 - 0.18 * (seg(t, a - 0.08, a, E.out) - seg(t, a, a + 0.15, E.out));
+  tp.f.style.transform = `translate(${x - fs / 2}px, ${y - fs / 2}px) scale(${fp * press})`;
+  tp.f.style.opacity = fp;
+}
+
+/* ---------------- split seam (day/night) ---------------- */
+const DIR = V ? [0.45, -0.893] : [0.6, -0.8];
+const NRM = [-DIR[1], DIR[0]];
+const seam = el('div', 'fill', stage);
+seam.style.zIndex = 3; seam.style.pointerEvents = 'none';
+seam.innerHTML = `<svg class="abs" width="${W}" height="${H}"><defs><filter id="sg"><feGaussianBlur stdDeviation="9"/></filter></defs>
+  <line id="seamA" stroke="#49d498" stroke-width="16" filter="url(#sg)" opacity=".85"/><line id="seamB" stroke="#bff0d9" stroke-width="4"/></svg>`;
+function applySplit(off) {
+  const P = [SEAM.cx + NRM[0] * off, SEAM.cy + NRM[1] * off];
+  const A = [P[0] - DIR[0] * 5000, P[1] - DIR[1] * 5000], B = [P[0] + DIR[0] * 5000, P[1] + DIR[1] * 5000];
+  const Bn = [B[0] + NRM[0] * 6000, B[1] + NRM[1] * 6000], An = [A[0] + NRM[0] * 6000, A[1] + NRM[1] * 6000];
+  nightW.style.clipPath = `polygon(${A[0]}px ${A[1]}px, ${B[0]}px ${B[1]}px, ${Bn[0]}px ${Bn[1]}px, ${An[0]}px ${An[1]}px)`;
+  for (const id of ['seamA', 'seamB']) {
+    const l = document.getElementById(id);
+    l.setAttribute('x1', A[0]); l.setAttribute('y1', A[1]); l.setAttribute('x2', B[0]); l.setAttribute('y2', B[1]);
+  }
+}
+const SPAN = Math.hypot(W, H);
+
+/* ---------------- brand world (intro + outro) ---------------- */
+const BR = V ? { icon: 200, word: 104, tag: 40, y: 760 } : { icon: 150, word: 92, tag: 36, y: 400 };
+const brandRoute = V ? [[-120, 1480], [300, 1370], [640, 1520], [1200, 1340]] : [[-120, 780], [480, 690], [980, 770], [1480, 650], [2040, 700]];
+const bD = smoothPath(brandRoute, 0.6);
+const bRoute = el('div', 'fill', brandW);
+bRoute.innerHTML = `<svg class="abs" width="${W}" height="${H}"><defs><filter id="bg1"><feGaussianBlur stdDeviation="12"/></filter></defs>
+  <path id="bGlow" d="${bD}" fill="none" stroke="#49d498" stroke-width="40" opacity=".45" filter="url(#bg1)" stroke-linecap="round"/>
+  <path id="bBase" d="${bD}" fill="none" stroke="#0b111e" stroke-opacity=".5" stroke-width="34" stroke-linecap="round"/>
+  <path id="bLine" d="${bD}" fill="none" stroke="#49d498" stroke-width="16" stroke-linecap="round"/>
+  <path id="bDash" d="${bD}" fill="none" stroke="#0b111e" stroke-width="3" stroke-dasharray="20 18" opacity=".6" stroke-linecap="round"/></svg>`;
+const bLen = document.getElementById('bLine').getTotalLength();
+const lock = el('div', 'abs', brandW);
+lock.innerHTML = `<div style="display:flex;align-items:center;gap:${BR.icon * 0.22}px">
+  <img id="bIcon" src="../../assets/icon.png" style="width:${BR.icon}px;height:${BR.icon}px;border-radius:24%;box-shadow:0 30px 60px rgba(0,0,0,.35), 0 0 0 ${BR.icon * 0.02}px rgba(255,255,255,.25)">
+  <div id="bWordClip" style="overflow:hidden"><div id="bWord" style="font-weight:800;font-size:${BR.word}px;letter-spacing:-0.04em;color:#fff;white-space:nowrap">Car Rental</div></div></div>`;
+const tag = el('div', 'abs', brandW, 'Car rental, done right.');
+Object.assign(tag.style, { fontWeight: 600, fontSize: BR.tag + 'px', color: 'rgba(255,255,255,.85)', letterSpacing: '-0.01em', whiteSpace: 'nowrap' });
+const endHead = el('div', 'abs v-head', brandW, 'Rent the <em>right car</em><br>in a few taps');
+Object.assign(endHead.style, { fontSize: (V ? 92 : 76) + 'px', textAlign: 'center', whiteSpace: 'nowrap', marginTop: 0 });
+const endPill = el('div', 'abs pill', brandW, `<span>Download now</span>${icon('arrow-right', { stroke: 2.6 })}`);
+Object.assign(endPill.style, { fontSize: (V ? 40 : 32) + 'px', padding: V ? '26px 44px' : '20px 36px' });
+
+function centerOf(n) { return [n.offsetWidth, n.offsetHeight]; }
+
+/* ---------------- master render ---------------- */
+let fitted = false;
+window.render = function (t) {
+  if (!fitted) { Object.values(T).forEach(fitText); fitted = true; }
+
+  // ----- worlds visibility
+  const splitIn = seg(t, 15.9, 16.7, E.io), splitOut = seg(t, 18.6, 19.4, E.io);
+  const off = t < 15.9 ? SPAN : t < 18.6 ? lerp(SPAN * 0.75, 0, splitIn) : lerp(0, -SPAN * 0.75, splitOut);
+  nightW.style.display = t >= 15.9 ? 'block' : 'none';
+  dayW.style.display = t < 19.4 ? 'block' : 'none';
+  if (t >= 15.9) applySplit(off);
+  if (t >= 19.4) nightW.style.clipPath = 'none';
+  seam.style.display = t >= 15.9 && t < 19.4 ? 'block' : 'none';
+  seam.style.opacity = 1 - splitOut;
+
+  // brand world: intro iris opens (hole grows), outro iris closes (disc grows)
+  const irisIn = seg(t, 2.55, 3.35, E.in);
+  const irisOut = seg(t, 28.7, 29.5, E.io);
+  if (t < 3.4) {
+    brandW.style.display = 'block';
+    const R = irisIn * SPAN * 0.62;
+    brandW.style.webkitMaskImage = R > 0 ? `radial-gradient(circle at 50% 50%, transparent ${R}px, #000 ${R + 1.5}px)` : 'none';
+  } else if (t >= 28.7) {
+    brandW.style.display = 'block';
+    const R = irisOut * SPAN * 0.62;
+    brandW.style.webkitMaskImage = `radial-gradient(circle at 50% 50%, #000 ${R}px, transparent ${R + 1.5}px)`;
+  } else brandW.style.display = 'none';
+
+  // ----- ambient motion
+  for (const bgx of [dayBg, nightBg, brandBg]) bgx.map.style.transform = `translate(${-t * 7 - 100}px, ${-t * 2 - 50}px)`;
+  for (const r of [dayRoute, nightRoute]) {
+    r.dash.style.strokeDashoffset = -t * 90;
+    const pos = ((t * 0.042 + 0.05) % 1) * ROUTE_LEN;
+    const p1 = probe.getPointAtLength(pos), p2 = probe.getPointAtLength(Math.min(ROUTE_LEN, pos + 2));
+    const ang = Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI;
+    r.car.style.transform = `translate(${p1.x - r.cw / 2}px, ${p1.y - r.ch * 0.82}px) rotate(${ang}deg)`;
+    r.car.style.transformOrigin = `50% 82%`;
+  }
+
+  // ----- phones
+  const pose = phonePose(t);
+  const tf = poseTransform(pose);
+  dayPhone.n.style.transform = tf; nightPhone.n.style.transform = tf;
+  dayPhone.n.style.display = t > 2.9 ? 'block' : 'none';
+  applyScreens(dayPhone, t); applyScreens(nightPhone, t);
+  const fan = seg(t, 27.1, 28.1, E.quint);
+  const fx = (V ? 300 : 390) * fan, fs = lerp(0.8, V ? 0.7 : 0.86, fan);
+  fanL.n.style.display = fanR.n.style.display = t > 27.0 ? 'block' : 'none';
+  fanL.layers.home.style.display = 'block'; fanR.layers.results.style.display = 'block';
+  const bcx = V ? 540 : 960, bcy = V ? H * 0.53 : 540;
+  fanL.n.style.transform = poseTransform({ cx: bcx - fx, cy: bcy + 30 * fan, s: fs, rz: -9 * fan, ry: 10 * fan });
+  fanR.n.style.transform = poseTransform({ cx: bcx + fx, cy: bcy + 30 * fan, s: fs, rz: 9 * fan, ry: -10 * fan });
+
+  // ----- scene text
+  animText(T.hero, t, 3.5, 6.55);
+  animText(T.avail, t, 7.35, 10.55);
+  animText(T.price, t, 11.35, 15.0);
+  animText(T.light, t, 16.0, 18.55);
+  animText(T.dark, t, 16.45, 18.55);
+  animText(T.pickup, t, 19.55, 22.55);
+  animText(T.choose, t, 23.35, 26.6);
+
+  // ----- hero chips
+  animChip(CH.c1, t, 4.3, 6.6); animChip(CH.c2, t, 4.55, 6.6); animChip(CH.c3, t, 4.8, 6.6);
+  // ----- availability
+  animLift(C.econ, t, 7.9, 10.0);
+  animChip(CH.lhr, t, 8.35, 10.4);
+  { const [x, y] = nat(1060, 2610); animTap(tapDay, t, 10.35, x, y); }
+  // ----- pricing
+  const pp = animLift(C.price, t, 11.75, 13.55);
+  wallet.style.display = t > 12.05 && t < 13.5 ? 'grid' : 'none';
+  if (t > 12.05 && t < 13.5) {
+    const p = t < 13.15 ? seg(t, 12.05, 12.55, E.back) : 1 - seg(t, 13.15, 13.5, E.in);
+    const bx = C.price.fx - C.price.w / 2 - BADGE * 0.25, by = C.price.fy - C.price.h / 2 - BADGE * 0.75;
+    wallet.style.transform = `translate(${bx}px, ${by}px) scale(${p})`;
+  }
+  animLift(C.pick, t, 13.6, 15.2);
+  // ----- pickup
+  animLift(C.loc, t, 19.75, 22.6);
+  animChip(CH.dates, t, 20.35, 22.6);
+  const sp = animLift(C.search, t, 20.9, 22.65);
+  if (t > 21.55 && t < 21.95) { const pr = 1 - 0.04 * Math.sin(seg(t, 21.55, 21.95, E.lin) * Math.PI); C.search.n.style.transform += ` scale(${pr})`; }
+  animTap(tapNight, t, 21.7, C.search.fx, C.search.fy);
+  // ----- choose
+  animLift(C.specs, t, 23.6, 26.55);
+  animLift(C.choose, t, 24.35, 26.6);
+  { // tap the Mercedes card inside the lifted row
+    const c = C.choose, ox = (700 - (c.rect[0] + c.rect[2]) / 2) * c.s, oy = (2470 - (c.rect[1] + c.rect[3]) / 2) * c.s;
+    const r = c.rot * Math.PI / 180;
+    animTap(tapNight2, t, 25.45, c.fx + ox * Math.cos(r) - oy * Math.sin(r), c.fy + ox * Math.sin(r) + oy * Math.cos(r));
+  }
+
+  // ----- brand intro
+  if (t < 3.4) {
+    const d = seg(t, 0.15, 1.6, E.io);
+    for (const id of ['bGlow', 'bBase', 'bLine']) { const p = document.getElementById(id); p.style.strokeDasharray = bLen; p.style.strokeDashoffset = bLen * (1 - d); }
+    const dash = document.getElementById('bDash'); dash.style.opacity = 0.6 * seg(t, 1.3, 1.8); dash.style.strokeDashoffset = -t * 60;
+    const ic = document.getElementById('bIcon'), wc = document.getElementById('bWordClip'), wd = document.getElementById('bWord');
+    const pi = seg(t, 0.45, 1.15, E.back);
+    ic.style.transform = `scale(${pi}) rotate(${(1 - pi) * -14}deg)`;
+    const pw = seg(t, 0.95, 1.6, E.expo);
+    wd.style.transform = `translateX(${(1 - pw) * -105}%)`;
+    const ex = seg(t, 2.35, 2.95, E.in);
+    const [lw, lh] = centerOf(lock);
+    lock.style.transform = `translate(${(W - lw) / 2}px, ${BR.y - lh / 2}px) scale(${1 + ex * 0.12})`;
+    lock.style.opacity = 1 - ex;
+    const [tw, th] = centerOf(tag);
+    const pt = seg(t, 1.45, 2.05);
+    tag.style.transform = `translate(${(W - tw) / 2}px, ${BR.y + lh / 2 + (V ? 60 : 44) + (1 - pt) * 20}px)`;
+    tag.style.opacity = pt * (1 - ex);
+    tag.style.display = 'block';
+    endHead.style.display = endPill.style.display = 'none';
+  } else if (t >= 28.7) {
+    // outro: reuse the lockup, then headline + pill
+    for (const id of ['bGlow', 'bBase', 'bLine']) { const p = document.getElementById(id); p.style.strokeDasharray = 'none'; p.style.strokeDashoffset = 0; }
+    const dash = document.getElementById('bDash'); dash.style.opacity = 0.6; dash.style.strokeDashoffset = -t * 60;
+    const ic = document.getElementById('bIcon'), wd = document.getElementById('bWord');
+    const pi = seg(t, 29.2, 29.9, E.back);
+    ic.style.transform = `scale(${pi}) rotate(${(1 - pi) * -14}deg)`;
+    wd.style.transform = `translateX(${(1 - seg(t, 29.55, 30.2, E.expo)) * -105}%)`;
+    const [lw, lh] = centerOf(lock);
+    const ly = V ? 620 : 300;
+    lock.style.transform = `translate(${(W - lw) / 2}px, ${ly - lh / 2}px)`;
+    lock.style.opacity = 1;
+    tag.style.display = 'none';
+    endHead.style.display = 'block'; endPill.style.display = 'inline-flex';
+    const [hw, hh] = centerOf(endHead);
+    const ph = seg(t, 29.95, 30.7, E.expo);
+    endHead.style.transform = `translate(${(W - hw) / 2}px, ${ly + lh / 2 + (V ? 90 : 60) + (1 - ph) * 40}px)`;
+    endHead.style.opacity = ph;
+    const [pw2, ph2] = centerOf(endPill);
+    const pp2 = seg(t, 30.5, 31.1, E.back);
+    endPill.style.transform = `translate(${(W - pw2) / 2}px, ${ly + lh / 2 + hh + (V ? 170 : 115)}px) scale(${pp2})`;
+    endPill.style.opacity = clamp(pp2 * 1.4);
+  }
+};
+window.DURATION = DURATION;
+Promise.all([document.fonts.ready, ...[...document.images].map((i) => i.decode().catch(() => {}))]).then(() => {
+  window.render(0);
+  document.body.dataset.ready = '1';
+});
+</script>
+</body>
+</html>

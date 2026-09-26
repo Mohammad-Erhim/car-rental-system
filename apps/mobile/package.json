@@ -14,7 +14,9 @@
     "test:unit": "jest --passWithNoTests",
     "build:dev": "eas build --profile development",
     "build:preview": "eas build --profile preview",
-    "build:production": "eas build --profile production"
+    "build:production": "eas build --profile production",
+    "build:production:apk": "eas build --profile production-apk",
+    "eas-build-post-install": "pnpm --dir ../.. build:packages"
   },
   "dependencies": {
     "@babel/runtime": "^7.20.0",

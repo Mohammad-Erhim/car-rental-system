@@ -1,0 +1,192 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<link rel="stylesheet" href="common.css">
+<style>
+  body { width: 8640px; height: 2560px; position: relative; overflow: hidden; background: #fff; }
+  .layer { position: absolute; left: 0; top: 0; width: 8640px; height: 2560px; }
+  #day { background: linear-gradient(180deg, #f7fbf9 0%, #e9f5ef 55%, #dcefe5 100%); }
+  #night { background: linear-gradient(180deg, #0e1628 0%, #0b111e 60%, #080d17 100%);
+           clip-path: polygon(5760px 0, 8640px 0, 8640px 2560px, 4320px 2560px); }
+  .blob { position: absolute; border-radius: 50%; }
+  .panel { position: absolute; top: 0; width: 1440px; height: 2560px; overflow: hidden; }
+  .split-night { position: absolute; inset: 0; clip-path: polygon(1440px 0, 1440px 2560px, 0 2560px); }
+  .pin { position: absolute; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%; z-index: 3; }
+  .pin.day { background: #fff; box-shadow: 0 0 0 12px rgba(12,121,81,.18), 0 10px 20px rgba(6,74,51,.3); }
+  .pin.day::after { content: ''; position: absolute; inset: 18px; border-radius: 50%; background: var(--emerald); }
+  .pin.night { background: var(--ink); box-shadow: 0 0 0 12px rgba(73,212,152,.18), 0 0 50px rgba(73,212,152,.6); }
+  .pin.night::after { content: ''; position: absolute; inset: 18px; border-radius: 50%; background: var(--mint); }
+  .badge { position: absolute; width: 150px; height: 150px; border-radius: 50%; display: grid; place-items: center; z-index: 30; }
+  .badge svg { width: 72px; height: 72px; }
+  .badge.day { background: var(--emerald); color: #fff; box-shadow: 0 0 0 10px #fff, 0 30px 60px -10px rgba(6,74,51,.5); }
+  .badge.night { background: var(--mint); color: var(--ink); box-shadow: 0 0 0 10px var(--ink), 0 0 70px rgba(73,212,152,.55); }
+  .glyph { position: absolute; z-index: 4; }
+  .moon { width: 118px; height: 118px; color: var(--mint); filter: drop-shadow(0 0 26px rgba(73,212,152,.65)); display:inline-block }
+  .moon svg { width: 100%; height: 100%; }
+</style>
+<script src="icons.js"></script>
+<script src="lib.js"></script>
+</head>
+<body>
+<div id="day" class="layer"></div>
+<div id="night" class="layer"></div>
+<div id="panels" class="layer"></div>
+<script>
+const { el, icon, phone, callout, mapSVG, smoothPath, lockup, place } = Kit;
+const W = 8640, H = 2560, PW = 1440;
+const S = (n) => `captures/${n}.png`;
+
+/* ---------- Backgrounds ---------- */
+const day = document.getElementById('day');
+const night = document.getElementById('night');
+day.insertAdjacentHTML('beforeend', mapSVG(W, H, { seed: 11, color: '#0c7951', minor: 0.055, major: 0.08 }));
+night.insertAdjacentHTML('beforeend', mapSVG(W, H, { seed: 11, color: '#9fb4d6', minor: 0.05, major: 0.07 }));
+
+function blob(layer, x, y, r, color) {
+  const b = el('div', 'blob', layer);
+  Object.assign(b.style, { left: x - r + 'px', top: y - r + 'px', width: 2 * r + 'px', height: 2 * r + 'px',
+    background: `radial-gradient(circle, ${color} 0%, transparent 70%)` });
+}
+// day glows
+[[720, 1500, 900, 'rgba(73,212,152,.30)'], [1900, 700, 700, 'rgba(12,121,81,.10)'], [2400, 1900, 900, 'rgba(73,212,152,.26)'],
+ [3700, 1300, 900, 'rgba(73,212,152,.28)'], [4700, 600, 700, 'rgba(12,121,81,.10)'], [0, 300, 700, 'rgba(12,121,81,.08)']]
+  .forEach(([x, y, r, c]) => blob(day, x, y, r, c));
+// night glows
+[[5400, 1900, 800, 'rgba(73,212,152,.16)'], [6500, 1300, 950, 'rgba(12,121,81,.40)'], [7300, 400, 700, 'rgba(73,212,152,.10)'],
+ [8000, 1700, 950, 'rgba(12,121,81,.38)'], [8600, 700, 700, 'rgba(73,212,152,.10)']]
+  .forEach(([x, y, r, c]) => blob(night, x, y, r, c));
+
+/* ---------- The route that runs through every panel ---------- */
+const routePts = [[-120, 2280], [300, 2120], [720, 1850], [1300, 1640], [1600, 1720], [2160, 2250], [2800, 1560], [3200, 1500],
+  [3600, 2150], [4150, 1900], [4600, 1600], [5040, 1450], [5500, 1850], [5900, 2150], [6480, 1750], [7050, 1600],
+  [7300, 1750], [7920, 2200], [8400, 1900], [8760, 1700]];
+const routeD = smoothPath(routePts, 0.55);
+day.insertAdjacentHTML('beforeend', `<svg class="layer" viewBox="0 0 ${W} ${H}" style="z-index:2">
+  <path d="${routeD}" fill="none" stroke="#fff" stroke-width="64" stroke-linecap="round" opacity=".95"/>
+  <path d="${routeD}" fill="none" stroke="#0c7951" stroke-width="38" stroke-linecap="round" opacity=".92"/>
+  <path d="${routeD}" fill="none" stroke="#fff" stroke-width="6" stroke-dasharray="34 30" stroke-linecap="round" opacity=".85"/></svg>`);
+night.insertAdjacentHTML('beforeend', `<svg class="layer" viewBox="0 0 ${W} ${H}" style="z-index:2">
+  <defs><filter id="glow" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="22"/></filter></defs>
+  <path d="${routeD}" fill="none" stroke="#49d498" stroke-width="70" stroke-linecap="round" opacity=".35" filter="url(#glow)"/>
+  <path d="${routeD}" fill="none" stroke="#18233b" stroke-width="60" stroke-linecap="round"/>
+  <path d="${routeD}" fill="none" stroke="#49d498" stroke-width="30" stroke-linecap="round"/>
+  <path d="${routeD}" fill="none" stroke="#0b111e" stroke-width="6" stroke-dasharray="34 30" stroke-linecap="round" opacity=".7"/></svg>`);
+
+// waypoint pins sitting on the route
+const probe = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+const probeSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+probeSvg.appendChild(probe); probe.setAttribute('d', routeD); document.body.appendChild(probeSvg);
+function pointAtX(x) {
+  const L = probe.getTotalLength(); let lo = 0, hi = L;
+  for (let i = 0; i < 40; i++) { const m = (lo + hi) / 2; if (probe.getPointAtLength(m).x < x) lo = m; else hi = m; }
+  return probe.getPointAtLength(lo);
+}
+[[140, 'day'], [1340, 'day'], [2980, 'day'], [4160, 'day'], [7330, 'night'], [8480, 'night']].forEach(([x, t]) => {
+  const p = pointAtX(x);
+  const n = el('div', `pin ${t}`, t === 'day' ? day : night);
+  n.style.left = p.x + 'px'; n.style.top = p.y + 'px';
+});
+probeSvg.remove();
+
+/* ---------- Panels ---------- */
+const panels = document.getElementById('panels');
+function panel(i, theme) { const p = el('div', `panel ${theme}`, panels); p.style.left = i * PW + 'px'; return p; }
+function eyebrow(p, x, y, ic, text) { return place(el('div', 'eyebrow', p, icon(ic, { stroke: 2.4 }) + `<span>${text}</span>`), x, y, 40); }
+function headline(p, x, y, html, extra = {}) { const n = place(el('div', 'headline', p, html), x, y, 40); Object.assign(n.style, extra); return n; }
+function chip(p, theme, x, y, ic, text, z = 30) { return place(el('div', `chip ${theme}`, p, `<span class="ic">${icon(ic, { stroke: 2.4 })}</span><span>${text}</span>`), x, y, z); }
+function badge(p, theme, x, y, ic) { return place(el('div', `badge ${theme}`, p, icon(ic, { stroke: 2.2 })), x, y); }
+
+// 1 — Hero (light home)
+{
+  const p = panel(0, 'day');
+  lockup(p, { x: 120, y: 150, size: 100, theme: 'day', font: 52 });
+  headline(p, 120, 330, 'Rent the <em>right car</em><br>in a few taps', { fontSize: '132px' });
+  const ph = phone(p, { src: S('light-home'), x: 110, y: 700, w: 900, theme: 'day' });
+  // chips sit on the empty right half of the matching form rows
+  const rowY = (oy) => ph.screenY + oy * ph.k - 56;
+  const right = (n) => { n.style.left = 'auto'; n.style.right = '56px'; return n; };
+  right(chip(p, 'day', 0, rowY(1096), 'map-pin', 'Pickup where you need it'));
+  right(chip(p, 'day', 0, rowY(1530), 'pencil', 'Easy changes'));
+  right(chip(p, 'day', 0, rowY(1920), 'receipt', 'Transparent pricing'));
+}
+
+// 2 — Live availability (light results)
+{
+  const p = panel(1, 'day');
+  eyebrow(p, 120, 200, 'circle-check', 'Live availability');
+  headline(p, 120, 300, 'See what’s <em>available</em>,<br>right now');
+  const ph = phone(p, { src: S('light-results'), x: 290, y: 760, w: 860, theme: 'day' });
+  const s = 0.84, r = [24, 624, 1320, 1072];
+  const cy = ph.screenY + ((r[1] + r[3]) / 2) * ph.k;
+  callout(p, { src: S('light-results'), rect: r, s, x: 720 - ((r[2] - r[0]) * s) / 2, y: cy - ((r[3] - r[1]) * s) / 2, theme: 'day', rot: -2.5 });
+  chip(p, 'day', 430, ph.screenY + 350 * ph.k, 'map-pin', 'London Heathrow Airport');
+  badge(p, 'day', 1150, cy - 250, 'zap');
+}
+
+// 3 — Transparent pricing (light detail)
+{
+  const p = panel(2, 'day');
+  eyebrow(p, 120, 200, 'receipt', 'Transparent pricing');
+  headline(p, 120, 300, 'Know your <em>trip price</em><br>up front');
+  const ph = phone(p, { src: S('light-detail'), x: 290, y: 760, w: 860, theme: 'day' });
+  const s = 0.9, r = [24, 1764, 1320, 2118];
+  const cy = ph.screenY + ((r[1] + r[3]) / 2) * ph.k;
+  const x = 720 - ((r[2] - r[0]) * s) / 2, y = cy - ((r[3] - r[1]) * s) / 2 - 46;
+  callout(p, { src: S('light-detail'), rect: r, s, x, y, theme: 'day', rot: 2 });
+  badge(p, 'day', x - 70, y - 118, 'wallet');
+}
+
+// 4 — Light by day, dark by night (split results)
+{
+  const p = panel(3, 'day');
+  eyebrow(p, 120, 200, 'sun', 'Light & dark mode');
+  headline(p, 120, 300, 'Light <em>by day.</em>');
+  const pw = 780, px = 330, py = 560;
+  phone(p, { src: S('light-results'), x: px, y: py, w: pw, theme: 'day' });
+  const sn = el('div', 'split-night night', p); sn.style.zIndex = 6;
+  phone(sn, { src: S('dark-results'), x: px, y: py, w: pw, theme: 'night' });
+  const hn = headline(sn, 0, 2290, `<span class="moon">${icon('moon', { stroke: 2.2 })}</span><em>Dark</em> by night.`, { right: '120px', left: 'auto', textAlign: 'right', display: 'flex', alignItems: 'center', gap: '34px' });
+  hn.classList.add('night');
+  // glowing seam along the diagonal
+  p.insertAdjacentHTML('beforeend', `<svg class="glyph" width="1440" height="2560" style="left:0;top:0;z-index:20">
+    <defs><linearGradient id="seam" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#49d498" stop-opacity="0"/>
+    <stop offset=".25" stop-color="#49d498"/><stop offset=".75" stop-color="#49d498"/><stop offset="1" stop-color="#49d498" stop-opacity="0"/></linearGradient>
+    <filter id="sg"><feGaussianBlur stdDeviation="10"/></filter></defs>
+    <line x1="0" y1="2560" x2="1440" y2="0" stroke="url(#seam)" stroke-width="18" filter="url(#sg)" opacity=".8"/>
+    <line x1="0" y1="2560" x2="1440" y2="0" stroke="url(#seam)" stroke-width="5"/></svg>`);
+}
+
+// 5 — Pickup where you need it (dark home)
+{
+  const p = panel(4, 'night');
+  eyebrow(p, 120, 200, 'map-pin', 'Flexible pickup');
+  headline(p, 120, 300, 'Pick up where<br><em>you need it</em>');
+  const ph = phone(p, { src: S('dark-home'), x: 290, y: 760, w: 860, theme: 'night' });
+  const s = 0.98, r = [66, 505, 1278, 748];
+  const cy = ph.screenY + ((r[1] + r[3]) / 2) * ph.k;
+  callout(p, { src: S('dark-home'), rect: r, s, x: 720 - ((r[2] - r[0]) * s) / 2, y: cy - ((r[3] - r[1]) * s) / 2, theme: 'night', rot: -2, radius: 40 });
+  const r2 = [66, 1340, 1278, 1540], s2 = 0.9;
+  const cy2 = ph.screenY + ((r2[1] + r2[3]) / 2) * ph.k;
+  callout(p, { src: S('dark-home'), rect: r2, s: s2, x: 720 - ((r2[2] - r2[0]) * s2) / 2, y: cy2 - ((r2[3] - r2[1]) * s2) / 2, theme: 'night', rot: 1.5, radius: 40 });
+  const dc = chip(p, 'night', 0, ph.screenY + 985 * ph.k - 56, 'calendar-days', 'Choose dates & times');
+  dc.style.left = 'auto'; dc.style.right = '40px';
+}
+
+// 6 — Choose the exact car (dark detail)
+{
+  const p = panel(5, 'night');
+  eyebrow(p, 120, 200, 'car-front', 'Your car, your choice');
+  headline(p, 120, 300, 'Choose the <em>exact car</em><br>you’ll drive');
+  const ph = phone(p, { src: S('dark-detail'), x: 290, y: 760, w: 860, theme: 'night' });
+  const s = 0.74, r = [24, 876, 1320, 1424];
+  const cy = ph.screenY + ((r[1] + r[3]) / 2) * ph.k;
+  callout(p, { src: S('dark-detail'), rect: r, s, x: 720 - ((r[2] - r[0]) * s) / 2 + 150, y: cy - ((r[3] - r[1]) * s) / 2 - 40, theme: 'night', rot: 2 });
+  const s2 = 0.92, r2 = [24, 2170, 1344, 2650];
+  const cy2 = ph.screenY + ((r2[1] + r2[3]) / 2) * ph.k;
+  callout(p, { src: S('dark-detail'), rect: r2, s: s2, x: 40, y: cy2 - ((r2[3] - r2[1]) * s2) / 2 + 62, theme: 'night', rot: -2, fadeRight: true });
+}
+document.body.dataset.ready = '1';
+</script>
+</body>
+</html>
