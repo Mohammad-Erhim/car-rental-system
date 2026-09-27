@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { CheckoutConfirmation } from '../../components/checkout/confirmation-view';
-import { AppStateView, Badge, Button, Card, Divider, Field, Input, Screen, SegmentedControl, Text } from '../../components/ui';
+import { AppStateView, Badge, Button, Card, Divider, Field, Input, Screen, SegmentedControl, Text, errorStateKind } from '../../components/ui';
 import {
   formatMinor,
   useAvailableProducts,
@@ -149,7 +149,7 @@ export default function CheckoutScreen() {
 
       {!reference || quote.isError ? (
         <AppStateView
-          kind="failure"
+          kind={errorStateKind(quote.error)}
           title={t('checkout.quoteGone')}
           primaryAction={{ label: t('checkout.startNewSearch'), onPress: () => router.push('/search') }}
         />

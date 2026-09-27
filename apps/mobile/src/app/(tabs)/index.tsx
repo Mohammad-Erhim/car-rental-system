@@ -4,7 +4,7 @@ import { BadgeCheck, Headset, MapPinned, ShieldCheck } from 'lucide-react-native
 import { ScrollView, View } from 'react-native';
 
 import { TripSearchCard } from '../../components/booking/trip-search-card';
-import { AppStateView, Screen, Text } from '../../components/ui';
+import { AppStateView, Screen, Text, errorStateKind } from '../../components/ui';
 import { CategoryCard } from '../../components/vehicle/category-card';
 import { useCategories, useLocations } from '../../lib/api/hooks/use-discovery';
 import { useAuth } from '../../lib/auth/auth-provider';
@@ -95,7 +95,7 @@ export default function HomeScreen() {
         {categoriesQuery.isLoading ? (
           <AppStateView kind="loading" inline />
         ) : categoriesQuery.isError ? (
-          <AppStateView kind="failure" inline onRetry={() => categoriesQuery.refetch()} />
+          <AppStateView kind={errorStateKind(categoriesQuery.error)} inline onRetry={() => categoriesQuery.refetch()} />
         ) : !categoriesQuery.data?.length ? (
           <AppStateView
             kind="empty"

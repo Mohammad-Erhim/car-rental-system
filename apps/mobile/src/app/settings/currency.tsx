@@ -5,7 +5,7 @@ import { Stack } from 'expo-router';
 import { Check } from 'lucide-react-native';
 import { Pressable, View } from 'react-native';
 
-import { AppStateView, Divider, Screen, Text } from '../../components/ui';
+import { AppStateView, Divider, Screen, Text, errorStateKind } from '../../components/ui';
 import { useCurrencies } from '../../lib/api/hooks/use-discovery';
 import { useCurrencyPreference } from '../../lib/currency/currency-store';
 import { useTheme } from '../../lib/theme/theme-provider';
@@ -20,7 +20,7 @@ export default function CurrencyScreen() {
   const { t, locale } = useI18n();
   const { colors, radius, space } = useTheme();
   const queryClient = useQueryClient();
-  const { data, isLoading, isError, refetch } = useCurrencies(locale);
+  const { data, isLoading, isError, error, refetch } = useCurrencies(locale);
   const stored = useCurrencyPreference((s) => s.code);
   const setCode = useCurrencyPreference((s) => s.setCode);
 
@@ -44,7 +44,7 @@ export default function CurrencyScreen() {
       {isLoading ? (
         <AppStateView kind="loading" />
       ) : isError || !data ? (
-        <AppStateView kind="failure" onRetry={() => refetch()} />
+        <AppStateView kind={errorStateKind(error)} onRetry={() => refetch()} />
       ) : (
         <View
           style={{

@@ -5,7 +5,7 @@ import { ArrowRight, CheckCircle2, XCircle } from 'lucide-react-native';
 import { useMemo } from 'react';
 import { FlatList, View } from 'react-native';
 
-import { AppStateView, Badge, Card, DirectionalIcon, Screen, Text } from '../components/ui';
+import { AppStateView, Badge, Card, DirectionalIcon, Screen, Text, errorStateKind } from '../components/ui';
 import { CarArt } from '../components/vehicle/car-art';
 import { resolveAssetUrl } from '../lib/api/config';
 import {
@@ -60,7 +60,7 @@ export default function SearchResultsScreen() {
       ) : searchQuery.isLoading ? (
         <AppStateView kind="loading" />
       ) : searchQuery.isError ? (
-        <AppStateView kind="failure" onRetry={() => searchQuery.refetch()} />
+        <AppStateView kind={errorStateKind(searchQuery.error)} onRetry={() => searchQuery.refetch()} />
       ) : (
         <FlatList
           style={{ flex: 1 }}

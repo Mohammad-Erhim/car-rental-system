@@ -13,6 +13,7 @@ import {
   DirectionalIcon,
   Screen,
   Text,
+  errorStateKind,
 } from '../../components/ui';
 import { useToast } from '../../components/ui/toast';
 import { CarArt } from '../../components/vehicle/car-art';
@@ -89,7 +90,7 @@ export default function VehicleDetailScreen() {
   if (categoryQuery.isError || !categoryQuery.data) {
     return (
       <Screen>
-        <AppStateView kind="failure" onRetry={() => categoryQuery.refetch()} />
+        <AppStateView kind={errorStateKind(categoryQuery.error)} onRetry={() => categoryQuery.refetch()} />
       </Screen>
     );
   }

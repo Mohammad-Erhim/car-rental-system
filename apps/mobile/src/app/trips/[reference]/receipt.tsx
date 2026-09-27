@@ -2,7 +2,7 @@ import { useI18n } from '@carrental/i18n/react';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { View } from 'react-native';
 
-import { AppStateView, Card, Screen, Text } from '../../../components/ui';
+import { AppStateView, Card, Screen, Text, errorStateKind } from '../../../components/ui';
 import { formatMinor, useReservationDetail } from '../../../lib/api/hooks';
 import { useTheme } from '../../../lib/theme/theme-provider';
 
@@ -22,7 +22,7 @@ export default function ReceiptScreen() {
   if (detail.isError || !detail.data) {
     return (
       <Screen>
-        <AppStateView kind="failure" onRetry={() => detail.refetch()} />
+        <AppStateView kind={errorStateKind(detail.error)} onRetry={() => detail.refetch()} />
       </Screen>
     );
   }

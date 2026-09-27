@@ -18,6 +18,7 @@ import { AppLockGate } from '../lib/auth/app-lock-gate';
 import { AuthProvider } from '../lib/auth/auth-provider';
 import { StepUpProvider } from '../lib/auth/step-up-provider';
 import { I18nProvider } from '../lib/i18n/i18n-provider';
+import { LanguageRestartModal } from '../lib/i18n/language-restart-modal';
 import { onNotificationTapped, configureNotificationHandler } from '../lib/notifications/push';
 import { ONBOARDING_SEEN_KEY } from '../lib/onboarding';
 import { queryClient } from '../lib/query-client-instance';
@@ -31,13 +32,14 @@ export default function RootLayout() {
   // intentionally renders on the OS system font, which already covers Latin + Arabic well. This
   // hook exists as the one line to change once a curated font is added as an asset.
   const [fontsReady] = useFonts({});
-  // Both fire once their provider's *local* (AsyncStorage, no network) bootstrap resolves — the
-  // splash screen stays up until the real saved language/theme are known, so it never hides onto
-  // a frame that's still showing English/system-scheme defaults for one tick before flipping to
-  // the user's actual choice. Network-fetched content (translation overrides, live branding) is
-  // deliberately *not* gated on: those already have instant, correct-looking fallbacks (bundled
-  // strings, `DEFAULT_BRAND_CONFIG`) and gating on them would hang the splash screen indefinitely
-  // if the device is offline.
+  // `onI18nReady` fires once the saved/device locale is known (local, AsyncStorage only).
+  // `onThemeReady` fires once the saved theme preference is known *and* the org's brand config is
+  // either cached, fetched, or has waited out `theme-provider.tsx`'s `BRAND_READY_TIMEOUT_MS` —
+  // so the splash screen doesn't hide onto a frame that's still `en`/system-scheme/the shipped
+  // default green brand for a moment before flipping to the real thing. Translation overrides
+  // (the `common`/`mobile` namespaces' server-published text) are deliberately *not* gated on:
+  // those already have instant, correct-looking bundled/cached fallbacks, and translated *text*
+  // reflows in place with no visible relayout the way a brand-color swap does.
   const [i18nReady, setI18nReady] = useState(false);
   const [themeReady, setThemeReady] = useState(false);
   const onI18nReady = useCallback(() => setI18nReady(true), []);
@@ -109,6 +111,7 @@ function RootNavigator() {
   return (
     <>
       <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
+      <LanguageRestartModal />
       <Stack
         screenOptions={{
           headerShown: false,

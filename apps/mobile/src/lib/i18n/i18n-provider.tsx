@@ -1,18 +1,16 @@
 import type { LocalesResponse } from '@carrental/contracts';
 import {
   I18nProvider as SharedI18nProvider,
-  useI18n,
   type RuntimeLocale,
 } from '@carrental/i18n/react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQuery } from '@tanstack/react-query';
 import * as Localization from 'expo-localization';
-import * as Updates from 'expo-updates';
 import { useEffect, useState, type ReactNode } from 'react';
-import { DevSettings, I18nManager, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { apiFetch } from '../api/api-fetch';
+
+import { ONBOARDING_FALLBACK } from './onboarding-fallback';
 
 const LOCALE_KEY = 'carrental.locale.v1';
 const MOBILE_NS_CACHE_PREFIX = 'carrental.i18n.mobile.v1.';
@@ -24,13 +22,23 @@ const MOBILE_NS_CACHE_PREFIX = 'carrental.i18n.mobile.v1.';
  * and persists the user's explicit choice. `@carrental/i18n/react`'s `I18nProvider` itself is
  * 100% reused — it's DOM-free except for a guarded `document` check that's simply a no-op here.
  */
-export function I18nProvider({ children }: { children: ReactNode }) {
+export function I18nProvider({
+  children,
+  onReady,
+}: {
+  children: ReactNode;
+  /** Fires once the persisted/device locale read resolves — see `ThemeProvider`'s identical
+   *  contract in `theme-provider.tsx`, which `RootLayout` waits on alongside this one. */
+  onReady?: () => void;
+}) {
   const [initialLocale, setInitialLocale] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
     AsyncStorage.getItem(LOCALE_KEY).then((saved) => {
       setInitialLocale(saved ?? Localization.getLocales()[0]?.languageCode ?? null);
+      onReady?.();
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once on mount, not on every onReady identity change
   }, []);
 
   const localesQuery = useQuery({
@@ -129,6 +137,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   const resources = {
     [activeLocale]: {
+      ...(ONBOARDING_FALLBACK[activeLocale] ?? {}),
       ...(mobileNsCache ?? {}),
       ...(mobileNsQuery.data ?? {}),
       ...(overridesQuery.data ?? {}),
@@ -146,103 +155,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
         void AsyncStorage.setItem(LOCALE_KEY, next);
       }}
     >
-      <RtlSync>{children}</RtlSync>
+      {children}
     </SharedI18nProvider>
   );
 }
-
-/**
- * RN mirrors CSS `dir` with a native layout-direction flag (`I18nManager.forceRTL`) that only
- * takes effect after the JS runtime restarts — unlike the web provider's
- * `document.documentElement.dir`, which flips instantly. Rather than force a silent, jarring
- * reload mid-session, surface a small dismissible banner so the switch to/from Arabic asks first.
- */
-function RtlSync({ children }: { children: ReactNode }) {
-  const { direction, t } = useI18n();
-  const insets = useSafeAreaInsets();
-  const mismatch = I18nManager.isRTL !== (direction === 'rtl');
-  // Keyed to the specific mismatch it was dismissed for (not just a bare boolean) — otherwise a
-  // dismiss from one language switch would permanently suppress the banner for every later one:
-  // switch to Arabic, dismiss, switch back to English still-mid-mismatch, and the banner that
-  // should now be warning about *this* mismatch would never reappear.
-  const [dismissedFor, setDismissedFor] = useState<string | null>(null);
-  const [restartFailed, setRestartFailed] = useState(false);
-  const mismatchKey = `${I18nManager.isRTL}:${direction}`;
-
-  if (!mismatch || dismissedFor === mismatchKey) return children;
-
-  const dismiss = () => {
-    setDismissedFor(mismatchKey);
-    setRestartFailed(false);
-  };
-
-  const restart = async () => {
-    I18nManager.allowRTL(true);
-    I18nManager.forceRTL(direction === 'rtl');
-    try {
-      await Updates.reloadAsync();
-    } catch {
-      // A local development client has no EAS Update runtime, so expo-updates cannot reload it.
-      // DevSettings rebuilds the React root and re-reads the persisted I18nManager flags, which
-      // is the development equivalent of the update reload above. It is stripped from release
-      // builds; a production build without an update runtime still gets the manual-restart
-      // message instead of being left silently half-mirrored.
-      if (__DEV__) {
-        DevSettings.reload();
-        return;
-      }
-      setRestartFailed(true);
-    }
-  };
-
-  return (
-    <View style={{ flex: 1 }}>
-      {children}
-      <View style={[styles.banner, { paddingBottom: insets.bottom + 12 }]}>
-        <Text style={styles.bannerText}>
-          {restartFailed ? t('mobile.restartFailedManual') : t('mobile.restartForLanguage')}
-        </Text>
-        <View style={styles.bannerActions}>
-          {restartFailed ? (
-            <Pressable onPress={dismiss} hitSlop={8}>
-              <Text style={[styles.bannerLink, styles.bannerLinkStrong]}>{t('mobile.gotIt')}</Text>
-            </Pressable>
-          ) : (
-            <>
-              <Pressable onPress={dismiss} hitSlop={8}>
-                <Text style={styles.bannerLink}>{t('mobile.later')}</Text>
-              </Pressable>
-              <Pressable onPress={restart} hitSlop={8}>
-                <Text style={[styles.bannerLink, styles.bannerLinkStrong]}>
-                  {t('mobile.restartNow')}
-                </Text>
-              </Pressable>
-            </>
-          )}
-        </View>
-      </View>
-    </View>
-  );
-}
-
-// Fixed dark colors, not theme tokens: `<ThemeProvider>` is mounted *inside* `<I18nProvider>`
-// (the app layout — theme resolution reads a persisted locale-independent preference, but the
-// nesting is what it is), so `useTheme()` isn't reachable from here. A fixed dark surface
-// regardless of app theme also matches the native convention for this kind of transient banner
-// (Android's Snackbar is dark-on-light by default too, independent of host theme).
-const styles = StyleSheet.create({
-  banner: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: '#111827',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    gap: 8,
-  },
-  bannerText: { color: '#F9FAFB', fontSize: 13, lineHeight: 18 },
-  bannerActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 20 },
-  bannerLink: { color: '#D1D5DB', fontSize: 13, fontWeight: '600' },
-  bannerLinkStrong: { color: '#4ADE80' },
-});

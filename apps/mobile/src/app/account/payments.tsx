@@ -3,7 +3,7 @@ import { Stack, useRouter } from 'expo-router';
 import { FlatList } from 'react-native';
 
 import { TripCard } from '../../components/trips/trip-card';
-import { AppStateView, Screen, Text } from '../../components/ui';
+import { AppStateView, Screen, Text, errorStateKind } from '../../components/ui';
 import { useMyReservations } from '../../lib/api/hooks/use-discovery';
 import { useAuth } from '../../lib/auth/auth-provider';
 import { useTheme } from '../../lib/theme/theme-provider';
@@ -24,7 +24,7 @@ export default function PaymentsScreen() {
       {list.isLoading ? (
         <AppStateView kind="loading" />
       ) : list.isError ? (
-        <AppStateView kind="failure" onRetry={() => list.refetch()} />
+        <AppStateView kind={errorStateKind(list.error)} onRetry={() => list.refetch()} />
       ) : !list.data?.length ? (
         <AppStateView kind="empty" title={t('payments.none')} />
       ) : (

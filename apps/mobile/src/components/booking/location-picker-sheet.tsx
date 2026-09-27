@@ -14,7 +14,7 @@ import { Pressable, View } from 'react-native';
 import { useLocations, type Location as RentalLocation } from '../../lib/api/hooks/use-discovery';
 import { distanceKm, formatDistanceKm } from '../../lib/geo';
 import { useTheme } from '../../lib/theme/theme-provider';
-import { AppStateView, Text } from '../ui';
+import { AppStateView, Text, errorStateKind } from '../ui';
 
 export interface LocationPickerSheetProps {
   onSelect: (location: RentalLocation) => void;
@@ -128,7 +128,7 @@ export const LocationPickerSheet = forwardRef<BottomSheetModal, LocationPickerSh
           {locationsQuery.isLoading ? (
             <AppStateView kind="loading" inline />
           ) : locationsQuery.isError ? (
-            <AppStateView kind="failure" inline onRetry={() => locationsQuery.refetch()} />
+            <AppStateView kind={errorStateKind(locationsQuery.error)} inline onRetry={() => locationsQuery.refetch()} />
           ) : rows.length === 0 ? (
             <AppStateView kind="no-results" inline />
           ) : (

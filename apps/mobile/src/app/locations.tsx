@@ -3,7 +3,7 @@ import { Stack, useRouter } from 'expo-router';
 import { MapPin } from 'lucide-react-native';
 import { FlatList } from 'react-native';
 
-import { AppStateView, Card, Screen, Text } from '../components/ui';
+import { AppStateView, Card, Screen, Text, errorStateKind } from '../components/ui';
 import { useLocations } from '../lib/api/hooks/use-discovery';
 import { useTheme } from '../lib/theme/theme-provider';
 import { useTripDraft } from '../lib/trip/trip-draft-store';
@@ -21,7 +21,7 @@ export default function LocationsScreen() {
       {locationsQuery.isLoading ? (
         <AppStateView kind="loading" />
       ) : locationsQuery.isError ? (
-        <AppStateView kind="failure" onRetry={() => locationsQuery.refetch()} />
+        <AppStateView kind={errorStateKind(locationsQuery.error)} onRetry={() => locationsQuery.refetch()} />
       ) : !locationsQuery.data?.length ? (
         <AppStateView kind="empty" title={t('site.locations.empty')} />
       ) : (

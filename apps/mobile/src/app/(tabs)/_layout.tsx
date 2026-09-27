@@ -27,8 +27,9 @@ const PILL_WIDTH = 54;
 const PILL_HEIGHT = 34;
 
 /** A single blob that slides between tabs instead of each icon independently toggling a pill —
- *  the "liquid" look is the blob briefly stretching wider along the direction of travel before
- *  snapping back to its destination width, like a drop of liquid dragged sideways.
+ *  the "liquid" look is a subtle stretch-and-settle as it moves, like a drop of liquid dragged
+ *  sideways. Deliberately understated (small stretch factor, `overshootClamping` on both springs)
+ *  after an earlier pass read as excessive bounce that visibly overshot past the destination tab.
  *
  *  No RTL logic reaches this component's *positioning* math at all — the bar's own row forces
  *  `direction: 'ltr'`, so it never participates in native automatic RTL mirroring, and this
@@ -69,10 +70,13 @@ function LiquidTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
       return;
     }
     stretch.value = withSequence(
-      withTiming(1.12, { duration: 110 }),
-      withSpring(1, { damping: 22, stiffness: 220 }),
+      withTiming(1.03, { duration: 80 }),
+      withSpring(1, { damping: 30, stiffness: 300, overshootClamping: true }),
     );
-    blobX.value = withSpring(x, { damping: 24, stiffness: 220 });
+    // `overshootClamping` stops the spring at its target instead of settling through a rebound —
+    // without it, the blob visibly overshot past the destination column before springing back,
+    // which reads as sliding outside the tab bar itself for the two edge tabs.
+    blobX.value = withSpring(x, { damping: 30, stiffness: 300, overshootClamping: true });
   }, [activeVisualIndex, columnWidth, blobX, stretch]);
 
   const blobStyle = useAnimatedStyle(() => ({
@@ -80,8 +84,10 @@ function LiquidTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   }));
 
   return (
+    // Shadow lives on this outer view, never on the clipped one below: iOS derives a layer's
+    // shadow from its own (unclipped) bounds, so putting `overflow: 'hidden'` and the shadow on
+    // the same view silently kills the shadow entirely.
     <View
-      onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
       style={{
         position: 'absolute',
         left: FLOATING_TAB_BAR.horizontalMargin,
@@ -89,10 +95,6 @@ function LiquidTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         bottom: insets.bottom + FLOATING_TAB_BAR.bottomMargin,
         height: FLOATING_TAB_BAR.height,
         borderRadius: FLOATING_TAB_BAR.radius,
-        backgroundColor: colors.card,
-        flexDirection: 'row',
-        direction: 'ltr',
-        alignItems: 'center',
         shadowColor: colors.foreground,
         shadowOpacity: 0.14,
         shadowRadius: 18,
@@ -100,47 +102,60 @@ function LiquidTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
         elevation: 12,
       }}
     >
-      {barWidth > 0 ? (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            {
-              position: 'absolute',
-              top: (FLOATING_TAB_BAR.height - PILL_HEIGHT) / 2,
-              left: 0,
-              width: PILL_WIDTH,
-              height: PILL_HEIGHT,
-              borderRadius: 999,
-              backgroundColor: withAlpha(colors.primary, 0.12),
-            },
-            blobStyle,
-          ]}
-        />
-      ) : null}
+      <View
+        onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
+        style={{
+          flex: 1,
+          borderRadius: FLOATING_TAB_BAR.radius,
+          backgroundColor: colors.card,
+          overflow: 'hidden',
+          flexDirection: 'row',
+          direction: 'ltr',
+          alignItems: 'center',
+        }}
+      >
+        {barWidth > 0 ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              {
+                position: 'absolute',
+                top: (FLOATING_TAB_BAR.height - PILL_HEIGHT) / 2,
+                left: 0,
+                width: PILL_WIDTH,
+                height: PILL_HEIGHT,
+                borderRadius: 999,
+                backgroundColor: withAlpha(colors.primary, 0.12),
+              },
+              blobStyle,
+            ]}
+          />
+        ) : null}
 
-      {displayRoutes.map((route) => {
-        const focused = route.key === activeRoute.key;
-        const Icon = ICONS[route.name] ?? House;
-        const color = focused ? colors.primary : colors.mutedForeground;
+        {displayRoutes.map((route) => {
+          const focused = route.key === activeRoute.key;
+          const Icon = ICONS[route.name] ?? House;
+          const color = focused ? colors.primary : colors.mutedForeground;
 
-        const onPress = () => {
-          const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-          if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
-        };
+          const onPress = () => {
+            const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+            if (!focused && !event.defaultPrevented) navigation.navigate(route.name);
+          };
 
-        return (
-          <Pressable
-            key={route.key}
-            onPress={onPress}
-            accessibilityRole="button"
-            accessibilityState={focused ? { selected: true } : {}}
-            accessibilityLabel={descriptors[route.key]?.options.title ?? route.name}
-            style={{ flex: 1, height: '100%', alignItems: 'center', justifyContent: 'center' }}
-          >
-            <Icon color={color} size={22} strokeWidth={focused ? 2.4 : 2} />
-          </Pressable>
-        );
-      })}
+          return (
+            <Pressable
+              key={route.key}
+              onPress={onPress}
+              accessibilityRole="button"
+              accessibilityState={focused ? { selected: true } : {}}
+              accessibilityLabel={descriptors[route.key]?.options.title ?? route.name}
+              style={{ flex: 1, height: '100%', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Icon color={color} size={22} strokeWidth={focused ? 2.4 : 2} />
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }

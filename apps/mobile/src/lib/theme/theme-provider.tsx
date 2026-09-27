@@ -7,6 +7,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -35,6 +36,10 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 const BRAND_CACHE_KEY = 'carrental.brand.v1';
 const PREFERENCE_KEY = 'carrental.theme.preference';
+// How long `onReady` will wait for a live/cached brand config before giving up and firing anyway
+// with `DEFAULT_BRAND_CONFIG` — long enough to cover a real fetch on a normal connection, short
+// enough that an offline first launch doesn't visibly hang on the splash screen.
+const BRAND_READY_TIMEOUT_MS = 900;
 
 /**
  * RN counterpart of `@carrental/ui`'s web `ThemeProvider`: fetches the org's published brand
@@ -48,21 +53,25 @@ export function ThemeProvider({
   onReady,
 }: {
   children: ReactNode;
-  /** Fires once the persisted theme preference has been read — the local (no-network) bootstrap
-   *  the splash screen waits on, per `RootLayout`, so it never hides onto a frame that briefly
-   *  resolved to the system scheme before flipping to an explicit saved light/dark choice. Cached
-   *  branding is best-effort and not gated on — a real (uncached) brand fetch is a network call,
-   *  and the shipped `DEFAULT_BRAND_CONFIG` fallback already renders correctly with no flash. */
+  /** Fires once the persisted theme preference has been read *and* the brand config is either
+   *  cached, fetched, or has waited out `BRAND_READY_TIMEOUT_MS` — the bootstrap the splash screen
+   *  waits on, per `RootLayout`, so it never hides onto a frame that's briefly the system scheme
+   *  or the shipped `DEFAULT_BRAND_CONFIG` before flipping to the user's real choice/org brand a
+   *  moment later. The timeout is the escape hatch for an offline first launch — it fires anyway
+   *  rather than hanging the splash screen forever. */
   onReady?: () => void;
 }) {
   const deviceScheme = useDeviceColorScheme();
   const [preference, setPreferenceState] = useState<ThemePreference>('system');
   const [cachedConfig, setCachedConfig] = useState<BrandConfig | null>(null);
+  const [preferenceLoaded, setPreferenceLoaded] = useState(false);
+  const [brandTimedOut, setBrandTimedOut] = useState(false);
+  const onReadyFired = useRef(false);
 
   useEffect(() => {
     AsyncStorage.getItem(PREFERENCE_KEY).then((v) => {
       if (v === 'light' || v === 'dark' || v === 'system') setPreferenceState(v);
-      onReady?.();
+      setPreferenceLoaded(true);
     });
     AsyncStorage.getItem(BRAND_CACHE_KEY).then((raw) => {
       if (!raw) return;
@@ -72,7 +81,8 @@ export function ThemeProvider({
         /* ignore corrupt cache */
       }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once on mount, not on every onReady identity change
+    const timer = setTimeout(() => setBrandTimedOut(true), BRAND_READY_TIMEOUT_MS);
+    return () => clearTimeout(timer);
   }, []);
 
   const brandingQuery = useQuery({
@@ -81,6 +91,17 @@ export function ThemeProvider({
       apiFetch<BrandingResponse>('/meta/branding', { signal, anonymous: true }),
     staleTime: 60 * 1000,
   });
+
+  // A cached brand (warm start) or a settled fetch (success or failure) means the frame about to
+  // render is the real one, not a placeholder that's about to repaint — see `BRAND_READY_TIMEOUT_MS`
+  // for the offline/slow-network escape hatch.
+  const brandSettled = cachedConfig !== null || brandingQuery.isFetched || brandTimedOut;
+
+  useEffect(() => {
+    if (onReadyFired.current || !preferenceLoaded || !brandSettled) return;
+    onReadyFired.current = true;
+    onReady?.();
+  }, [preferenceLoaded, brandSettled, onReady]);
 
   useEffect(() => {
     if (brandingQuery.data) {

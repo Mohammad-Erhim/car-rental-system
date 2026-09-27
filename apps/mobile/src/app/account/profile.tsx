@@ -3,7 +3,7 @@ import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
-import { AppStateView, Button, ErrorSummary, Field, Input, Screen, Text } from '../../components/ui';
+import { AppStateView, Button, ErrorSummary, Field, Input, Screen, Text, errorStateKind } from '../../components/ui';
 import { useToast } from '../../components/ui/toast';
 import { useProfile, useUpdateProfile } from '../../lib/api/hooks/use-account';
 import { useFormErrors } from '../../lib/api/hooks/use-form-errors';
@@ -46,7 +46,7 @@ export default function ProfileScreen() {
   if (profileQuery.isError || !profileQuery.data) {
     return (
       <Screen>
-        <AppStateView kind="failure" onRetry={() => profileQuery.refetch()} />
+        <AppStateView kind={errorStateKind(profileQuery.error)} onRetry={() => profileQuery.refetch()} />
       </Screen>
     );
   }

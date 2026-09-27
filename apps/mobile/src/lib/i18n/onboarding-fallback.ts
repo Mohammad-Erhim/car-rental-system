@@ -1,4 +1,4 @@
-// MUST match the `mobile.onboarding.*`/`mobile.gotIt`-adjacent entries in
+// MUST match the `mobile.onboarding.*` entries in
 // apps/api/src/database/seed/mobile-i18n.ts — duplicated rather than imported since an app may
 // not import another app (same constraint apps/mobile/src/lib/api/cookies.ts's CSRF_COOKIE name
 // documents). The `mobile` namespace itself has no static bundle in `@carrental/i18n` by design

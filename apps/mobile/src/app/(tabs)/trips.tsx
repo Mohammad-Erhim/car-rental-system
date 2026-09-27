@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { FlatList } from 'react-native';
 
 import { TripCard } from '../../components/trips/trip-card';
-import { AppStateView, Screen, SegmentedControl, Text } from '../../components/ui';
+import { AppStateView, Screen, SegmentedControl, Text, errorStateKind } from '../../components/ui';
 import { useMyReservations } from '../../lib/api/hooks/use-discovery';
 import { useAuth } from '../../lib/auth/auth-provider';
 import { FLOATING_TAB_BAR } from '../../lib/theme/tokens';
@@ -71,7 +71,7 @@ export default function TripsScreen() {
       {reservationsQuery.isLoading ? (
         <AppStateView kind="loading" />
       ) : reservationsQuery.isError ? (
-        <AppStateView kind="failure" title={t('trips.loadError')} onRetry={() => reservationsQuery.refetch()} />
+        <AppStateView kind={errorStateKind(reservationsQuery.error)} title={t('trips.loadError')} onRetry={() => reservationsQuery.refetch()} />
       ) : (
         <FlatList
           style={{ flex: 1 }}

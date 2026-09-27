@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 
 import { DateTimeField } from '../../../components/booking/date-time-field';
-import { AppStateView, Badge, Button, Card, Screen, Text, toneForReservationState, useConfirm } from '../../../components/ui';
+import { AppStateView, Badge, Button, Card, Screen, Text, errorStateKind, toneForReservationState, useConfirm } from '../../../components/ui';
 import { useToast } from '../../../components/ui/toast';
 import {
   formatMinor,
@@ -43,7 +43,7 @@ export default function TripDetailScreen() {
   if (detail.isError || !detail.data) {
     return (
       <Screen>
-        <AppStateView kind="failure" title={t('reservation.loadError')} onRetry={() => detail.refetch()} />
+        <AppStateView kind={errorStateKind(detail.error)} title={t('reservation.loadError')} onRetry={() => detail.refetch()} />
       </Screen>
     );
   }

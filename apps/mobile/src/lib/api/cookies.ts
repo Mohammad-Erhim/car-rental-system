@@ -35,3 +35,15 @@ export async function clearAuthCookies(): Promise<void> {
     /* ignore */
   }
 }
+
+/** Android-only: forces the native cookie jar to disk before a deliberate process restart (see
+ *  `LanguageRestartModal`), so the httpOnly refresh cookie a silent post-restart `/auth/refresh`
+ *  depends on can't be lost to a write that was still in flight when the process exits. iOS's
+ *  `WKHTTPCookieStore` has no equivalent flush call and needs none — it persists synchronously. */
+export async function flushAuthCookies(): Promise<void> {
+  try {
+    await CookieManager.flush?.();
+  } catch {
+    /* ignore */
+  }
+}

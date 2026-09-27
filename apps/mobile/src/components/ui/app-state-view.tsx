@@ -1,3 +1,4 @@
+import { ApiError } from '@carrental/client';
 import { useI18n } from '@carrental/i18n/react';
 import {
   AlertTriangle,
@@ -83,6 +84,14 @@ function useDefaultCopy(kind: AppStateKind): { title: string; description?: stri
     case 'expired':
       return { title: t('state.expired.title'), description: t('state.expired.body') };
   }
+}
+
+/** A query's `error` resolves to `'offline'` when `apiFetch` couldn't reach the network at all
+ *  (`network_unavailable`, thrown by `api-fetch.ts` when the underlying `fetch()` call itself
+ *  throws) and `'failure'` for everything else — a real server-side error, which is a different
+ *  situation for the user than "you have no connection." */
+export function errorStateKind(error: unknown): AppStateKind {
+  return error instanceof ApiError && error.code === 'network_unavailable' ? 'offline' : 'failure';
 }
 
 export interface AppStateAction {

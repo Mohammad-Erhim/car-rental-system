@@ -63,11 +63,13 @@ export function AuthProvider({ children, defaultAudience = 'customer' }: AuthPro
   const [status, setStatus] = useState<'loading' | 'authenticated' | 'anonymous'>('loading');
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const appliedActorLocale = useRef<string | null>(null);
+  const [appliedActorLocaleLoaded, setAppliedActorLocaleLoaded] = useState(false);
   const doRefreshRef = useRef<() => Promise<boolean>>(() => Promise.resolve(false));
 
   useEffect(() => {
     AsyncStorage.getItem(APPLIED_ACTOR_LOCALE_KEY).then((v) => {
       appliedActorLocale.current = v;
+      setAppliedActorLocaleLoaded(true);
     });
   }, []);
 
@@ -181,14 +183,19 @@ export function AuthProvider({ children, defaultAudience = 'customer' }: AuthPro
 
   // FR-IAM-006: a signed-in actor's saved locale preference follows them, but only on the first
   // sync after it actually changes — never re-asserts the account default over a switcher choice
-  // made this session (mirrors the web provider's fix for the S7 locale-revert bug).
+  // made this session (mirrors the web provider's fix for the S7 locale-revert bug). Gated on
+  // `appliedActorLocaleLoaded`: without it, a fast silent refresh on launch could set `actor`
+  // before the AsyncStorage read above resolves, so `appliedActorLocale.current` would still read
+  // its initial `null` and this would treat the account's locale as "never applied" even when it
+  // already was — silently reverting an explicit locale switch made in an earlier session.
   useEffect(() => {
+    if (!appliedActorLocaleLoaded) return;
     const next = actor?.localeCode;
     if (!next || next === appliedActorLocale.current) return;
     appliedActorLocale.current = next;
     void AsyncStorage.setItem(APPLIED_ACTOR_LOCALE_KEY, next);
     if (next !== locale) setLocale(next);
-  }, [actor, locale, setLocale]);
+  }, [actor, locale, setLocale, appliedActorLocaleLoaded]);
 
   const signIn = useCallback<AuthContextValue['signIn']>(
     async ({ email, password, audience = defaultAudience }) => {

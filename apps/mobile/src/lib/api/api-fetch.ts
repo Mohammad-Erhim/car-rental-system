@@ -64,12 +64,33 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
   const accessToken = getAccessToken();
   if (!opts.anonymous && accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
-  const res = await fetch(`${baseUrl}${path}`, {
-    method: opts.method ?? 'GET',
-    headers,
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-    signal: opts.signal,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${baseUrl}${path}`, {
+      method: opts.method ?? 'GET',
+      headers,
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      signal: opts.signal,
+    });
+  } catch (err) {
+    // `fetch` itself threw — DNS failure, no connectivity, or a TLS handshake the device's
+    // networking stack rejects (seen on Android 7/API 24 devices) — before there's ever a
+    // `Response` to inspect. Left uncaught, this was a raw `TypeError` no caller could tell apart
+    // from a real bug, so every screen's `isError` branch rendered the same generic "that didn't
+    // work" state a live server error would. Reshaping it into a distinct `ApiError` code lets
+    // callers show an actual offline/unreachable state instead.
+    // A cancelled request (query unmounted, refetch superseded) surfaces the same way — checked
+    // by `name` alone, not `instanceof DOMException`, since Hermes doesn't define that global and
+    // an `instanceof` against it throws a ReferenceError that would itself replace this error.
+    if (err && typeof err === 'object' && 'name' in err && err.name === 'AbortError') throw err;
+    throw new ApiError({
+      code: 'network_unavailable',
+      category: 'dependency',
+      status: 0,
+      title: 'Network request failed',
+      correlationId,
+    });
+  }
 
   const text = await res.text();
   const json = text ? safeJson(text) : null;
@@ -108,7 +129,7 @@ export async function apiFetch<T>(path: string, opts: RequestOptions = {}): Prom
 
   if (isProblem(json)) throw new ApiError(json);
   throw new ApiError({
-    code: res.status === 0 ? 'dependency_unavailable' : 'internal_error',
+    code: 'internal_error',
     category: 'internal',
     status: res.status || 503,
     title: res.statusText || 'Request failed',
