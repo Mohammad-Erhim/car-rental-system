@@ -6,7 +6,7 @@ import { Stack, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { I18nManager } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
@@ -31,10 +31,21 @@ export default function RootLayout() {
   // intentionally renders on the OS system font, which already covers Latin + Arabic well. This
   // hook exists as the one line to change once a curated font is added as an asset.
   const [fontsReady] = useFonts({});
+  // Both fire once their provider's *local* (AsyncStorage, no network) bootstrap resolves — the
+  // splash screen stays up until the real saved language/theme are known, so it never hides onto
+  // a frame that's still showing English/system-scheme defaults for one tick before flipping to
+  // the user's actual choice. Network-fetched content (translation overrides, live branding) is
+  // deliberately *not* gated on: those already have instant, correct-looking fallbacks (bundled
+  // strings, `DEFAULT_BRAND_CONFIG`) and gating on them would hang the splash screen indefinitely
+  // if the device is offline.
+  const [i18nReady, setI18nReady] = useState(false);
+  const [themeReady, setThemeReady] = useState(false);
+  const onI18nReady = useCallback(() => setI18nReady(true), []);
+  const onThemeReady = useCallback(() => setThemeReady(true), []);
 
   useEffect(() => {
-    if (fontsReady) void SplashScreen.hideAsync();
-  }, [fontsReady]);
+    if (fontsReady && i18nReady && themeReady) void SplashScreen.hideAsync();
+  }, [fontsReady, i18nReady, themeReady]);
 
   if (!fontsReady) return null;
 
@@ -43,8 +54,8 @@ export default function RootLayout() {
       <KeyboardProvider>
         <SafeAreaProvider>
           <QueryClientProvider client={queryClient}>
-            <I18nProvider>
-              <ThemeProvider>
+            <I18nProvider onReady={onI18nReady}>
+              <ThemeProvider onReady={onThemeReady}>
                 <ToastProvider>
                   <ConfirmProvider>
                     <BottomSheetModalProvider>
