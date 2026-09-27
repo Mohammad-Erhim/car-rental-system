@@ -30,7 +30,7 @@ export interface AuthContextValue {
   actor: Actor | null;
   status: 'loading' | 'authenticated' | 'anonymous';
   signIn: (input: { email: string; password: string; audience?: Audience }) => Promise<Actor>;
-  applySession: (session: SessionResponse) => void;
+  applySession: (session: SessionResponse) => Promise<void>;
   signOut: (everywhere?: boolean) => Promise<void>;
   refresh: () => Promise<boolean>;
 }
@@ -81,12 +81,19 @@ export function AuthProvider({ children, defaultAudience = 'customer' }: AuthPro
     }, delay);
   }, []);
 
+  // Persists the session hint *before* touching any state, and awaits it rather than firing it
+  // and forgetting: `LanguageRestartModal` can now trigger a restart within moments of sign-in
+  // (FR-IAM-006 applies an account's saved locale immediately, via the `actor` state this sets),
+  // so setting `actor` first could let that restart race an unflushed write — silently signing
+  // the user back out on the very next launch, since the hint was just never there for
+  // `doRefresh` to act on. Writing it first, before any render can react to `actor` changing,
+  // closes that window rather than just narrowing it.
   const applySession = useCallback(
-    (session: SessionResponse) => {
+    async (session: SessionResponse) => {
+      await AsyncStorage.setItem(SESSION_HINT_KEY, '1');
       setAccessToken(session.accessToken, session.expiresInSeconds);
       setActor(session.actor);
       setStatus('authenticated');
-      void AsyncStorage.setItem(SESSION_HINT_KEY, '1');
       scheduleRefresh(session.expiresInSeconds);
     },
     [scheduleRefresh],
@@ -114,7 +121,7 @@ export function AuthProvider({ children, defaultAudience = 'customer' }: AuthPro
               method: 'POST',
               anonymous: true,
             });
-            applySession(session);
+            await applySession(session);
             return true;
           } catch (err) {
             if (err instanceof ApiError && err.status === 401) {
@@ -204,7 +211,7 @@ export function AuthProvider({ children, defaultAudience = 'customer' }: AuthPro
         body: { email, password, audience },
         anonymous: true,
       });
-      applySession(session);
+      await applySession(session);
       return session.actor;
     },
     [applySession, defaultAudience],

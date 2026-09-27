@@ -68,7 +68,7 @@ export default function RegisterScreen() {
         anonymous: true,
         body: { challengeId: challenge.challengeId, code: code.trim() },
       });
-      applySession(session);
+      await applySession(session);
       router.back();
     } catch (err) {
       setCodeError(err instanceof ApiError ? err.message : t('error.generic'));
