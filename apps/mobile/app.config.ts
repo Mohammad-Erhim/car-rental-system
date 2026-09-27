@@ -115,7 +115,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         'expo-build-properties',
         {
           ios: { deploymentTarget: '15.1', newArchEnabled: true },
-          android: { minSdkVersion: 24, newArchEnabled: true },
+          android: { minSdkVersion: 28, newArchEnabled: true },
         },
       ],
     ],
