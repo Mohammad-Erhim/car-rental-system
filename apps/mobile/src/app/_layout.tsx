@@ -14,6 +14,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ConfirmProvider } from '../components/ui/confirm-dialog';
 import { ToastProvider } from '../components/ui/toast';
+import { AnimatedSplashScreen } from '../components/splash/animated-splash-screen';
 import { AppLockGate } from '../lib/auth/app-lock-gate';
 import { AuthProvider } from '../lib/auth/auth-provider';
 import { StepUpProvider } from '../lib/auth/step-up-provider';
@@ -45,8 +46,17 @@ export default function RootLayout() {
   const onI18nReady = useCallback(() => setI18nReady(true), []);
   const onThemeReady = useCallback(() => setThemeReady(true), []);
 
+  // `AnimatedSplashScreen` mounts immediately (well before fonts/i18n/theme are ready) rendering
+  // the exact same resting frame as the native splash image, so there's nothing to reveal or
+  // resize when the native splash disappears — no gap, no jump. `nativeSplashHidden` only tells
+  // it when it's safe to play its bounce/pulse (`active`) on top of that already-correct frame.
+  const [nativeSplashHidden, setNativeSplashHidden] = useState(false);
+  const [showSplashAnimation, setShowSplashAnimation] = useState(true);
+
   useEffect(() => {
-    if (fontsReady && i18nReady && themeReady) void SplashScreen.hideAsync();
+    if (fontsReady && i18nReady && themeReady) {
+      void SplashScreen.hideAsync().then(() => setNativeSplashHidden(true));
+    }
   }, [fontsReady, i18nReady, themeReady]);
 
   if (!fontsReady) return null;
@@ -64,7 +74,11 @@ export default function RootLayout() {
                       <AuthProvider defaultAudience="customer">
                         <StepUpProvider>
                           <AppLockGate>
-                            <RootNavigator />
+                            <RootNavigator
+                              showSplash={showSplashAnimation}
+                              splashActive={nativeSplashHidden}
+                              onSplashAnimationFinish={() => setShowSplashAnimation(false)}
+                            />
                           </AppLockGate>
                         </StepUpProvider>
                       </AuthProvider>
@@ -80,7 +94,15 @@ export default function RootLayout() {
   );
 }
 
-function RootNavigator() {
+function RootNavigator({
+  showSplash,
+  splashActive,
+  onSplashAnimationFinish,
+}: {
+  showSplash: boolean;
+  splashActive: boolean;
+  onSplashAnimationFinish: () => void;
+}) {
   const { colors, mode } = useTheme();
   const router = useRouter();
 
@@ -159,6 +181,7 @@ function RootNavigator() {
         <Stack.Screen name="locations" options={{ headerShown: true }} />
         <Stack.Screen name="+not-found" />
       </Stack>
+      {showSplash && <AnimatedSplashScreen active={splashActive} onFinish={onSplashAnimationFinish} />}
     </>
   );
 }

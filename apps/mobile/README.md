@@ -52,6 +52,17 @@ On a physical device, `EXPO_PUBLIC_API_URL` in `.env` must be your machine's LAN
 | `pnpm prebuild` | Generates native `ios/`/`android/` projects (gitignored) |
 | `pnpm build:dev` / `:preview` / `:production` | EAS builds per `eas.json` profile |
 
+After any `pnpm prebuild` (including the implicit one inside an EAS build), manually add
+`<item name="android:windowBackground">@color/splashscreen_background</item>` to the `AppTheme`
+style in the generated `android/app/src/main/res/values/styles.xml`. Without it, `AppTheme` (what
+the native splash hands off to via `postSplashScreenTheme`) has no window background of its own
+and falls back to AppCompat's default (black), which flashes for one frame during the native
+splash-to-activity-window handoff. A config plugin to automate this was attempted and abandoned:
+something in Expo's own `android.styles` base mod re-serializes `styles.xml` from its own
+in-memory state after any plugin-registered `withAndroidStyles`/`withDangerousMod` callback runs,
+silently discarding the addition regardless of technique — confirmed via `require('fs')` write
+tracing, not just observed as "didn't work."
+
 ## Structure
 
 ```
