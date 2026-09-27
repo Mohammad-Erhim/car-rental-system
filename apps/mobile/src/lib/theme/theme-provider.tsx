@@ -43,7 +43,18 @@ const PREFERENCE_KEY = 'carrental.theme.preference';
  * CSS, no re-typed palette. Falls back to `DEFAULT_BRAND_CONFIG` (same shipped green brand as
  * every other surface) instantly, then reconciles once the network call resolves.
  */
-export function ThemeProvider({ children }: { children: ReactNode }) {
+export function ThemeProvider({
+  children,
+  onReady,
+}: {
+  children: ReactNode;
+  /** Fires once the persisted theme preference has been read — the local (no-network) bootstrap
+   *  the splash screen waits on, per `RootLayout`, so it never hides onto a frame that briefly
+   *  resolved to the system scheme before flipping to an explicit saved light/dark choice. Cached
+   *  branding is best-effort and not gated on — a real (uncached) brand fetch is a network call,
+   *  and the shipped `DEFAULT_BRAND_CONFIG` fallback already renders correctly with no flash. */
+  onReady?: () => void;
+}) {
   const deviceScheme = useDeviceColorScheme();
   const [preference, setPreferenceState] = useState<ThemePreference>('system');
   const [cachedConfig, setCachedConfig] = useState<BrandConfig | null>(null);
@@ -51,6 +62,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     AsyncStorage.getItem(PREFERENCE_KEY).then((v) => {
       if (v === 'light' || v === 'dark' || v === 'system') setPreferenceState(v);
+      onReady?.();
     });
     AsyncStorage.getItem(BRAND_CACHE_KEY).then((raw) => {
       if (!raw) return;
@@ -60,6 +72,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         /* ignore corrupt cache */
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once on mount, not on every onReady identity change
   }, []);
 
   const brandingQuery = useQuery({
