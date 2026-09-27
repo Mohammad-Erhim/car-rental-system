@@ -27,7 +27,7 @@ This folder is gitignored (build output, regenerable, large) — see the root `.
 - `applicationId`: `com.carrental.app` (production variant — `app.config.ts`'s `BUNDLE_ID.production`)
 - `versionName` / `versionCode`: `1.0.0` / `1` — **first submission**. There is no EAS remote version bookkeeping in this bare/local workflow (`eas.json`'s `autoIncrement` only applies to EAS Build), so every future release must bump `versionCode` in `android/app/build.gradle` by hand before rebuilding — Play Console rejects a re-upload with the same or lower `versionCode`.
 - `compileSdkVersion` / `targetSdkVersion`: **36** (Android 16) — meets Play's current target-API requirement (deadline Aug 31 2026, extension to Nov 1 2026).
-- `minSdkVersion`: 24
+- `minSdkVersion`: 28 (Android 9) — raised from 24 after this build.
 - Native libraries are 16 KB memory-page-size aligned (verified: `PT_LOAD` segments in `libhermes.so`, `libjsi.so`, etc. report `0x4000` alignment) — this is the separate Play requirement from the target-API bump and is satisfied by React Native 0.81 / Expo SDK 54, which this app now runs.
 - Built with Expo SDK 54 / React Native 0.81.5, upgraded incrementally from SDK 51 in this same session (51→52→53→54).
 
@@ -39,16 +39,42 @@ This folder is gitignored (build output, regenerable, large) — see the root `.
 
 ## Permissions
 
-`CAMERA`, `READ_MEDIA_IMAGES`, `READ_EXTERNAL_STORAGE`, `WRITE_EXTERNAL_STORAGE` were removed — they came solely from `expo-image-picker`, which nothing in `src/` actually uses. It's been uninstalled. Play Console's Play Console permissions declaration should now show a shorter, accurate list; no photo-permission usage justification is required.
+`CAMERA`, `READ_MEDIA_IMAGES` were removed with `expo-image-picker` (uninstalled — nothing in `src/`
+uses it). `READ_EXTERNAL_STORAGE`/`WRITE_EXTERNAL_STORAGE` are still present in the generated
+manifest despite that removal — they're coming from another autolinked native module's merged
+manifest, not `app.config.ts`'s `android.permissions` list. Not tracked down in this pass; worth
+finding before the Play Console permissions declaration is finalized.
 
 ## Verified before this build (emulator, production API)
 
 - App boots, renders, and talks to the real production API (`https://car-rental-api.mohammad-erhim.dev/v1`) — home feed, vehicle classes, and the location search all load live data.
-- Fixed during this pass (all three were regressions from the SDK 51→54 dependency jump, not pre-existing):
+- Release APK installed via `adb install -r` on a running emulator and launched cleanly onboarding
+  -> home feed with live data. Signature confirmed as the `carrental-release` key (not debug) via
+  `apksigner verify --print-certs`; AAB signature confirmed via `jarsigner -verify`.
+- Fixed during the SDK 51→54 upgrade pass (regressions from that dependency jump, not pre-existing):
   - `@gorhom/bottom-sheet` blank/white-screen crash on open → bumped 4.6.4 → 5.2.14 (the only version line with Reanimated 4 support).
   - Same bottom sheet rendering at the wrong height → v5 defaults `enableDynamicSizing` to `true`, which fights explicit `snapPoints`; set `enableDynamicSizing={false}`.
   - Location picker sheet had no backdrop → added `BottomSheetBackdrop` (`pressBehavior="close"`) so tapping outside dismisses it.
 - Also fixed: the checkout form's `<Screen>` was missing `keyboardAvoiding`, so the keyboard covered the lower input fields — added it (not retested live in-emulator, but it's the same prop this codebase already uses successfully on every other form screen).
+
+## Rebuilt 2026-09-28 — same version, newer code
+
+`versionCode`/`versionName` are unchanged (`1` / `1.0.0`): nothing in this repo indicates the prior
+`carrental-v1.0.0-code1` artifact was actually uploaded to Play Console yet (see the checklist
+below, item 11 was still open), so this rebuild replaces the prior local `.aab`/`.apk` in place.
+**If you already uploaded the previous build to any Play Console track, bump `versionCode` in
+`android/app/build.gradle` before uploading this one — Play rejects a re-upload at the same code.**
+
+Commits folded into this rebuild since the prior one (`697af34`, 2026-09-27):
+
+- `chore(mobile): raise minSdkVersion to 28 (Android 9)` — see the `minSdkVersion` note above.
+- `feat(mobile): redesign splash screen` + `fix(mobile): eliminate splash-to-animation white flash, size jump, and black flash`
+- `fix(mobile): persist session hint before state change in applySession`
+- `fix(deploy): rewrite refresh cookie Path for the mobile API domain`
+- `fix(mobile): mandatory language-restart, splash race, network error handling`
+- `fix(layout): enhance splash screen handling by integrating i18n and theme readiness checks`
+- `feat(theme): add onReady callback to ThemeProvider for theme preference readiness`
+- `fix(tabs): adjust animation parameters for LiquidTabBar to improve performance and responsiveness`
 
 ## Still needed before this can actually go live in Play Console
 
