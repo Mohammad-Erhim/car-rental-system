@@ -69,10 +69,10 @@ function LiquidTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
       return;
     }
     stretch.value = withSequence(
-      withTiming(1.35, { duration: 130 }),
-      withSpring(1, { damping: 11, stiffness: 170 }),
+      withTiming(1.12, { duration: 110 }),
+      withSpring(1, { damping: 22, stiffness: 220 }),
     );
-    blobX.value = withSpring(x, { damping: 16, stiffness: 180 });
+    blobX.value = withSpring(x, { damping: 24, stiffness: 220 });
   }, [activeVisualIndex, columnWidth, blobX, stretch]);
 
   const blobStyle = useAnimatedStyle(() => ({
